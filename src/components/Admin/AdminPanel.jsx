@@ -46,6 +46,12 @@ export default function AdminPanel({ user }) {
     toast(!banned ? 'User banned' : 'User reinstated', !banned ? 'error' : 'success');
   };
 
+  const toggleRole = async (uid, currentRole) => {
+    const nextRole = currentRole === 'superadmin' ? 'user' : 'superadmin';
+    await db.transact(db.tx.userProfiles[uid].update({ role: nextRole }));
+    toast(`Role updated to ${nextRole}`, 'success');
+  };
+
   const totalRevenue = transactions.filter(t => t.status === 'Success').reduce((s, t) => s + (t.amount || 0), 0);
   const activeUsers = users.filter(u => !u.banned).length;
 
@@ -73,18 +79,24 @@ export default function AdminPanel({ user }) {
         <div className="tw">
           <div className="tw-head"><h3>All Users ({users.length})</h3></div>
           <table>
-            <thead><tr><th>#</th><th>Email</th><th>Business</th><th>Plan</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>#</th><th>Email</th><th>Business</th><th>Plan</th><th>Expiry</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
-              {users.length === 0 ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No users yet</td></tr>
+              {users.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No users yet</td></tr>
                 : users.map((u, i) => (
                   <tr key={u.id}>
                     <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
-                    <td><strong style={{ fontSize: 12 }}>{u.userId || '—'}</strong></td>
+                    <td><strong style={{ fontSize: 12 }}>{u.email || u.userId || '—'}</strong></td>
                     <td style={{ fontSize: 12 }}>{u.bizName || '-'}</td>
                     <td>
                       <select value={u.plan || 'Trial'} onChange={e => updateUserPlan(u.id, e.target.value)} style={{ padding: '4px 8px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 12, fontFamily: 'inherit' }}>
                         {DEFAULT_PLANS.map(p => <option key={p.name}>{p.name}</option>)}
                       </select>
+                    </td>
+                    <td style={{ fontSize: 11 }}>{u.planExpiry ? fmtD(u.planExpiry) : '-'}</td>
+                    <td>
+                      <button className={`badge ${u.role === 'superadmin' ? 'bg-purple' : 'bg-gray'}`} onClick={() => toggleRole(u.id, u.role || 'user')} style={{ border: 'none', cursor: 'pointer' }}>
+                        {u.role || 'user'}
+                      </button>
                     </td>
                     <td><span className={`badge ${u.banned ? 'bg-red' : 'bg-green'}`}>{u.banned ? 'Banned' : 'Active'}</span></td>
                     <td>

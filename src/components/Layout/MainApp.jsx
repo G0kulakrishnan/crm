@@ -24,6 +24,8 @@ import Settings from '../Settings/Settings';
 import AdminPanel from '../Admin/AdminPanel';
 import Integrations from '../System/Integrations';
 
+const TRIAL_DAYS = 7;
+
 export default function MainApp({ user }) {
   // Start automation background worker
   useAutomationEngine(user);
@@ -36,14 +38,30 @@ export default function MainApp({ user }) {
     leads: { $: { where: { userId: user.id } } },
     amc: { $: { where: { userId: user.id } } },
     subs: { $: { where: { userId: user.id } } },
-    userProfiles: { $: { where: { userId: user.id } } },
+    allProfiles: { $: { schema: 'userProfiles' } }, // Querying all to check if first user
   });
 
   const leads = data?.leads || [];
   const amc = data?.amc || [];
   const subs = data?.subs || [];
-  const profile = data?.userProfiles?.[0] || {};
-  const isAdmin = profile?.role === 'admin';
+  const allProfiles = data?.allProfiles || [];
+  const profile = allProfiles.find(p => p.userId === user.id);
+  const isSuperadmin = profile?.role === 'superadmin';
+
+  // Auto-create profile with 7-day trial if missing
+  React.useEffect(() => {
+    if (data && !profile) {
+      const isFirst = allProfiles.length === 0;
+      db.transact(db.tx.userProfiles[id()].update({
+        userId: user.id,
+        email: user.email,
+        role: isFirst ? 'superadmin' : 'user',
+        plan: 'Trial',
+        planExpiry: Date.now() + (TRIAL_DAYS * 24 * 60 * 60 * 1000),
+        createdAt: Date.now()
+      }));
+    }
+  }, [data, profile, allProfiles.length]);
 
   // Build notifications
   const liveNotifs = useMemo(() => {
@@ -90,12 +108,12 @@ export default function MainApp({ user }) {
     integrations: <Integrations user={user} />,
     reports: <Reports user={user} />,
     settings: <Settings user={user} profile={profile} />,
-    admin: isAdmin ? <AdminPanel user={user} /> : null,
+    admin: isSuperadmin ? <AdminPanel user={user} /> : null,
   };
 
   return (
     <div className="app">
-      <Sidebar isAdmin={isAdmin} leadCount={leads.length} amcCount={amcExpiring} />
+      <Sidebar isSuperadmin={isSuperadmin} leadCount={leads.length} amcCount={amcExpiring} />
       <div className="main">
         <Topbar user={{ ...user, profile }} notifCount={liveNotifs.filter(n => n.unread).length} />
         <div className="content">
