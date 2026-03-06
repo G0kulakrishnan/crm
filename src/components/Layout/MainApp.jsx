@@ -4,6 +4,7 @@ import { useApp } from '../../context/AppContext';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import NotifPanel from './NotifPanel';
+import useAutomationEngine from '../../hooks/useAutomationEngine';
 import Dashboard from '../Dashboard/Dashboard';
 import LeadsView from '../Leads/LeadsView';
 import Quotations from '../Finance/Quotations';
@@ -24,6 +25,9 @@ import AdminPanel from '../Admin/AdminPanel';
 import Integrations from '../System/Integrations';
 
 export default function MainApp({ user }) {
+  // Start automation background worker
+  useAutomationEngine(user);
+
   const { activeView, notifOpen } = useApp();
   const [notifications, setNotifications] = useState([]);
 

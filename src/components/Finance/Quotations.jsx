@@ -4,7 +4,7 @@ import { id } from '@instantdb/react';
 import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
-const EMPTY = { client: '', validUntil: '', status: 'Created', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }] };
+const EMPTY = { client: '', validUntil: '', status: 'Created', template: 'Classic', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }] };
 
 function calcTotals(items, disc, tdsRate, adj) {
   const sub = items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
@@ -49,7 +49,7 @@ export default function Quotations({ user }) {
   const openCreate = () => { setEditData(null); setForm(EMPTY); setModal(true); };
   const openEdit = (q) => {
     setEditData(q);
-    setForm({ client: q.client, validUntil: q.validUntil || '', status: q.status, notes: q.notes || '', terms: q.terms || '', disc: q.disc || 0, adj: q.adj || 0, tdsRate: q.tdsRate || 0, items: q.items?.length ? q.items : EMPTY.items });
+    setForm({ client: q.client, validUntil: q.validUntil || '', status: q.status, template: q.template || 'Classic', notes: q.notes || '', terms: q.terms || '', disc: q.disc || 0, adj: q.adj || 0, tdsRate: q.tdsRate || 0, items: q.items?.length ? q.items : EMPTY.items });
     setModal(true);
   };
 
@@ -104,80 +104,86 @@ export default function Quotations({ user }) {
 
   if (printing) {
     const ptots = calcTotals(printing.items, printing.disc, printing.tdsRate, printing.adj);
+    const t = printing.template || 'Classic';
+    
     return (
-      <div style={{ padding: 40, maxMaxWidth: 900, margin: '0 auto', background: '#fff', color: '#000', fontFamily: 'sans-serif' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 40 }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, color: 'var(--accent)' }}>QUOTATION</h1>
-            <div style={{ fontSize: 13, color: '#666', marginTop: 5 }}>No: <strong>{printing.no}</strong></div>
-            <div style={{ fontSize: 13, color: '#666' }}>Date: {fmtD(printing.date)}</div>
+      <div style={{ padding: t === 'Minimal' ? '20px' : '40px', maxWidth: 900, margin: '0 auto', background: '#fff', color: '#000', fontFamily: t === 'Modern' ? 'Outfit, sans-serif' : 'sans-serif' }}>
+        {/* Header Section */}
+        {t === 'Modern' ? (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 50, background: 'var(--accent)', color: '#fff', padding: 30, borderRadius: 12 }}>
+             <div><h1 style={{ margin: 0, fontSize: 42, letterSpacing: -1 }}>QUOTATION</h1><div style={{ opacity: 0.8, fontSize: 13, marginTop: 4 }}>No: {printing.no} | {fmtD(printing.date)}</div></div>
+             <div style={{ textAlign: 'right' }}>
+               <h2 style={{ margin: 0 }}>{profile.bizName}</h2>
+               <div style={{ fontSize: 12, opacity: 0.9 }}>{profile.email} | {profile.phone}</div>
+             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <h2 style={{ margin: 0, fontSize: 20 }}>{profile.bizName || 'Your Business'}</h2>
-            <div style={{ fontSize: 13, color: '#666', marginTop: 4, whiteSpace: 'pre-wrap' }}>{profile.address}</div>
-            {profile.gstin && <div style={{ fontSize: 13, color: '#666' }}>GSTIN: {profile.gstin}</div>}
+        ) : t === 'Minimal' ? (
+          <div style={{ marginBottom: 60 }}>
+             <h1 style={{ fontSize: 24, fontWeight: 300, margin: '0 0 10px 0' }}>Quotation <span>#{printing.no}</span></h1>
+             <div style={{ fontSize: 12, color: '#999' }}>Issued on {fmtD(printing.date)}</div>
           </div>
-        </div>
-        
-        <div style={{ marginBottom: 40, borderLeft: '3px solid var(--accent)', paddingLeft: 15 }}>
+        ) : (
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 40 }}>
+            <div>
+              <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, color: 'var(--accent)' }}>QUOTATION</h1>
+              <div style={{ fontSize: 13, color: '#666', marginTop: 5 }}>No: <strong>{printing.no}</strong></div>
+              <div style={{ fontSize: 13, color: '#666' }}>Date: {fmtD(printing.date)}</div>
+              {printing.validUntil && <div style={{ fontSize: 13, color: '#666' }}>Valid Until: {fmtD(printing.validUntil)}</div>}
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <h2 style={{ margin: 0, fontSize: 20 }}>{profile.bizName || 'Your Business'}</h2>
+              <div style={{ fontSize: 13, color: '#666', marginTop: 4, whiteSpace: 'pre-wrap' }}>{profile.address}</div>
+              {profile.gstin && <div style={{ fontSize: 13, color: '#666' }}>GSTIN: {profile.gstin}</div>}
+            </div>
+          </div>
+        )}
+
+        {/* Client Section */}
+        <div style={{ marginBottom: 40, borderLeft: t === 'Classic' ? '3px solid var(--accent)' : 'none', paddingLeft: t === 'Classic' ? 15 : 0 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Quoted To</div>
-          <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4 }}>{printing.client}</div>
+          <div style={{ fontSize: t === 'Modern' ? 20 : 16, fontWeight: 700, marginTop: 4 }}>{printing.client}</div>
+          {t === 'Minimal' && <div style={{ fontSize: 12, color: '#666', marginTop: 10 }}>{profile.bizName} • {profile.address}</div>}
         </div>
 
+        {/* Items Table */}
         <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 30 }}>
           <thead>
-            <tr style={{ borderBottom: '2px solid #000' }}>
-              <th style={{ textAlign: 'left', padding: '10px 5px', fontSize: 12 }}>Description</th>
-              <th style={{ textAlign: 'center', padding: '10px 5px', fontSize: 12 }}>Qty</th>
-              <th style={{ textAlign: 'right', padding: '10px 5px', fontSize: 12 }}>Rate</th>
-              <th style={{ textAlign: 'right', padding: '10px 5px', fontSize: 12 }}>Tax</th>
-              <th style={{ textAlign: 'right', padding: '10px 5px', fontSize: 12 }}>Amount</th>
+            <tr style={{ background: t === 'Modern' ? '#f8fafc' : 'transparent', borderBottom: t === 'Minimal' ? '1px solid #eee' : '2px solid #000' }}>
+              <th style={{ textAlign: 'left', padding: '12px 8px', fontSize: 12 }}>Description</th>
+              <th style={{ textAlign: 'center', padding: '12px 8px', fontSize: 12 }}>Qty</th>
+              <th style={{ textAlign: 'right', padding: '12px 8px', fontSize: 12 }}>Rate</th>
+              <th style={{ textAlign: 'right', padding: '12px 8px', fontSize: 12 }}>Tax</th>
+              <th style={{ textAlign: 'right', padding: '12px 8px', fontSize: 12 }}>Amount</th>
             </tr>
           </thead>
           <tbody>
             {(printing.items || []).map((it, i) => (
               <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: '12px 5px', fontSize: 13 }}><strong>{it.name}</strong></td>
-                <td style={{ padding: '12px 5px', fontSize: 13, textAlign: 'center' }}>{it.qty}</td>
-                <td style={{ padding: '12px 5px', fontSize: 13, textAlign: 'right' }}>{fmt(it.rate)}</td>
-                <td style={{ padding: '12px 5px', fontSize: 13, textAlign: 'right' }}>{it.taxRate}%</td>
-                <td style={{ padding: '12px 5px', fontSize: 13, textAlign: 'right', fontWeight: 600 }}>{fmt(it.qty * it.rate)}</td>
+                <td style={{ padding: '14px 8px', fontSize: 13 }}><strong>{it.name}</strong>{it.desc && <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{it.desc}</div>}</td>
+                <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'center' }}>{it.qty}</td>
+                <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'right' }}>{fmt(it.rate)}</td>
+                <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'right' }}>{it.taxRate}%</td>
+                <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'right', fontWeight: 600 }}>{fmt(it.qty * it.rate)}</td>
               </tr>
             ))}
           </tbody>
         </table>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <div style={{ width: '50%', fontSize: 12, color: '#555' }}>
+        {/* Totals Section */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+          <div style={{ width: '45%', fontSize: 12, color: '#555' }}>
             {printing.notes && <div style={{ marginBottom: 15 }}><strong>Notes:</strong><br/>{printing.notes}</div>}
             {printing.terms && <div><strong>Terms:</strong><br/>{printing.terms}</div>}
           </div>
-          <div style={{ width: '35%' }}>
+          <div style={{ width: '40%', background: t === 'Modern' ? '#f8fafc' : 'transparent', padding: t === 'Modern' ? 20 : 0, borderRadius: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
-              <span>Subtotal</span><span>{fmt(ptots.sub)}</span>
+              <span style={{ color: '#666' }}>Subtotal</span><span>{fmt(ptots.sub)}</span>
             </div>
-            {ptots.discAmt > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: '#d97706' }}>
-                <span>Discount ({printing.disc}%)</span><span>- {fmt(ptots.discAmt)}</span>
-              </div>
-            )}
-            {ptots.taxTotal > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
-                <span>Tax</span><span>{fmt(ptots.taxTotal)}</span>
-              </div>
-            )}
-            {ptots.tdsAmt > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: '#dc2626' }}>
-                <span>TDS ({printing.tdsRate}%)</span><span>- {fmt(ptots.tdsAmt)}</span>
-              </div>
-            )}
-            {parseFloat(printing.adj) !== 0 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
-                <span>Adjustment</span><span>{fmt(printing.adj)}</span>
-              </div>
-            )}
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 0', fontSize: 18, fontWeight: 800, borderTop: '2px solid #000', marginTop: 10 }}>
-              <span>Total</span><span>{fmt(ptots.total)}</span>
+            {ptots.discAmt > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: '#d97706' }}><span>Discount ({printing.disc}%)</span><span>- {fmt(ptots.discAmt)}</span></div>}
+            {ptots.taxTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}><span>Tax</span><span>{fmt(ptots.taxTotal)}</span></div>}
+            {ptots.tdsAmt > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: '#dc2626' }}><span>TDS ({printing.tdsRate}%)</span><span>- {fmt(ptots.tdsAmt)}</span></div>}
+            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '15px 0 0 0', fontSize: 20, fontWeight: 800, borderTop: t === 'Minimal' ? '1px solid #eee' : '2px solid #000', marginTop: 10 }}>
+              <span>Total</span><span style={{ color: t === 'Modern' ? 'var(--accent)' : '#000' }}>{fmt(ptots.total)}</span>
             </div>
           </div>
         </div>
@@ -263,6 +269,11 @@ export default function Quotations({ user }) {
                 <div className="fg"><label>Status</label>
                   <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
                     {['Created', 'Sent', 'Completed', 'Cancelled'].map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>Template</label>
+                  <select value={form.template} onChange={e => setForm(p => ({ ...p, template: e.target.value }))}>
+                    {['Classic', 'Modern', 'Minimal'].map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
               </div>
