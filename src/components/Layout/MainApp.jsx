@@ -21,6 +21,7 @@ import AutomationView from '../Automation/AutomationView';
 import Reports from '../Reports/Reports';
 import Settings from '../Settings/Settings';
 import AdminPanel from '../Admin/AdminPanel';
+import Integrations from '../System/Integrations';
 
 export default function MainApp({ user }) {
   const { activeView, notifOpen } = useApp();
@@ -82,6 +83,7 @@ export default function MainApp({ user }) {
     alltasks: <AllTasks user={user} />,
     teams: <Teams user={user} />,
     automation: <AutomationView user={user} />,
+    integrations: <Integrations user={user} />,
     reports: <Reports user={user} />,
     settings: <Settings user={user} profile={profile} />,
     admin: isAdmin ? <AdminPanel user={user} /> : null,

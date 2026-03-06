@@ -21,15 +21,19 @@ export default function LeadsView({ user }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [colModal, setColModal] = useState(false);
   const [tempCols, setTempCols] = useState([]);
+  const [viewLead, setViewLead] = useState(null);
+  const [noteText, setNoteText] = useState('');
   const toast = useToast();
 
   const { data } = db.useQuery({
     leads: { $: { where: { userId: user.id } } },
     teamMembers: { $: { where: { userId: user.id } } },
     userProfiles: { $: { where: { userId: user.id } } },
+    activityLogs: { $: { where: { userId: user.id } } },
   });
   const leads = data?.leads || [];
   const team = data?.teamMembers || [];
+  const activityLogs = data?.activityLogs || [];
   const customFields = data?.userProfiles?.[0]?.customFields || [];
   const profileId = data?.userProfiles?.[0]?.id;
   const savedCols = data?.userProfiles?.[0]?.leadCols;
@@ -67,17 +71,42 @@ export default function LeadsView({ user }) {
   }).length;
 
   const openCreate = () => { setEditData(null); setForm(EMPTY_LEAD); setModal(true); };
-  const openEdit = (l) => { setEditData(l); setForm({ name: l.name, email: l.email || '', phone: l.phone || '', source: l.source || 'FB Ads', stage: l.stage || 'New Enquiry', assign: l.assign || '', followup: l.followup || '', label: l.label || 'Hot', notes: l.notes || '', remWA: l.remWA || false, remEmail: l.remEmail !== false, remSMS: l.remSMS || false, custom: l.custom || {} }); setModal(true); };
+  const openEdit = (l) => { 
+    setEditData(l); 
+    setForm({ name: l.name, email: l.email || '', phone: l.phone || '', source: l.source || 'FB Ads', stage: l.stage || 'New Enquiry', assign: l.assign || '', followup: l.followup || '', label: l.label || 'Hot', notes: l.notes || '', remWA: l.remWA || false, remEmail: l.remEmail !== false, remSMS: l.remSMS || false, custom: l.custom || {} }); 
+    setModal(true); 
+  };
+
+  const logActivity = async (leadId, text) => {
+    await db.transact(db.tx.activityLogs[id()].update({
+      entityId: leadId,
+      entityType: 'lead',
+      text,
+      userId: user.id,
+      userName: user.email,
+      createdAt: Date.now()
+    }));
+  };
 
   const saveLead = async () => {
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
     try {
       if (editData) {
+        const changes = [];
+        if (editData.stage !== form.stage) changes.push(`Status changed from ${editData.stage} to ${form.stage}`);
+        if (editData.assign !== form.assign) changes.push(`Assigned to ${form.assign || 'Unassigned'}`);
+        
         await db.transact(db.tx.leads[editData.id].update({ ...form, userId: user.id, updatedAt: Date.now() }));
+        
+        if (changes.length > 0) {
+          await logActivity(editData.id, changes.join(' | '));
+        }
+        
         toast('Lead updated!', 'success');
       } else {
         const newId = id();
         await db.transact(db.tx.leads[newId].update({ ...form, userId: user.id, createdAt: Date.now() }));
+        await logActivity(newId, 'Lead created');
         toast(`Lead "${form.name}" created!`, 'success');
       }
       setModal(false);
@@ -99,14 +128,20 @@ export default function LeadsView({ user }) {
 
   const bulkAssign = async (memberName) => {
     if (!selectedIds.size || !memberName) return;
-    await Promise.all([...selectedIds].map(lid => db.transact(db.tx.leads[lid].update({ assign: memberName }))));
+    await Promise.all([...selectedIds].map(async lid => {
+      await db.transact(db.tx.leads[lid].update({ assign: memberName }));
+      await logActivity(lid, `Bulk assigned to ${memberName}`);
+    }));
     setSelectedIds(new Set());
     toast(`Assigned ${selectedIds.size} leads to ${memberName}`, 'success');
   };
 
   const bulkStage = async (newStage) => {
     if (!selectedIds.size || !newStage) return;
-    await Promise.all([...selectedIds].map(lid => db.transact(db.tx.leads[lid].update({ stage: newStage }))));
+    await Promise.all([...selectedIds].map(async lid => {
+      await db.transact(db.tx.leads[lid].update({ stage: newStage }));
+      await logActivity(lid, `Bulk status changed to ${newStage}`);
+    }));
     setSelectedIds(new Set());
     toast(`Moved ${selectedIds.size} leads to ${newStage}`, 'success');
   };
@@ -147,6 +182,134 @@ export default function LeadsView({ user }) {
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   const cf = (k) => (e) => setForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
+
+  if (viewLead) {
+    const l = viewLead;
+    const lLogs = activityLogs.filter(log => log.entityId === l.id).sort((a,b) => b.createdAt - a.createdAt);
+
+    const addNote = async () => {
+      if (!noteText.trim()) return;
+      await logActivity(l.id, noteText.trim());
+      setNoteText('');
+      toast('Note added', 'success');
+    };
+
+    return (
+      <div>
+        <div className="sh" style={{ marginBottom: 15 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <button className="btn-icon" onClick={() => setViewLead(null)}>← Back</button>
+            <div>
+              <h2 style={{ fontSize: 24, margin: 0 }}>{l.name}</h2>
+              <div className="sub" style={{ fontSize: 13, marginTop: 4 }}>
+                {l.email && <span style={{ marginRight: 15 }}>✉ {l.email}</span>}
+                {l.phone && <span>☏ {l.phone}</span>}
+                <span className={`badge ${stageBadgeClass(l.stage)}`} style={{ marginLeft: 15 }}>{l.stage}</span>
+              </div>
+            </div>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={() => openEdit(l)}>Edit Lead</button>
+        </div>
+
+        <div className="stat-grid" style={{ marginBottom: 25 }}>
+          <div className="stat-card sc-blue"><div className="lbl">Source</div><div className="val" style={{ fontSize: 16 }}>{l.source}</div></div>
+          <div className="stat-card sc-green"><div className="lbl">Assigned To</div><div className="val" style={{ fontSize: 16 }}>{l.assign || 'Unassigned'}</div></div>
+          <div className="stat-card sc-yellow"><div className="lbl">Label</div><div className="val" style={{ fontSize: 16 }}>{l.label}</div></div>
+          <div className="stat-card sc-purple"><div className="lbl">Follow Up</div><div className="val" style={{ fontSize: 14 }}>{l.followup ? fmtD(l.followup) : 'None'}</div></div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          <div className="tw" style={{ padding: 20 }}>
+            <h3>Lead Details</h3>
+            <div style={{ marginTop: 15, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              {customFields.map(cf => (
+                <div key={cf.name} style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>{cf.name}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{l.custom?.[cf.name] || '-'}</span>
+                </div>
+              ))}
+              <div style={{ marginTop: 10 }}>
+                <span style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Internal Notes</span>
+                <div style={{ fontSize: 13, background: 'var(--bg)', padding: 12, borderRadius: 8, minHeight: 60 }}>{l.notes || 'No notes provided during creation.'}</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="tw" style={{ padding: 20 }}>
+            <h3>Activity Logs & Timeline</h3>
+            <div style={{ marginTop: 15 }}>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+                <input value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Type a note or record an activity..." style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }} />
+                <button className="btn btn-primary btn-sm" onClick={addNote}>Post</button>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 400, overflowY: 'auto' }}>
+                {lLogs.length === 0 ? <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: 20 }}>No activity recorded yet in timeline.</div> : 
+                  lLogs.map(log => (
+                    <div key={log.id} style={{ display: 'flex', gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', marginTop: 6, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                          <span style={{ fontSize: 12, fontWeight: 700 }}>{log.userName}</span>
+                          <span style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(log.createdAt).toLocaleString()}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: '#444' }}>{log.text}</div>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {modal && (
+          <div className="mo open" onClick={e => e.target === e.currentTarget && setModal(false)}>
+            <div className="mo-box">
+              <div className="mo-head">
+                <h3>Edit Lead</h3>
+                <button className="btn-icon" onClick={() => setModal(false)}>✕</button>
+              </div>
+              <div className="mo-body">
+                <div className="fgrid">
+                  <div className="fg"><label>Name *</label><input value={form.name} onChange={f('name')} placeholder="Full name" /></div>
+                  <div className="fg"><label>Phone</label><input value={form.phone} onChange={f('phone')} placeholder="+91..." /></div>
+                  <div className="fg"><label>Email</label><input type="email" value={form.email} onChange={f('email')} /></div>
+                  <div className="fg"><label>Source</label>
+                    <select value={form.source} onChange={f('source')}>
+                      {SOURCES.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div className="fg"><label>Stage</label>
+                    <select value={form.stage} onChange={f('stage')}>
+                      {STAGES.map(s => <option key={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div className="fg"><label>Assign To</label>
+                    <select value={form.assign} onChange={f('assign')}>
+                      <option value="">Unassigned</option>
+                      {team.map(t => <option key={t.id}>{t.name}</option>)}
+                    </select>
+                  </div>
+                  <div className="fg"><label>Follow Up</label><input type="datetime-local" value={form.followup} onChange={f('followup')} /></div>
+                  <div className="fg"><label>Label</label>
+                    <select value={form.label} onChange={f('label')}>
+                      {['Hot', 'Warm', 'Cold', 'VIP', 'Pending'].map(l => <option key={l}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div className="fg span2"><label>Notes</label><textarea value={form.notes} onChange={f('notes')} /></div>
+                </div>
+              </div>
+              <div className="mo-foot">
+                <button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>Cancel</button>
+                <button className="btn btn-primary btn-sm" onClick={saveLead}>Save Changes</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -250,13 +413,14 @@ export default function LeadsView({ user }) {
                     ))}
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4 }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => openEdit(l)}>Edit</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => setViewLead(l)}>View</button>
                         <button className="btn-icon" onClick={(e) => {
                           const dm = e.currentTarget.nextElementSibling;
                           document.querySelectorAll('.dd-menu').forEach(el => el !== dm && (el.style.display = 'none'));
                           dm.style.display = dm.style.display === 'block' ? 'none' : 'block';
                         }}>⋮</button>
                         <div className="dd-menu" style={{ display: 'none', position: 'absolute', right: 0, top: 28, background: '#fff', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 100, width: 160, overflow: 'hidden', textAlign: 'left' }}>
+                          <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { openEdit(l); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>✎ Edit</div>
                           <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { convertToCustomer(l); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>👤 Convert to Customer</div>
                           <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', color: '#dc2626' }} onClick={() => { deleteLead(l.id); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>🗑 Delete</div>
                         </div>
