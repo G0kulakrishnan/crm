@@ -48,18 +48,23 @@ export default function MainApp({ user }) {
   const profile = allProfiles.find(p => p.userId === user.id);
   const isSuperadmin = profile?.role === 'superadmin';
 
-  // Auto-create profile with 7-day trial if missing
+  // Auto-create or upgrade profile with 7-day trial
   React.useEffect(() => {
-    if (data && !profile) {
-      const isFirst = allProfiles.length === 0;
-      db.transact(db.tx.userProfiles[id()].update({
-        userId: user.id,
-        email: user.email,
-        role: isFirst ? 'superadmin' : 'user',
-        plan: 'Trial',
-        planExpiry: Date.now() + (TRIAL_DAYS * 24 * 60 * 60 * 1000),
-        createdAt: Date.now()
-      }));
+    if (data) {
+      if (!profile) {
+        const isFirst = allProfiles.length === 0;
+        db.transact(db.tx.userProfiles[id()].update({
+          userId: user.id,
+          email: user.email,
+          role: isFirst ? 'superadmin' : 'user',
+          plan: 'Trial',
+          planExpiry: Date.now() + (TRIAL_DAYS * 24 * 60 * 60 * 1000),
+          createdAt: Date.now()
+        }));
+      } else if (allProfiles.length === 1 && profile.role !== 'superadmin') {
+        // Upgrade the only existing user to superadmin
+        db.transact(db.tx.userProfiles[profile.id].update({ role: 'superadmin' }));
+      }
     }
   }, [data, profile, allProfiles.length]);
 
