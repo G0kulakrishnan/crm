@@ -1,0 +1,180 @@
+import React, { useMemo } from 'react';
+import db from '../../instant';
+import { fmt, fmtD, daysLeft, stageBadgeClass } from '../../utils/helpers';
+
+export default function Dashboard({ user }) {
+  const { data } = db.useQuery({
+    leads: { $: { where: { userId: user.id } } },
+    quotes: { $: { where: { userId: user.id } } },
+    invoices: { $: { where: { userId: user.id } } },
+    projects: { $: { where: { userId: user.id } } },
+    amc: { $: { where: { userId: user.id } } },
+    subs: { $: { where: { userId: user.id } } },
+  });
+
+  const leads = data?.leads || [];
+  const quotes = data?.quotes || [];
+  const invoices = data?.invoices || [];
+  const projects = data?.projects || [];
+  const amc = data?.amc || [];
+  const subs = data?.subs || [];
+  const now = new Date();
+
+  const stats = useMemo(() => {
+    const overdue = leads.filter(l => l.followup && new Date(l.followup) < now).length;
+    const active = leads.filter(l => !['Won', 'Lost'].includes(l.stage)).length;
+    const amcExp = amc.filter(a => { const d = daysLeft(a.endDate); return d <= 30 && d >= 0; }).length;
+    const subRem = subs.filter(s => { const d = daysLeft(s.nextPayment); return d <= 7; }).length;
+    const inProgress = projects.filter(p => p.status === 'In Progress').length;
+    return { overdue, active, amcExp, subRem, inProgress };
+  }, [leads, amc, subs, projects]);
+
+  // Source chart data
+  const srcData = useMemo(() => {
+    const src = {};
+    leads.forEach(l => { if (l.source) src[l.source] = (src[l.source] || 0) + 1; });
+    return Object.entries(src);
+  }, [leads]);
+  const maxSrc = Math.max(...srcData.map(([, v]) => v), 1);
+  const CHART_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#14b8a6'];
+
+  // Upcoming reminders
+  const reminders = useMemo(() => {
+    const rem = [];
+    amc.forEach(a => { const d = daysLeft(a.endDate); if (d <= 30 && d >= 0) rem.push({ icon: '🛡', text: `<strong>${a.client}</strong> AMC expires in <strong>${d} days</strong>` }); });
+    subs.forEach(s => { const d = daysLeft(s.nextPayment); if (d <= 7) rem.push({ icon: '💰', text: `<strong>${s.client}</strong> payment due in <strong>${d} days</strong>` }); });
+    leads.filter(l => l.followup && new Date(l.followup) < now).forEach(l => rem.push({ icon: '⏰', text: `Follow-up overdue: <strong>${l.name}</strong>` }));
+    return rem;
+  }, [amc, subs, leads]);
+
+  // Calendar
+  const [calDate, setCalDate] = React.useState(new Date());
+  const calDays = useMemo(() => {
+    const fDates = new Set(leads.filter(l => l.followup).map(l => new Date(l.followup).toDateString()));
+    const yr = calDate.getFullYear(), mo = calDate.getMonth();
+    const first = new Date(yr, mo, 1).getDay(), total = new Date(yr, mo + 1, 0).getDate();
+    const today = new Date();
+    const days = [];
+    for (let i = 0; i < first; i++) days.push({ empty: true, i });
+    for (let d = 1; d <= total; d++) {
+      const dt = new Date(yr, mo, d);
+      days.push({ d, isToday: dt.toDateString() === today.toDateString(), hasEvent: fDates.has(dt.toDateString()) });
+    }
+    return days;
+  }, [calDate, leads]);
+
+  const greeting = useMemo(() => {
+    const h = now.getHours();
+    return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+  }, []);
+
+  return (
+    <div>
+      {/* Header */}
+      <div className="sh">
+        <div>
+          <h2>Dashboard</h2>
+          <div className="sub">{`${greeting}! ${now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`}</div>
+        </div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {stats.amcExp > 0 && <span className="rem-badge">🛡 {stats.amcExp} AMC expiring</span>}
+          {stats.subRem > 0 && <span className="rem-badge">💰 {stats.subRem} payment due</span>}
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="stat-grid">
+        <div className="stat-card sc-green"><div className="lbl">Total Leads</div><div className="val">{leads.length}</div></div>
+        <div className="stat-card sc-blue"><div className="lbl">Active</div><div className="val">{stats.active}</div></div>
+        <div className="stat-card sc-red"><div className="lbl">Overdue Follow</div><div className="val">{stats.overdue}</div></div>
+        <div className="stat-card sc-yellow"><div className="lbl">Quotations</div><div className="val">{quotes.length}</div></div>
+        <div className="stat-card sc-purple"><div className="lbl">Invoices</div><div className="val">{invoices.length}</div></div>
+        <div className="stat-card sc-teal"><div className="lbl">Projects</div><div className="val">{stats.inProgress}</div></div>
+        <div className="stat-card sc-red"><div className="lbl">AMC Expiring</div><div className="val">{stats.amcExp}</div></div>
+        <div className="stat-card sc-yellow"><div className="lbl">Sub Reminders</div><div className="val">{stats.subRem}</div></div>
+      </div>
+
+      {/* Charts Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 18 }}>
+        {/* Source Chart */}
+        <div className="tw">
+          <div className="tw-head"><h3>Leads by Source</h3></div>
+          <div style={{ padding: '14px 16px' }}>
+            {srcData.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 24, color: 'var(--muted)', fontSize: 12 }}>No leads yet</div>
+            ) : srcData.map(([k, v], i) => (
+              <div key={k} className="chart-row">
+                <div className="chart-label">{k}</div>
+                <div className="chart-bar-wrap"><div className="chart-bar" style={{ width: `${(v / maxSrc) * 100}%`, background: CHART_COLORS[i % 6] }} /></div>
+                <div className="chart-val">{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Reminders */}
+        <div className="tw">
+          <div className="tw-head"><h3>⏰ Upcoming Reminders</h3></div>
+          <div style={{ padding: '6px 0' }}>
+            {reminders.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 28, color: 'var(--muted)', fontSize: 12 }}>✓ No pending reminders</div>
+            ) : reminders.map((r, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'start', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+                <span style={{ fontSize: 16, flexShrink: 0 }}>{r.icon}</span>
+                <div style={{ flex: 1, fontSize: 12, lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: r.text }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Recent Leads + Calendar */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+        <div className="tw">
+          <div className="tw-head"><h3>Recent Leads</h3></div>
+          <table>
+            <thead><tr><th>Name</th><th>Stage</th><th>Source</th></tr></thead>
+            <tbody>
+              {leads.slice(-5).reverse().map(l => (
+                <tr key={l.id}>
+                  <td><strong>{l.name}</strong></td>
+                  <td><span className={`badge ${stageBadgeClass(l.stage)}`}>{l.stage}</span></td>
+                  <td style={{ color: 'var(--muted)' }}>{l.source}</td>
+                </tr>
+              ))}
+              {leads.length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>No leads yet</td></tr>}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Calendar */}
+        <div className="tw">
+          <div className="tw-head">
+            <h3>Follow-Up Calendar</h3>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button className="btn-icon btn-sm" onClick={() => setCalDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))}>‹</button>
+              <span style={{ fontSize: 12, fontWeight: 700, minWidth: 100, textAlign: 'center' }}>
+                {calDate.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+              </span>
+              <button className="btn-icon btn-sm" onClick={() => setCalDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))}>›</button>
+            </div>
+          </div>
+          <div style={{ padding: '10px 14px' }}>
+            <div className="cal-grid">
+              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
+                <div key={d} style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', padding: '3px 0', textAlign: 'center' }}>{d}</div>
+              ))}
+              {calDays.map((item, i) => (
+                item.empty
+                  ? <div key={i} />
+                  : <div key={i} className={`cal-day${item.isToday ? ' today' : item.hasEvent ? ' has-event' : ''}`}>
+                    {item.d}{item.hasEvent && !item.isToday ? '•' : ''}
+                  </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

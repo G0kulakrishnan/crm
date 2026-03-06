@@ -1,0 +1,60 @@
+import React from 'react';
+import db from '../../instant';
+import { useApp } from '../../context/AppContext';
+
+const VIEW_TITLES = {
+  dashboard: 'Dashboard', leads: 'Leads', quotations: 'Quotations',
+  invoices: 'Invoices', recurring: 'Recurring Invoices', amc: 'AMC Contracts',
+  subscriptions: 'Subscriptions', expenses: 'Expenses', products: 'Products & Services',
+  projects: 'Projects & Tasks', alltasks: 'All Tasks', teams: 'Teams',
+  automation: 'Automation', reports: 'Reports & Analytics', settings: 'Settings',
+  admin: 'Admin Panel',
+};
+
+export default function Topbar({ user, notifCount }) {
+  const { activeView, setActiveView, setSidebarExpanded, setNotifOpen } = useApp();
+
+  return (
+    <div className="topbar">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button className="btn-icon" onClick={() => setSidebarExpanded(v => !v)}>
+          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" />
+          </svg>
+        </button>
+        <span className="topbar-title">{VIEW_TITLES[activeView] || activeView}</span>
+      </div>
+
+      <div className="topbar-right">
+        {/* Notification Bell */}
+        <div className="notif-btn-wrap">
+          <button className="btn-icon" onClick={() => setNotifOpen(v => !v)}>
+            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+          </button>
+          {notifCount > 0 && <span className="notif-dot" />}
+        </div>
+
+        {/* Plan badge */}
+        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>
+          {user?.profile?.plan || ''}
+        </div>
+
+        {/* Avatar */}
+        <div className="av" onClick={() => setActiveView('settings')}>
+          {(user?.email || 'U').charAt(0).toUpperCase()}
+        </div>
+
+        {/* Logout */}
+        <button className="btn-icon" onClick={() => db.auth.signOut()} title="Logout">
+          <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+            <polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
