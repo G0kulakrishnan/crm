@@ -1,3 +1,4 @@
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useApp } from '../../context/AppContext';
@@ -25,50 +26,58 @@ import AdminPanel from '../Admin/AdminPanel';
 import Integrations from '../System/Integrations';
 
 const TRIAL_DAYS = 7;
+const SUPERADMIN_KEY = 'santhanam.gokul@gmail.com';
 
 export default function MainApp({ user }) {
   // Start automation background worker
   useAutomationEngine(user);
 
   const { activeView, notifOpen } = useApp();
-  const [notifications, setNotifications] = useState([]);
-
-  // Query all user data from InstantDB for this user
-  const { isLoading, data } = db.useQuery({
+  
+  // Optimized query: only fetch what we need
+  const { isLoading, data, error } = db.useQuery({
     leads: { $: { where: { userId: user.id } } },
     amc: { $: { where: { userId: user.id } } },
     subs: { $: { where: { userId: user.id } } },
-    userProfiles: {}, 
+    myProfile: { $: { where: { userId: user.id }, schema: 'userProfiles' } },
+    anyProfile: { $: { limit: 1, schema: 'userProfiles' } },
   });
+
+  if (error) console.error("MainApp Query Error:", error);
 
   const leads = data?.leads || [];
   const amc = data?.amc || [];
   const subs = data?.subs || [];
-  const allProfiles = data?.userProfiles || [];
-  const profile = allProfiles.find(p => p.userId === user.id);
-  const isSuperadmin = profile?.role === 'superadmin' || user.email === 'santhanam.gokul@gmail.com';
+  const profile = data?.myProfile?.[0];
+  const isSuperadmin = profile?.role === 'superadmin' || user.email === SUPERADMIN_KEY;
 
-  // Auto-create or upgrade profile with 7-day trial
-  React.useEffect(() => {
-    if (!isLoading && data) {
+  // Strict guard to prevent infinite transaction loops
+  const syncRef = useRef(false);
+
+  useEffect(() => {
+    if (!isLoading && data && !syncRef.current) {
       if (!profile) {
-        const isFirst = allProfiles.length === 0;
+        syncRef.current = true;
+        const noProfilesExist = (data.anyProfile || []).length === 0;
+        const role = (noProfilesExist || user.email === SUPERADMIN_KEY) ? 'superadmin' : 'user';
+        
         db.transact(db.tx.userProfiles[id()].update({
           userId: user.id,
           email: user.email,
-          role: (isFirst || user.email === 'santhanam.gokul@gmail.com') ? 'superadmin' : 'user',
+          role: role,
           plan: 'Trial',
           planExpiry: Date.now() + (TRIAL_DAYS * 24 * 60 * 60 * 1000),
           createdAt: Date.now()
-        }));
-      } else if ((allProfiles.length === 1 || user.email === 'santhanam.gokul@gmail.com') && profile.role !== 'superadmin') {
-        // Upgrade the only existing user or specific email to superadmin
-        db.transact(db.tx.userProfiles[profile.id].update({ role: 'superadmin' }));
+        })).catch(e => console.error("Profile creation failed", e));
+      } else if (user.email === SUPERADMIN_KEY && profile.role !== 'superadmin') {
+        syncRef.current = true;
+        db.transact(db.tx.userProfiles[profile.id].update({ role: 'superadmin' }))
+          .catch(e => console.error("Upgrade failed", e));
       }
     }
-  }, [isLoading, data, profile, allProfiles.length]);
+  }, [isLoading, data, profile, user.id, user.email]);
 
-  // Build notifications
+  // Notifications calculation
   const liveNotifs = useMemo(() => {
     const now = new Date();
     const notifs = [];
@@ -76,21 +85,19 @@ export default function MainApp({ user }) {
       const diff = Math.ceil((new Date(a.endDate) - now) / (1000 * 60 * 60 * 24));
       if (diff <= 30 && diff >= 0)
         notifs.push({ id: 'amc-' + a.id, unread: true, title: `🛡 AMC Expiring: ${a.client}`, desc: `Contract ${a.contractNo} expires in ${diff} day${diff !== 1 ? 's' : ''}`, time: new Date().toLocaleString() });
-      if (diff < 0)
-        notifs.push({ id: 'amcx-' + a.id, unread: true, title: `❌ AMC Expired: ${a.client}`, desc: `Contract ${a.contractNo} has expired`, time: new Date().toLocaleString() });
     });
     subs.forEach(s => {
       const diff = Math.ceil((new Date(s.nextPayment) - now) / (1000 * 60 * 60 * 24));
       if (diff <= 7 && diff >= 0)
         notifs.push({ id: 'sub-' + s.id, unread: true, title: `💰 Payment Due: ${s.client}`, desc: `₹${(s.amount || 0).toLocaleString()} for ${s.plan} due in ${diff} day${diff !== 1 ? 's' : ''}`, time: new Date().toLocaleString() });
     });
-    const overdue = leads.filter(l => l.followup && new Date(l.followup) < now);
-    if (overdue.length)
-      notifs.push({ id: 'fu-overdue', unread: true, title: `⏰ ${overdue.length} Overdue Follow-up${overdue.length > 1 ? 's' : ''}`, desc: `Leads: ${overdue.map(l => l.name).join(', ')}`, time: new Date().toLocaleString() });
+    const overdueLeads = leads.filter(l => l.followup && new Date(l.followup) < now);
+    if (overdueLeads.length)
+      notifs.push({ id: 'fu-overdue', unread: true, title: `⏰ ${overdueLeads.length} Overdue Follow-up${overdueLeads.length > 1 ? 's' : ''}`, desc: `Leads: ${overdueLeads.map(l => l.name).join(', ')}`, time: new Date().toLocaleString() });
     return notifs;
   }, [amc, subs, leads]);
 
-  const amcExpiring = amc.filter(a => {
+  const amcExpiringCount = amc.filter(a => {
     const d = Math.ceil((new Date(a.endDate) - new Date()) / (1000 * 60 * 60 * 24));
     return d <= 30 && d >= 0;
   }).length;
@@ -116,30 +123,28 @@ export default function MainApp({ user }) {
     admin: isSuperadmin ? <AdminPanel user={user} /> : null,
   };
 
+  // Only block for absolute loading state or if new user (non-admin) is being provisioned
   if (isLoading || (data && !profile && !isSuperadmin)) {
     return (
       <div className="loading-screen">
         <div className="logo">TC</div>
         <div className="spinner" />
-        <p>Configuring your workspace...</p>
+        <p>Configuring TechCRM...</p>
       </div>
     );
   }
 
   return (
     <div className="app">
-      <Sidebar isSuperadmin={isSuperadmin} leadCount={leads.length} amcCount={amcExpiring} />
+      <Sidebar isSuperadmin={isSuperadmin} leadCount={leads.length} amcCount={amcExpiringCount} />
       <div className="main">
         <Topbar user={{ ...user, profile }} notifCount={liveNotifs.filter(n => n.unread).length} />
         <div className="content">
           {views[activeView] || views.dashboard}
         </div>
       </div>
-      <NotifPanel
-        notifications={liveNotifs}
-        onMarkRead={(id) => {}}
-        onMarkAllRead={() => {}}
-      />
+      <NotifPanel notifications={liveNotifs} onMarkRead={() => {}} onMarkAllRead={() => {}} />
     </div>
   );
 }
+
