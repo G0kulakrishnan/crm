@@ -23,11 +23,14 @@ export default function Projects({ user }) {
     tasks: { $: { where: { userId: user.id } } },
     teamMembers: { $: { where: { userId: user.id } } },
     userProfiles: { $: { where: { userId: user.id } } },
+    activityLogs: { $: { where: { userId: user.id } } },
   });
   const projects = data?.projects || [];
   const tasks = data?.tasks || [];
   const team = data?.teamMembers || [];
   const taskStatuses = data?.userProfiles?.[0]?.taskStatuses || DEFAULT_TASK_STATUSES;
+  const activityLogs = data?.activityLogs || [];
+  const [noteText, setNoteText] = useState('');
   
   const filteredProjects = projects.filter(p => {
     if (!search) return true;
@@ -40,20 +43,47 @@ export default function Projects({ user }) {
   const pf = (k) => (e) => setProjForm(p => ({ ...p, [k]: e.target.value }));
   const tf = (k) => (e) => setTaskForm(p => ({ ...p, [k]: e.target.value }));
 
+  const logActivity = async (entityId, entityType, text, projectId) => {
+    await db.transact(db.tx.activityLogs[id()].update({
+      entityId,
+      entityType,
+      text,
+      projectId,
+      userId: user.id,
+      userName: user.email,
+      createdAt: Date.now()
+    }));
+  };
+
   const saveProj = async () => {
     if (!projForm.name.trim()) { toast('Project name required', 'error'); return; }
     const payload = { ...projForm, userId: user.id };
-    if (editProj) { await db.transact(db.tx.projects[editProj.id].update(payload)); toast('Project updated', 'success'); }
-    else { await db.transact(db.tx.projects[id()].update(payload)); toast('Project created', 'success'); }
+    if (editProj) {
+      const changes = [];
+      const fields = { name: 'Name', client: 'Client', status: 'Status', startDate: 'Start Date', endDate: 'End Date', desc: 'Description' };
+      Object.entries(fields).forEach(([k, label]) => {
+        if (editProj[k] !== projForm[k]) changes.push(`${label} changed to "${projForm[k] || 'None'}"`);
+      });
+      await db.transact(db.tx.projects[editProj.id].update(payload));
+      if (changes.length > 0) await logActivity(editProj.id, 'project', `Project updated: ${changes.join(' | ')}`, editProj.id);
+      toast('Project updated', 'success');
+    }
+    else {
+      const newId = id();
+      await db.transact(db.tx.projects[newId].update(payload));
+      await logActivity(newId, 'project', `Project "${projForm.name}" created`, newId);
+      toast('Project created', 'success');
+    }
     setProjModal(false);
   };
 
-  const delProj = async (pid) => {
+  const delProj = async (pid, pName) => {
     if (!confirm('Delete project and all its tasks?')) return;
     const projTasks = tasks.filter(t => t.projectId === pid);
     await Promise.all([
       db.transact(db.tx.projects[pid].delete()),
       ...projTasks.map(t => db.transact(db.tx.tasks[t.id].delete())),
+      logActivity(pid, 'project', `Project "${pName}" deleted with all its tasks`, pid)
     ]);
     if (selectedProj?.id === pid) setSelectedProj(null);
     toast('Project deleted', 'error');
@@ -62,16 +92,36 @@ export default function Projects({ user }) {
   const saveTask = async () => {
     if (!taskForm.title.trim()) { toast('Task title required', 'error'); return; }
     const payload = { ...taskForm, projectId: selectedProj.id, userId: user.id };
-    if (editTask) { await db.transact(db.tx.tasks[editTask.id].update(payload)); toast('Task updated', 'success'); }
-    else { await db.transact(db.tx.tasks[id()].update(payload)); toast('Task created', 'success'); }
+    if (editTask) {
+      const changes = [];
+      const fields = { title: 'Title', assignTo: 'Assignee', dueDate: 'Due Date', priority: 'Priority', status: 'Status', notes: 'Notes' };
+      Object.entries(fields).forEach(([k, label]) => {
+        if (editTask[k] !== taskForm[k]) changes.push(`${label} changed to "${taskForm[k] || 'None'}"`);
+      });
+      await db.transact(db.tx.tasks[editTask.id].update(payload));
+      if (changes.length > 0) await logActivity(editTask.id, 'task', `Task updated: ${changes.join(' | ')}`, selectedProj.id);
+      toast('Task updated', 'success');
+    }
+    else {
+      const newId = id();
+      await db.transact(db.tx.tasks[newId].update(payload));
+      await logActivity(newId, 'task', `Task "${taskForm.title}" created`, selectedProj.id);
+      toast('Task created', 'success');
+    }
     setTaskModal(false);
   };
 
-  const delTask = async (tid) => { await db.transact(db.tx.tasks[tid].delete()); toast('Task deleted', 'error'); };
+  const delTask = async (tid, tTitle) => { 
+    await db.transact(db.tx.tasks[tid].delete()); 
+    await logActivity(tid, 'task', `Task "${tTitle}" deleted`, selectedProj.id);
+    toast('Task deleted', 'error'); 
+  };
   const cycleStatus = async (t) => {
     const curIdx = taskStatuses.indexOf(t.status);
     const nextIdx = (curIdx + 1) % taskStatuses.length;
-    await db.transact(db.tx.tasks[t.id].update({ status: taskStatuses[nextIdx] }));
+    const nextStatus = taskStatuses[nextIdx];
+    await db.transact(db.tx.tasks[t.id].update({ status: nextStatus }));
+    await logActivity(t.id, 'task', `Status changed from ${t.status} to ${nextStatus}`, selectedProj.id);
   };
 
   const projTasks = selectedProj ? tasks.filter(t => t.projectId === selectedProj.id) : [];
@@ -126,7 +176,7 @@ export default function Projects({ user }) {
                       <td>
                         <button className="btn btn-primary btn-sm" onClick={() => setSelectedProj(p)}>Tasks</button>{' '}
                         <button className="btn btn-secondary btn-sm" onClick={() => { setEditProj(p); setProjForm({ name: p.name, client: p.client || '', status: p.status, startDate: p.startDate || '', endDate: p.endDate || '', desc: p.desc || '' }); setProjModal(true); }}>Edit</button>{' '}
-                        <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => delProj(p.id)}>Del</button>
+                        <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => delProj(p.id, p.name)}>Del</button>
                       </td>
                     </tr>
                   );
@@ -158,13 +208,39 @@ export default function Projects({ user }) {
                       <div style={{ display: 'flex', gap: 4, marginTop: 7 }}>
                         <button className="btn btn-secondary btn-sm" style={{ fontSize: 11, padding: '3px 7px' }} onClick={() => cycleStatus(t)}>▶ {taskStatuses.indexOf(t.status) === taskStatuses.length - 1 ? 'Reset' : 'Next'}</button>
                         <button className="btn btn-secondary btn-sm" style={{ fontSize: 11, padding: '3px 7px' }} onClick={() => { setEditTask(t); setTaskForm({ title: t.title, assignTo: t.assignTo || '', dueDate: t.dueDate || '', priority: t.priority, status: t.status, notes: t.notes || '' }); setTaskModal(true); }}>Edit</button>
-                        <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', fontSize: 11, padding: '3px 7px' }} onClick={() => delTask(t.id)}>Del</button>
+                        <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', fontSize: 11, padding: '3px 7px' }} onClick={() => delTask(t.id, t.title)}>Del</button>
                       </div>
                     </div>
                   ))}
                 </div>
               );
             })}
+          </div>
+
+          <div className="tw" style={{ marginTop: 24, padding: 20 }}>
+            <div className="tw-head"><h3>Project Activity Log</h3></div>
+            <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+              <input value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Type a note for this project..." style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }} />
+              <button className="btn btn-primary btn-sm" onClick={async () => { if (!noteText.trim()) return; await logActivity(selectedProj.id, 'project', noteText, selectedProj.id); setNoteText(''); toast('Note added', 'success'); }}>Post</button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 300, overflowY: 'auto' }}>
+              {(() => {
+                const relevantLogs = activityLogs.filter(l => l.entityId === selectedProj.id || l.projectId === selectedProj.id).sort((a,b) => b.createdAt - a.createdAt);
+                if (relevantLogs.length === 0) return <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: 20 }}>No activity recorded yet for this project.</div>;
+                return relevantLogs.map(log => (
+                  <div key={log.id} style={{ display: 'flex', gap: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: log.entityType === 'task' ? '#3b82f6' : 'var(--accent)', marginTop: 6, flexShrink: 0 }} title={log.entityType} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                        <span style={{ fontSize: 11, fontWeight: 700 }}>{log.userName} <span style={{ fontWeight: 400, color: 'var(--muted)', marginLeft: 4 }}>({log.entityType})</span></span>
+                        <span style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(log.createdAt).toLocaleString()}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#444' }}>{log.text}</div>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </div>
           </div>
         </div>
       )}

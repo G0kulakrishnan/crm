@@ -93,8 +93,23 @@ export default function LeadsView({ user }) {
     try {
       if (editData) {
         const changes = [];
-        if (editData.stage !== form.stage) changes.push(`Status changed from ${editData.stage} to ${form.stage}`);
-        if (editData.assign !== form.assign) changes.push(`Assigned to ${form.assign || 'Unassigned'}`);
+        const fields = { name: 'Name', phone: 'Phone', email: 'Email', source: 'Source', stage: 'Stage', assign: 'Assignee', followup: 'Follow Up', label: 'Label', notes: 'Notes' };
+        Object.entries(fields).forEach(([k, label]) => {
+          if (editData[k] !== form[k]) {
+            const oldVal = editData[k] || 'None';
+            const newVal = form[k] || 'None';
+            changes.push(`${label} changed from "${oldVal}" to "${newVal}"`);
+          }
+        });
+
+        // Custom fields check
+        const oldCustom = editData.custom || {};
+        const newCustom = form.custom || {};
+        customFields.forEach(cf => {
+          if (oldCustom[cf.name] !== newCustom[cf.name]) {
+            changes.push(`${cf.name} (Custom) changed from "${oldCustom[cf.name] || 'None'}" to "${newCustom[cf.name] || 'None'}"`);
+          }
+        });
         
         await db.transact(db.tx.leads[editData.id].update({ ...form, userId: user.id, updatedAt: Date.now() }));
         
