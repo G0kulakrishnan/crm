@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
 import db from '../../instant';
+import { id } from '@instantdb/react';
 import { useApp } from '../../context/AppContext';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
@@ -34,7 +34,7 @@ export default function MainApp({ user }) {
   const [notifications, setNotifications] = useState([]);
 
   // Query all user data from InstantDB for this user
-  const { data } = db.useQuery({
+  const { isLoading, data } = db.useQuery({
     leads: { $: { where: { userId: user.id } } },
     amc: { $: { where: { userId: user.id } } },
     subs: { $: { where: { userId: user.id } } },
@@ -50,7 +50,7 @@ export default function MainApp({ user }) {
 
   // Auto-create or upgrade profile with 7-day trial
   React.useEffect(() => {
-    if (data) {
+    if (!isLoading && data) {
       if (!profile) {
         const isFirst = allProfiles.length === 0;
         db.transact(db.tx.userProfiles[id()].update({
@@ -66,7 +66,7 @@ export default function MainApp({ user }) {
         db.transact(db.tx.userProfiles[profile.id].update({ role: 'superadmin' }));
       }
     }
-  }, [data, profile, allProfiles.length]);
+  }, [isLoading, data, profile, allProfiles.length]);
 
   // Build notifications
   const liveNotifs = useMemo(() => {
@@ -115,6 +115,16 @@ export default function MainApp({ user }) {
     settings: <Settings user={user} profile={profile} />,
     admin: isSuperadmin ? <AdminPanel user={user} /> : null,
   };
+
+  if (isLoading || (data && !profile && !isSuperadmin)) {
+    return (
+      <div className="loading-screen">
+        <div className="logo">TC</div>
+        <div className="spinner" />
+        <p>Configuring your workspace...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
