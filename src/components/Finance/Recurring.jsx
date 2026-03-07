@@ -131,7 +131,7 @@ export default function Recurring({ user }) {
                   <td><span className={`badge ${stageBadgeClass(r.status)}`}>{r.status}</span></td>
                   <td>
                     <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(r); setForm({ client: r.client, email: r.email || '', amount: r.amount, frequency: r.frequency, nextDue: r.nextDue || '', status: r.status }); setModal(true); }}>Edit</button>{' '}
-                    <button className="btn btn-sm" style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 8px', fontSize: 13 }} onClick={() => handleSendReminder(r)}>📧 Send</button>{' '}
+                      <button className="btn btn-sm" style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 8px', fontSize: 13 }} onClick={() => handleSendReminder(r)}>📧 Remind</button>{' '}
                     <button className={`btn btn-sm ${r.needsFollowUp ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '4px 8px', fontSize: 13 }} onClick={() => toggleFollowUp(r)}>
                       {r.needsFollowUp ? '📌 Following Up' : '📍 Flag'}
                     </button>{' '}

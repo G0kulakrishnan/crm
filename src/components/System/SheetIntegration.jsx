@@ -271,6 +271,9 @@ export default function SheetIntegration({ user, onBack, existingConfig, editInd
 
   const appsScriptCode = `
 function onEdit(e) {
+  // Prevent error if run manually from the editor
+  if (!e) return;
+  
   var sheet = e.source.getActiveSheet();
   var range = e.range;
   

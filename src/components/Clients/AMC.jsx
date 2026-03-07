@@ -143,7 +143,7 @@ export default function AMC({ user }) {
                     <td style={{ fontSize: 12 }}>{a.phone || '-'}</td>
                     <td>
                       <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, plan: a.plan, status: a.status, notes: a.notes || '' }); setModal(true); }}>Edit</button>{' '}
-                      <button className="btn btn-sm" style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 8px', fontSize: 13 }} onClick={() => handleSendReminder(a)}>📧 Send</button>{' '}
+                      <button className="btn btn-sm" style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 8px', fontSize: 13 }} onClick={() => handleSendReminder(a)}>📧 Remind</button>{' '}
                       <button className={`btn btn-sm ${a.needsFollowUp ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '4px 8px', fontSize: 13 }} onClick={() => toggleFollowUp(a)}>
                         {a.needsFollowUp ? '📌 Following Up' : '📍 Flag'}
                       </button>{' '}

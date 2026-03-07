@@ -129,7 +129,7 @@ export default function Subscriptions({ user }) {
                     <td><span className={`badge ${d <= 7 ? 'bg-red' : d <= 30 ? 'bg-yellow' : 'bg-green'}`}>{d}d</span></td>
                     <td>
                       <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(s); setForm({ client: s.client, email: s.email || '', phone: s.phone || '', plan: s.plan, amount: s.amount, nextPayment: s.nextPayment || '', status: s.status }); setModal(true); }}>Edit</button>{' '}
-                      <button className="btn btn-sm" style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 8px', fontSize: 13 }} onClick={() => handleSendReminder(s)}>📧 Send</button>{' '}
+                      <button className="btn btn-sm" style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 8px', fontSize: 13 }} onClick={() => handleSendReminder(s)}>📧 Remind</button>{' '}
                       <button className={`btn btn-sm ${s.needsFollowUp ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '4px 8px', fontSize: 13 }} onClick={() => toggleFollowUp(s)}>
                         {s.needsFollowUp ? '📌 Following Up' : '📍 Flag'}
                       </button>{' '}
