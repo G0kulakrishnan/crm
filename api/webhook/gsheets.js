@@ -128,18 +128,49 @@ export default async function handler(req, res) {
 
     console.log('Constructed Payload:', JSON.stringify(lead, null, 2));
 
-    // 4. Save the lead directly into InstantDB using the Admin SDK
-    await db.transact([
-      db.tx.leads[leadId].update(lead)
-    ]);
+    let existingLead = null;
+    if (lead.email || lead.phone) {
+      // Find matching existing lead
+      const leadsRes = await db.query({
+        leads: { $: { where: { userId: userId } } }
+      });
+      const allLeads = leadsRes.leads || [];
+      existingLead = allLeads.find(l => 
+        (lead.email && l.email && l.email.toLowerCase() === lead.email.toLowerCase()) || 
+        (lead.phone && l.phone && l.phone === lead.phone)
+      );
+    }
 
-    console.log(`Successfully added lead ${leadId} for user ${userId}`);
+    const txs = [];
+    if (existingLead) {
+      const logId = crypto.randomUUID();
+      const createDateStr = new Date(existingLead.createdAt || Date.now()).toLocaleString();
+      
+      txs.push(
+        db.tx.activityLogs[logId].update({
+          entityId: existingLead.id,
+          entityType: 'lead',
+          text: `Lead submitted again from Google Sheets.\nOriginal creation date: ${createDateStr}\nResubmitted on: ${new Date().toLocaleString()}`,
+          userId: userId,
+          userName: 'System (Webhook)',
+          createdAt: Date.now()
+        }),
+        db.tx.leads[existingLead.id].update({ updatedAt: Date.now() })
+      );
+      console.log(`Lead already exists (${existingLead.id}). Added activity log instead.`);
+    } else {
+      txs.push(db.tx.leads[leadId].update(lead));
+      console.log(`Successfully added lead ${leadId} for user ${userId}`);
+    }
+
+    // 4. Save the lead or activity log directly into InstantDB using the Admin SDK
+    await db.transact(txs);
 
     // Return success response to Apps Script
     return res.status(200).json({ 
       success: true, 
-      message: 'Lead processed and added to CRM',
-      leadId: leadId
+      message: existingLead ? 'Lead already exists, added log' : 'Lead processed and added to CRM',
+      leadId: existingLead ? existingLead.id : leadId
     });
 
   } catch (error) {
