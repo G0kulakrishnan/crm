@@ -226,6 +226,7 @@ export default function Campaigns({ user }) {
       <div className="tabs">
         <div className={`tab${tab === 'compose' ? ' active' : ''}`} onClick={() => !sending && setTab('compose')}>Compose Campaign</div>
         <div className={`tab${tab === 'history' ? ' active' : ''}`} onClick={() => !sending && setTab('history')}>Campaign History</div>
+        <div className={`tab${tab === 'templates' ? ' active' : ''}`} onClick={() => !sending && setTab('templates')}>My Templates</div>
       </div>
 
       {tab === 'compose' && (
@@ -402,6 +403,44 @@ export default function Campaigns({ user }) {
                   <td style={{ textAlign: 'center' }}><span className="badge bg-green">{c.sentCount || 0}</span></td>
                   <td>
                     <span className={`badge ${c.status === 'Completed' ? 'bg-green' : c.status === 'Scheduled' ? 'bg-purple' : 'bg-yellow'}`}>{c.status}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {tab === 'templates' && (
+        <div className="tw" style={{ padding: 25, marginTop: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+            <h3>My Custom Templates</h3>
+            <button className="btn btn-primary btn-sm" onClick={() => { setTab('compose'); setSelectedTemplate('blank'); setSubject(''); setBody(''); }}>+ Create New</button>
+          </div>
+          <table style={{ width: '100%' }}>
+            <thead>
+              <tr>
+                <th>Created On</th>
+                <th>Template Name</th>
+                <th>Subject</th>
+                <th style={{ textAlign: 'right' }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {userTemplates.length === 0 ? (
+                <tr><td colSpan={4} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>No custom templates saved yet.</td></tr>
+              ) : userTemplates.map(t => (
+                <tr key={t.id}>
+                  <td style={{ fontSize: 12 }}>{new Date(t.createdAt).toLocaleString()}</td>
+                  <td><strong>⭐ {t.name}</strong></td>
+                  <td style={{ fontSize: 12, color: 'var(--muted)', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.subject}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                      <button className="btn btn-secondary btn-sm" onClick={() => { loadTemplate(t.id); setTab('compose'); }}>Edit / Use</button>
+                      <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={async () => {
+                        if (confirm('Delete this template?')) await db.transact(db.tx.campaignTemplates[t.id].delete());
+                      }}>Delete</button>
+                    </div>
                   </td>
                 </tr>
               ))}
