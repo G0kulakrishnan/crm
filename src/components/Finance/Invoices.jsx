@@ -103,12 +103,15 @@ export default function Invoices({ user }) {
              <div style={{ fontSize: 12, color: '#999' }}>Issued on {fmtD(printing.date)}</div>
           </div>
         ) : (
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 40 }}>
-            <div>
-              <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, color: 'var(--accent)' }}>INVOICE</h1>
-              <div style={{ fontSize: 13, color: '#666', marginTop: 5 }}>No: <strong>{printing.no}</strong></div>
-              <div style={{ fontSize: 13, color: '#666' }}>Date: {fmtD(printing.date)}</div>
-              {printing.dueDate && <div style={{ fontSize: 13, color: '#666' }}>Due Date: {fmtD(printing.dueDate)}</div>}
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 40, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+              {profile.logo && <img src={profile.logo} alt="Logo" style={{ height: 70, width: 70, objectFit: 'contain' }} />}
+              <div>
+                <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, color: 'var(--accent)' }}>INVOICE</h1>
+                <div style={{ fontSize: 13, color: '#666', marginTop: 5 }}>No: <strong>{printing.no}</strong></div>
+                <div style={{ fontSize: 13, color: '#666' }}>Date: {fmtD(printing.date)}</div>
+                {printing.dueDate && <div style={{ fontSize: 13, color: '#666' }}>Due Date: {fmtD(printing.dueDate)}</div>}
+              </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <h2 style={{ margin: 0, fontSize: 20 }}>{profile.bizName || 'Your Business'}</h2>
@@ -167,6 +170,29 @@ export default function Invoices({ user }) {
             </div>
           </div>
         </div>
+
+        {/* Bank & QR Section */}
+        {(profile.bankName || profile.qrCode) && (
+          <div style={{ marginTop: 40, borderTop: '1px solid #eee', paddingTop: 24, display: 'flex', justifyContent: 'space-between' }}>
+            {profile.bankName && (
+              <div style={{ fontSize: 12 }}>
+                <div style={{ fontWeight: 700, color: '#666', marginBottom: 8, textTransform: 'uppercase' }}>Bank Details</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', rowGap: 4 }}>
+                  <span style={{ color: '#666' }}>Account:</span><span style={{ fontWeight: 600 }}>{profile.accHolder}</span>
+                  <span style={{ color: '#666' }}>Bank:</span><span>{profile.bankName}</span>
+                  <span style={{ color: '#666' }}>A/C No:</span><span style={{ fontWeight: 600 }}>{profile.accountNo}</span>
+                  <span style={{ color: '#666' }}>IFSC:</span><span>{profile.ifsc}</span>
+                </div>
+              </div>
+            )}
+            {profile.qrCode && (
+              <div style={{ textAlign: 'right' }}>
+                <div style={{ fontWeight: 700, color: '#666', marginBottom: 8, textTransform: 'uppercase' }}>Scan to Pay</div>
+                <img src={profile.qrCode} alt="Payment QR" style={{ height: 100, width: 100, borderRadius: 4 }} />
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="no-print" style={{ marginTop: 40, textAlign: 'center' }}>
           <button className="btn btn-primary" onClick={() => window.print()} style={{ marginRight: 10 }}>Print / Save PDF</button>

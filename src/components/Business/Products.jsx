@@ -4,7 +4,7 @@ import { id } from '@instantdb/react';
 import { fmt, stageBadgeClass } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
-const EMPTY = { name: '', code: '', type: 'Service', unit: 'Nos', rate: '', tax: 18, desc: '' };
+const EMPTY = { name: '', code: '', type: 'Product', category: 'General', unit: 'Nos', rate: '', tax: 18, desc: '' };
 
 export default function Products({ user }) {
   const [modal, setModal] = useState(false);
@@ -12,8 +12,12 @@ export default function Products({ user }) {
   const [form, setForm] = useState(EMPTY);
   const toast = useToast();
 
-  const { data } = db.useQuery({ products: { $: { where: { userId: user.id } } } });
+  const { data } = db.useQuery({ 
+    products: { $: { where: { userId: user.id } } },
+    userProfiles: { $: { where: { userId: user.id } } }
+  });
   const products = data?.products || [];
+  const productCats = data?.userProfiles?.[0]?.productCats || ['Electronics', 'Home Appliances', 'Services', 'Furniture', 'General'];
   
   const [search, setSearch] = useState('');
   const filtered = products.filter(p => {
@@ -46,20 +50,21 @@ export default function Products({ user }) {
           </div>
         </div>
         <table>
-          <thead><tr><th>#</th><th>Name</th><th>Code</th><th>Type</th><th>Unit</th><th>Rate</th><th>GST %</th><th>Actions</th></tr></thead>
+          <thead><tr><th>#</th><th>Name</th><th>Category</th><th>Code</th><th>Type</th><th>Unit</th><th>Rate</th><th>GST %</th><th>Actions</th></tr></thead>
           <tbody>
             {filtered.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No products found.</td></tr>
               : filtered.map((p, i) => (
                 <tr key={p.id}>
                   <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
                   <td><strong>{p.name}</strong><div style={{ fontSize: 10, color: 'var(--muted)' }}>{p.desc}</div></td>
+                  <td><span style={{ fontSize: 11, background: 'var(--bg-soft)', padding: '2px 8px', borderRadius: 4 }}>{p.category || 'General'}</span></td>
                   <td style={{ fontSize: 12, fontFamily: 'monospace' }}>{p.code || '-'}</td>
                   <td><span className={`badge ${p.type === 'Service' ? 'bg-blue' : 'bg-purple'}`}>{p.type}</span></td>
                   <td style={{ fontSize: 12 }}>{p.unit}</td>
                   <td style={{ fontWeight: 700 }}>{fmt(p.rate)}</td>
                   <td>{p.tax}%</td>
                   <td>
-                    <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(p); setForm({ name: p.name, code: p.code || '', type: p.type, unit: p.unit, rate: p.rate, tax: p.tax, desc: p.desc || '' }); setModal(true); }}>Edit</button>{' '}
+                    <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(p); setForm({ name: p.name, code: p.code || '', type: p.type, category: p.category || 'General', unit: p.unit, rate: p.rate, tax: p.tax, desc: p.desc || '' }); setModal(true); }}>Edit</button>{' '}
                     <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(p.id)}>Del</button>
                   </td>
                 </tr>
@@ -75,6 +80,11 @@ export default function Products({ user }) {
               <div className="fgrid">
                 <div className="fg span2"><label>Name *</label><input value={form.name} onChange={f('name')} /></div>
                 <div className="fg"><label>Item Code</label><input value={form.code} onChange={f('code')} placeholder="SKU / HSN" /></div>
+                <div className="fg"><label>Category</label>
+                  <select value={form.category} onChange={f('category')}>
+                    {productCats.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
                 <div className="fg"><label>Type</label><select value={form.type} onChange={f('type')}>{['Service', 'Product'].map(s => <option key={s}>{s}</option>)}</select></div>
                 <div className="fg"><label>Unit</label><select value={form.unit} onChange={f('unit')}>{['Nos', 'Hours', 'Days', 'Months', 'Kgs', 'Ltrs', 'Meters', 'Other'].map(s => <option key={s}>{s}</option>)}</select></div>
                 <div className="fg"><label>Rate (₹)</label><input type="number" value={form.rate} onChange={f('rate')} /></div>

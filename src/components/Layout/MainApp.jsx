@@ -10,6 +10,7 @@ import Dashboard from '../Dashboard/Dashboard';
 import LeadsView from '../Leads/LeadsView';
 import Quotations from '../Finance/Quotations';
 import Invoices from '../Finance/Invoices';
+import POSBilling from '../Finance/POSBilling';
 import Recurring from '../Finance/Recurring';
 import AMC from '../Clients/AMC';
 import Subscriptions from '../Clients/Subscriptions';
@@ -44,7 +45,7 @@ export default function MainApp({ user }) {
   const { isLoading, data, error } = db.useQuery({
     // Standard queries for profile and check if any profiles exist
     userProfiles: { $: { where: { userId: user.id } } },
-    allProfiles: { $: { limit: 1 } }, // This collection name should match userProfiles
+    checkProfiles: { userProfiles: { $: { limit: 1 } } }, 
   });
 
   if (error) console.error("MainApp Query Error:", error);
@@ -67,7 +68,7 @@ export default function MainApp({ user }) {
 
     if (!profile && !syncRef.current) {
       syncRef.current = true;
-      const noProfilesExist = (data.allProfiles || []).length === 0;
+      const noProfilesExist = (data.checkProfiles || []).length === 0;
       const role = (noProfilesExist || user.email === SUPERADMIN_KEY) ? 'superadmin' : 'user';
 
       console.log("🛠 [MainApp] Creating user profile for:", user.email, "Role:", role);
@@ -146,6 +147,7 @@ export default function MainApp({ user }) {
     leads: <LeadsView user={user} />,
     quotations: <Quotations user={user} />,
     invoices: <Invoices user={user} />,
+    pos: <POSBilling user={user} />,
     recurring: <Recurring user={user} />,
     customers: <Customers user={user} />,
     amc: <AMC user={user} />,

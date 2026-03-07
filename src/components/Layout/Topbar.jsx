@@ -8,7 +8,7 @@ const VIEW_TITLES = {
   subscriptions: 'Subscriptions', expenses: 'Expenses', products: 'Products & Services',
   projects: 'Projects & Tasks', alltasks: 'All Tasks', teams: 'Teams',
   automation: 'Automation', reports: 'Reports & Analytics', settings: 'Settings',
-  admin: 'Admin Panel',
+  admin: 'Admin Panel', pos: 'POS Billing',
 };
 
 export default function Topbar({ user, notifCount, isExpired }) {
