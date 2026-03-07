@@ -40,11 +40,13 @@ export default function Campaigns({ user }) {
   const { data } = db.useQuery({
     leads: { $: { where: { userId: user.id } } },
     campaigns: { $: { where: { userId: user.id } } },
-    userProfiles: { $: { where: { userId: user.id } } }
+    userProfiles: { $: { where: { userId: user.id } } },
+    campaignTemplates: { $: { where: { userId: user.id } } }
   });
 
   const leads = data?.leads || [];
   const campaigns = (data?.campaigns || []).sort((a,b) => b.createdAt - a.createdAt);
+  const userTemplates = data?.campaignTemplates || [];
   const profile = data?.userProfiles?.[0];
 
   // Audience Builder Filter
@@ -63,11 +65,53 @@ export default function Campaigns({ user }) {
 
   const loadTemplate = (tid) => {
     setSelectedTemplate(tid);
-    const t = TEMPLATES.find(x => x.id === tid);
+    // Search both system and user templates
+    const sysT = TEMPLATES.find(x => x.id === tid);
+    const usrT = userTemplates.find(x => x.id === tid);
+    const t = sysT || usrT;
+    
     if (t) {
       setSubject(t.subject);
       setBody(t.body);
     }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!subject.trim() || !body.trim()) return toast('Please enter a subject and body before saving a template', 'error');
+    
+    // Check if the currently selected template is a custom user template
+    const isEditingCustom = userTemplates.some(t => t.id === selectedTemplate);
+
+    if (isEditingCustom) {
+      // Overwrite existing custom template
+      await db.transact(db.tx.campaignTemplates[selectedTemplate].update({ subject, body, updatedAt: Date.now() }));
+      toast('Template updated successfully', 'success');
+    } else {
+      // Save as a brand new template
+      const templateName = prompt('Enter a name for this new template:');
+      if (!templateName || !templateName.trim()) return;
+
+      const newTid = id();
+      await db.transact(db.tx.campaignTemplates[newTid].update({
+        userId: user.id,
+        name: templateName.trim(),
+        subject,
+        body,
+        createdAt: Date.now()
+      }));
+      
+      setSelectedTemplate(newTid);
+      toast('New template saved!', 'success');
+    }
+  };
+
+  const handleDeleteTemplate = async () => {
+    if (!confirm('Are you sure you want to delete this custom template?')) return;
+    await db.transact(db.tx.campaignTemplates[selectedTemplate].delete());
+    setSelectedTemplate('blank');
+    setSubject('');
+    setBody('');
+    toast('Template deleted', 'error');
   };
 
   const handleSend = async () => {
@@ -245,7 +289,14 @@ export default function Campaigns({ user }) {
             <div className="fg" style={{ marginTop: 20 }}>
               <label>Choose a Template</label>
               <select value={selectedTemplate} onChange={e => loadTemplate(e.target.value)} disabled={sending}>
-                {TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                <optgroup label="System Presets">
+                  {TEMPLATES.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </optgroup>
+                {userTemplates.length > 0 && (
+                  <optgroup label="My Custom Templates">
+                    {userTemplates.map(t => <option key={t.id} value={t.id}>⭐ {t.name}</option>)}
+                  </optgroup>
+                )}
               </select>
             </div>
 
@@ -268,6 +319,20 @@ export default function Campaigns({ user }) {
                 style={{ height: 250, resize: 'vertical' }}
                 disabled={sending}
               />
+            </div>
+
+            {/* Template Actions */}
+            <div style={{ marginTop: 15, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {userTemplates.some(t => t.id === selectedTemplate) ? (
+                  <>
+                    <button className="btn btn-secondary btn-sm" onClick={handleSaveTemplate} disabled={sending}>💾 Update Current Template</button>
+                    <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={handleDeleteTemplate} disabled={sending}>🗑 Delete Template</button>
+                  </>
+                ) : (
+                  <button className="btn btn-secondary btn-sm" onClick={handleSaveTemplate} disabled={sending}>💾 Save as New Template</button>
+                )}
+              </div>
             </div>
 
             {sending ? (
