@@ -5,7 +5,7 @@ import { fmtD, fmt, stageBadgeClass } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
 const DEFAULT_CATS = ['Software', 'Hardware', 'Travel', 'Office', 'Marketing', 'Utilities', 'Salaries', 'Misc'];
-const EMPTY = { desc: '', amount: '', category: 'Office', date: '', status: 'Pending', notes: '' };
+const EMPTY = { desc: '', amount: '', taxRate: 0, taxAmt: 0, category: 'Office', date: '', status: 'Pending', notes: '' };
 
 export default function Expenses({ user }) {
   const [modal, setModal] = useState(false);
@@ -26,7 +26,13 @@ export default function Expenses({ user }) {
 
   const save = async () => {
     if (!form.desc.trim()) { toast('Description required', 'error'); return; }
-    const payload = { ...form, amount: parseFloat(form.amount) || 0, userId: user.id };
+    const payload = { 
+      ...form, 
+      amount: parseFloat(form.amount) || 0,
+      taxRate: parseFloat(form.taxRate) || 0,
+      taxAmt: parseFloat(form.taxAmt) || 0,
+      userId: user.id 
+    };
     if (editData) { await db.transact(db.tx.expenses[editData.id].update(payload)); toast('Updated', 'success'); }
     else { await db.transact(db.tx.expenses[id()].update(payload)); toast('Expense added', 'success'); }
     setModal(false);
@@ -46,7 +52,7 @@ export default function Expenses({ user }) {
       <div className="tw">
         <div className="tw-head"><h3>Expenses ({expenses.length})</h3></div>
         <table>
-          <thead><tr><th>#</th><th>Description</th><th>Category</th><th>Date</th><th>Amount</th><th>Status</th><th>Actions</th></tr></thead>
+          <thead><tr><th>#</th><th>Description</th><th>Category</th><th>Date</th><th>Amount</th><th>Tax (GST)</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
             {expenses.length === 0 ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No expenses</td></tr>
               : expenses.map((e, i) => (
@@ -56,6 +62,7 @@ export default function Expenses({ user }) {
                   <td><span className="badge bg-gray">{e.category}</span></td>
                   <td style={{ fontSize: 12 }}>{fmtD(e.date)}</td>
                   <td style={{ fontWeight: 700 }}>{fmt(e.amount)}</td>
+                  <td style={{ fontSize: 12, color: '#16a34a' }}>{e.taxAmt ? fmt(e.taxAmt) : '—'}</td>
                   <td><span className={`badge ${stageBadgeClass(e.status)}`}>{e.status}</span></td>
                   <td style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                     {e.status === 'Pending' && <><button className="btn btn-sm" style={{ background: '#dcfce7', color: '#166534' }} onClick={() => changeStatus(e.id, 'Approved')}>✓</button><button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => changeStatus(e.id, 'Rejected')}>✕</button></>}
@@ -75,7 +82,18 @@ export default function Expenses({ user }) {
               <div className="fgrid">
                 <div className="fg span2"><label>Description *</label><input value={form.desc} onChange={f('desc')} placeholder="Expense description" /></div>
                 <div className="fg"><label>Category</label><select value={form.category} onChange={f('category')}>{cats.map(c => <option key={c}>{c}</option>)}</select></div>
-                <div className="fg"><label>Amount (₹)</label><input type="number" value={form.amount} onChange={f('amount')} /></div>
+                <div className="fg"><label>Amount (Incl. Tax) ₹</label><input type="number" value={form.amount} onChange={f('amount')} /></div>
+                <div className="fg"><label>Tax Rate (%)</label>
+                  <select value={form.taxRate} onChange={e => {
+                    const r = parseFloat(e.target.value) || 0;
+                    const amt = parseFloat(form.amount) || 0;
+                    const tax = Math.round(amt - (amt / (1 + r / 100)));
+                    setForm(p => ({ ...p, taxRate: r, taxAmt: tax }));
+                  }}>
+                    {[0, 5, 12, 18, 28].map(r => <option key={r} value={r}>{r}%</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>Tax Amount (₹)</label><input type="number" value={form.taxAmt} onChange={e => setForm(p => ({ ...p, taxAmt: parseFloat(e.target.value) || 0 }))} /></div>
                 <div className="fg"><label>Date</label><input type="date" value={form.date} onChange={f('date')} /></div>
                 <div className="fg"><label>Status</label><select value={form.status} onChange={f('status')}>{['Pending', 'Approved', 'Rejected'].map(s => <option key={s}>{s}</option>)}</select></div>
                 <div className="fg span2"><label>Notes</label><textarea value={form.notes} onChange={f('notes')} /></div>

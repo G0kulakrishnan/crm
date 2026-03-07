@@ -11,7 +11,7 @@ const VIEW_TITLES = {
   admin: 'Admin Panel',
 };
 
-export default function Topbar({ user, notifCount }) {
+export default function Topbar({ user, notifCount, isExpired }) {
   const { activeView, setActiveView, setSidebarExpanded, setNotifOpen } = useApp();
 
   return (
@@ -37,9 +37,16 @@ export default function Topbar({ user, notifCount }) {
           {notifCount > 0 && <span className="notif-dot" />}
         </div>
 
-        {/* Plan badge */}
-        <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>
-          {user?.profile?.plan || ''}
+        {/* Plan badge & Expiry Notification */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {isExpired && (
+            <div style={{ background: '#fee2e2', color: '#991b1b', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, border: '1px solid #fecaca' }}>
+              ⚠️ PLAN EXPIRED
+            </div>
+          )}
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', background: 'var(--bg-soft)', padding: '4px 10px', borderRadius: 6 }}>
+            {user?.profile?.plan || 'Free'}
+          </div>
         </div>
 
         {/* Avatar */}

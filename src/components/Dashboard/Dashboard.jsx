@@ -47,6 +47,32 @@ export default function Dashboard({ user }) {
     return rem;
   }, [amc, subs, leads]);
 
+  // Revenue Trend (Last 6 Months)
+  const revenueTrend = useMemo(() => {
+    const months = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ 
+        name: d.toLocaleDateString('en-IN', { month: 'short' }),
+        month: d.getMonth(),
+        year: d.getFullYear(),
+        total: 0
+      });
+    }
+    invoices.filter(inv => inv.status === 'Paid').forEach(inv => {
+      const idate = new Date(inv.date);
+      const mIdx = months.findIndex(m => m.month === idate.getMonth() && m.year === idate.getFullYear());
+      if (mIdx !== -1) months[mIdx].total += (inv.total || 0);
+    });
+    return months;
+  }, [invoices]);
+  const maxRev = Math.max(...revenueTrend.map(m => m.total), 1);
+
+  // Hot Leads
+  const hotLeads = useMemo(() => {
+    return leads.filter(l => l.label === 'Hot' || (l.followup && new Date(l.followup) >= now)).slice(0, 5);
+  }, [leads]);
+
   // Calendar
   const [calDate, setCalDate] = React.useState(new Date());
   const calDays = useMemo(() => {
@@ -145,6 +171,46 @@ export default function Dashboard({ user }) {
               {leads.length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>No leads yet</td></tr>}
             </tbody>
           </table>
+        </div>
+
+        {/* Hot Leads */}
+        <div className="tw">
+          <div className="tw-head"><h3>🔥 Hot Leads (Top Priority)</h3></div>
+          <div style={{ padding: '0' }}>
+            {hotLeads.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 28, color: 'var(--muted)', fontSize: 12 }}>Check your active leads</div>
+            ) : hotLeads.map(l => (
+              <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700 }}>{l.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{l.source} • {l.phone}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                  <span className={`badge ${stageBadgeClass(l.stage)}`} style={{ fontSize: 10 }}>{l.stage}</span>
+                  <div style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 700, marginTop: 4 }}>
+                    {l.followup ? `Next: ${fmtD(l.followup)}` : 'Hot Label'}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Revenue Trend */}
+        <div className="tw">
+          <div className="tw-head"><h3>📈 Monthly Revenue Trend</h3></div>
+          <div style={{ padding: '24px 20px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, height: 160 }}>
+            {revenueTrend.map(m => {
+              const h = (m.total / maxRev) * 100;
+              return (
+                <div key={m.name} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>{m.total > 0 ? `₹${Math.round(m.total/1000)}k` : ''}</div>
+                  <div style={{ width: '100%', maxWidth: 30, height: `${Math.max(h, 5)}%`, background: 'var(--accent)', borderRadius: '4px 4px 0 0', minHeight: 4 }} />
+                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', marginTop: 8 }}>{m.name}</div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Calendar */}

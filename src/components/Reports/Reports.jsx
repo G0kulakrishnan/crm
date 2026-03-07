@@ -60,16 +60,20 @@ export default function Reports({ user }) {
   const filteredInv = invoices.filter(inv => inRange(inv.date));
   const filteredExp = expenses.filter(e => inRange(e.date));
 
-  const { revenue, gst } = useMemo(() => {
-    let revenue = 0, gst = 0;
+  const { revenue, gst, inputGst } = useMemo(() => {
+    let revenue = 0, gst = 0, inputGst = 0;
     filteredInv.filter(inv => inv.status === 'Paid').forEach(inv => {
       revenue += (inv.total || 0);
       gst += (inv.taxAmt || 0);
     });
-    return { revenue, gst };
-  }, [filteredInv]);
+    filteredExp.filter(e => e.status === 'Approved').forEach(e => {
+      inputGst += (e.taxAmt || 0);
+    });
+    return { revenue, gst, inputGst };
+  }, [filteredInv, filteredExp]);
 
   const totalExp = useMemo(() => filteredExp.filter(e => e.status === 'Approved').reduce((s, e) => s + (e.amount || 0), 0), [filteredExp]);
+  const netGst = gst - inputGst;
   const profit = revenue - totalExp;
 
   // Lead pipeline
@@ -86,6 +90,57 @@ export default function Reports({ user }) {
     tasks: tasks.filter(t => t.assignTo === m.name).length,
   }));
 
+  // Lead Funnel
+  const funnel = useMemo(() => {
+    const total = leads.length;
+    const contacted = leads.filter(l => l.stage !== 'New Enquiry').length;
+    const negotiation = leads.filter(l => ['Budget Negotiation', 'Advance Paid', 'Won'].includes(l.stage)).length;
+    const won = leads.filter(l => l.stage === 'Won').length;
+    return [
+      { name: 'Total Leads', count: total, pct: 100, color: '#60a5fa' },
+      { name: 'Contacted', count: contacted, pct: total ? Math.round((contacted/total)*100) : 0, color: '#6ee7b7' },
+      { name: 'Negotiation', count: negotiation, pct: total ? Math.round((negotiation/total)*100) : 0, color: '#fde68a' },
+      { name: 'Won (Success)', count: won, pct: total ? Math.round((won/total)*100) : 0, color: '#86efac' },
+    ];
+  }, [leads]);
+
+  // Revenue by Source
+  const revBySource = useMemo(() => {
+    const srcMap = {};
+    filteredInv.filter(inv => inv.status === 'Paid').forEach(inv => {
+      // Find the lead associated with this client to get the source
+      // This is a bit of a placeholder since we'd need a robust relation, 
+      // but we'll try to match by client name for now or fallback to 'Other'
+      const lead = leads.find(l => l.name === inv.client);
+      const src = lead?.source || 'Direct/Existing';
+      srcMap[src] = (srcMap[src] || 0) + (inv.total || 0);
+    });
+    return Object.entries(srcMap).sort((a, b) => b[1] - a[1]);
+  }, [filteredInv, leads]);
+  const maxSrcRev = Math.max(...revBySource.map(([, v]) => v), 1);
+
+  // Monthly GST Breakdown
+  const gstBreakdown = useMemo(() => {
+    const months = {};
+    filteredInv.filter(inv => inv.status === 'Paid').forEach(inv => {
+      const d = new Date(inv.date);
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!months[k]) months[k] = { out: 0, inp: 0 };
+      months[k].out += (inv.taxAmt || 0);
+    });
+    filteredExp.filter(e => e.status === 'Approved').forEach(e => {
+      const d = new Date(e.date);
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (!months[k]) months[k] = { out: 0, inp: 0 };
+      months[k].inp += (e.taxAmt || 0);
+    });
+    return Object.entries(months).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [filteredInv, filteredExp]);
+
+  const maxGst = useMemo(() => {
+    return Math.max(...gstBreakdown.map(([, v]) => Math.max(v.out, v.inp)), 1);
+  }, [gstBreakdown]);
+
   const exportCSV = (headers, rows, filename) => {
     const csvContent = [headers.join(','), ...rows.map(r => r.map(cell => `"${(cell || '').toString().replace(/"/g, '""')}"`).join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -99,7 +154,16 @@ export default function Reports({ user }) {
     if (tab === 'pl') {
       exportCSV(['Invoice No', 'Client', 'Date', 'Status', 'Amount'], filteredInv.map(inv => [inv.no, inv.client, fmtD(inv.date), inv.status, inv.total]), `PL_Report_${fromDate}_to_${toDate}`);
     } else if (tab === 'gst') {
-      exportCSV(['Invoice No', 'Client', 'Status', 'Taxable Amount', 'GST Amount'], filteredInv.map(inv => [inv.no, inv.client, inv.status, (inv.total || 0) - (inv.taxAmt || 0), inv.taxAmt]), `GST_Report_${fromDate}_to_${toDate}`);
+      const rows = [
+        ['--- Monthly Summary ---'],
+        ['Month', 'Output GST', 'Input GST', 'Net Payable'],
+        ...gstBreakdown.map(([k, v]) => [k, v.out, v.inp, v.out - v.inp]),
+        [''],
+        ['--- Invoice Details ---'],
+        ['Invoice No', 'Client', 'Status', 'Taxable Amount', 'GST Amount'],
+        ...filteredInv.map(inv => [inv.no, inv.client, inv.status, (inv.total || 0) - (inv.taxAmt || 0), inv.taxAmt])
+      ];
+      exportCSV(rows[0], rows.slice(1), `GST_Detailed_Report_${fromDate}_to_${toDate}`);
     } else if (tab === 'team') {
       exportCSV(['Name', 'Leads Assigned', 'Tasks Total', 'Tasks Done', 'Completion %'], teamPerf.map(m => [m.name, m.leads, m.tasks, m.done, m.tasks ? Math.round((m.done / m.tasks) * 100) + '%' : '0%']), `Team_Perf_${fromDate}_to_${toDate}`);
     } else if (tab === 'leads') {
@@ -129,8 +193,15 @@ export default function Reports({ user }) {
         </div>
       </div>
 
-      <div className="tabs">
-        {[['pl', 'P&L Statement'], ['gst', 'GST Summary'], ['leads', 'Lead Pipeline'], ['team', 'Team Performance']].map(([t, l]) => (
+      <div className="tabs no-print">
+        {[
+          ['pl', 'P&L Statement'], 
+          ['gst', 'GST Summary'], 
+          ['leads', 'Lead Pipeline'], 
+          ['funnel', 'Sales Funnel'],
+          ['rev-src', 'Revenue by Source'],
+          ['team', 'Team Performance']
+        ].map(([t, l]) => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{l}</div>
         ))}
       </div>
@@ -157,27 +228,72 @@ export default function Reports({ user }) {
       )}
 
       {tab === 'gst' && (
-        <div className="tw">
-          <div className="tw-head"><h3>GST Summary</h3></div>
-          <div style={{ padding: '20px 24px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, marginBottom: 20 }}>
-              <div className="stat-card sc-green"><div className="lbl">Output GST</div><div className="val" style={{ fontSize: 20 }}>{fmt(gst)}</div><div className="sub">Collected from clients</div></div>
-              <div className="stat-card sc-red"><div className="lbl">Input GST</div><div className="val" style={{ fontSize: 20 }}>—</div><div className="sub">Enter bills to track</div></div>
-              <div className="stat-card sc-purple"><div className="lbl">Net GST Payable</div><div className="val" style={{ fontSize: 20 }}>{fmt(gst)}</div></div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div className="stat-grid">
+            <div className="stat-card sc-green"><div className="lbl">Output GST (Collected)</div><div className="val" style={{ fontSize: 20 }}>{fmt(gst)}</div></div>
+            <div className="stat-card sc-red"><div className="lbl">Input GST (Paid)</div><div className="val" style={{ fontSize: 20 }}>{fmt(inputGst)}</div></div>
+            <div className="stat-card sc-purple"><div className="lbl">Net GST Payable</div><div className="val" style={{ fontSize: 20 }}>{fmt(netGst)}</div></div>
+          </div>
+
+          <div className="tw">
+            <div className="tw-head"><h3>GST Trend (Output vs Input)</h3></div>
+            <div style={{ padding: '24px 20px', display: 'flex', alignItems: 'flex-end', gap: 12, height: 200, overflowX: 'auto' }}>
+              {gstBreakdown.length === 0 ? <div style={{ width: '100%', textAlign: 'center', color: 'var(--muted)' }}>No trend data available</div>
+                : gstBreakdown.map(([k, v]) => (
+                  <div key={k} style={{ flex: 1, minWidth: 60, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', height: 140, width: '100%' }}>
+                      <div title={`Output: ${fmt(v.out)}`} style={{ flex: 1, background: '#16a34a', height: `${(v.out / maxGst) * 100}%`, borderRadius: '4px 4px 0 0', minHeight: 4 }} />
+                      <div title={`Input: ${fmt(v.inp)}`} style={{ flex: 1, background: '#dc2626', height: `${(v.inp / maxGst) * 100}%`, borderRadius: '4px 4px 0 0', minHeight: 4 }} />
+                    </div>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textAlign: 'center' }}>
+                      {new Date(k + '-01').toLocaleString('default', { month: 'short' })}
+                    </div>
+                  </div>
+                ))}
             </div>
-            <table className="li-table" style={{ width: '100%' }}>
-              <thead><tr><th>Invoice No.</th><th>Client</th><th>Status</th><th>Taxable Amount</th><th>GST Amount</th></tr></thead>
-              <tbody>
-                {filteredInv.map(inv => <tr key={inv.id}><td>{inv.no}</td><td>{inv.client}</td><td><span className={`badge ${inv.status === 'Paid' ? 'bg-green' : 'bg-gray'}`}>{inv.status}</span></td><td style={{ textAlign: 'right' }}>{fmt((inv.total || 0) - (inv.taxAmt || 0))}</td><td style={{ textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>{fmt(inv.taxAmt || 0)}</td></tr>)}
-              </tbody>
-            </table>
+            <div style={{ padding: '0 20px 15px', display: 'flex', gap: 20, fontSize: 11, fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, background: '#16a34a', borderRadius: 2 }} /> Output Tax</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, background: '#dc2626', borderRadius: 2 }} /> Input Tax</div>
+            </div>
+          </div>
+
+          <div className="tw">
+            <div className="tw-head"><h3>Monthly GST Breakdown</h3></div>
+            <div style={{ padding: '0 20px 20px' }}>
+              <table className="li-table" style={{ width: '100%' }}>
+                <thead><tr><th>Month</th><th>Output Tax</th><th>Input Tax</th><th>Net Payable</th></tr></thead>
+                <tbody>
+                  {gstBreakdown.length === 0 ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: 20 }}>No data for this period</td></tr>
+                    : gstBreakdown.map(([k, v]) => (
+                      <tr key={k}>
+                        <td>{new Date(k + '-01').toLocaleString('default', { month: 'short', year: 'numeric' })}</td>
+                        <td style={{ textAlign: 'right', color: '#16a34a' }}>{fmt(v.out)}</td>
+                        <td style={{ textAlign: 'right', color: '#dc2626' }}>{fmt(v.inp)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(v.out - v.inp)}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="tw">
+            <div className="tw-head"><h3>Invoice-wise Tax Details</h3></div>
+            <div style={{ padding: '0 20px 20px' }}>
+              <table className="li-table" style={{ width: '100%' }}>
+                <thead><tr><th>Invoice No.</th><th>Client</th><th>Status</th><th>Taxable Amount</th><th>GST Amount</th></tr></thead>
+                <tbody>
+                  {filteredInv.map(inv => <tr key={inv.id}><td>{inv.no}</td><td>{inv.client}</td><td><span className={`badge ${inv.status === 'Paid' ? 'bg-green' : 'bg-gray'}`}>{inv.status}</span></td><td style={{ textAlign: 'right' }}>{fmt((inv.total || 0) - (inv.taxAmt || 0))}</td><td style={{ textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>{fmt(inv.taxAmt || 0)}</td></tr>)}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
 
       {tab === 'leads' && (
         <div className="tw">
-          <div className="tw-head"><h3>Lead Pipeline</h3></div>
+          <div className="tw-head"><h3>Lead Distribution</h3></div>
           <div style={{ padding: '16px 20px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
               <div className="stat-card"><div className="lbl">Total Leads</div><div className="val">{leads.length}</div></div>
@@ -189,6 +305,45 @@ export default function Reports({ user }) {
                 <div className="chart-label">{stage.split(' ')[0]}</div>
                 <div className="chart-bar-wrap"><div className="chart-bar" style={{ width: `${(count / maxCount) * 100}%`, background: CHART_COLORS[i] }} /></div>
                 <div style={{ fontSize: 11, fontWeight: 700, minWidth: 25 }}>{count}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'funnel' && (
+        <div className="tw">
+          <div className="tw-head"><h3>Sales Conversion Funnel</h3></div>
+          <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
+            {funnel.map((f, i) => (
+              <div key={f.name} style={{ width: `${100 - (i * 10)}%`, minWidth: 280, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ width: '100%', height: 45, background: f.color, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 13, boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }}>
+                  {f.name}: {f.count}
+                </div>
+                {i < funnel.length - 1 && (
+                  <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', margin: '4px 0' }}>
+                    ↓ {f.pct}% Retention
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'rev-src' && (
+        <div className="tw">
+          <div className="tw-head"><h3>Revenue Analysis by Source</h3></div>
+          <div style={{ padding: '20px' }}>
+            {revBySource.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>Register paid invoices to see source analysis</div>
+            ) : revBySource.map(([src, val], i) => (
+              <div key={src} className="chart-row" style={{ marginBottom: 15 }}>
+                <div className="chart-label" style={{ width: 120 }}>{src}</div>
+                <div className="chart-bar-wrap" style={{ height: 14 }}>
+                  <div className="chart-bar" style={{ width: `${(val / maxSrcRev) * 100}%`, background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                </div>
+                <div className="chart-val" style={{ width: 100, fontSize: 12, marginLeft: 10 }}>{fmt(val)}</div>
               </div>
             ))}
           </div>

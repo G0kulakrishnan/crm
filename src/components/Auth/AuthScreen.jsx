@@ -11,12 +11,24 @@ export default function AuthScreen() {
   const [selectedPlan, setSelectedPlan] = useState('');
   const [bizName, setBizName] = useState('');
   const [fullName, setFullName] = useState('');
+  const [phone, setPhone] = useState('');
   const [loading, setLoading] = useState(false);
   const toast = useToast();
 
   const handleSendCode = async (e) => {
     e.preventDefault();
     if (!email.trim()) { toast('Enter your email address', 'error'); return; }
+    
+    // Save registration data to localStorage before sending code
+    if (tab === 'register') {
+      localStorage.setItem('tc_reg_data', JSON.stringify({
+        bizName,
+        fullName,
+        phone,
+        selectedPlan: selectedPlan || 'Trial'
+      }));
+    }
+
     setLoading(true);
     try {
       await db.auth.sendMagicCode({ email: email.trim() });
@@ -109,6 +121,10 @@ export default function AuthScreen() {
               <div className="form-group">
                 <label>Business Name</label>
                 <input value={bizName} onChange={e => setBizName(e.target.value)} placeholder="Your business name" />
+              </div>
+              <div className="form-group">
+                <label>Phone Number</label>
+                <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="+91 98765 43210" />
               </div>
               {selectedPlan && (
                 <div className="form-group">

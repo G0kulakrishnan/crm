@@ -27,6 +27,12 @@ import Integrations from '../System/Integrations';
 
 const TRIAL_DAYS = 7;
 const SUPERADMIN_KEY = 'santhanam.gokul@gmail.com';
+const DEFAULT_PLANS = [
+  { name: 'Trial', duration: 7, price: 0 },
+  { name: 'Premium', duration: 30, price: 2999 },
+  { name: 'START-UP', duration: 365, price: 24999 },
+  { name: 'Premium Pro', duration: 365, price: 29999 },
+];
 
 export default function MainApp({ user }) {
   // Start automation background worker
@@ -36,11 +42,9 @@ export default function MainApp({ user }) {
   
   // Optimized query: only fetch what we need
   const { isLoading, data, error } = db.useQuery({
-    leads: { $: { where: { userId: user.id } } },
-    amc: { $: { where: { userId: user.id } } },
-    subs: { $: { where: { userId: user.id } } },
-    myProfile: { $: { where: { userId: user.id }, schema: 'userProfiles' } },
-    anyProfile: { $: { limit: 1, schema: 'userProfiles' } },
+    // Standard queries for profile and check if any profiles exist
+    userProfiles: { $: { where: { userId: user.id } } },
+    allProfiles: { $: { limit: 1 } }, // This collection name should match userProfiles
   });
 
   if (error) console.error("MainApp Query Error:", error);
@@ -48,31 +52,66 @@ export default function MainApp({ user }) {
   const leads = data?.leads || [];
   const amc = data?.amc || [];
   const subs = data?.subs || [];
-  const profile = data?.myProfile?.[0];
+  const profile = data?.userProfiles?.[0];
   const isSuperadmin = profile?.role === 'superadmin' || user.email === SUPERADMIN_KEY;
+  const isExpired = profile?.planExpiry && profile.planExpiry < Date.now();
 
   // Strict guard to prevent infinite transaction loops
   const syncRef = useRef(false);
 
   useEffect(() => {
-    if (!isLoading && data && !syncRef.current) {
-      if (!profile) {
-        syncRef.current = true;
-        const noProfilesExist = (data.anyProfile || []).length === 0;
-        const role = (noProfilesExist || user.email === SUPERADMIN_KEY) ? 'superadmin' : 'user';
+    if (isLoading || !data) return;
+
+    const rawReg = localStorage.getItem('tc_reg_data');
+    const regData = rawReg ? JSON.parse(rawReg) : {};
+
+    if (!profile && !syncRef.current) {
+      syncRef.current = true;
+      const noProfilesExist = (data.allProfiles || []).length === 0;
+      const role = (noProfilesExist || user.email === SUPERADMIN_KEY) ? 'superadmin' : 'user';
+
+      console.log("🛠 [MainApp] Creating user profile for:", user.email, "Role:", role);
+      
+      const profileId = id();
+      db.transact(db.tx.userProfiles[profileId].update({
+        userId: user.id,
+        email: user.email,
+        fullName: regData.fullName || '',
+        phone: regData.phone || '',
+        bizName: regData.bizName || '',
+        role: role,
+        plan: regData.selectedPlan || 'Trial',
+        planExpiry: Date.now() + (TRIAL_DAYS * 24 * 60 * 60 * 1000),
+        createdAt: Date.now()
+      })).then(() => {
+        console.log("✅ [MainApp] Profile created successfully:", profileId);
+        localStorage.removeItem('tc_reg_data');
+      }).catch(e => {
+        console.error("❌ [MainApp] Profile creation failed", e);
+        syncRef.current = false; // Allow retry on failure
+      });
+    } else if (profile) {
+      // Sync metadata if missing or incorrect (also catch if email is a UUID)
+      const isUuid = profile.email && profile.email.length === 36 && !profile.email.includes('@');
+      const needsEmail = !profile.email || profile.email === '' || isUuid;
+      const needsPhone = !profile.phone && (user.phone || regData.phone); 
+      const needsAdmin = user.email === SUPERADMIN_KEY && profile.role !== 'superadmin';
+      const needsExpiry = !profile.planExpiry;
+
+      if (needsEmail || needsPhone || needsAdmin || needsExpiry) {
+        const updates = {};
+        if (needsEmail) updates.email = user.email;
+        if (needsPhone) updates.phone = user.phone || regData.phone;
+        if (needsAdmin) updates.role = 'superadmin';
+        if (needsExpiry) {
+          const planDuration = DEFAULT_PLANS.find(p => p.name === (profile.plan || 'Trial'))?.duration || 7;
+          updates.planExpiry = Date.now() + (planDuration * 24 * 60 * 60 * 1000);
+        }
         
-        db.transact(db.tx.userProfiles[id()].update({
-          userId: user.id,
-          email: user.email,
-          role: role,
-          plan: 'Trial',
-          planExpiry: Date.now() + (TRIAL_DAYS * 24 * 60 * 60 * 1000),
-          createdAt: Date.now()
-        })).catch(e => console.error("Profile creation failed", e));
-      } else if (user.email === SUPERADMIN_KEY && profile.role !== 'superadmin') {
-        syncRef.current = true;
-        db.transact(db.tx.userProfiles[profile.id].update({ role: 'superadmin' }))
-          .catch(e => console.error("Upgrade failed", e));
+        console.log("⚡ [MainApp] Metadata Sync Required:", updates);
+        db.transact(db.tx.userProfiles[profile.id].update(updates))
+          .then(() => console.log("✅ [MainApp] Metadata synced successfully"))
+          .catch(e => console.error("❌ [MainApp] Metadata sync failed", e));
       }
     }
   }, [isLoading, data, profile, user.id, user.email]);
@@ -119,7 +158,7 @@ export default function MainApp({ user }) {
     automation: <AutomationView user={user} />,
     integrations: <Integrations user={user} />,
     reports: <Reports user={user} />,
-    settings: <Settings user={user} profile={profile} />,
+    settings: <Settings user={user} profile={profile} isExpired={isExpired} />,
     admin: isSuperadmin ? <AdminPanel user={user} /> : null,
   };
 
@@ -136,9 +175,9 @@ export default function MainApp({ user }) {
 
   return (
     <div className="app">
-      <Sidebar isSuperadmin={isSuperadmin} leadCount={leads.length} amcCount={amcExpiringCount} />
+      <Sidebar isSuperadmin={isSuperadmin} leadCount={leads.length} amcCount={amcExpiringCount} isExpired={isExpired} />
       <div className="main">
-        <Topbar user={{ ...user, profile }} notifCount={liveNotifs.filter(n => n.unread).length} />
+        <Topbar user={{ ...user, profile }} notifCount={liveNotifs.filter(n => n.unread).length} isExpired={isExpired} />
         <div className="content">
           {views[activeView] || views.dashboard}
         </div>

@@ -371,3 +371,20 @@ tr:hover td { background: #f8faf9; }
   .sg { grid-template-columns: 1fr; }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
 }
+/* PRINT STYLES */
+@media print {
+  .sidebar, .topbar, .no-print, .btn, .tabs, .sh button, .sidebar-logo { display: none !important; }
+  .main { margin: 0; padding: 0; width: 100%; border: none; }
+  .content { padding: 0; margin: 0; overflow: visible !important; }
+  .tw { border: 1px solid #ccc !important; box-shadow: none !important; break-inside: avoid; }
+  body { background: #fff !important; color: #000 !important; font-size: 10pt; }
+  .stat-grid { grid-template-columns: repeat(4, 1fr) !important; gap: 5pt; }
+  .stat-card { border: 1px solid #eee; padding: 10pt; }
+  h2, h3 { color: #000; }
+  table { border: 1px solid #eee; }
+  th { background: #f0f0f0 !important; color: #000; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .badge { border: 1px solid #ddd; background: transparent !important; color: #000 !important; }
+}
+
+.no-print { display: initial !important; }
+@media print { .no-print { display: none !important; } }

@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
+import { renderTemplate } from '../../utils/messaging';
 
-const SETTING_NAV = ['Business', 'Custom Fields', 'Sources', 'Stages', 'Labels', 'Expense Categories', 'Task Statuses', 'SMTP', 'WhatsApp', 'Reminders'];
+const SETTING_NAV = ['My Profile', 'Business', 'Finance', 'Billing', 'Custom Fields', 'Sources', 'Stages', 'Labels', 'Expense Categories', 'Task Statuses', 'SMTP', 'WhatsApp', 'Reminders'];
 
 const DEFAULT_SOURCES = ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
 const DEFAULT_STAGES = ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
@@ -12,13 +13,30 @@ const DEFAULT_CFIELDS = []; // { name: 'Requirement', type: 'text'|'number'|'dro
 const DEFAULT_EXP_CATS = ['Software', 'Hardware', 'Travel', 'Office', 'Marketing', 'Utilities', 'Salaries', 'Misc'];
 const DEFAULT_TASK_STATUSES = ['Pending', 'In Progress', 'Completed'];
 
-export default function Settings({ user, profile }) {
-  const [active, setActive] = useState('Business');
+export default function Settings({ user, profile, isExpired, initialTab }) {
+  const [active, setActive] = useState(initialTab || 'My Profile');
+  const [userProfile, setUserProfile] = useState({
+    fullName: profile?.fullName || '',
+    email: profile?.email || '',
+    phone: profile?.phone || '',
+  });
   const [biz, setBiz] = useState({
-    bizName: profile?.bizName || '', address: profile?.address || '',
+    bizName: profile?.bizName || '', 
+    bizEmail: profile?.bizEmail || '',
+    bizPhone: profile?.bizPhone || '',
+    address: profile?.address || '',
     gstin: profile?.gstin || '', pan: profile?.pan || '',
-    phone: profile?.phone || '', email: profile?.email || '',
     website: profile?.website || '',
+  });
+  const [fin, setFin] = useState({
+    qPrefix: profile?.qPrefix || 'QUO-',
+    qNextNum: profile?.qNextNum || 1,
+    qTerms: profile?.qTerms || '1. Valid for 30 days.\n2. 50% advance to start work.',
+    qNotes: profile?.qNotes || 'Thank you for your business!',
+    iPrefix: profile?.iPrefix || 'INV-',
+    iNextNum: profile?.iNextNum || 1,
+    iTerms: profile?.iTerms || '1. Please pay within 7 days.\n2. Interest @ 18% for late payment.',
+    iNotes: profile?.iNotes || 'Thank you for choosing us!',
   });
   const [smtpHost, setSmtpHost] = useState(profile?.smtpHost || '');
   const [smtpPort, setSmtpPort] = useState(profile?.smtpPort || '587');
@@ -49,11 +67,23 @@ export default function Settings({ user, profile }) {
   const expCats = data?.userProfiles?.[0]?.expCats || DEFAULT_EXP_CATS;
   const taskStatuses = data?.userProfiles?.[0]?.taskStatuses || DEFAULT_TASK_STATUSES;
 
+  const saveUserProfile = async () => {
+    if (!userProfile.email.includes('@')) return toast('Valid email required', 'error');
+    const payload = { ...userProfile, userId: user.id };
+    if (profileId) await db.transact(db.tx.userProfiles[profileId].update(payload));
+    toast('Profile updated!', 'success');
+  };
+
   const saveBiz = async () => {
     const payload = { ...biz, userId: user.id };
-    if (profileId) { await db.transact(db.tx.userProfiles[profileId].update(payload)); }
-    else { await db.transact(db.tx.userProfiles[id()].update(payload)); }
-    toast('Business settings saved!', 'success');
+    if (profileId) await db.transact(db.tx.userProfiles[profileId].update(payload));
+    toast('Business details saved!', 'success');
+  };
+
+  const saveFin = async () => {
+    const payload = { ...fin, userId: user.id };
+    if (profileId) await db.transact(db.tx.userProfiles[profileId].update(payload));
+    toast('Finance settings saved!', 'success');
   };
 
   const saveList = async (key, list) => {
@@ -112,6 +142,16 @@ export default function Settings({ user, profile }) {
     toast('Reminder rules updated!', 'success');
   };
 
+  const testTemplate = (key) => {
+    const msg = renderTemplate(reminders[key].msg, {
+      client: 'Sample Client',
+      date: new Date().toLocaleDateString(),
+      amount: 1499,
+      bizName: biz.bizName || 'My Business'
+    });
+    alert(`📢 Template Preview:\n\n${msg}\n\n(This is how your automated message will look)`);
+  };
+
   return (
     <div>
       <div className="sh"><div><h2>Settings</h2></div></div>
@@ -125,18 +165,113 @@ export default function Settings({ user, profile }) {
 
         {/* Content */}
         <div>
+          {active === 'Billing' && (
+            <div>
+              <div className="sh" style={{ marginBottom: 20 }}>
+                <div>
+                  <h3>Current Plan</h3>
+                  <div className="sub">Manage your current plan and upgrades</div>
+                </div>
+                {isExpired && <span className="badge bg-red" style={{ padding: '4px 12px', fontSize: 11 }}>EXPIRED</span>}
+              </div>
+
+              <div className="stat-grid" style={{ marginBottom: 30 }}>
+                <div className="stat-card sc-blue">
+                  <div className="lbl">Current Plan</div>
+                  <div className="val">{profile?.plan || 'Free Trial'}</div>
+                </div>
+                <div className="stat-card sc-purple">
+                  <div className="lbl">Valid Until</div>
+                  <div className="val" style={{ fontSize: 16 }}>{profile?.planExpiry ? new Date(profile.planExpiry).toLocaleDateString() : 'N/A'}</div>
+                </div>
+              </div>
+
+              <h4 style={{ marginBottom: 15 }}>Upgrade Options</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 15 }}>
+                {[
+                  { name: 'Trial', duration: 7, price: 0, desc: 'Perfect for exploring the CRM' },
+                  { name: 'Premium', duration: 30, price: 2999, desc: 'For growing businesses' },
+                  { name: 'START-UP', duration: 365, price: 24999, desc: 'Cost-effective annual plan' },
+                  { name: 'Premium Pro', duration: 365, price: 29999, desc: 'Unlimited power for teams' },
+                ].map(p => (
+                  <div key={p.name} className={`plan-card ${profile?.plan === p.name ? 'featured' : ''}`} style={{ border: profile?.plan === p.name ? '2px solid var(--accent)' : '1px solid var(--border)', padding: 20, borderRadius: 12, position: 'relative' }}>
+                    {profile?.plan === p.name && <div style={{ position: 'absolute', top: -10, right: 10, background: 'var(--accent)', color: 'white', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>ACTIVE</div>}
+                    <div style={{ fontWeight: 700, fontSize: 16 }}>{p.name}</div>
+                    <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 10 }}>{p.desc}</div>
+                    <div style={{ fontSize: 24, fontWeight: 800, margin: '10px 0', color: 'var(--accent)' }}>
+                      {p.price === 0 ? 'Free' : `₹${p.price.toLocaleString()}`}
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 15 }}>per {p.duration} days</div>
+                    
+                    {profile?.plan === p.name ? (
+                      <button className="btn btn-primary" style={{ width: '100%', opacity: 0.7 }} disabled>Current Plan</button>
+                    ) : (
+                      <button className="btn btn-primary" style={{ width: '100%' }} onClick={() => toast(`Contact Admin to upgrade to ${p.name}`, 'info')}>Upgrade Now</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {active === 'My Profile' && (
+            <div className="tw">
+              <div className="tw-head"><h3>My Profile</h3><button className="btn btn-primary btn-sm" onClick={saveUserProfile}>Save Profile</button></div>
+              <div style={{ padding: '20px' }}>
+                <div className="sub" style={{ marginBottom: 20 }}>Your personal contact information used for login and account management.</div>
+                <div className="fgrid">
+                  <div className="fg span2"><label>Full Name</label><input value={userProfile.fullName} onChange={e => setUserProfile(p => ({ ...p, fullName: e.target.value }))} /></div>
+                  <div className="fg"><label>Personal Email</label><input type="email" value={userProfile.email} onChange={e => setUserProfile(p => ({ ...p, email: e.target.value }))} /></div>
+                  <div className="fg"><label>Personal Phone</label><input value={userProfile.phone} onChange={e => setUserProfile(p => ({ ...p, phone: e.target.value }))} /></div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {active === 'Business' && (
             <div className="tw">
-              <div className="tw-head"><h3>Business Details</h3><button className="btn btn-primary btn-sm" onClick={saveBiz}>Save</button></div>
+              <div className="tw-head"><h3>Business Profile</h3><button className="btn btn-primary btn-sm" onClick={saveBiz}>Save Business</button></div>
               <div style={{ padding: '20px' }}>
+                <div className="sub" style={{ marginBottom: 20 }}>Public business information used for invoices and professional documents.</div>
                 <div className="fgrid">
                   <div className="fg span2"><label>Business Name</label><input value={biz.bizName} onChange={e => setBiz(b => ({ ...b, bizName: e.target.value }))} /></div>
-                  <div className="fg span2"><label>Address</label><textarea value={biz.address} onChange={e => setBiz(b => ({ ...b, address: e.target.value }))} style={{ minHeight: 60 }} /></div>
+                  <div className="fg span2"><label>Business Address</label><textarea value={biz.address} onChange={e => setBiz(b => ({ ...b, address: e.target.value }))} style={{ minHeight: 60 }} /></div>
+                  <div className="fg"><label>Official Email</label><input type="email" value={biz.bizEmail} onChange={e => setBiz(b => ({ ...b, bizEmail: e.target.value }))} /></div>
+                  <div className="fg"><label>Official Phone</label><input value={biz.bizPhone} onChange={e => setBiz(b => ({ ...b, bizPhone: e.target.value }))} /></div>
                   <div className="fg"><label>GSTIN</label><input value={biz.gstin} onChange={e => setBiz(b => ({ ...b, gstin: e.target.value }))} placeholder="22AAAAA0000A1Z5" /></div>
                   <div className="fg"><label>PAN</label><input value={biz.pan} onChange={e => setBiz(b => ({ ...b, pan: e.target.value }))} placeholder="AAAPZ1234C" /></div>
-                  <div className="fg"><label>Phone</label><input value={biz.phone} onChange={e => setBiz(b => ({ ...b, phone: e.target.value }))} /></div>
-                  <div className="fg"><label>Email</label><input type="email" value={biz.email} onChange={e => setBiz(b => ({ ...b, email: e.target.value }))} /></div>
                   <div className="fg span2"><label>Website</label><input value={biz.website} onChange={e => setBiz(b => ({ ...b, website: e.target.value }))} /></div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {active === 'Finance' && (
+            <div className="tw">
+              <div className="tw-head"><h3>Quotation & Invoice Settings</h3><button className="btn btn-primary btn-sm" onClick={saveFin}>Save Settings</button></div>
+              <div style={{ padding: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 }}>
+                  {/* Quotations */}
+                  <div>
+                    <h4 style={{ marginBottom: 15, color: 'var(--accent)' }}>Quotations</h4>
+                    <div className="fgrid">
+                      <div className="fg"><label>Prefix</label><input value={fin.qPrefix} onChange={e => setFin(f => ({ ...f, qPrefix: e.target.value }))} /></div>
+                      <div className="fg"><label>Starting Number</label><input type="number" value={fin.qNextNum} onChange={e => setFin(f => ({ ...f, qNextNum: parseInt(e.target.value) || 1 }))} /></div>
+                      <div className="fg span2"><label>Default Terms & Conditions</label><textarea value={fin.qTerms} onChange={e => setFin(f => ({ ...f, qTerms: e.target.value }))} style={{ minHeight: 80 }} /></div>
+                      <div className="fg span2"><label>Default Notes</label><textarea value={fin.qNotes} onChange={e => setFin(f => ({ ...f, qNotes: e.target.value }))} style={{ minHeight: 60 }} /></div>
+                    </div>
+                  </div>
+
+                  {/* Invoices */}
+                  <div>
+                    <h4 style={{ marginBottom: 15, color: 'var(--green)' }}>Invoices</h4>
+                    <div className="fgrid">
+                      <div className="fg"><label>Prefix</label><input value={fin.iPrefix} onChange={e => setFin(f => ({ ...f, iPrefix: e.target.value }))} /></div>
+                      <div className="fg"><label>Starting Number</label><input type="number" value={fin.iNextNum} onChange={e => setFin(f => ({ ...f, iNextNum: parseInt(e.target.value) || 1 }))} /></div>
+                      <div className="fg span2"><label>Default Terms & Conditions</label><textarea value={fin.iTerms} onChange={e => setFin(f => ({ ...f, iTerms: e.target.value }))} style={{ minHeight: 80 }} /></div>
+                      <div className="fg span2"><label>Default Notes</label><textarea value={fin.iNotes} onChange={e => setFin(f => ({ ...f, iNotes: e.target.value }))} style={{ minHeight: 60 }} /></div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -322,9 +457,12 @@ export default function Settings({ user, profile }) {
                           <div style={{ fontSize: 14, fontWeight: 700 }}>{rule.name}</div>
                           <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{rule.desc}</div>
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <input type="number" value={reminders[rule.key].days} onChange={e => setReminders(r => ({ ...r, [rule.key]: { ...r[rule.key], days: parseInt(e.target.value) || 0 } }))} style={{ width: 60, padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 12, textAlign: 'center' }} />
-                          <span style={{ fontSize: 12, color: 'var(--muted)' }}>days before</span>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input type="number" value={reminders[rule.key].days} onChange={e => setReminders(r => ({ ...r, [rule.key]: { ...r[rule.key], days: parseInt(e.target.value) || 0 } }))} style={{ width: 60, padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 12, textAlign: 'center' }} />
+                            <span style={{ fontSize: 12, color: 'var(--muted)' }}>days before</span>
+                          </div>
+                          <button className="btn btn-secondary btn-sm" onClick={() => testTemplate(rule.key)} style={{ padding: '4px 10px' }}>👁 Test</button>
                         </div>
                       </div>
                       <div className="fg">

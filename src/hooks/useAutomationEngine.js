@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import db from '../instant';
 import { id } from '@instantdb/react';
+import { renderTemplate, sendEmailMock, sendWhatsAppMock } from '../utils/messaging';
 
 export default function useAutomationEngine(user) {
   const { data } = db.useQuery({
@@ -16,16 +17,19 @@ export default function useAutomationEngine(user) {
   const subs = data?.subs || [];
   const automations = data?.automations || [];
   const profile = data?.userProfiles?.[0] || {};
+  const reminders = profile.reminders || {
+    amc: { days: 30, msg: 'Hello {client}, your AMC contract is expiring on {date}.' },
+    sub: { days: 7, msg: 'Hello {client}, your subscription payment of {amount} is due on {date}.' },
+    followup: { days: 1, msg: 'Reminder: Follow-up with {client} is scheduled for {date}.' }
+  };
 
   // Track processed entities to avoid double-firing
-  // In a real app, this would be stored in DB per automation run
   const processedRef = useRef(new Set());
 
   useEffect(() => {
-    if (!user || !automations.length) return;
+    if (!user || (!automations.length && !profile.id)) return;
 
     const activeFlows = automations.filter(a => a.active);
-    if (!activeFlows.length) return;
 
     // Helper to log automated activity
     const logAutoActivity = async (entityId, entityType, text) => {
@@ -44,51 +48,47 @@ export default function useAutomationEngine(user) {
     const leadFlows = activeFlows.filter(f => f.trigger === 'trig-lead');
     leads.forEach(l => {
       const key = `lead-new-${l.id}`;
-      // Only trigger for leads created in the last 5 minutes (to avoid mass back-firing)
       const isNew = Date.now() - (l.createdAt || 0) < 5 * 60 * 1000;
       if (isNew && !processedRef.current.has(key)) {
         processedRef.current.add(key);
-        leadFlows.forEach(f => {
-          let actionText = '';
-          if (f.action === 'act-email') actionText = `Sent welcome email to ${l.email}`;
-          if (f.action === 'act-wa') actionText = `Sent welcome WhatsApp to ${l.phone}`;
-          if (f.action === 'act-notif') actionText = `New lead notification sent to team`;
-          if (actionText) logAutoActivity(l.id, 'lead', actionText);
+        leadFlows.forEach(async (f) => {
+          const body = renderTemplate(f.template || "Hello {client}, thanks for choosing us!", { client: l.name, bizName: profile.bizName });
+          if (f.action === 'act-email') {
+            await sendEmailMock(user.id, l.email, 'Welcome to ' + (profile.bizName || 'TechCRM'), body, { entityId: l.id, entityType: 'lead' });
+            logAutoActivity(l.id, 'lead', `Sent welcome email to ${l.email}`);
+          }
+          if (f.action === 'act-wa') {
+            await sendWhatsAppMock(user.id, l.phone, body, { entityId: l.id, entityType: 'lead' });
+            logAutoActivity(l.id, 'lead', `Sent welcome WhatsApp to ${l.phone}`);
+          }
+          if (f.action === 'act-notif') logAutoActivity(l.id, 'lead', `New lead notification sent to team`);
         });
       }
     });
 
-    // 2. AMC Expiring Trigger (trig-amc)
-    const amcFlows = activeFlows.filter(f => f.trigger === 'trig-amc');
+    // 2. AMC Expiring Trigger
     amc.forEach(a => {
       const diff = Math.ceil((new Date(a.endDate) - Date.now()) / (1000 * 60 * 60 * 24));
-      const key = `amc-exp-${a.id}`;
-      if (diff <= 30 && diff > 0 && !processedRef.current.has(key)) {
+      const key = `amc-exp-${a.id}-${diff}`; // Key includes diff to fire once at the threshold
+      if (diff === reminders.amc.days && !processedRef.current.has(key)) {
         processedRef.current.add(key);
-        amcFlows.forEach(f => {
-          let actionText = '';
-          if (f.action === 'act-email') actionText = `Sent AMC renewal email to ${a.client}`;
-          if (f.action === 'act-wa') actionText = `Sent AMC renewal WhatsApp to ${a.client}`;
-          if (actionText) logAutoActivity(a.id, 'amc', actionText);
-        });
+        const body = renderTemplate(reminders.amc.msg, { client: a.client, date: a.endDate, bizName: profile.bizName, contractNo: a.contractNo });
+        sendEmailMock(user.id, a.email || 'client@example.com', 'AMC Renewal Reminder', body, { entityId: a.id, entityType: 'amc' });
+        logAutoActivity(a.id, 'amc', `Auto-sent renewal reminder to ${a.client}`);
       }
     });
 
-    // 3. Payment Due Trigger (trig-payment)
-    const subFlows = activeFlows.filter(f => f.trigger === 'trig-payment');
+    // 3. Subscription Payment Due Trigger
     subs.forEach(s => {
       const diff = Math.ceil((new Date(s.nextPayment) - Date.now()) / (1000 * 60 * 60 * 24));
-      const key = `sub-due-${s.id}`;
-      if (diff <= 7 && diff > 0 && !processedRef.current.has(key)) {
+      const key = `sub-due-${s.id}-${diff}`;
+      if (diff === reminders.sub.days && !processedRef.current.has(key)) {
         processedRef.current.add(key);
-        subFlows.forEach(f => {
-          let actionText = '';
-          if (f.action === 'act-wa') actionText = `Sent payment reminder WhatsApp for ${s.plan}`;
-          if (f.action === 'act-email') actionText = `Sent payment reminder email for ${s.plan}`;
-          if (actionText) logAutoActivity(s.id, 'sub', actionText);
-        });
+        const body = renderTemplate(reminders.sub.msg, { client: s.client, date: s.nextPayment, amount: s.amount, bizName: profile.bizName });
+        sendWhatsAppMock(user.id, s.phone || '0000000000', body, { entityId: s.id, entityType: 'sub' });
+        logAutoActivity(s.id, 'sub', `Auto-sent payment reminder for ${s.plan}`);
       }
     });
 
-  }, [leads, amc, subs, automations, user]);
+  }, [leads, amc, subs, automations, user, profile, reminders]);
 }
