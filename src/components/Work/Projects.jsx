@@ -235,7 +235,15 @@ export default function Projects({ user }) {
                         <span style={{ fontSize: 11, fontWeight: 700 }}>{log.userName} <span style={{ fontWeight: 400, color: 'var(--muted)', marginLeft: 4 }}>({log.entityType})</span></span>
                         <span style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(log.createdAt).toLocaleString()}</span>
                       </div>
-                      <div style={{ fontSize: 12, color: '#444' }}>{log.text}</div>
+                      <div style={{ fontSize: 12, color: '#444' }}>
+                        {log.text?.split('\n').map((line, i) => (
+                          <div key={i} style={{ marginBottom: line ? 2 : 0 }}>
+                            {line.split('**').map((part, j) => 
+                              j % 2 === 1 ? <mark key={j} style={{ background: '#fef08a', color: '#854d0e', padding: '0 4px', borderRadius: 4, fontWeight: 600 }}>{part}</mark> : part
+                            )}
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 ));

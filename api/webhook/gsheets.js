@@ -150,7 +150,7 @@ export default async function handler(req, res) {
         db.tx.activityLogs[logId].update({
           entityId: existingLead.id,
           entityType: 'lead',
-          text: `Lead submitted again from Google Sheets.\nOriginal creation date: ${createDateStr}\nResubmitted on: ${new Date().toLocaleString()}`,
+          text: `Lead submitted again from Google Sheets.\nOriginal creation date: ${createDateStr}\n**Resubmitted on: ${new Date().toLocaleString()}**`,
           userId: userId,
           userName: 'System (Webhook)',
           createdAt: Date.now()
