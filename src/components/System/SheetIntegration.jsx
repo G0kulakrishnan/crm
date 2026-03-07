@@ -269,16 +269,20 @@ export default function SheetIntegration({ user, onBack, existingConfig, editInd
     );
   };
 
-  const appsScriptCode = `
-function onEdit(e) {
-  // Prevent error if run manually from the editor
+  const appsScriptCode = `// Step 1: Paste this entire script into Extensions > Apps Script
+// Step 2: Click Save (💾)
+// Step 3: Click the ⏰ Triggers icon (left sidebar, clock icon)
+// Step 4: Click "+ Add Trigger" and set:
+//         Function: pushLeadToCRM
+//         Event source: From spreadsheet
+//         Event type: On edit
+// Step 5: Click Save & authorize the permissions
+
+function pushLeadToCRM(e) {
   if (!e) return;
   
   var sheet = e.source.getActiveSheet();
-  var range = e.range;
-  
-  // Only trigger on new row / specific column if needed
-  var row = range.getRow();
+  var row = e.range.getRow();
   var lastRow = sheet.getLastRow();
   
   if (row == lastRow) {
@@ -289,11 +293,15 @@ function onEdit(e) {
       "data": data
     };
     
-    UrlFetchApp.fetch("https://mycrm.t2gcrm.in/api/webhook/gsheets", {
+    var options = {
       "method": "post",
       "contentType": "application/json",
-      "payload": JSON.stringify(payload)
-    });
+      "payload": JSON.stringify(payload),
+      "muteHttpExceptions": true
+    };
+    
+    var response = UrlFetchApp.fetch("https://mycrm.t2gcrm.in/api/webhook/gsheets", options);
+    Logger.log("CRM Response: " + response.getContentText());
   }
 }
   `;
