@@ -21,6 +21,7 @@ export default function LeadsView({ user }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [colModal, setColModal] = useState(false);
   const [tempCols, setTempCols] = useState([]);
+  const [tempStages, setTempStages] = useState([]);
   const [viewLead, setViewLead] = useState(null);
   const [noteText, setNoteText] = useState('');
   const toast = useToast();
@@ -36,9 +37,13 @@ export default function LeadsView({ user }) {
   const activityLogs = data?.activityLogs || [];
   const customFields = data?.userProfiles?.[0]?.customFields || [];
   const profileId = data?.userProfiles?.[0]?.id;
+  
   const savedCols = data?.userProfiles?.[0]?.leadCols;
   const allPossibleCols = ['Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Label', 'Reminder', ...customFields.map(c => c.name)];
   const activeCols = savedCols || allPossibleCols;
+
+  const savedStages = data?.userProfiles?.[0]?.leadStages;
+  const activeStages = savedStages || STAGES;
 
   // Filtering
   const filtered = useMemo(() => {
@@ -54,7 +59,9 @@ export default function LeadsView({ user }) {
       }
       if (tab === 'overdue') return l.followup && new Date(l.followup) < now;
       return true;
-    }).filter(l => !srcFilter || l.source === srcFilter)
+    })
+      .filter(l => activeStages.includes(l.stage))
+      .filter(l => !srcFilter || l.source === srcFilter)
       .filter(l => !stgFilter || l.stage === stgFilter)
       .filter(l => {
         if (!search) return true;
@@ -181,18 +188,18 @@ export default function LeadsView({ user }) {
     }
   };
 
-  const saveCols = async (colsToSave) => {
+  const saveViewConfig = async (colsToSave, stagesToSave) => {
     if (profileId) {
-      await db.transact(db.tx.userProfiles[profileId].update({ leadCols: colsToSave }));
+      await db.transact(db.tx.userProfiles[profileId].update({ leadCols: colsToSave, leadStages: stagesToSave }));
     } else {
-      await db.transact(db.tx.userProfiles[id()].update({ leadCols: colsToSave, userId: user.id }));
+      await db.transact(db.tx.userProfiles[id()].update({ leadCols: colsToSave, leadStages: stagesToSave, userId: user.id }));
     }
     setColModal(false);
-    toast('Columns updated', 'success');
+    toast('View configuration saved', 'success');
   };
 
-  const resetCols = () => {
-    saveCols(allPossibleCols);
+  const resetViewConfig = () => {
+    saveViewConfig(allPossibleCols, STAGES);
   };
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
@@ -389,7 +396,7 @@ export default function LeadsView({ user }) {
                   <option value="">All Stages</option>
                   {STAGES.map(s => <option key={s}>{s}</option>)}
                 </select>
-                <button className="btn btn-secondary btn-sm" onClick={() => { setTempCols(activeCols); setColModal(true); }}>⚙ Columns</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => { setTempCols(activeCols); setTempStages(activeStages); setColModal(true); }}>⚙ View Preferences</button>
               </div>
             </div>
             <div style={{ overflowX: 'auto', paddingBottom: 60 /* space for dropdowns */ }}>
@@ -554,28 +561,49 @@ export default function LeadsView({ user }) {
       {/* COLUMNS MODAL */}
       {colModal && (
         <div className="mo open" onClick={e => e.target === e.currentTarget && setColModal(false)}>
-          <div className="mo-box" style={{ width: 400 }}>
+          <div className="mo-box" style={{ width: 480 }}>
             <div className="mo-head">
-              <h3>Select Columns</h3>
+              <h3>Configure View</h3>
               <button className="btn-icon" onClick={() => setColModal(false)}>✕</button>
             </div>
-            <div className="mo-body" style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: '60vh', overflowY: 'auto' }}>
-              <strong style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>Available Columns</strong>
-              {allPossibleCols.map(c => (
-                <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, padding: '4px 0' }}>
-                  <input type="checkbox" checked={tempCols.includes(c)} onChange={e => {
-                    if (e.target.checked) setTempCols([...tempCols, c]);
-                    else setTempCols(tempCols.filter(x => x !== c));
-                  }} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
-                  {c}
-                </label>
-              ))}
+            <div className="mo-body" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxHeight: '60vh', overflowY: 'auto' }}>
+              
+              <div>
+                <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Visible Stages</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {STAGES.map(s => (
+                    <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                      <input type="checkbox" checked={tempStages.includes(s)} onChange={e => {
+                        if (e.target.checked) setTempStages([...tempStages, s]);
+                        else setTempStages(tempStages.filter(x => x !== s));
+                      }} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
+                      {s}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Visible Columns</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {allPossibleCols.map(c => (
+                    <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                      <input type="checkbox" checked={tempCols.includes(c)} onChange={e => {
+                        if (e.target.checked) setTempCols([...tempCols, c]);
+                        else setTempCols(tempCols.filter(x => x !== c));
+                      }} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
+                      {c}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
             </div>
             <div className="mo-foot" style={{ justifyContent: 'space-between' }}>
-              <button className="btn btn-secondary btn-sm" onClick={resetCols}>Reset to Default</button>
+              <button className="btn btn-secondary btn-sm" onClick={resetViewConfig}>Reset to Default</button>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-secondary btn-sm" onClick={() => setColModal(false)}>Cancel</button>
-                <button className="btn btn-primary btn-sm" onClick={() => saveCols(tempCols)}>Save View</button>
+                <button className="btn btn-primary btn-sm" onClick={() => saveViewConfig(tempCols, tempStages)}>Save View</button>
               </div>
             </div>
           </div>
