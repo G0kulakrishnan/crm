@@ -1,10 +1,19 @@
 import React, { useState } from 'react';
 import db from '../../instant';
 import { useToast } from '../../context/ToastContext';
+import SheetIntegration from './SheetIntegration';
 
 export default function Integrations({ user }) {
   const toast = useToast();
   const [syncing, setSyncing] = useState(null);
+  const [showConfig, setShowConfig] = useState(null); // { type: 'gsheets', index: number | null }
+  const [activeTab, setActiveTab] = useState('all');
+
+  const { data } = db.useQuery({ 
+    userProfiles: { $: { where: { userId: user.id } } } 
+  });
+  const profile = data?.userProfiles?.[0];
+  const gsheets = profile?.gsheets || [];
 
   const integrations = [
     {
@@ -12,8 +21,10 @@ export default function Integrations({ user }) {
       name: 'Google Sheets',
       desc: 'Import leads directly from a shared Google Spreadsheet.',
       icon: '📊',
-      connected: false
+      connected: gsheets.length > 0,
+      count: gsheets.length
     },
+    // ... rest same
     {
       id: 'fbads',
       name: 'Facebook Ads',
@@ -37,6 +48,17 @@ export default function Integrations({ user }) {
       toast(`Successfully connected to ${id === 'gsheets' ? 'Google Sheets' : id === 'fbads' ? 'Facebook Ads' : 'Google Ads'}`, 'success');
     }, 2000);
   };
+
+  if (showConfig?.type === 'gsheets') {
+    return (
+      <SheetIntegration 
+        user={user} 
+        onBack={() => setShowConfig(null)} 
+        existingConfig={showConfig.index !== null ? gsheets[showConfig.index] : null} 
+        editIndex={showConfig.index}
+      />
+    );
+  }
 
   return (
     <div className="integrations">
@@ -62,13 +84,25 @@ export default function Integrations({ user }) {
             <p style={{ fontSize: 13, color: 'var(--muted)', flex: 1, lineHeight: 1.5, marginBottom: 20 }}>
               {item.desc}
             </p>
+            {item.id === 'gsheets' && gsheets.length > 0 && (
+              <div style={{ marginTop: -10, marginBottom: 15 }}>
+                {gsheets.map((gs, idx) => (
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-soft)', borderRadius: 8, marginBottom: 6, fontSize: 12 }}>
+                    <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
+                      📄 {gs.configName || gs.mapping?.source?.value || gs.sheetId.substring(0, 8) + '...'}
+                    </span>
+                    <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: 10 }} onClick={() => setShowConfig({ type: 'gsheets', index: idx })}>Edit</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <button 
               className={`btn ${syncing === item.id ? 'btn-secondary' : 'btn-primary'} btn-sm`} 
               style={{ width: '100%' }}
-              onClick={() => handleSync(item.id)}
+              onClick={() => item.id === 'gsheets' ? setShowConfig({ type: 'gsheets', index: null }) : handleSync(item.id)}
               disabled={syncing !== null}
             >
-              {syncing === item.id ? 'Connecting...' : item.connected ? 'Resync Data' : 'Connect Now'}
+              {syncing === item.id ? 'Connecting...' : item.id === 'gsheets' && gsheets.length > 0 ? '+ Add Another Sheet' : 'Connect Now'}
             </button>
           </div>
         ))}
