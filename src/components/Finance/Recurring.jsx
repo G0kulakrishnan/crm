@@ -67,10 +67,11 @@ export default function Recurring({ user }) {
     const template = reminders.sub?.msg || 'Hello {client}, your payment of {amount} is due on {date}.';
     
     const emailConfig = {
-      serviceId: profile.emailjsServiceId,
-      templateId: profile.emailjsTemplateId,
-      publicKey: profile.emailjsPublicKey,
-      userEmail: profile.smtpUser
+      smtpHost: profile.smtpHost,
+      smtpPort: profile.smtpPort,
+      smtpUser: profile.smtpUser,
+      smtpPass: profile.smtpPass,
+      bizName: profile.bizName
     };
 
     const body = renderTemplate(template, { client: r.client, date: fmtD(r.nextDue), amount: r.amount, bizName: profile.bizName || '' });
@@ -78,7 +79,7 @@ export default function Recurring({ user }) {
 
     try {
       toast('Sending email...', 'info');
-      if (emailConfig.serviceId && emailConfig.templateId && emailConfig.publicKey) {
+      if (emailConfig.smtpHost && emailConfig.smtpUser && emailConfig.smtpPass) {
         const res = await sendEmail(targetEmail, subject, body, emailConfig, user.id);
         if (res === 'OK') toast('Reminder sent successfully!', 'success');
         else toast('Failed to send', 'error');

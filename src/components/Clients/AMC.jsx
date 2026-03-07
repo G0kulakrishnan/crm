@@ -82,10 +82,11 @@ export default function AMC({ user }) {
     const template = reminders.amc?.msg || 'Hello {client}, your AMC contract is expiring on {date}.';
     
     const emailConfig = {
-      serviceId: profile.emailjsServiceId,
-      templateId: profile.emailjsTemplateId,
-      publicKey: profile.emailjsPublicKey,
-      userEmail: profile.smtpUser
+      smtpHost: profile.smtpHost,
+      smtpPort: profile.smtpPort,
+      smtpUser: profile.smtpUser,
+      smtpPass: profile.smtpPass,
+      bizName: profile.bizName
     };
 
     const body = renderTemplate(template, { client: a.client, date: fmtD(a.endDate), contractNo: a.contractNo, bizName: profile.bizName || '' });
@@ -93,7 +94,7 @@ export default function AMC({ user }) {
 
     try {
       toast('Sending email...', 'info');
-      if (emailConfig.serviceId && emailConfig.templateId && emailConfig.publicKey) {
+      if (emailConfig.smtpHost && emailConfig.smtpUser && emailConfig.smtpPass) {
         const res = await sendEmail(a.email, subject, body, emailConfig, user.id);
         if (res === 'OK') toast('Reminder sent successfully!', 'success');
         else toast('Failed to send', 'error');

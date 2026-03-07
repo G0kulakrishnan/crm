@@ -118,7 +118,7 @@ export default function Campaigns({ user }) {
 
   const handleSend = async () => {
     if (!campaignName.trim()) return toast('Please enter a Campaign Name', 'error');
-    if (channel === 'email' && !profile?.smtpSender) return toast('Please configure your EmailJS settings in the CRM Settings page first', 'error');
+    if (channel === 'email' && !profile?.smtpHost) return toast('Please configure your SMTP settings in the Settings page first', 'error');
     if (targetAudience.length === 0) return toast('No leads match your selected filters. Please adjust your audience.', 'error');
     if (channel === 'email' && (!subject.trim() || !body.trim())) return toast('Please enter a subject and email body.', 'error');
     if (channel === 'whatsapp' && !body.trim()) return toast('Please enter a message body.', 'error');

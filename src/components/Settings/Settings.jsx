@@ -45,10 +45,10 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
     accHolder: profile?.accHolder || '',
     qrCode: profile?.qrCode || null,
   });
-  const [emailjsServiceId, setEmailjsServiceId] = useState(profile?.emailjsServiceId || '');
-  const [emailjsTemplateId, setEmailjsTemplateId] = useState(profile?.emailjsTemplateId || '');
+  const [smtpHost, setSmtpHost] = useState(profile?.smtpHost || '');
+  const [smtpPort, setSmtpPort] = useState(profile?.smtpPort || '587');
   const [smtpUser, setSmtpUser] = useState(profile?.smtpUser || '');
-  const [emailjsPublicKey, setEmailjsPublicKey] = useState(profile?.emailjsPublicKey || '');
+  const [smtpPass, setSmtpPass] = useState(profile?.smtpPass || '');
   const [waToken, setWaToken] = useState(profile?.waToken || '');
   const [waFrom, setWaFrom] = useState(profile?.waFrom || '');
   const [newSource, setNewSource] = useState('');
@@ -143,29 +143,24 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
   const removeItem = (key, list, idx) => saveList(key, list.filter((_, i) => i !== idx));
 
   const saveSMTP = async () => {
-    const payload = { emailjsServiceId, emailjsTemplateId, smtpUser, emailjsPublicKey, userId: user.id };
+    const payload = { smtpHost, smtpPort, smtpUser, smtpPass, smtpSender: smtpUser, userId: user.id };
     if (profileId) { await db.transact(db.tx.userProfiles[profileId].update(payload)); }
-    toast('Email settings saved!', 'success');
+    toast('SMTP settings saved!', 'success');
   };
 
   const testSMTP = async () => {
-    if (!emailjsServiceId || !emailjsTemplateId || !emailjsPublicKey) return toast('Please save EmailJS settings first', 'error');
+    if (!smtpHost || !smtpUser || !smtpPass) return toast('Please save SMTP settings first', 'error');
     const testEmail = prompt('Recipient Email:', userProfile.email);
     if (!testEmail) return;
-    const testSubject = prompt('Email Subject:', 'TechCRM EmailJS Test');
+    const testSubject = prompt('Email Subject:', 'TechCRM SMTP Test');
     if (!testSubject) return;
-    const testBody = prompt('Email Content:', 'This is a test message via EmailJS.');
+    const testBody = prompt('Email Content:', 'This is a test email sent directly via your SMTP server.');
     if (!testBody) return;
 
     try {
-      toast('Sending test email via EmailJS...', 'info');
-      const emailjsConfig = { 
-        serviceId: emailjsServiceId, 
-        templateId: emailjsTemplateId, 
-        publicKey: emailjsPublicKey,
-        userEmail: smtpUser 
-      };
-      const result = await sendEmail(testEmail, testSubject, testBody, emailjsConfig, user.id);
+      toast('Sending test email via SMTP...', 'info');
+      const smtpConfig = { smtpHost, smtpPort, smtpUser, smtpPass, bizName: biz.bizName };
+      const result = await sendEmail(testEmail, testSubject, testBody, smtpConfig, user.id);
       
       if (result === 'OK') {
         toast('Test email sent successfully! 🚀', 'success');
@@ -173,7 +168,7 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
         toast(`Error: ${result}`, 'warning');
       }
     } catch (e) {
-      console.error("EmailJS Client Error:", e);
+      console.error('SMTP Test Error:', e);
       toast(`Failed: ${e.message}`, 'error');
     }
   };
@@ -522,7 +517,7 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
           {active === 'SMTP' && (
             <div className="tw">
               <div className="tw-head">
-                <h3>Email Settings (via EmailJS)</h3>
+                <h3>Email Settings (Direct SMTP)</h3>
                 <div style={{ display: 'flex', gap: 8 }}>
                    <button className="btn btn-secondary btn-sm" onClick={testSMTP}>Test Connection</button>
                    <button className="btn btn-primary btn-sm" onClick={saveSMTP}>Save</button>
@@ -530,16 +525,16 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
               </div>
               <div style={{ padding: '20px' }}>
                 <div className="sub" style={{ marginBottom: 15 }}>
-                  Use <a href="https://www.emailjs.com" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontWeight: 600 }}>EmailJS</a> to bridge your Hostinger SMTP server to this app securely.
+                  Enter your SMTP server details below. Works with Gmail, Outlook, Hostinger, or any SMTP provider.
                 </div>
                 <div className="fgrid">
-                  <div className="fg"><label>Service ID</label><input value={emailjsServiceId} onChange={e => setEmailjsServiceId(e.target.value)} placeholder="service_xxxx" /></div>
-                  <div className="fg"><label>Template ID</label><input value={emailjsTemplateId} onChange={e => setEmailjsTemplateId(e.target.value)} placeholder="template_xxxx" /></div>
-                  <div className="fg"><label>Public Key</label><input value={emailjsPublicKey} onChange={e => setEmailjsPublicKey(e.target.value)} placeholder="user_xxxx or key_xxxx" /></div>
-                  <div className="fg"><label>Sender/Reply-To Email</label><input value={smtpUser} onChange={e => setSmtpUser(e.target.value)} placeholder="your@email.com" /></div>
+                  <div className="fg"><label>SMTP Host</label><input value={smtpHost} onChange={e => setSmtpHost(e.target.value)} placeholder="e.g., smtp.gmail.com" /></div>
+                  <div className="fg"><label>SMTP Port</label><input value={smtpPort} onChange={e => setSmtpPort(e.target.value)} placeholder="587 or 465" /></div>
+                  <div className="fg"><label>Email / Username</label><input value={smtpUser} onChange={e => setSmtpUser(e.target.value)} placeholder="your@email.com" /></div>
+                  <div className="fg"><label>Password / App Password</label><input type="password" value={smtpPass} onChange={e => setSmtpPass(e.target.value)} placeholder="••••••••" /></div>
                 </div>
                 <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: 12, fontSize: 12, marginTop: 12, color: '#166534' }}>
-                  💡 <strong>Setup Tip:</strong> In EmailJS, add your Hostinger SMTP as a service, create a template with <code>{`{{message}}`}</code> and <code>{`{{subject}}`}</code>, then paste the IDs here.
+                  💡 <strong>Gmail Users:</strong> Use an <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noreferrer" style={{ color: '#166534', fontWeight: 600 }}>App Password</a> (not your main password). Set Host to <code>smtp.gmail.com</code>, Port to <code>587</code>.
                 </div>
               </div>
             </div>

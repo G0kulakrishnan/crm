@@ -59,10 +59,11 @@ export default function Subscriptions({ user }) {
     const template = reminders.sub?.msg || 'Hello {client}, your subscription payment of {amount} is due on {date}.';
     
     const emailConfig = {
-      serviceId: profile.emailjsServiceId,
-      templateId: profile.emailjsTemplateId,
-      publicKey: profile.emailjsPublicKey,
-      userEmail: profile.smtpUser
+      smtpHost: profile.smtpHost,
+      smtpPort: profile.smtpPort,
+      smtpUser: profile.smtpUser,
+      smtpPass: profile.smtpPass,
+      bizName: profile.bizName
     };
 
     const body = renderTemplate(template, { client: s.client, date: fmtD(s.nextPayment), amount: s.amount, bizName: profile.bizName || '' });
@@ -70,7 +71,7 @@ export default function Subscriptions({ user }) {
 
     try {
       toast('Sending email...', 'info');
-      if (emailConfig.serviceId && emailConfig.templateId && emailConfig.publicKey) {
+      if (emailConfig.smtpHost && emailConfig.smtpUser && emailConfig.smtpPass) {
         const res = await sendEmail(s.email, subject, body, emailConfig, user.id);
         if (res === 'OK') toast('Reminder sent successfully!', 'success');
         else toast('Failed to send', 'error');

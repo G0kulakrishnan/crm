@@ -26,11 +26,6 @@ export const renderTemplate = (template, data = {}) => {
 };
 
 /**
- * Logs a message to the Outbox collection (Simulated Delivery)
- */
-import emailjs from '@emailjs/browser';
-
-/**
  * Logs a message to the Outbox collection
  */
 const logToOutbox = async (userId, type, recipient, content, metadata = {}) => {
@@ -48,33 +43,34 @@ const logToOutbox = async (userId, type, recipient, content, metadata = {}) => {
   console.log(`🚀 [Outbox] ${type.toUpperCase()} sent to ${recipient}:`, content);
 };
 
+/**
+ * Sends an email via the Nodemailer serverless function at /api/send-email.
+ * Config object should have: { smtpHost, smtpPort, smtpUser, smtpPass, bizName }
+ */
 export const sendEmail = async (to, subject, body, config, userId) => {
-  const { serviceId, templateId, publicKey, userEmail } = config;
+  const { smtpHost, smtpPort, smtpUser, smtpPass, bizName } = config;
 
-  if (!serviceId || !templateId || !publicKey) {
-    throw new Error("EmailJS configuration is incomplete.");
+  if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
+    throw new Error("SMTP configuration is incomplete. Please fill in all SMTP fields in Settings.");
   }
 
-  // Parameters for the EmailJS template
-  // Advise user to use {{subject}}, {{to_email}}, {{message}}, {{reply_to}} in their template
-  const templateParams = {
-    to_email: to,
-    subject: subject,
-    message: body,
-    reply_to: userEmail || ''
-  };
-
   try {
-    const response = await emailjs.send(serviceId, templateId, templateParams, publicKey);
-    
-    if (response.status === 200) {
+    const resp = await fetch('/api/send-email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, subject, body, smtpHost, smtpPort, smtpUser, smtpPass, fromName: bizName || '' })
+    });
+
+    const data = await resp.json();
+
+    if (resp.ok && data.success) {
       if (userId) await logToOutbox(userId, 'email', to, `Subject: ${subject}\n\n${body}`, { status: 'Sent' });
       return 'OK';
     } else {
-      throw new Error(response.text || "Failed to send via EmailJS");
+      throw new Error(data.error || 'Failed to send email');
     }
   } catch (err) {
-    const errMsg = err.text || err.message || JSON.stringify(err);
+    const errMsg = err.message || JSON.stringify(err);
     if (userId) await logToOutbox(userId, 'email', to, `Subject: ${subject}\n\n${body}`, { status: 'Failed', error: errMsg });
     throw new Error(errMsg);
   }
