@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import db from '../instant';
 import { id } from '@instantdb/react';
-import { renderTemplate, sendEmailMock, sendWhatsAppMock } from '../utils/messaging';
+import { renderTemplate, sendEmailMock, sendWhatsAppMock, sendEmail } from '../utils/messaging';
 
 export default function useAutomationEngine(user) {
   const { data } = db.useQuery({
@@ -10,12 +10,14 @@ export default function useAutomationEngine(user) {
     subs: { $: { where: { userId: user.id } } },
     automations: { $: { where: { userId: user.id } } },
     userProfiles: { $: { where: { userId: user.id } } },
+    campaigns: { $: { where: { userId: user.id } } }
   });
 
   const leads = data?.leads || [];
   const amc = data?.amc || [];
   const subs = data?.subs || [];
   const automations = data?.automations || [];
+  const campaigns = data?.campaigns || [];
   const profile = data?.userProfiles?.[0] || {};
   const reminders = profile.reminders || {
     amc: { days: 30, msg: 'Hello {client}, your AMC contract is expiring on {date}.' },
@@ -26,10 +28,20 @@ export default function useAutomationEngine(user) {
   // Track processed entities to avoid double-firing
   const processedRef = useRef(new Set());
 
+  // Force evaluation every minute to catch scheduled campaigns/events precisely
   useEffect(() => {
-    if (!user || (!automations.length && !profile.id)) return;
+    const interval = setInterval(() => {
+      // Small dummy state update or just relying on natural component re-renders
+      // since InstantDB sockets are mostly push-driven, but we need time-driven checks too.
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!user || (!automations.length && !profile.id && !campaigns.length)) return;
 
     const activeFlows = automations.filter(a => a.active);
+    const nowStamp = Date.now();
 
     // Helper to log automated activity
     const logAutoActivity = async (entityId, entityType, text) => {
@@ -90,5 +102,66 @@ export default function useAutomationEngine(user) {
       }
     });
 
-  }, [leads, amc, subs, automations, user, profile, reminders]);
+    // 4. Scheduled Campaigns Processor
+    const runScheduledCampaigns = async () => {
+      const dueCampaigns = campaigns.filter(c => c.status === 'Scheduled' && c.scheduledFor && c.scheduledFor <= nowStamp);
+      
+      for (const camp of dueCampaigns) {
+        if (processedRef.current.has('camp-' + camp.id)) continue;
+        processedRef.current.add('camp-' + camp.id);
+
+        console.log(`[Automation] Triggering scheduled campaign: ${camp.name}`);
+        
+        // 4a. Mark as sending
+        await db.transact(db.tx.campaigns[camp.id].update({ status: 'Sending...' }));
+
+        // 4b. Filter the leads that match the saved campaign filters
+        const activeStages = new Set(camp.filters?.stages || []);
+        const activeSources = new Set(camp.filters?.sources || []);
+        const activeLabels = new Set(camp.filters?.labels || []);
+
+        const targetAudience = leads.filter(l => {
+          if (!l.email) return false;
+          const stgMatch = activeStages.size === 0 || activeStages.has(l.stage);
+          const srcMatch = activeSources.size === 0 || activeSources.has(l.source);
+          const lblMatch = activeLabels.size === 0 || activeLabels.has(l.label);
+          return stgMatch && srcMatch && lblMatch;
+        });
+
+        // 4c. Process emails
+        let sentCount = 0;
+        for (let i = 0; i < targetAudience.length; i++) {
+          const lead = targetAudience[i];
+          try {
+            const pSubj = camp.subject.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
+            const pBody = camp.body.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
+            
+            await sendEmail(lead.email, pSubj, pBody, profile);
+            
+            await db.transact(db.tx.activityLogs[id()].update({
+              entityId: lead.id,
+              entityType: 'lead',
+              text: `Received scheduled campaign: "${camp.name}"\nSubject: ${pSubj}`,
+              userId: user.id,
+              userName: 'System (Campaign)',
+              createdAt: Date.now()
+            }));
+            sentCount++;
+          } catch (err) {
+            console.error(`Failed scheduled campaign to ${lead.email}:`, err);
+          }
+          await new Promise(r => setTimeout(r, 1500)); 
+        }
+
+        // 4d. Mark as Completed
+        await db.transact(db.tx.campaigns[camp.id].update({
+          status: 'Completed',
+          sentCount: sentCount
+        }));
+      }
+    };
+
+    runScheduledCampaigns();
+
+  }, [leads, amc, subs, automations, campaigns, user, profile, reminders]);
 }

@@ -17,6 +17,7 @@ import Subscriptions from '../Clients/Subscriptions';
 import Customers from '../Clients/Customers';
 import Expenses from '../Business/Expenses';
 import Products from '../Business/Products';
+import Campaigns from '../Marketing/Campaigns';
 import Projects from '../Work/Projects';
 import AllTasks from '../Work/AllTasks';
 import Teams from '../Work/Teams';
@@ -155,6 +156,7 @@ export default function MainApp({ user }) {
     subscriptions: <Subscriptions user={user} />,
     expenses: <Expenses user={user} />,
     products: <Products user={user} />,
+    campaigns: <Campaigns user={user} />,
     projects: <Projects user={user} />,
     alltasks: <AllTasks user={user} />,
     teams: <Teams user={user} />,
