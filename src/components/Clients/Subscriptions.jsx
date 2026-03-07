@@ -3,6 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD, fmt, stageBadgeClass, daysLeft } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
+import { sendEmail, sendEmailMock, renderTemplate } from '../../utils/messaging';
 
 const EMPTY = { client: '', email: '', phone: '', plan: 'Monthly', amount: '', nextPayment: '', status: 'Active' };
 
@@ -14,10 +15,15 @@ export default function Subscriptions({ user }) {
   const [form, setForm] = useState(EMPTY);
   const toast = useToast();
 
-  const { data } = db.useQuery({ subs: { $: { where: { userId: user.id } } } });
-  const subs = data?.subs || [];
+  const { data } = db.useQuery({ 
+    subscriptions: { $: { where: { userId: user.id } } },
+    customers: { $: { where: { userId: user.id } } },
+    userProfiles: { $: { where: { userId: user.id } } }
+  });
+  const subscriptions = data?.subscriptions || [];
+  const customers = data?.customers || [];
   
-  const filtered = subs.filter(s => {
+  const filtered = subscriptions.filter(s => {
     if (tab === 'active') return s.status === 'Active';
     if (tab === 'followup') return s.needsFollowUp;
     return true;
@@ -29,20 +35,63 @@ export default function Subscriptions({ user }) {
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
 
+  const handleClientSelect = (e) => {
+    const cName = e.target.value;
+    const cust = customers.find(c => c.name === cName);
+    setForm(p => ({ 
+      ...p, 
+      client: cName, 
+      email: cust ? cust.email : p.email 
+    }));
+  };
+
   const toggleFollowUp = async (s) => {
-    await db.transact(db.tx.subs[s.id].update({ needsFollowUp: !s.needsFollowUp }));
+    await db.transact(db.tx.subscriptions[s.id].update({ needsFollowUp: !s.needsFollowUp }));
     toast(s.needsFollowUp ? 'Follow-up removed' : 'Marked for follow-up', 'success');
+  };
+
+  const handleSendReminder = async (s) => {
+    if (!s.email) return toast('Client has no email address', 'error');
+    if (!confirm(`Send reminder email to ${s.client} (${s.email})?`)) return;
+    
+    const profile = data?.userProfiles?.[0] || {};
+    const reminders = profile.reminders || { sub: { msg: 'Hello {client}, your subscription payment of {amount} is due on {date}.' } };
+    const template = reminders.sub?.msg || 'Hello {client}, your subscription payment of {amount} is due on {date}.';
+    
+    const emailConfig = {
+      serviceId: profile.emailjsServiceId,
+      templateId: profile.emailjsTemplateId,
+      publicKey: profile.emailjsPublicKey,
+      userEmail: profile.smtpUser
+    };
+
+    const body = renderTemplate(template, { client: s.client, date: fmtD(s.nextPayment), amount: s.amount, bizName: profile.bizName || '' });
+    const subject = 'Subscription Payment Reminder';
+
+    try {
+      toast('Sending email...', 'info');
+      if (emailConfig.serviceId && emailConfig.templateId && emailConfig.publicKey) {
+        const res = await sendEmail(s.email, subject, body, emailConfig, user.id);
+        if (res === 'OK') toast('Reminder sent successfully!', 'success');
+        else toast('Failed to send', 'error');
+      } else {
+        await sendEmailMock(user.id, s.email, subject, body, { entityId: s.id, entityType: 'sub' });
+        toast('Email config missing, logged to outbox.', 'warning');
+      }
+    } catch (e) {
+      toast('Failed to send email', 'error');
+    }
   };
 
   const save = async () => {
     if (!form.client.trim()) { toast('Client required', 'error'); return; }
     const payload = { ...form, amount: parseFloat(form.amount) || 0, userId: user.id };
-    if (editData) { await db.transact(db.tx.subs[editData.id].update(payload)); toast('Updated', 'success'); }
-    else { await db.transact(db.tx.subs[id()].update(payload)); toast('Subscription created', 'success'); }
+    if (editData) { await db.transact(db.tx.subscriptions[editData.id].update(payload)); toast('Updated', 'success'); }
+    else { await db.transact(db.tx.subscriptions[id()].update(payload)); toast('Subscription created', 'success'); }
     setModal(false);
   };
 
-  const del = async (sid) => { if (!confirm('Delete?')) return; await db.transact(db.tx.subs[sid].delete()); toast('Deleted', 'error'); };
+  const del = async (sid) => { if (!confirm('Delete?')) return; await db.transact(db.tx.subscriptions[sid].delete()); toast('Deleted', 'error'); };
 
   return (
     <div>
@@ -80,6 +129,7 @@ export default function Subscriptions({ user }) {
                     <td><span className={`badge ${d <= 7 ? 'bg-red' : d <= 30 ? 'bg-yellow' : 'bg-green'}`}>{d}d</span></td>
                     <td>
                       <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(s); setForm({ client: s.client, email: s.email || '', phone: s.phone || '', plan: s.plan, amount: s.amount, nextPayment: s.nextPayment || '', status: s.status }); setModal(true); }}>Edit</button>{' '}
+                      <button className="btn btn-sm" style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 8px', fontSize: 13 }} onClick={() => handleSendReminder(s)}>📧 Send</button>{' '}
                       <button className={`btn btn-sm ${s.needsFollowUp ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '4px 8px', fontSize: 13 }} onClick={() => toggleFollowUp(s)}>
                         {s.needsFollowUp ? '📌 Following Up' : '📍 Flag'}
                       </button>{' '}
@@ -97,7 +147,13 @@ export default function Subscriptions({ user }) {
             <div className="mo-head"><h3>{editData ? 'Edit' : 'Create'} Subscription</h3><button className="btn-icon" onClick={() => setModal(false)}>✕</button></div>
             <div className="mo-body">
               <div className="fgrid">
-                <div className="fg"><label>Client *</label><input value={form.client} onChange={f('client')} /></div>
+                <div className="fg">
+                  <label>Client *</label>
+                  <select value={form.client} onChange={handleClientSelect}>
+                    <option value="">Select Customer...</option>
+                    {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  </select>
+                </div>
                 <div className="fg"><label>Plan</label><select value={form.plan} onChange={f('plan')}>{['Monthly', 'Quarterly', 'Half-Yearly', 'Yearly'].map(s => <option key={s}>{s}</option>)}</select></div>
                 <div className="fg"><label>Amount (₹)</label><input type="number" value={form.amount} onChange={f('amount')} /></div>
                 <div className="fg"><label>Next Payment Date</label><input type="date" value={form.nextPayment} onChange={f('nextPayment')} /></div>

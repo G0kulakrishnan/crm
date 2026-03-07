@@ -22,6 +22,9 @@ export default function Customers({ user }) {
     invoices: { $: { where: { userId: user.id } } },
     tasks: { $: { where: { userId: user.id } } },
     activityLogs: { $: { where: { userId: user.id } } },
+    amc: { $: { where: { userId: user.id } } },
+    subscriptions: { $: { where: { userId: user.id } } },
+    recur: { $: { where: { userId: user.id } } },
   });
   const customers = data?.customers || [];
   const customFields = data?.userProfiles?.[0]?.customFields || [];
@@ -30,6 +33,9 @@ export default function Customers({ user }) {
   const invoices = data?.invoices || [];
   const tasks = data?.tasks || [];
   const activityLogs = data?.activityLogs || [];
+  const amcList = data?.amc || [];
+  const subsList = data?.subscriptions || [];
+  const recurList = data?.recur || [];
 
   const filtered = useMemo(() => {
     return customers.filter(c => {
@@ -46,6 +52,7 @@ export default function Customers({ user }) {
 
   const saveCustomer = async () => {
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
+    if (!form.email.trim()) { toast('Email is mandatory for clients', 'error'); return; }
     try {
       if (editData) {
         await db.transact(db.tx.customers[editData.id].update({ ...form, userId: user.id, updatedAt: Date.now() }));
@@ -81,6 +88,11 @@ export default function Customers({ user }) {
     const relQuotes = quotes.filter(cReq);
     const relInvoices = invoices.filter(cReq);
     const relTasks = tasks.filter(t => (t.client || '').toLowerCase() === cName || (t.customer || '').toLowerCase() === cName);
+    
+    // CRM entities matching client name
+    const relAmc = amcList.filter(cReq);
+    const relSubs = subsList.filter(cReq);
+    const relRecur = recurList.filter(cReq);
     
     // Sort logs newest first
     const cLogs = activityLogs.filter(l => l.entityId === c.id).sort((a,b) => b.createdAt - a.createdAt);
@@ -134,6 +146,7 @@ export default function Customers({ user }) {
           <div className="stat-card sc-yellow"><div className="lbl">Quotations</div><div className="val">{relQuotes.length}</div></div>
           <div className="stat-card sc-green"><div className="lbl">Invoices</div><div className="val">{relInvoices.length}</div></div>
           <div className="stat-card sc-purple"><div className="lbl">Tasks</div><div className="val">{relTasks.length}</div></div>
+          <div className="stat-card sc-blue"><div className="lbl">AMC / Subs</div><div className="val">{relAmc.length + relSubs.length + relRecur.length}</div></div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 20, alignItems: 'start' }}>
@@ -212,6 +225,39 @@ export default function Customers({ user }) {
             )}
           </div>
 
+          {/* Subscriptions & AMC Box */}
+          <div className="tw">
+            <div className="tw-head"><h3>Subscriptions & AMC</h3></div>
+            {(relAmc.length === 0 && relSubs.length === 0 && relRecur.length === 0) ? <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No active contracts/subs found.</div> : (
+              <table>
+                <thead><tr><th>Type</th><th>Plan / Amount</th><th>Status</th></tr></thead>
+                <tbody>
+                  {relAmc.map(a => (
+                    <tr key={a.id}>
+                      <td><strong>AMC</strong> <span style={{ fontSize: 11, color: 'var(--muted)' }}>({a.contractNo})</span></td>
+                      <td style={{ fontWeight: 600 }}>₹{a.amount} <span style={{ fontWeight: 400, color: 'var(--muted)' }}>({a.plan})</span></td>
+                      <td><span className={`badge ${a.status === 'Active' ? 'bg-green' : 'bg-red'}`}>{a.status}</span></td>
+                    </tr>
+                  ))}
+                  {relSubs.map(s => (
+                    <tr key={s.id}>
+                      <td><strong>Sub ({s.service})</strong></td>
+                      <td style={{ fontWeight: 600 }}>₹{s.amount} <span style={{ fontWeight: 400, color: 'var(--muted)' }}>/{s.frequency}</span></td>
+                      <td><span className={`badge ${s.status === 'Active' ? 'bg-green' : 'bg-gray'}`}>{s.status}</span></td>
+                    </tr>
+                  ))}
+                  {relRecur.map(r => (
+                    <tr key={r.id}>
+                      <td><strong>Recur. Inv</strong></td>
+                      <td style={{ fontWeight: 600 }}>₹{r.amount} <span style={{ fontWeight: 400, color: 'var(--muted)' }}>/{r.frequency}</span></td>
+                      <td><span className={`badge ${r.status === 'Active' ? 'bg-green' : 'bg-gray'}`}>{r.status}</span></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+
         </div>
 
         {/* Activity Logs Box */}
@@ -250,8 +296,8 @@ export default function Customers({ user }) {
               <div className="mo-body">
                 <div className="fgrid">
                   <div className="fg span2"><label>Name *</label><input value={form.name} onChange={f('name')} placeholder="Full name" /></div>
+                  <div className="fg"><label>Email *</label><input type="email" value={form.email} onChange={f('email')} /></div>
                   <div className="fg"><label>Phone</label><input value={form.phone} onChange={f('phone')} placeholder="+91..." /></div>
-                  <div className="fg"><label>Email</label><input type="email" value={form.email} onChange={f('email')} /></div>
                   {customFields.length > 0 && <div className="fg span2" style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>
                     <h4 style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>Custom Fields (Optional)</h4>
                     <div className="fgrid">
@@ -358,8 +404,8 @@ export default function Customers({ user }) {
             <div className="mo-body">
               <div className="fgrid">
                 <div className="fg span2"><label>Name *</label><input value={form.name} onChange={f('name')} placeholder="Full name" /></div>
+                <div className="fg"><label>Email *</label><input type="email" value={form.email} onChange={f('email')} /></div>
                 <div className="fg"><label>Phone</label><input value={form.phone} onChange={f('phone')} placeholder="+91..." /></div>
-                <div className="fg"><label>Email</label><input type="email" value={form.email} onChange={f('email')} /></div>
                 
                 {/* Dynamic Custom Fields */}
                 {customFields.length > 0 && <div className="fg span2" style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>

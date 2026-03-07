@@ -21,6 +21,7 @@ export default function SheetIntegration({ user, onBack, existingConfig, editInd
     notes: { type: 'fixed', value: '' },
     followup: { type: 'fixed', value: '' }
   });
+  const [customMappings, setCustomMappings] = useState(existingConfig?.customMappings || []); // [{ field: '', type: 'column', value: '' }]
   const toast = useToast();
 
   const { data: profileData } = db.useQuery({ 
@@ -30,6 +31,7 @@ export default function SheetIntegration({ user, onBack, existingConfig, editInd
   const labels = profile.labels || ['Hot', 'Warm', 'Cold'];
   const stages = profile.stages || ['New Enquiry', 'Enquiry Contacted', 'Won', 'Lost'];
   const sources = profile.sources || ['Google Sheets', 'FB Ads', 'Direct'];
+  const globalCustomFields = profile.customFields || [];
 
   const extractSheetId = (input) => {
     const regex = /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/;
@@ -108,7 +110,7 @@ export default function SheetIntegration({ user, onBack, existingConfig, editInd
 
   const handleSave = async () => {
     if (!configName) return toast('Please enter a name for this integration', 'error');
-    const config = { configName, sheetId, mapping, columns, sampleData, updatedAt: Date.now() };
+    const config = { configName, sheetId, mapping, customMappings, columns, sampleData, updatedAt: Date.now() };
     const current = profile.gsheets || [];
     let updated = [];
     if (editIndex !== null && editIndex !== undefined) {
@@ -165,6 +167,19 @@ export default function SheetIntegration({ user, onBack, existingConfig, editInd
         }
       });
 
+      // Add custom mappings
+      customMappings.forEach(m => {
+        if (!m.field) return;
+        let val = '';
+        if (m.type === 'column') {
+          const idx = columns.indexOf(m.value);
+          if (idx !== -1) val = sampleData[idx];
+        } else {
+          val = m.value;
+        }
+        lead.custom[m.field] = val;
+      });
+
       if (!lead.name) lead.name = 'Test Lead (No Name)';
       
       await db.transact(db.tx.leads[id()].update(lead));
@@ -175,36 +190,79 @@ export default function SheetIntegration({ user, onBack, existingConfig, editInd
     }
   };
 
-  const renderMappingRow = (label, icon, field, options = null, type = 'text') => {
-    const m = mapping[field];
+  const renderMappingRow = (label, icon, field, options = null, type = 'text', isCustom = false, customIndex = null) => {
+    const m = isCustom ? customMappings[customIndex] : mapping[field];
+    
+    const updateVal = (newVal) => {
+      if (isCustom) {
+        const updated = [...customMappings];
+        updated[customIndex] = { ...m, ...newVal };
+        setCustomMappings(updated);
+      } else {
+        setMapping({ ...mapping, [field]: { ...m, ...newVal } });
+      }
+    };
+
     return (
-      <div className="mapping-row" key={field}>
+      <div className="mapping-row" key={isCustom ? `custom-${customIndex}` : field}>
         <div className="mapping-label">
-          <span style={{ fontSize: 16 }}>{icon}</span>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 13 }}>{label}</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{field === 'name' ? 'Required' : 'Optional'}</div>
-          </div>
+          {isCustom ? (
+            <div style={{ width: '100%' }}>
+              <select 
+                value={m.field} 
+                onChange={e => updateVal({ field: e.target.value })} 
+                style={{ fontSize: 11, padding: '4px 8px', width: '100%', fontWeight: 600 }}
+              >
+                <option value="">(Select Custom Field)</option>
+                {globalCustomFields.map(cf => (
+                  <option key={cf.name} value={cf.name}>{cf.name}</option>
+                ))}
+                {!globalCustomFields.find(cf => cf.name === m.field) && m.field && (
+                  <option value={m.field}>{m.field}</option>
+                )}
+                <option value="__other__">+ Custom Key...</option>
+              </select>
+              {m.field === '__other__' && (
+                <input 
+                  autoFocus
+                  placeholder="Enter key name..."
+                  onBlur={e => e.target.value && updateVal({ field: e.target.value })}
+                  style={{ fontSize: 10, marginTop: 4, width: '100%' }}
+                />
+              )}
+            </div>
+          ) : (
+            <>
+              <span style={{ fontSize: 16 }}>{icon}</span>
+              <div>
+                <div style={{ fontWeight: 600, fontSize: 13 }}>{label}</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)' }}>{field === 'name' ? 'Required' : 'Optional'}</div>
+              </div>
+            </>
+          )}
         </div>
         <div className="mapping-controls">
           <div className="toggle-group">
-            <button className={m.type === 'column' ? 'active' : ''} onClick={() => setMapping({...mapping, [field]: {...m, type: 'column'}})}>Column</button>
-            <button className={m.type === 'fixed' ? 'active' : ''} onClick={() => setMapping({...mapping, [field]: {...m, type: 'fixed'}})}>Fixed</button>
+            <button className={m.type === 'column' ? 'active' : ''} onClick={() => updateVal({ type: 'column' })}>Column</button>
+            <button className={m.type === 'fixed' ? 'active' : ''} onClick={() => updateVal({ type: 'fixed' })}>Fixed</button>
           </div>
           {m.type === 'column' ? (
-            <select value={m.value} onChange={e => setMapping({...mapping, [field]: {...m, value: e.target.value}})}>
+            <select value={m.value} onChange={e => updateVal({ value: e.target.value })}>
               <option value="">(Select Column)</option>
               {columns.map((c, i) => <option key={i} value={c}>{i}. {c}</option>)}
             </select>
           ) : (
             options ? (
-               <select value={m.value} onChange={e => setMapping({...mapping, [field]: {...m, value: e.target.value}})}>
+               <select value={m.value} onChange={e => updateVal({ value: e.target.value })}>
                  <option value="">(None)</option>
                  {options.map(o => <option key={o} value={o}>{o}</option>)}
                </select>
             ) : (
-               <input type={type} value={m.value} onChange={e => setMapping({...mapping, [field]: {...m, value: e.target.value}})} placeholder="Fixed value..." />
+               <input type={type} value={m.value} onChange={e => updateVal({ value: e.target.value })} placeholder="Fixed value..." />
             )
+          )}
+          {isCustom && (
+            <button className="btn-icon" onClick={() => setCustomMappings(customMappings.filter((_, i) => i !== customIndex))} style={{ color: '#ef4444' }}>✕</button>
           )}
         </div>
       </div>
@@ -228,7 +286,7 @@ function onEdit(e) {
       "data": data
     };
     
-    UrlFetchApp.fetch("YOUR_WEBHOOK_URL_HERE", {
+    UrlFetchApp.fetch("https://mycrm.t2gcrm.in/api/webhook/gsheets", {
       "method": "post",
       "contentType": "application/json",
       "payload": JSON.stringify(payload)
@@ -299,6 +357,22 @@ function onEdit(e) {
             {renderMappingRow('Source', '🔗', 'source', sources)}
             {renderMappingRow('Notes', '📝', 'notes')}
             {renderMappingRow('Follow-up Date', '📅', 'followup', null, 'date')}
+
+            {/* Custom Fields Section */}
+            {customMappings.length > 0 && (
+              <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+                {customMappings.map((_, idx) => renderMappingRow(null, null, null, null, 'text', true, idx))}
+              </div>
+            )}
+            
+            <button 
+              className="btn btn-secondary btn-sm" 
+              type="button"
+              style={{ marginTop: 15, width: '100%', borderStyle: 'dashed' }}
+              onClick={() => setCustomMappings([...customMappings, { field: '', type: 'column', value: '' }])}
+            >
+              + Add Custom Field Mapping
+            </button>
           </div>
           
           <div style={{ padding: 25, background: 'var(--bg-soft)', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
@@ -314,13 +388,24 @@ function onEdit(e) {
 
       {existingConfig && (
         <div className="tw" style={{ marginTop: 20, padding: 25 }}>
-          <h4 style={{ marginBottom: 15 }}>Real-time Sync (Optional)</h4>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 }}>
+            <h4 style={{ margin: 0 }}>Real-time Sync (Optional)</h4>
+            <button 
+              className="btn btn-secondary btn-sm" 
+              onClick={() => {
+                navigator.clipboard.writeText(appsScriptCode);
+                toast('Script copied to clipboard!', 'success');
+              }}
+            >
+              📋 Copy Script
+            </button>
+          </div>
           <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 15 }}>
             To push leads automatically when you add a row in Google Sheets, add this script to your Spreadsheet:
             <br /><em>Extensions &gt; Apps Script</em>
           </p>
-          <pre style={{ background: '#1e293b', color: '#e2e8f0', padding: 15, borderRadius: 8, fontSize: 11, overflowX: 'auto' }}>
-            {appsScriptCode}
+          <pre style={{ background: '#1e293b', color: '#e2e8f0', padding: 15, borderRadius: 8, fontSize: 11, overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
+            {appsScriptCode.trim()}
           </pre>
         </div>
       )}

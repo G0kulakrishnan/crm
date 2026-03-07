@@ -3,6 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD, fmt, stageBadgeClass, daysLeft } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
+import { sendEmail, sendEmailMock, renderTemplate } from '../../utils/messaging';
 
 const EMPTY = { client: '', email: '', phone: '', contractNo: '', startDate: '', endDate: '', amount: '', plan: 'Basic', status: 'Active', notes: '' };
 
@@ -14,8 +15,13 @@ export default function AMC({ user }) {
   const [search, setSearch] = useState('');
   const toast = useToast();
 
-  const { data } = db.useQuery({ amc: { $: { where: { userId: user.id } } } });
+  const { data } = db.useQuery({ 
+    amc: { $: { where: { userId: user.id } } },
+    customers: { $: { where: { userId: user.id } } },
+    userProfiles: { $: { where: { userId: user.id } } }
+  });
   const amcList = data?.amc || [];
+  const customers = data?.customers || [];
 
   const filtered = useMemo(() => {
     const now = new Date();
@@ -33,6 +39,17 @@ export default function AMC({ user }) {
   }, [amcList, tab, search]);
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  const handleClientSelect = (e) => {
+    const cName = e.target.value;
+    const cust = customers.find(c => c.name === cName);
+    setForm(p => ({ 
+      ...p, 
+      client: cName, 
+      email: cust ? cust.email : p.email, 
+      phone: cust && cust.phone ? cust.phone : p.phone 
+    }));
+  };
 
   const save = async () => {
     if (!form.client.trim()) { toast('Client required', 'error'); return; }
@@ -54,6 +71,39 @@ export default function AMC({ user }) {
   const toggleFollowUp = async (a) => {
     await db.transact(db.tx.amc[a.id].update({ needsFollowUp: !a.needsFollowUp }));
     toast(a.needsFollowUp ? 'Follow-up removed' : 'Marked for follow-up', 'success');
+  };
+
+  const handleSendReminder = async (a) => {
+    if (!a.email) return toast('Client has no email address', 'error');
+    if (!confirm(`Send reminder email to ${a.client} (${a.email})?`)) return;
+    
+    const profile = data?.userProfiles?.[0] || {};
+    const reminders = profile.reminders || { amc: { msg: 'Hello {client}, your AMC contract is expiring on {date}.' } };
+    const template = reminders.amc?.msg || 'Hello {client}, your AMC contract is expiring on {date}.';
+    
+    const emailConfig = {
+      serviceId: profile.emailjsServiceId,
+      templateId: profile.emailjsTemplateId,
+      publicKey: profile.emailjsPublicKey,
+      userEmail: profile.smtpUser
+    };
+
+    const body = renderTemplate(template, { client: a.client, date: fmtD(a.endDate), contractNo: a.contractNo, bizName: profile.bizName || '' });
+    const subject = 'AMC Renewal Reminder';
+
+    try {
+      toast('Sending email...', 'info');
+      if (emailConfig.serviceId && emailConfig.templateId && emailConfig.publicKey) {
+        const res = await sendEmail(a.email, subject, body, emailConfig, user.id);
+        if (res === 'OK') toast('Reminder sent successfully!', 'success');
+        else toast('Failed to send', 'error');
+      } else {
+        await sendEmailMock(user.id, a.email, subject, body, { entityId: a.id, entityType: 'amc' });
+        toast('Email config missing, logged to outbox.', 'warning');
+      }
+    } catch (e) {
+      toast('Failed to send email', 'error');
+    }
   };
 
   return (
@@ -93,6 +143,7 @@ export default function AMC({ user }) {
                     <td style={{ fontSize: 12 }}>{a.phone || '-'}</td>
                     <td>
                       <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, plan: a.plan, status: a.status, notes: a.notes || '' }); setModal(true); }}>Edit</button>{' '}
+                      <button className="btn btn-sm" style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 8px', fontSize: 13 }} onClick={() => handleSendReminder(a)}>📧 Send</button>{' '}
                       <button className={`btn btn-sm ${a.needsFollowUp ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '4px 8px', fontSize: 13 }} onClick={() => toggleFollowUp(a)}>
                         {a.needsFollowUp ? '📌 Following Up' : '📍 Flag'}
                       </button>{' '}
@@ -110,7 +161,13 @@ export default function AMC({ user }) {
             <div className="mo-head"><h3>{editData ? 'Edit' : 'Create'} AMC Contract</h3><button className="btn-icon" onClick={() => setModal(false)}>✕</button></div>
             <div className="mo-body">
               <div className="fgrid">
-                <div className="fg"><label>Client *</label><input value={form.client} onChange={f('client')} /></div>
+                <div className="fg">
+                  <label>Client *</label>
+                  <select value={form.client} onChange={handleClientSelect}>
+                    <option value="">Select Customer...</option>
+                    {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                  </select>
+                </div>
                 <div className="fg"><label>Contract No.</label><input value={form.contractNo} onChange={f('contractNo')} placeholder="AMC/2025/001" /></div>
                 <div className="fg"><label>Email</label><input type="email" value={form.email} onChange={f('email')} /></div>
                 <div className="fg"><label>Phone</label><input value={form.phone} onChange={f('phone')} /></div>
