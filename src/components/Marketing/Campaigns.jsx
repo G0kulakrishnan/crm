@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
-import { sendEmail } from '../../utils/messaging';
+import { sendEmail, sendWhatsAppMock } from '../../utils/messaging';
 import { fmtD } from '../../utils/helpers';
 
 const STAGES = ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
@@ -25,6 +25,7 @@ export default function Campaigns({ user }) {
   const [selLabels, setSelLabels] = useState(new Set());
   
   // Composer
+  const [channel, setChannel] = useState('email'); // 'email' | 'whatsapp'
   const [campaignName, setCampaignName] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -52,8 +53,9 @@ export default function Campaigns({ user }) {
   // Audience Builder Filter
   const targetAudience = useMemo(() => {
     return leads.filter(l => {
-      // Must have an email to be in an email campaign
-      if (!l.email) return false;
+      // Must have an email for email campaign, phone for whatsapp campaign
+      if (channel === 'email' && !l.email) return false;
+      if (channel === 'whatsapp' && !l.phone) return false;
       
       const stgMatch = selStages.size === 0 || selStages.has(l.stage);
       const srcMatch = selSources.size === 0 || selSources.has(l.source);
@@ -116,9 +118,10 @@ export default function Campaigns({ user }) {
 
   const handleSend = async () => {
     if (!campaignName.trim()) return toast('Please enter a Campaign Name', 'error');
-    if (!profile?.smtpSender) return toast('Please configure your EmailJS settings in the CRM Settings page first', 'error');
+    if (channel === 'email' && !profile?.smtpSender) return toast('Please configure your EmailJS settings in the CRM Settings page first', 'error');
     if (targetAudience.length === 0) return toast('No leads match your selected filters. Please adjust your audience.', 'error');
-    if (!subject.trim() || !body.trim()) return toast('Please enter a subject and email body.', 'error');
+    if (channel === 'email' && (!subject.trim() || !body.trim())) return toast('Please enter a subject and email body.', 'error');
+    if (channel === 'whatsapp' && !body.trim()) return toast('Please enter a message body.', 'error');
     
     if (sendMode === 'schedule') {
       if (!scheduleTime) return toast('Please select a date and time to schedule this campaign.', 'error');
@@ -129,7 +132,8 @@ export default function Campaigns({ user }) {
       await db.transact(db.tx.campaigns[campId].update({
         userId: user.id,
         name: campaignName,
-        subject: subject,
+        channel: channel,
+        subject: channel === 'email' ? subject : null,
         body: body,
         audienceSize: targetAudience.length,
         status: 'Scheduled',
@@ -147,7 +151,7 @@ export default function Campaigns({ user }) {
       return;
     }
 
-    if (!confirm(`Are you sure you want to send this to ${targetAudience.length} leads now?`)) return;
+    if (!confirm(`Are you sure you want to send this ${channel.toUpperCase()} campaign to ${targetAudience.length} leads now?`)) return;
 
     setSending(true);
     setProgress(0);
@@ -159,7 +163,8 @@ export default function Campaigns({ user }) {
     await db.transact(db.tx.campaigns[campId].update({
       userId: user.id,
       name: campaignName,
-      subject: subject,
+      channel: channel,
+      subject: channel === 'email' ? subject : null,
       body: body,
       audienceSize: targetAudience.length,
       status: 'Sending...',
@@ -170,17 +175,24 @@ export default function Campaigns({ user }) {
     for (let i = 0; i < targetAudience.length; i++) {
       const lead = targetAudience[i];
       try {
-        const pSubj = subject.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
+        const pSubj = channel === 'email' ? subject.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '') : '';
         const pBody = body.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
         
-        // This relies on the standard messaging util which uses EmailJS
-        await sendEmail(lead.email, pSubj, pBody, profile);
+        const logText = channel === 'email' 
+          ? `Received email campaign: "${campaignName}"\nSubject: ${pSubj}`
+          : `Received WhatsApp campaign: "${campaignName}"`;
+
+        if (channel === 'email') {
+          await sendEmail(lead.email, pSubj, pBody, profile);
+        } else {
+          await sendWhatsAppMock(user.id, lead.phone, pBody, { entityId: lead.id, entityType: 'lead' });
+        }
         
         // Log to lead timeline
         await db.transact(db.tx.activityLogs[id()].update({
           entityId: lead.id,
           entityType: 'lead',
-          text: `Received email campaign: "${campaignName}"\nSubject: ${pSubj}`,
+          text: logText,
           userId: user.id,
           userName: 'System (Campaign)',
           createdAt: Date.now()
@@ -188,7 +200,7 @@ export default function Campaigns({ user }) {
         
         sentCount++;
       } catch (err) {
-        console.error(`Failed to send campaign to ${lead.email}:`, err);
+        console.error(`Failed to send campaign to ${lead.email || lead.phone}:`, err);
       }
       
       setProgress(Math.round(((i + 1) / targetAudience.length) * 100));
@@ -280,7 +292,21 @@ export default function Campaigns({ user }) {
 
           {/* RIGHT SIDE: Composer */}
           <div className="tw" style={{ padding: 25 }}>
-            <h3>2. Compose Message</h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3>2. Compose Message</h3>
+              <div style={{ display: 'flex', background: 'var(--bg)', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
+                <button 
+                  className={`btn btn-sm ${channel === 'email' ? 'btn-primary' : 'btn-ghost'}`} 
+                  style={{ borderRadius: 0, border: 'none' }} 
+                  onClick={() => setChannel('email')} disabled={sending}
+                >📧 Email</button>
+                <button 
+                  className={`btn btn-sm ${channel === 'whatsapp' ? 'btn-primary' : 'btn-ghost'}`} 
+                  style={{ borderRadius: 0, border: 'none' }} 
+                  onClick={() => setChannel('whatsapp')} disabled={sending}
+                >💬 WhatsApp</button>
+              </div>
+            </div>
             
             <div className="fg" style={{ marginTop: 20 }}>
               <label>Campaign Name (Internal)</label>
@@ -301,22 +327,25 @@ export default function Campaigns({ user }) {
               </select>
             </div>
 
-            <div className="fg" style={{ marginTop: 20 }}>
-              <label style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Email Subject</span>
-                <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>Supports {'{{name}}'}, {'{{email}}'}</span>
-              </label>
-              <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Enter subject line..." disabled={sending} />
-            </div>
+            {channel === 'email' && (
+              <div className="fg" style={{ marginTop: 20 }}>
+                <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Email Subject</span>
+                  <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>Supports {'{{name}}'}, {'{{email}}'}</span>
+                </label>
+                <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Enter subject line..." disabled={sending} />
+              </div>
+            )}
 
             <div className="fg" style={{ marginTop: 20 }}>
               <label style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>Email Body</span>
+                <span>{channel === 'email' ? 'Email Body' : 'WhatsApp Message'}</span>
+                {channel === 'whatsapp' && <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>Supports {'{{name}}'}, {'{{email}}'}</span>}
               </label>
               <textarea 
                 value={body} 
                 onChange={e => setBody(e.target.value)} 
-                placeholder="Write your email content here..." 
+                placeholder={channel === 'email' ? "Write your email content here..." : "Write your WhatsApp message here..."}
                 style={{ height: 250, resize: 'vertical' }}
                 disabled={sending}
               />
@@ -397,8 +426,15 @@ export default function Campaigns({ user }) {
                     <div>{new Date(c.createdAt).toLocaleString()}</div>
                     {c.scheduledFor && <div style={{ color: 'var(--accent)', fontWeight: 600, marginTop: 4 }}>Scheduled: {new Date(c.scheduledFor).toLocaleString()}</div>}
                   </td>
-                  <td><strong>{c.name}</strong></td>
-                  <td style={{ fontSize: 12, color: 'var(--muted)', maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.subject}</td>
+                  <td>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      {c.channel === 'whatsapp' ? <span title="WhatsApp">💬</span> : <span title="Email">📧</span>}
+                      <strong>{c.name}</strong>
+                    </div>
+                  </td>
+                  <td style={{ fontSize: 12, color: 'var(--muted)', maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {c.channel === 'whatsapp' ? c.body : c.subject}
+                  </td>
                   <td style={{ textAlign: 'center' }}><span className="badge bg-gray">{c.audienceSize}</span></td>
                   <td style={{ textAlign: 'center' }}><span className="badge bg-green">{c.sentCount || 0}</span></td>
                   <td>

@@ -121,34 +121,45 @@ export default function useAutomationEngine(user) {
         const activeLabels = new Set(camp.filters?.labels || []);
 
         const targetAudience = leads.filter(l => {
-          if (!l.email) return false;
+          if (camp.channel === 'email' && !l.email) return false;
+          if (camp.channel === 'whatsapp' && !l.phone) return false;
+          
           const stgMatch = activeStages.size === 0 || activeStages.has(l.stage);
           const srcMatch = activeSources.size === 0 || activeSources.has(l.source);
           const lblMatch = activeLabels.size === 0 || activeLabels.has(l.label);
           return stgMatch && srcMatch && lblMatch;
         });
 
-        // 4c. Process emails
+        // 4c. Process emails/whatsapp
         let sentCount = 0;
         for (let i = 0; i < targetAudience.length; i++) {
           const lead = targetAudience[i];
           try {
-            const pSubj = camp.subject.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
-            const pBody = camp.body.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
-            
-            await sendEmail(lead.email, pSubj, pBody, profile);
+            const isEmail = camp.channel === 'email';
+            const logText = isEmail 
+              ? `Received scheduled email campaign: "${camp.name}"\nSubject: ${camp.subject}`
+              : `Received scheduled WhatsApp campaign: "${camp.name}"`;
+
+            if (isEmail) {
+              const pSubj = camp.subject.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
+              const pBody = camp.body.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
+              await sendEmail(lead.email, pSubj, pBody, profile);
+            } else {
+              const pBody = camp.body.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
+              await sendWhatsAppMock(user.id, lead.phone, pBody, { entityId: lead.id, entityType: 'lead' });
+            }
             
             await db.transact(db.tx.activityLogs[id()].update({
               entityId: lead.id,
               entityType: 'lead',
-              text: `Received scheduled campaign: "${camp.name}"\nSubject: ${pSubj}`,
+              text: logText,
               userId: user.id,
               userName: 'System (Campaign)',
               createdAt: Date.now()
             }));
             sentCount++;
           } catch (err) {
-            console.error(`Failed scheduled campaign to ${lead.email}:`, err);
+            console.error(`Failed scheduled campaign to ${lead.email || lead.phone}:`, err);
           }
           await new Promise(r => setTimeout(r, 1500)); 
         }
