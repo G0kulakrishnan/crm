@@ -18,6 +18,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Missing InstantDB App ID or Admin Token in backend' });
     }
 
+    console.log("CHANGING PASSWORD REQ BODY:", req.body);
     const { email, newPassword, userId } = req.body || {};
     if (!email || !newPassword) {
       return res.status(400).json({ error: 'Email and new password are required' });
@@ -33,7 +34,7 @@ export default async function handler(req, res) {
 
     if (!user) {
       if (!userId) {
-        return res.status(404).json({ error: 'User credentials not found and no userId provided to create one.' });
+        return res.status(404).json({ error: `User credentials not found and no userId provided to create one. Received body: ${JSON.stringify(req.body)}` });
       }
       
       // Create new credentials for users who only used Magic Link previously
