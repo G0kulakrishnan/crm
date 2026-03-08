@@ -1,6 +1,7 @@
 import { init, tx, id } from '@instantdb/admin';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+dotenv.config();
 
 const APP_ID = process.env.VITE_INSTANT_APP_ID;
 const ADMIN_TOKEN = process.env.INSTANT_ADMIN_TOKEN;
@@ -17,11 +18,6 @@ export default async function handler(req, res) {
   try {
     if (!APP_ID || !ADMIN_TOKEN) {
       return res.status(500).json({ error: 'Missing InstantDB App ID or Admin Token in backend' });
-    }
-
-    const PRIVATE_KEY = process.env.INSTANT_AUTH_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    if (!PRIVATE_KEY) {
-      return res.status(500).json({ error: 'Missing INSTANT_AUTH_PRIVATE_KEY' });
     }
 
     const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
@@ -54,8 +50,8 @@ export default async function handler(req, res) {
       })
     ]);
 
-    // Generate Custom JWT for InstantDB Custom Auth
-    const token = jwt.sign({ email: email.trim() }, PRIVATE_KEY, { algorithm: 'RS256', expiresIn: '7d' });
+    // Generate token securely through InstantDB
+    const token = await db.auth.createToken({ email: email.trim() });
 
     return res.status(200).json({ success: true, token, message: 'Registered successfully' });
   } catch (err) {

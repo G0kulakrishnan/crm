@@ -1,9 +1,6 @@
 import { init, tx, id } from '@instantdb/admin';
 import bcrypt from 'bcrypt';
 
-const APP_ID = process.env.VITE_INSTANT_APP_ID;
-const ADMIN_TOKEN = process.env.INSTANT_ADMIN_TOKEN;
-
 // Helper to generate a 6 digit code
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -17,6 +14,10 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    const env = req.env || process.env;
+    const APP_ID = env.VITE_INSTANT_APP_ID;
+    const ADMIN_TOKEN = env.INSTANT_ADMIN_TOKEN;
+
     if (!APP_ID || !ADMIN_TOKEN) {
       return res.status(500).json({ error: 'Missing InstantDB App ID or Admin Token in backend' });
     }

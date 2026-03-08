@@ -39,6 +39,8 @@ const vercelApiPlugin = () => ({
               res.setHeader('Content-Type', 'application/json')
               res.end(JSON.stringify(data))
             }
+            // Pass the loaded dotenv vars down
+            req.env = process.env;
 
             // Import handler dynamically (adding timestamp to bypass cache if it's changing)
             const module = await import('file://' + filePath.replace(/\\/g, '/') + '?t=' + Date.now())

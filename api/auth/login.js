@@ -1,9 +1,5 @@
 import { init } from '@instantdb/admin';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-
-const APP_ID = process.env.VITE_INSTANT_APP_ID;
-const ADMIN_TOKEN = process.env.INSTANT_ADMIN_TOKEN;
 
 export default async function handler(req, res) {
   // CORS headers
@@ -15,13 +11,12 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
+    const env = req.env || process.env;
+    const APP_ID = env.VITE_INSTANT_APP_ID;
+    const ADMIN_TOKEN = env.INSTANT_ADMIN_TOKEN;
+
     if (!APP_ID || !ADMIN_TOKEN) {
       return res.status(500).json({ error: 'Missing InstantDB App ID or Admin Token in backend' });
-    }
-
-    const PRIVATE_KEY = process.env.INSTANT_AUTH_PRIVATE_KEY?.replace(/\\n/g, '\n');
-    if (!PRIVATE_KEY) {
-      return res.status(500).json({ error: 'Missing INSTANT_AUTH_PRIVATE_KEY' });
     }
 
     const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
@@ -45,8 +40,8 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    // Generate Custom JWT for InstantDB Custom Auth
-    const token = jwt.sign({ email: email.trim() }, PRIVATE_KEY, { algorithm: 'RS256', expiresIn: '7d' });
+    // Generate token securely through InstantDB
+    const token = await db.auth.createToken({ email: email.trim() });
 
     return res.status(200).json({ success: true, token });
   } catch (err) {
