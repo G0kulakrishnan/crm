@@ -32,7 +32,7 @@ export default function LeadsView({ user, perms, ownerId }) {
   const dragLeadId = useRef(null);
   const toast = useToast();
 
-  const { data } = db.useQuery({
+  const { data, isLoading, error } = db.useQuery({
     leads: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
@@ -72,7 +72,6 @@ export default function LeadsView({ user, perms, ownerId }) {
 
   const allStages = data?.userProfiles?.[0]?.stages || STAGES;  // ordered full list from Settings
   const savedLeadStages = data?.userProfiles?.[0]?.leadStages;   // visible subset saved from Leads colModal
-  const activeStages = allStages.filter(s => !savedLeadStages || savedLeadStages.includes(s));
 
   // Filtering
   const filtered = useMemo(() => {
@@ -89,7 +88,7 @@ export default function LeadsView({ user, perms, ownerId }) {
       if (tab === 'overdue') return l.followup && new Date(l.followup) < now;
       return true;
     })
-      .filter(l => activeStages.includes(l.stage))
+      .filter(l => !savedLeadStages || savedLeadStages.length === 0 || savedLeadStages.includes(l.stage))
       .filter(l => !srcFilter || l.source === srcFilter)
       .filter(l => !stgFilter || l.stage === stgFilter)
       .filter(l => {
@@ -232,6 +231,14 @@ export default function LeadsView({ user, perms, ownerId }) {
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   const cf = (k) => (e) => setForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
+
+  if (error) return <div className="p-xl text-red-500">Error loading leads: {error.message}</div>;
+  if (isLoading) return (
+    <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
+      <div className="spinner" style={{ margin: '0 auto 10px', borderColor: 'var(--muted)', borderTopColor: 'transparent' }} />
+      Loading leads...
+    </div>
+  );
 
   if (viewLead) {
     const l = viewLead;

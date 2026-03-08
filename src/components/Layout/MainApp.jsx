@@ -48,9 +48,8 @@ export default function MainApp({ user, settings }) {
   });
 
   // 2. Discovery: If no teamInfo, check if this user IS a team member somewhere
-  const { data: discovery, isLoading: discoveryLoading } = db.useQuery(
-    (!teamInfo && user.email) ? { teamMembers: { $: { where: { email: user.email.toLowerCase() }, limit: 1 } } } : null
-  );
+  // Query executed locally below
+
 
   // Sync discovered team info
   useEffect(() => {
@@ -239,7 +238,12 @@ export default function MainApp({ user, settings }) {
     }
   }, [perms, activeView, setActiveView]);
 
-  const isDiscovering = !teamInfo && discoveryLoading;
+  const discQuery = (!teamInfo && user.email) 
+    ? { teamMembers: { $: { where: { email: String(user.email).toLowerCase() }, limit: 1 } } } 
+    : null;
+  const { data: discovery, isLoading: reqLoading } = db.useQuery(discQuery);
+  const discoveryLoading = discQuery ? reqLoading : false;
+  const isDiscovering = !teamInfo && !!user.email && discoveryLoading;
 
   if (isDiscovering || mainLoading || !perms) {
     return (
