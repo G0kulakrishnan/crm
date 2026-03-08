@@ -28,20 +28,33 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Email is required' });
     }
 
-    // Find user
+    // Find user credentials
     const data = await db.query({ userCredentials: { $: { where: { email: email.trim() } } } });
     const user = data.userCredentials ? data.userCredentials[0] : null;
 
-    if (!user) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
     if (action === 'request') {
+      let uidToUse = user ? user.userId : null;
+      let credId = user ? user.id : null;
+
+      if (!user) {
+        // Fallback: check if they have a profile (they logged in via Magic Link before)
+        const profileData = await db.query({ userProfiles: { $: { where: { email: email.trim() } } } });
+        const profile = profileData.userProfiles ? profileData.userProfiles[0] : null;
+        if (!profile) {
+          return res.status(404).json({ error: 'User not found' });
+        }
+        uidToUse = profile.userId;
+        credId = id();
+      }
+
       const otp = generateOTP();
       const expiration = Date.now() + 15 * 60 * 1000; // 15 mins
 
       await db.transact([
-        tx.userCredentials[user.id].update({
+        tx.userCredentials[credId].update({
+          userId: uidToUse,
+          email: email.trim(),
+          ...(!user ? { password: '' } : {}),
           resetCode: otp,
           resetExpires: expiration
         })
@@ -54,6 +67,10 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, otp, message: 'OTP generated' });
 
     } else if (action === 'verify') {
+      if (!user) {
+        return res.status(400).json({ error: 'No password reset requested or user not found' });
+      }
+
       if (!code || !newPassword) {
         return res.status(400).json({ error: 'Code and new password are required' });
       }

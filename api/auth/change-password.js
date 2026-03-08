@@ -1,4 +1,4 @@
-import { init, tx } from '@instantdb/admin';
+import { init, tx, id } from '@instantdb/admin';
 import bcrypt from 'bcrypt';
 
 const APP_ID = process.env.VITE_INSTANT_APP_ID;
@@ -18,7 +18,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'Missing InstantDB App ID or Admin Token in backend' });
     }
 
-    const { email, newPassword } = req.body || {};
+    const { email, newPassword, userId } = req.body || {};
     if (!email || !newPassword) {
       return res.status(400).json({ error: 'Email and new password are required' });
     }
@@ -29,21 +29,31 @@ export default async function handler(req, res) {
     const data = await db.query({ userCredentials: { $: { where: { email: email.trim() } } } });
     const user = data.userCredentials ? data.userCredentials[0] : null;
 
-    if (!user) {
-      return res.status(404).json({ error: 'User credentials not found. This user might have logged in via Magic Link only and never set a password.' });
-    }
-
-    // Hash the new password directly
     const hashedPassword = await bcrypt.hash(newPassword, 10);
 
-    // Save
-    await db.transact([
-      tx.userCredentials[user.id].update({
-        password: hashedPassword,
-        resetCode: null,
-        resetExpires: null
-      })
-    ]);
+    if (!user) {
+      if (!userId) {
+        return res.status(404).json({ error: 'User credentials not found and no userId provided to create one.' });
+      }
+      
+      // Create new credentials for users who only used Magic Link previously
+      await db.transact([
+        tx.userCredentials[id()].update({
+          email: email.trim(),
+          password: hashedPassword,
+          userId: userId
+        })
+      ]);
+    } else {
+      // Update existing credentials
+      await db.transact([
+        tx.userCredentials[user.id].update({
+          password: hashedPassword,
+          resetCode: null,
+          resetExpires: null
+        })
+      ]);
+    }
 
     return res.status(200).json({ success: true, message: 'Password updated successfully' });
   } catch (err) {

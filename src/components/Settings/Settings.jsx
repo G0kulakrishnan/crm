@@ -287,7 +287,7 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                               const res = await fetch('/api/auth/change-password', {
                                  method: 'POST',
                                  headers: { 'Content-Type': 'application/json' },
-                                 body: JSON.stringify({ email: userProfile.email, newPassword: newPass })
+                                 body: JSON.stringify({ email: userProfile.email, newPassword: newPass, userId: user.id })
                               });
                               const data = await res.json();
                               if (!res.ok) throw new Error(data.error);
