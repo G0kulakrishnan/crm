@@ -3,7 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { sendEmail, sendWhatsAppMock } from '../../utils/messaging';
-import { fmtD } from '../../utils/helpers';
+import { fmtD, INDIAN_STATES } from '../../utils/helpers';
 
 const STAGES = ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
 const SOURCES = ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
@@ -20,9 +20,24 @@ export default function Campaigns({ user }) {
   const [tab, setTab] = useState('compose'); // 'compose' | 'history'
   
   // Filters
+  const [targetType, setTargetType] = useState('leads'); // 'leads' | 'customers' | 'both'
   const [selStages, setSelStages] = useState(new Set());
   const [selSources, setSelSources] = useState(new Set());
   const [selLabels, setSelLabels] = useState(new Set());
+  
+  const [selProducts, setSelProducts] = useState(new Set());
+  const [selPeriod, setSelPeriod] = useState('');
+  const [minAmount, setMinAmount] = useState('');
+  const [maxAmount, setMaxAmount] = useState('');
+  const [selAmcStatus, setSelAmcStatus] = useState(new Set());
+  const [selStates, setSelStates] = useState(new Set());
+
+  const [excludedIds, setExcludedIds] = useState(new Set());
+  const [previewSearch, setPreviewSearch] = useState('');
+  const [showPreview, setShowPreview] = useState(false);
+  const [manualAdds, setManualAdds] = useState(new Set());
+  const [addSearch, setAddSearch] = useState('');
+  const [showManualAdd, setShowManualAdd] = useState(false);
   
   // Composer
   const [channel, setChannel] = useState('email'); // 'email' | 'whatsapp'
@@ -40,30 +55,143 @@ export default function Campaigns({ user }) {
 
   const { data } = db.useQuery({
     leads: { $: { where: { userId: user.id } } },
+    customers: { $: { where: { userId: user.id } } },
+    invoices: { $: { where: { userId: user.id } } },
+    amc: { $: { where: { userId: user.id } } },
+    products: { $: { where: { userId: user.id } } },
     campaigns: { $: { where: { userId: user.id } } },
     userProfiles: { $: { where: { userId: user.id } } },
     campaignTemplates: { $: { where: { userId: user.id } } }
   });
 
   const leads = data?.leads || [];
+  const customers = data?.customers || [];
+  const invoices = data?.invoices || [];
+  const amcList = data?.amc || [];
+  const products = data?.products || [];
   const campaigns = (data?.campaigns || []).sort((a,b) => b.createdAt - a.createdAt);
   const userTemplates = data?.campaignTemplates || [];
   const profile = data?.userProfiles?.[0];
 
+  // Base candidates list with unified payload structure
+  const allCandidates = useMemo(() => {
+    const list = [];
+    
+    // Process Leads
+    leads.forEach(l => {
+      const custMatch = customers.find(c => c.name === l.name);
+      const effEmail = l.email || custMatch?.email;
+      const effPhone = l.phone || custMatch?.phone;
+      if (channel === 'email' && !effEmail) return;
+      if (channel === 'whatsapp' && !effPhone) return;
+      list.push({
+        id: `lead_${l.id}`,
+        entityId: l.id,
+        type: 'Lead',
+        name: l.name,
+        email: effEmail || '',
+        phone: effPhone || '',
+        _orig: l
+      });
+    });
+
+    // Process Customers
+    customers.forEach(c => {
+      if (channel === 'email' && !c.email) return;
+      if (channel === 'whatsapp' && !c.phone) return;
+      list.push({
+        id: `cust_${c.id}`,
+        entityId: c.id,
+        type: 'Customer',
+        name: c.name,
+        email: c.email || '',
+        phone: c.phone || '',
+        _orig: c
+      });
+    });
+
+    return list;
+  }, [leads, customers, channel]);
+
   // Audience Builder Filter
   const targetAudience = useMemo(() => {
-    return leads.filter(l => {
-      // Must have an email for email campaign, phone for whatsapp campaign
-      if (channel === 'email' && !l.email) return false;
-      if (channel === 'whatsapp' && !l.phone) return false;
-      
-      const stgMatch = selStages.size === 0 || selStages.has(l.stage);
-      const srcMatch = selSources.size === 0 || selSources.has(l.source);
-      const lblMatch = selLabels.size === 0 || selLabels.has(l.label);
-      
-      return stgMatch && srcMatch && lblMatch;
+    // Helper to calculate total value of a customer's invoices
+    const getCustTotals = (cName) => {
+      const custInvs = invoices.filter(inv => inv.client === cName);
+      const totalAmt = custInvs.reduce((sum, inv) => {
+        const sub = (inv.items || []).reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
+        const tax = (inv.items || []).reduce((s, it) => s + (it.qty || 0) * (it.rate || 0) * (it.taxRate || 0) / 100, 0);
+        const discAmt = inv.discType === '₹' ? (parseFloat(inv.disc) || 0) : (sub * (parseFloat(inv.disc) || 0) / 100);
+        return sum + Math.round(sub - discAmt + tax + (parseFloat(inv.adj) || 0));
+      }, 0);
+      return { custInvs, totalAmt };
+    };
+
+    const list = allCandidates.filter(item => {
+      if (manualAdds.has(item.id)) return true; // Always include if manually added
+      if (excludedIds.has(item.id)) return false; // Explicitly excluded
+
+      if (item.type === 'Lead') {
+        if (targetType === 'customers') return false;
+        const l = item._orig;
+        if (selStages.size > 0 && !selStages.has(l.stage)) return false;
+        if (selSources.size > 0 && !selSources.has(l.source)) return false;
+        if (selLabels.size > 0 && !selLabels.has(l.label)) return false;
+        return true;
+      } else {
+        if (targetType === 'leads') return false;
+        const c = item._orig;
+        if (selStates.size > 0 && !selStates.has(c.state)) return false;
+        
+        const { custInvs, totalAmt } = getCustTotals(c.name);
+        if (minAmount && totalAmt < parseFloat(minAmount)) return false;
+        if (maxAmount && totalAmt > parseFloat(maxAmount)) return false;
+        
+        if (selProducts.size > 0) {
+          const boughtProducts = new Set();
+          custInvs.forEach(inv => {
+            (inv.items || []).forEach(it => boughtProducts.add(it.name));
+          });
+          if (!Array.from(selProducts).some(p => boughtProducts.has(p))) return false;
+        }
+
+        if (selPeriod) {
+          if (custInvs.length === 0) return false;
+          const lastPurchDate = Math.max(...custInvs.map(inv => new Date(inv.dueDate).getTime()));
+          const daysAgo = (Date.now() - lastPurchDate) / (1000 * 60 * 60 * 24);
+          
+          if (selPeriod === '30d' && daysAgo > 30) return false;
+          if (selPeriod === '3m' && daysAgo > 90) return false;
+          if (selPeriod === '6m' && daysAgo > 180) return false;
+          if (selPeriod === '1y' && daysAgo > 365) return false;
+          if (selPeriod === '1-2y' && (daysAgo <= 365 || daysAgo > 730)) return false;
+          if (selPeriod === '2y+' && daysAgo <= 730) return false;
+        }
+
+        if (selAmcStatus.size > 0) {
+          const custAmcs = amcList.filter(a => a.client === c.name);
+          const hasMatchingAmc = custAmcs.some(a => selAmcStatus.has(a.status));
+          if (!hasMatchingAmc) return false;
+        }
+        return true;
+      }
     });
-  }, [leads, selStages, selSources, selLabels]);
+
+    // Deduplicate by email/phone based on channel
+    const unique = [];
+    const seen = new Set();
+    for (const item of list) {
+      const key = channel === 'email' ? item.email : item.phone;
+      if (!seen.has(key)) {
+        seen.add(key);
+        // Clean up internal _orig before returning
+        const { _orig, ...cleanItem } = item;
+        unique.push(cleanItem);
+      }
+    }
+
+    return unique;
+  }, [allCandidates, invoices, amcList, channel, targetType, selStages, selSources, selLabels, selProducts, selPeriod, minAmount, maxAmount, selAmcStatus, selStates, excludedIds, manualAdds]);
 
   const loadTemplate = (tid) => {
     setSelectedTemplate(tid);
@@ -137,7 +265,7 @@ export default function Campaigns({ user }) {
         body: body,
         audienceSize: targetAudience.length,
         status: 'Scheduled',
-        filters: { stages: Array.from(selStages), sources: Array.from(selSources), labels: Array.from(selLabels) },
+        filters: { targetType, stages: Array.from(selStages), sources: Array.from(selSources), labels: Array.from(selLabels), products: Array.from(selProducts), period: selPeriod, minAmount, maxAmount, amcStatus: Array.from(selAmcStatus), states: Array.from(selStates) },
         scheduledFor: skedDate.getTime(),
         createdAt: Date.now()
       }));
@@ -173,25 +301,28 @@ export default function Campaigns({ user }) {
 
     // Process loop avoiding strict rate limits (Wait 1s between emails)
     for (let i = 0; i < targetAudience.length; i++) {
-      const lead = targetAudience[i];
+      const recipient = targetAudience[i];
+      const effEmail = recipient.email;
+      const effPhone = recipient.phone;
+
       try {
-        const pSubj = channel === 'email' ? subject.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '') : '';
-        const pBody = body.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
+        const pSubj = channel === 'email' ? subject.replace(/{{name}}/g, recipient.name || 'Friend').replace(/{{email}}/g, effEmail) : '';
+        const pBody = body.replace(/{{name}}/g, recipient.name || 'Friend').replace(/{{email}}/g, effEmail);
         
         const logText = channel === 'email' 
           ? `Received email campaign: "${campaignName}"\nSubject: ${pSubj}`
           : `Received WhatsApp campaign: "${campaignName}"`;
 
         if (channel === 'email') {
-          await sendEmail(lead.email, pSubj, pBody, profile);
+          await sendEmail(effEmail, pSubj, pBody, profile);
         } else {
-          await sendWhatsAppMock(user.id, lead.phone, pBody, { entityId: lead.id, entityType: 'lead' });
+          await sendWhatsAppMock(user.id, effPhone, pBody, { entityId: recipient.entityId, entityType: recipient.type.toLowerCase() });
         }
         
-        // Log to lead timeline
+        // Log to timeline
         await db.transact(db.tx.activityLogs[id()].update({
-          entityId: lead.id,
-          entityType: 'lead',
+          entityId: recipient.entityId,
+          entityType: recipient.type.toLowerCase(),
           text: logText,
           userId: user.id,
           userName: 'System (Campaign)',
@@ -200,7 +331,7 @@ export default function Campaigns({ user }) {
         
         sentCount++;
       } catch (err) {
-        console.error(`Failed to send campaign to ${lead.email || lead.phone}:`, err);
+        console.error(`Failed to send campaign to ${effEmail || effPhone}:`, err);
       }
       
       setProgress(Math.round(((i + 1) / targetAudience.length) * 100));
@@ -248,46 +379,268 @@ export default function Campaigns({ user }) {
           <div className="tw" style={{ padding: 25, height: 'max-content' }}>
             <h3>1. Target Audience</h3>
             <div style={{ marginTop: 15, fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>Select filters below to build your recipient list. Leaving a category blank means "All".</div>
+
+            <div style={{ display: 'flex', background: 'var(--bg)', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)', marginBottom: 20 }}>
+              <button className={`btn btn-sm ${targetType === 'leads' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1, borderRadius: 0, border: 'none' }} onClick={() => setTargetType('leads')}>Leads</button>
+              <button className={`btn btn-sm ${targetType === 'customers' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1, borderRadius: 0, border: 'none' }} onClick={() => setTargetType('customers')}>Customers</button>
+              <button className={`btn btn-sm ${targetType === 'both' ? 'btn-primary' : 'btn-ghost'}`} style={{ flex: 1, borderRadius: 0, border: 'none' }} onClick={() => setTargetType('both')}>Both</button>
+            </div>
             
             <div style={{ background: 'var(--bg)', padding: 15, borderRadius: 8, textAlign: 'center', marginBottom: 25, border: '1px solid var(--border)' }}>
               <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--accent)' }}>{targetAudience.length}</div>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 1 }}>Leads Selected</div>
-            </div>
-
-            <div style={{ marginBottom: 20 }}>
-              <strong style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Filter by Stage {selStages.size > 0 && <span style={{ color: 'var(--accent)' }}>({selStages.size})</span>}</strong>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto' }}>
-                {STAGES.map(s => (
-                  <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={selStages.has(s)} onChange={() => toggleSet(selStages, setSelStages, s)} style={{ accentColor: 'var(--accent)' }}/> {s}
-                  </label>
-                ))}
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 1, marginBottom: 4 }}>Recipients Selected</div>
+              <div style={{ fontSize: 10, color: 'var(--muted)', fontStyle: 'italic' }}>
+                (Excludes missing {channel === 'email' ? 'email' : 'phone number'}{targetType === 'both' ? ', avoids duplicates' : ''})
               </div>
             </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <strong style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Filter by Source {selSources.size > 0 && <span style={{ color: 'var(--accent)' }}>({selSources.size})</span>}</strong>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto' }}>
-                {SOURCES.map(s => (
-                  <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={selSources.has(s)} onChange={() => toggleSet(selSources, setSelSources, s)} style={{ accentColor: 'var(--accent)' }}/> {s}
-                  </label>
-                ))}
+            {(targetType === 'leads' || targetType === 'both') && (
+              <div style={{ padding: 12, border: '1px dashed var(--border)', borderRadius: 8, marginBottom: 20, background: 'var(--bg-soft)' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 1, marginBottom: 15 }}>Lead Filters</div>
+                <div style={{ marginBottom: 20 }}>
+                  <strong style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Filter by Stage {selStages.size > 0 && <span style={{ color: 'var(--accent)' }}>({selStages.size})</span>}</strong>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto' }}>
+                    {STAGES.map(s => (
+                      <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selStages.has(s)} onChange={() => toggleSet(selStages, setSelStages, s)} style={{ accentColor: 'var(--accent)' }}/> {s}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
+                  <strong style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Filter by Source {selSources.size > 0 && <span style={{ color: 'var(--accent)' }}>({selSources.size})</span>}</strong>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto' }}>
+                    {SOURCES.map(s => (
+                      <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selSources.has(s)} onChange={() => toggleSet(selSources, setSelSources, s)} style={{ accentColor: 'var(--accent)' }}/> {s}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <strong style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Filter by Label {selLabels.size > 0 && <span style={{ color: 'var(--accent)' }}>({selLabels.size})</span>}</strong>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto' }}>
+                    {LABELS.map(s => (
+                      <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selLabels.has(s)} onChange={() => toggleSet(selLabels, setSelLabels, s)} style={{ accentColor: 'var(--accent)' }}/> {s}
+                      </label>
+                    ))}
+                  </div>
+                </div>
               </div>
+            )}
+
+            {(targetType === 'customers' || targetType === 'both') && (
+              <div style={{ padding: 12, border: '1px dashed var(--border)', borderRadius: 8, marginBottom: 20, background: 'var(--bg-soft)' }}>
+                <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 1, marginBottom: 15 }}>Customer Filters</div>
+                
+                <div className="fg" style={{ marginBottom: 15 }}>
+                  <label>Purchased Product {selProducts.size > 0 && <span style={{ color: 'var(--accent)' }}>({selProducts.size})</span>}</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 120, overflowY: 'auto', background: 'var(--bg)', padding: 10, borderRadius: 6, border: '1px solid var(--border)' }}>
+                    {products.length === 0 && <div style={{ fontSize: 11, color: 'var(--muted)' }}>No products found</div>}
+                    {products.map(p => (
+                      <label key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selProducts.has(p.name)} onChange={() => toggleSet(selProducts, setSelProducts, p.name)} style={{ accentColor: 'var(--accent)' }}/> {p.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="fg" style={{ marginBottom: 15 }}>
+                  <label>Last Purchase Period</label>
+                  <select value={selPeriod} onChange={e => setSelPeriod(e.target.value)}>
+                    <option value="">Any Time</option>
+                    <option value="30d">Last 30 Days</option>
+                    <option value="3m">Last 3 Months</option>
+                    <option value="6m">Last 6 Months</option>
+                    <option value="1y">Last 1 Year</option>
+                    <option value="1-2y">1-2 Years Ago</option>
+                    <option value="2y+">2+ Years Ago</option>
+                  </select>
+                </div>
+
+                <div className="fg" style={{ marginBottom: 15 }}>
+                  <label>Invoice Amount Range</label>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <input type="number" placeholder="Min ₹" value={minAmount} onChange={e => setMinAmount(e.target.value)} style={{ width: '100%' }} />
+                    <input type="number" placeholder="Max ₹" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} style={{ width: '100%' }} />
+                  </div>
+                </div>
+
+                <div className="fg" style={{ marginBottom: 15 }}>
+                  <label>AMC Status {selAmcStatus.size > 0 && <span style={{ color: 'var(--accent)' }}>({selAmcStatus.size})</span>}</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg)', padding: 10, borderRadius: 6, border: '1px solid var(--border)' }}>
+                    {['Active', 'Expired', 'Cancelled'].map(s => (
+                      <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selAmcStatus.has(s)} onChange={() => toggleSet(selAmcStatus, setSelAmcStatus, s)} style={{ accentColor: 'var(--accent)' }}/> {s}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="fg">
+                  <label>Customer State {selStates.size > 0 && <span style={{ color: 'var(--accent)' }}>({selStates.size})</span>}</label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 120, overflowY: 'auto', background: 'var(--bg)', padding: 10, borderRadius: 6, border: '1px solid var(--border)' }}>
+                    {INDIAN_STATES.map(s => (
+                      <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
+                        <input type="checkbox" checked={selStates.has(s)} onChange={() => toggleSet(selStates, setSelStates, s)} style={{ accentColor: 'var(--accent)' }}/> {s}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <button className="btn btn-secondary btn-sm" style={{ width: '100%', marginBottom: 20 }} onClick={() => { setSelStages(new Set()); setSelSources(new Set()); setSelLabels(new Set()); setSelProducts(new Set()); setSelPeriod(''); setMinAmount(''); setMaxAmount(''); setSelAmcStatus(new Set()); setSelStates(new Set()); setExcludedIds(new Set()); setManualAdds(new Set()); }}>Reset Filters</button>
+
+            {/* MANUAL RECIPIENTS PANEL */}
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 20 }}>
+              <button 
+                className="btn btn-ghost" 
+                style={{ width: '100%', borderRadius: 0, borderBottom: showManualAdd ? '1px solid var(--border)' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 15px' }}
+                onClick={() => setShowManualAdd(!showManualAdd)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>➕</span>
+                  <strong style={{ fontSize: 13 }}>Manually Add Recipients ({manualAdds.size})</strong>
+                </div>
+                <span>{showManualAdd ? '▲' : '▼'}</span>
+              </button>
+              
+              {showManualAdd && (
+                <div style={{ background: 'var(--bg)' }}>
+                  <div style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>
+                    <input 
+                      type="text" 
+                      placeholder="Search to add by name, email, phone..." 
+                      value={addSearch}
+                      onChange={e => setAddSearch(e.target.value)}
+                      style={{ padding: '6px 12px', fontSize: 12, width: '100%' }}
+                    />
+                  </div>
+                  {addSearch.trim() && (
+                    <div style={{ maxHeight: 200, overflowY: 'auto', padding: 10, background: 'var(--bg-soft)' }}>
+                      {allCandidates
+                        .filter(r => !manualAdds.has(r.id))
+                        .filter(r => r.name.toLowerCase().includes(addSearch.toLowerCase()) || r.email.toLowerCase().includes(addSearch.toLowerCase()) || r.phone.includes(addSearch))
+                        .slice(0, 10)
+                        .map(r => (
+                        <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}>
+                          <div style={{ flex: 1, overflow: 'hidden' }}>
+                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                              <strong style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</strong>
+                              <span className="badge bg-gray" style={{ fontSize: 9, padding: '2px 6px' }}>{r.type}</span>
+                            </div>
+                            <div style={{ color: 'var(--muted)', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {r.email} {r.email && r.phone ? '•' : ''} {r.phone}
+                            </div>
+                          </div>
+                          <button 
+                            className="btn btn-primary btn-sm" 
+                            style={{ padding: '4px 8px', fontSize: 11 }}
+                            onClick={() => {
+                              const next = new Set(manualAdds);
+                              next.add(r.id);
+                              // Auto-remove them from excluded list if they were manually banished earlier
+                              const nextExc = new Set(excludedIds);
+                              nextExc.delete(r.id);
+                              setExcludedIds(nextExc);
+                              setManualAdds(next);
+                              setAddSearch('');
+                            }}
+                          >
+                            Add
+                          </button>
+                        </div>
+                      ))}
+                      {allCandidates.filter(r => !manualAdds.has(r.id) && (r.name.toLowerCase().includes(addSearch.toLowerCase()) || r.email.toLowerCase().includes(addSearch.toLowerCase()) || r.phone.includes(addSearch))).length === 0 && (
+                        <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', padding: 10 }}>No matches found</div>
+                      )}
+                    </div>
+                  )}
+                  {manualAdds.size > 0 && (
+                    <div style={{ padding: 10 }}>
+                      <strong style={{ fontSize: 11, display: 'block', marginBottom: 8, color: 'var(--muted)', textTransform: 'uppercase' }}>Manually Added ({manualAdds.size}):</strong>
+                      {allCandidates.filter(r => manualAdds.has(r.id)).map(r => (
+                        <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, background: 'var(--bg-soft)', padding: '6px 10px', borderRadius: 6, marginBottom: 4 }}>
+                          <span>{r.name} <span style={{ color: 'var(--muted)' }}>({r.type})</span></span>
+                          <button className="btn btn-ghost btn-sm" style={{ padding: '2px 6px', color: '#991b1b' }} onClick={() => toggleSet(manualAdds, setManualAdds, r.id)}>Remove</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {manualAdds.size > 0 && (
+                    <div style={{ padding: '8px 10px', borderTop: '1px dashed var(--border)', textAlign: 'right' }}>
+                      <button className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => setManualAdds(new Set())}>Clear All</button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            <div>
-              <strong style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Filter by Label {selLabels.size > 0 && <span style={{ color: 'var(--accent)' }}>({selLabels.size})</span>}</strong>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto' }}>
-                {LABELS.map(s => (
-                  <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
-                    <input type="checkbox" checked={selLabels.has(s)} onChange={() => toggleSet(selLabels, setSelLabels, s)} style={{ accentColor: 'var(--accent)' }}/> {s}
-                  </label>
-                ))}
-              </div>
+            {/* PREVIEW PANEL */}
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+              <button 
+                className="btn btn-ghost" 
+                style={{ width: '100%', borderRadius: 0, borderBottom: showPreview ? '1px solid var(--border)' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 15px' }}
+                onClick={() => setShowPreview(!showPreview)}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>👁</span>
+                  <strong style={{ fontSize: 13 }}>Preview Recipients ({targetAudience.length})</strong>
+                </div>
+                <span>{showPreview ? '▲' : '▼'}</span>
+              </button>
+              
+              {showPreview && (
+                <div style={{ background: 'var(--bg)' }}>
+                  <div style={{ padding: 10, borderBottom: '1px solid var(--border)' }}>
+                    <input 
+                      type="text" 
+                      placeholder="Search recipients by name, email..." 
+                      value={previewSearch}
+                      onChange={e => setPreviewSearch(e.target.value)}
+                      style={{ padding: '6px 12px', fontSize: 12, width: '100%' }}
+                    />
+                  </div>
+                  <div style={{ maxHeight: 300, overflowY: 'auto', padding: 10 }}>
+                    {targetAudience.length === 0 && <div style={{ fontSize: 12, color: 'var(--muted)', textAlign: 'center', padding: 20 }}>No recipients match filters.</div>}
+                    {targetAudience
+                      .filter(r => !previewSearch || r.name.toLowerCase().includes(previewSearch.toLowerCase()) || r.email.toLowerCase().includes(previewSearch.toLowerCase()) || r.phone.includes(previewSearch))
+                      .map((r, i) => (
+                      <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 6px', borderBottom: '1px solid var(--border-light)', fontSize: 12 }}>
+                        <span style={{ color: 'var(--muted)', width: 20 }}>{i + 1}.</span>
+                        <div style={{ flex: 1, overflow: 'hidden' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                            <strong style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.name}</strong>
+                            <span className="badge bg-gray" style={{ fontSize: 9, padding: '2px 6px' }}>{r.type}</span>
+                          </div>
+                          <div style={{ color: 'var(--muted)', fontSize: 11, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {r.email} {r.email && r.phone ? '•' : ''} {r.phone}
+                          </div>
+                        </div>
+                        <button 
+                          className="btn btn-sm" 
+                          style={{ background: 'transparent', color: 'var(--muted)', border: 'none', padding: '4px 8px', fontSize: 14 }}
+                          onClick={() => toggleSet(excludedIds, setExcludedIds, r.id)}
+                          title="Exclude recipient from campaign"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  {excludedIds.size > 0 && (
+                    <div style={{ padding: 10, borderTop: '1px dashed var(--border)', fontSize: 11, color: 'var(--muted)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>{excludedIds.size} recipient(s) manually excluded.</span>
+                      <button className="btn btn-ghost btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => setExcludedIds(new Set())}>Restore All</button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-
-            <button className="btn btn-secondary btn-sm" style={{ width: '100%', marginTop: 20 }} onClick={() => { setSelStages(new Set()); setSelSources(new Set()); setSelLabels(new Set()); }}>Reset Filters</button>
           </div>
 
           {/* RIGHT SIDE: Composer */}

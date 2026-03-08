@@ -17,7 +17,9 @@ export default function Products({ user }) {
     userProfiles: { $: { where: { userId: user.id } } }
   });
   const products = data?.products || [];
-  const productCats = data?.userProfiles?.[0]?.productCats || ['Electronics', 'Home Appliances', 'Services', 'Furniture', 'General'];
+  const profile = data?.userProfiles?.[0] || {};
+  const productCats = profile.productCats || ['Electronics', 'Home Appliances', 'Services', 'Furniture', 'General'];
+  const taxRates = profile.taxRates || [{ label: 'None (0%)', rate: 0 }, { label: 'GST @ 5%', rate: 5 }, { label: 'GST @ 12%', rate: 12 }, { label: 'GST @ 18%', rate: 18 }, { label: 'GST @ 28%', rate: 28 }];
   
   const [search, setSearch] = useState('');
   const filtered = products.filter(p => {
@@ -88,7 +90,7 @@ export default function Products({ user }) {
                 <div className="fg"><label>Type</label><select value={form.type} onChange={f('type')}>{['Service', 'Product'].map(s => <option key={s}>{s}</option>)}</select></div>
                 <div className="fg"><label>Unit</label><select value={form.unit} onChange={f('unit')}>{['Nos', 'Hours', 'Days', 'Months', 'Kgs', 'Ltrs', 'Meters', 'Other'].map(s => <option key={s}>{s}</option>)}</select></div>
                 <div className="fg"><label>Rate (₹)</label><input type="number" value={form.rate} onChange={f('rate')} /></div>
-                <div className="fg"><label>GST %</label><select value={form.tax} onChange={f('tax')}>{[0, 5, 12, 18, 28].map(t => <option key={t}>{t}</option>)}</select></div>
+                <div className="fg"><label>GST %</label><select value={form.tax} onChange={f('tax')}>{taxRates.map(t => <option key={t.label} value={t.rate}>{t.label}</option>)}</select></div>
                 <div className="fg span2"><label>Description</label><textarea value={form.desc} onChange={f('desc')} style={{ minHeight: 55 }} /></div>
               </div>
             </div>

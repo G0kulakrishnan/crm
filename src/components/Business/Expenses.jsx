@@ -18,7 +18,9 @@ export default function Expenses({ user }) {
     userProfiles: { $: { where: { userId: user.id } } }
   });
   const expenses = data?.expenses || [];
-  const cats = data?.userProfiles?.[0]?.expCats || DEFAULT_CATS;
+  const profile = data?.userProfiles?.[0] || {};
+  const cats = profile.expCats || DEFAULT_CATS;
+  const taxRates = profile.taxRates || [{ label: 'None (0%)', rate: 0 }, { label: 'GST @ 5%', rate: 5 }, { label: 'GST @ 12%', rate: 12 }, { label: 'GST @ 18%', rate: 18 }, { label: 'GST @ 28%', rate: 28 }];
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const total = useMemo(() => expenses.filter(e => e.status === 'Approved').reduce((s, e) => s + (e.amount || 0), 0), [expenses]);
@@ -90,7 +92,7 @@ export default function Expenses({ user }) {
                     const tax = Math.round(amt - (amt / (1 + r / 100)));
                     setForm(p => ({ ...p, taxRate: r, taxAmt: tax }));
                   }}>
-                    {[0, 5, 12, 18, 28].map(r => <option key={r} value={r}>{r}%</option>)}
+                    {taxRates.map(t => <option key={t.label} value={t.rate}>{t.label}</option>)}
                   </select>
                 </div>
                 <div className="fg"><label>Tax Amount (₹)</label><input type="number" value={form.taxAmt} onChange={e => setForm(p => ({ ...p, taxAmt: parseFloat(e.target.value) || 0 }))} /></div>

@@ -3,8 +3,9 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
+import { INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
 
-const EMPTY_CUSTOMER = { name: '', email: '', phone: '', custom: {} };
+const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', custom: {} };
 
 export default function Customers({ user }) {
   const [search, setSearch] = useState('');
@@ -44,7 +45,7 @@ export default function Customers({ user }) {
   }, [customers, search]);
 
   const openCreate = () => { setEditData(null); setForm(EMPTY_CUSTOMER); setModal(true); };
-  const openEdit = (c) => { setEditData(c); setForm({ name: c.name, email: c.email || '', phone: c.phone || '', custom: c.custom || {} }); setModal(true); };
+  const openEdit = (c) => { setEditData(c); setForm({ name: c.name, email: c.email || '', phone: c.phone || '', address: c.address || '', state: c.state || '', country: c.country || 'India', pincode: c.pincode || '', custom: c.custom || {} }); setModal(true); };
 
   const logActivity = async (customerId, text) => {
     await db.transact(db.tx.activityLogs[id()].update({
@@ -63,7 +64,7 @@ export default function Customers({ user }) {
     try {
       if (editData) {
         const changes = [];
-        const fields = { name: 'Name', phone: 'Phone', email: 'Email' };
+        const fields = { name: 'Name', phone: 'Phone', email: 'Email', address: 'Address', state: 'State', country: 'Country', pincode: 'Pincode' };
         Object.entries(fields).forEach(([k, label]) => {
           if (editData[k] !== form[k]) {
             const oldVal = editData[k] || 'None';
@@ -313,6 +314,19 @@ export default function Customers({ user }) {
                   <div className="fg span2"><label>Name *</label><input value={form.name} onChange={f('name')} placeholder="Full name" /></div>
                   <div className="fg"><label>Email *</label><input type="email" value={form.email} onChange={f('email')} /></div>
                   <div className="fg"><label>Phone</label><input value={form.phone} onChange={f('phone')} placeholder="+91..." /></div>
+                  <div className="fg span2"><label>Address</label><textarea value={form.address} onChange={f('address')} placeholder="Full address" style={{ minHeight: 60 }} /></div>
+                  <div className="fg"><label>Country</label>
+                    <select value={form.country} onChange={f('country')}>
+                      {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="fg"><label>State</label>
+                    <select value={form.state} onChange={f('state')}>
+                      <option value="">Select State...</option>
+                      {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div className="fg"><label>Pincode</label><input value={form.pincode} onChange={f('pincode')} placeholder="Postal code" /></div>
                   {customFields.length > 0 && <div className="fg span2" style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>
                     <h4 style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>Custom Fields (Optional)</h4>
                     <div className="fgrid">
@@ -421,6 +435,19 @@ export default function Customers({ user }) {
                 <div className="fg span2"><label>Name *</label><input value={form.name} onChange={f('name')} placeholder="Full name" /></div>
                 <div className="fg"><label>Email *</label><input type="email" value={form.email} onChange={f('email')} /></div>
                 <div className="fg"><label>Phone</label><input value={form.phone} onChange={f('phone')} placeholder="+91..." /></div>
+                <div className="fg span2"><label>Address</label><textarea value={form.address} onChange={f('address')} placeholder="Full address" style={{ minHeight: 60 }} /></div>
+                <div className="fg"><label>Country</label>
+                  <select value={form.country} onChange={f('country')}>
+                    {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>State</label>
+                  <select value={form.state} onChange={f('state')}>
+                    <option value="">Select State...</option>
+                    {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>Pincode</label><input value={form.pincode} onChange={f('pincode')} placeholder="Postal code" /></div>
                 
                 {/* Dynamic Custom Fields */}
                 {customFields.length > 0 && <div className="fg span2" style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>

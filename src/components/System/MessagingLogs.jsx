@@ -6,6 +6,7 @@ export default function MessagingLogs({ user }) {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
   const [viewMessage, setViewMessage] = useState(null);
 
   const { data, isLoading } = db.useQuery({
@@ -23,8 +24,23 @@ export default function MessagingLogs({ user }) {
         const q = search.toLowerCase();
         return [l.recipient, l.content, l.type, l.status].some(v => (v || '').toLowerCase().includes(q));
       })
+      .filter(l => {
+        if (!dateFilter) return true;
+        const sentDate = new Date(l.sentAt);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const monthAgo = new Date(today);
+        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        
+        if (dateFilter === 'today') return sentDate >= today;
+        if (dateFilter === 'yesterday') return sentDate >= yesterday && sentDate < today;
+        if (dateFilter === 'month') return sentDate >= monthAgo;
+        return true;
+      })
       .sort((a, b) => (b.sentAt || 0) - (a.sentAt || 0));
-  }, [logs, typeFilter, statusFilter, search]);
+  }, [logs, typeFilter, statusFilter, dateFilter, search]);
 
   const stats = useMemo(() => {
     return {
@@ -73,6 +89,12 @@ export default function MessagingLogs({ user }) {
               <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
               <input className="si" placeholder="Search logs..." value={search} onChange={e => setSearch(e.target.value)} />
             </div>
+            <select className="si" style={{ width: 130 }} value={dateFilter} onChange={e => setDateFilter(e.target.value)}>
+              <option value="">All Time</option>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="month">Last 1 Month</option>
+            </select>
             <select className="si" style={{ width: 130 }} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
               <option value="">All Types</option>
               <option value="email">Email</option>

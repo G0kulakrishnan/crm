@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AppContext = createContext(null);
 
@@ -11,9 +11,33 @@ export const DEFAULT_PLANS = [
 ];
 
 export function AppProvider({ children, user }) {
-  const [activeView, setActiveView] = useState('dashboard');
+  const [activeView, setActiveView] = useState(() => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash) return hash;
+    return localStorage.getItem('tc_activeView') || 'dashboard';
+  });
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+
+  // Sync state upward to URL and LocalStorage
+  useEffect(() => {
+    localStorage.setItem('tc_activeView', activeView);
+    if (window.location.hash !== `#${activeView}`) {
+      window.location.hash = activeView;
+    }
+  }, [activeView]);
+
+  // Listen to browser Back/Forward buttons
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#', '');
+      if (hash && hash !== activeView) {
+        setActiveView(hash);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, [activeView]);
 
   return (
     <AppContext.Provider value={{

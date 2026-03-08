@@ -3,8 +3,9 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { renderTemplate, sendEmailMock, sendEmail } from '../../utils/messaging';
+import { INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
 
-const SETTING_NAV = ['My Profile', 'Business', 'Finance', 'Billing', 'Custom Fields', 'Sources', 'Stages', 'Labels', 'Product Categories', 'Expense Categories', 'Task Statuses', 'SMTP', 'WhatsApp', 'Reminders'];
+const SETTING_NAV = ['My Profile', 'Business', 'Finance', 'Billing', 'Taxes', 'Custom Fields', 'Sources', 'Stages', 'Labels', 'Product Categories', 'Expense Categories', 'Task Statuses', 'SMTP', 'WhatsApp', 'Reminders'];
 
 const DEFAULT_SOURCES = ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
 const DEFAULT_STAGES = ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
@@ -13,6 +14,13 @@ const DEFAULT_CFIELDS = []; // { name: 'Requirement', type: 'text'|'number'|'dro
 const DEFAULT_PROD_CATS = ['Electronics', 'Home Appliances', 'Services', 'Furniture', 'General'];
 const DEFAULT_EXP_CATS = ['Software', 'Hardware', 'Travel', 'Office', 'Marketing', 'Utilities', 'Salaries', 'Misc'];
 const DEFAULT_TASK_STATUSES = ['Pending', 'In Progress', 'Completed'];
+const DEFAULT_TAX_OPTIONS = [
+  { label: 'None (0%)', rate: 0 },
+  { label: 'GST @ 5%', rate: 5 },
+  { label: 'GST @ 12%', rate: 12 },
+  { label: 'GST @ 18%', rate: 18 },
+  { label: 'GST @ 28%', rate: 28 }
+];
 
 export default function Settings({ user, profile, isExpired, initialTab }) {
   const [active, setActive] = useState(initialTab || 'My Profile');
@@ -26,6 +34,9 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
     bizEmail: profile?.bizEmail || '',
     bizPhone: profile?.bizPhone || '',
     address: profile?.address || '',
+    bizState: profile?.bizState || '',
+    country: profile?.country || 'India',
+    pincode: profile?.pincode || '',
     gstin: profile?.gstin || '', pan: profile?.pan || '',
     website: profile?.website || '',
     logo: profile?.logo || null,
@@ -39,6 +50,7 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
     iNextNum: profile?.iNextNum || 1,
     iTerms: profile?.iTerms || '1. Please pay within 7 days.\n2. Interest @ 18% for late payment.',
     iNotes: profile?.iNotes || 'Thank you for choosing us!',
+    reqShipping: profile?.reqShipping || 'Optional',
     bankName: profile?.bankName || '',
     accountNo: profile?.accountNo || '',
     ifsc: profile?.ifsc || '',
@@ -57,6 +69,7 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
   const [newExpCat, setNewExpCat] = useState('');
   const [newProdCat, setNewProdCat] = useState('');
   const [newTaskStatus, setNewTaskStatus] = useState('');
+  const [newTax, setNewTax] = useState({ label: '', rate: '' });
   const [newCF, setNewCF] = useState({ name: '', type: 'text', options: '' });
   const [reminders, setReminders] = useState(profile?.reminders || {
     amc: { days: 30, msg: 'Hello {client}, your AMC contract is expiring on {date}. Please contact us for renewal.' },
@@ -74,6 +87,7 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
   const productCats = data?.userProfiles?.[0]?.productCats || DEFAULT_PROD_CATS;
   const expCats = data?.userProfiles?.[0]?.expCats || DEFAULT_EXP_CATS;
   const taskStatuses = data?.userProfiles?.[0]?.taskStatuses || DEFAULT_TASK_STATUSES;
+  const taxRates = data?.userProfiles?.[0]?.taxRates || DEFAULT_TAX_OPTIONS;
 
   const handleFile = (e, callback) => {
     const file = e.target.files[0];
@@ -134,12 +148,22 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
     setNewCF(customFields[idx]);
   };
 
-  const cancelEditCF = () => {
-    setEditingCFIndex(null);
-    setNewCF({ name: '', type: 'text', options: '' });
+  const removeItem = (key, list, idx) => saveList(key, list.filter((_, i) => i !== idx));
+
+  const editItem = (key, list, idx, currentVal) => {
+    const newVal = prompt('Edit value:', currentVal);
+    if (newVal !== null && newVal.trim() !== '' && newVal !== currentVal) {
+      const newList = [...list];
+      newList[idx] = newVal.trim();
+      saveList(key, newList);
+    }
   };
 
-  const removeItem = (key, list, idx) => saveList(key, list.filter((_, i) => i !== idx));
+  const addTaxRate = () => {
+    if (!newTax.label.trim() || newTax.rate === '') return;
+    saveList('taxRates', [...taxRates, { label: newTax.label.trim(), rate: parseFloat(newTax.rate) || 0 }]);
+    setNewTax({ label: '', rate: '' });
+  };
 
   const saveSMTP = async () => {
     const payload = { smtpHost, smtpPort, smtpUser, smtpPass, smtpSender: smtpUser, userId: user.id };
@@ -320,6 +344,20 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                   <div className="fg span2"><label>Business Address</label><textarea value={biz.address} onChange={e => setBiz(b => ({ ...b, address: e.target.value }))} style={{ minHeight: 60 }} /></div>
                   <div className="fg"><label>Official Email</label><input type="email" value={biz.bizEmail} onChange={e => setBiz(b => ({ ...b, bizEmail: e.target.value }))} /></div>
                   <div className="fg"><label>Official Phone</label><input value={biz.bizPhone} onChange={e => setBiz(b => ({ ...b, bizPhone: e.target.value }))} /></div>
+                  <div className="fg">
+                    <label>Country</label>
+                    <select value={biz.country} onChange={e => setBiz(b => ({ ...b, country: e.target.value }))}>
+                      {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="fg">
+                    <label>State</label>
+                    <select value={biz.bizState} onChange={e => setBiz(b => ({ ...b, bizState: e.target.value }))}>
+                      <option value="">Select State...</option>
+                      {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                  <div className="fg"><label>Pincode</label><input value={biz.pincode} onChange={e => setBiz(b => ({ ...b, pincode: e.target.value }))} placeholder="Postal Code" /></div>
                   <div className="fg"><label>GSTIN</label><input value={biz.gstin} onChange={e => setBiz(b => ({ ...b, gstin: e.target.value }))} placeholder="22AAAAA0000A1Z5" /></div>
                   <div className="fg"><label>PAN</label><input value={biz.pan} onChange={e => setBiz(b => ({ ...b, pan: e.target.value }))} placeholder="AAAPZ1234C" /></div>
                   <div className="fg span2"><label>Website</label><input value={biz.website} onChange={e => setBiz(b => ({ ...b, website: e.target.value }))} /></div>
@@ -368,6 +406,19 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                 </div>
 
                 <div style={{ marginTop: 30, paddingTop: 20, borderTop: '2px dashed var(--border)' }}>
+                  <div className="fgrid">
+                    <div className="fg">
+                      <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Ship to option</label>
+                      <select value={fin.reqShipping} onChange={e => setFin(f => ({ ...f, reqShipping: e.target.value }))}>
+                        <option value="Optional">Toggle (Optional addition per-document)</option>
+                        <option value="Hidden">Hidden (Do not feature Ship To address)</option>
+                        <option value="Mandatory">Mandatory (Always require Ship To address)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 30, paddingTop: 20, borderTop: '2px dashed var(--border)' }}>
                   <h4 style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
                     Payment & Bank Details
@@ -398,6 +449,33 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {active === 'Taxes' && (
+            <div className="tw">
+              <div className="tw-head"><h3>Tax Configuration</h3></div>
+              <div style={{ padding: '16px 20px' }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 16, alignItems: 'center' }}>
+                  <input value={newTax.label} onChange={e => setNewTax({ ...newTax, label: e.target.value })} placeholder="Label (e.g. IGST 18%)" style={{ flex: 2, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }} />
+                  <input type="number" value={newTax.rate} onChange={e => setNewTax({ ...newTax, rate: e.target.value })} placeholder="Rate (%)" style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }} />
+                  <button className="btn btn-primary btn-sm" onClick={addTaxRate}>Add Tax</button>
+                </div>
+                <table style={{ background: 'var(--bg)', borderRadius: 8, overflow: 'hidden' }}>
+                  <thead><tr><th>Tax Label</th><th>Percentage Rate</th><th>Action</th></tr></thead>
+                  <tbody>
+                    {taxRates.length === 0 ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: 14, color: 'var(--muted)' }}>No taxes defined</td></tr> : taxRates.map((t, i) => (
+                      <tr key={i}>
+                        <td><strong>{t.label}</strong></td>
+                        <td><span className="badge bg-purple">{t.rate}%</span></td>
+                        <td>
+                           <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 8px' }} onClick={() => removeItem('taxRates', taxRates, i)}>Del</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
@@ -450,7 +528,9 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {sources.map((s, i) => (
                     <span key={i} className="badge bg-blue" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 10px' }}>
-                      {s} <span style={{ cursor: 'pointer', color: '#1e40af' }} onClick={() => removeItem('sources', sources, i)}>✕</span>
+                      {s} 
+                      <span style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => editItem('sources', sources, i, s)}>✎</span>
+                      <span style={{ cursor: 'pointer', color: '#1e40af' }} onClick={() => removeItem('sources', sources, i)}>✕</span>
                     </span>
                   ))}
                 </div>
@@ -469,7 +549,9 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {stages.map((s, i) => (
                     <span key={i} className="badge bg-teal" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 10px' }}>
-                      {s} <span style={{ cursor: 'pointer' }} onClick={() => removeItem('stages', stages, i)}>✕</span>
+                      {s} 
+                      <span style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => editItem('stages', stages, i, s)}>✎</span>
+                      <span style={{ cursor: 'pointer' }} onClick={() => removeItem('stages', stages, i)}>✕</span>
                     </span>
                   ))}
                 </div>
@@ -488,7 +570,9 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {labels.map((l, i) => (
                     <span key={i} className="badge bg-orange" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 10px' }}>
-                      {l} <span style={{ cursor: 'pointer' }} onClick={() => removeItem('labels', labels, i)}>✕</span>
+                      {l} 
+                      <span style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => editItem('labels', labels, i, l)}>✎</span>
+                      <span style={{ cursor: 'pointer' }} onClick={() => removeItem('labels', labels, i)}>✕</span>
                     </span>
                   ))}
                 </div>
@@ -507,7 +591,9 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {productCats.map((c, i) => (
                     <span key={i} className="badge bg-blue" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 10px' }}>
-                      {c} <span style={{ cursor: 'pointer' }} onClick={() => removeItem('productCats', productCats, i)}>✕</span>
+                      {c} 
+                      <span style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => editItem('productCats', productCats, i, c)}>✎</span>
+                      <span style={{ cursor: 'pointer' }} onClick={() => removeItem('productCats', productCats, i)}>✕</span>
                     </span>
                   ))}
                 </div>
@@ -526,7 +612,9 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {expCats.map((c, i) => (
                     <span key={i} className="badge bg-gray" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 10px' }}>
-                      {c} <span style={{ cursor: 'pointer' }} onClick={() => removeItem('expCats', expCats, i)}>✕</span>
+                      {c} 
+                      <span style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => editItem('expCats', expCats, i, c)}>✎</span>
+                      <span style={{ cursor: 'pointer' }} onClick={() => removeItem('expCats', expCats, i)}>✕</span>
                     </span>
                   ))}
                 </div>
@@ -545,7 +633,9 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                   {taskStatuses.map((s, i) => (
                     <span key={i} className="badge bg-purple" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 10px' }}>
-                      {s} <span style={{ cursor: 'pointer' }} onClick={() => removeItem('taskStatuses', taskStatuses, i)}>✕</span>
+                      {s} 
+                      <span style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => editItem('taskStatuses', taskStatuses, i, s)}>✎</span>
+                      <span style={{ cursor: 'pointer' }} onClick={() => removeItem('taskStatuses', taskStatuses, i)}>✕</span>
                     </span>
                   ))}
                 </div>

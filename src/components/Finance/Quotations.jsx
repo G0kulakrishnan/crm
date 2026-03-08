@@ -1,10 +1,10 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
-const EMPTY = { client: '', validUntil: '', status: 'Created', template: 'Classic', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }] };
+const EMPTY = { client: '', validUntil: '', status: 'Created', template: 'Classic', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], shipTo: '', addShipping: false };
 
 function calcTotals(items, disc, tdsRate, adj) {
   const sub = items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
@@ -24,16 +24,17 @@ export default function Quotations({ user }) {
   const [printing, setPrinting] = useState(null);
   const toast = useToast();
 
-  const { data } = db.useQuery({
+  const { data, isLoading } = db.useQuery({
     quotes: { $: { where: { userId: user.id } } },
     products: { $: { where: { userId: user.id } } },
     customers: { $: { where: { userId: user.id } } },
     userProfiles: { $: { where: { userId: user.id } } },
   });
-  const quotes = data?.quotes || [];
   const products = data?.products || [];
   const customers = data?.customers || [];
+  const quotes = data?.quotes || [];
   const profile = data?.userProfiles?.[0] || {};
+  const taxRates = profile.taxRates || TAX_OPTIONS;
 
   const filtered = useMemo(() => {
     return quotes.filter(q => tab === 'all' || q.status === tab)
@@ -49,13 +50,20 @@ export default function Quotations({ user }) {
   const openCreate = () => { setEditData(null); setForm(EMPTY); setModal(true); };
   const openEdit = (q) => {
     setEditData(q);
-    setForm({ client: q.client, validUntil: q.validUntil || '', status: q.status, template: q.template || 'Classic', notes: q.notes || '', terms: q.terms || '', disc: q.disc || 0, adj: q.adj || 0, tdsRate: q.tdsRate || 0, items: q.items?.length ? q.items : EMPTY.items });
+    setForm({ client: q.client, validUntil: q.validUntil || '', status: q.status, template: q.template || 'Classic', notes: q.notes || '', terms: q.terms || '', disc: q.disc || 0, adj: q.adj || 0, tdsRate: q.tdsRate || 0, items: q.items?.length ? q.items : EMPTY.items, shipTo: q.shipTo || '', addShipping: !!q.shipTo });
     setModal(true);
   };
 
   const save = async () => {
     if (!form.client.trim()) { toast('Client name required', 'error'); return; }
-    const payload = { ...form, userId: user.id, date: new Date().toISOString().split('T')[0], total: tots.total, sub: tots.sub, taxAmt: tots.taxTotal };
+    if (profile.reqShipping === 'Mandatory' && !form.shipTo?.trim()) { toast('Shipping Address is required', 'error'); return; }
+    
+    const { addShipping, ...qPayload } = form;
+    if (profile.reqShipping === 'Hidden' || (!addShipping && profile.reqShipping !== 'Mandatory')) {
+      qPayload.shipTo = '';
+    }
+
+    const payload = { ...qPayload, userId: user.id, date: new Date().toISOString().split('T')[0], total: tots.total, sub: tots.sub, taxAmt: tots.taxTotal };
     try {
       if (editData) {
         await db.transact(db.tx.quotes[editData.id].update(payload));
@@ -79,7 +87,7 @@ export default function Quotations({ user }) {
     let newIt = { ...form.items[i], [k]: k === 'name' || k === 'desc' ? v : parseFloat(v) || 0 };
     if (k === 'name') {
       const pMatch = products.find(p => p.name === v);
-      if (pMatch) newIt = { ...newIt, rate: pMatch.rate || 0, taxRate: pMatch.taxRate || 0 };
+      if (pMatch) newIt = { ...newIt, rate: pMatch.rate || 0, taxRate: pMatch.tax || 0 };
     }
     const items = form.items.map((it, idx) => idx === i ? newIt : it);
     setForm(p => ({ ...p, items }));
@@ -102,9 +110,21 @@ export default function Quotations({ user }) {
     } catch { toast('Error converting', 'error'); }
   };
 
+  // Auto-fill shipping address when client changes
+  useEffect(() => {
+    if (form.client && !editData && profile?.reqShipping !== 'Hidden') {
+      const match = customers.find(c => c.name === form.client);
+      if (match && match.address) {
+        setForm(p => ({ ...p, shipTo: match.address, addShipping: profile?.reqShipping === 'Optional' ? true : p.addShipping }));
+      }
+    }
+  }, [form.client, customers, editData, profile?.reqShipping]);
+
   if (printing) {
     const ptots = calcTotals(printing.items, printing.disc, printing.tdsRate, printing.adj);
     const t = printing.template || 'Classic';
+    const clientMatch = customers.find(c => c.name === printing.client);
+    const isInterState = profile?.bizState && clientMatch?.state && profile.bizState !== clientMatch.state;
     
     return (
       <div style={{ padding: t === 'Minimal' ? '20px' : '40px', maxWidth: 900, margin: '0 auto', background: '#fff', color: '#000', fontFamily: t === 'Modern' ? 'Outfit, sans-serif' : 'sans-serif' }}>
@@ -142,10 +162,20 @@ export default function Quotations({ user }) {
         )}
 
         {/* Client Section */}
-        <div style={{ marginBottom: 40, borderLeft: t === 'Classic' ? '3px solid var(--accent)' : 'none', paddingLeft: t === 'Classic' ? 15 : 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Quoted To</div>
-          <div style={{ fontSize: t === 'Modern' ? 20 : 16, fontWeight: 700, marginTop: 4 }}>{printing.client}</div>
-          {t === 'Minimal' && <div style={{ fontSize: 12, color: '#666', marginTop: 10 }}>{profile.bizName} • {profile.address}</div>}
+        <div style={{ marginBottom: 40, borderLeft: t === 'Classic' ? '3px solid var(--accent)' : 'none', paddingLeft: t === 'Classic' ? 15 : 0, display: 'flex', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', gap: 60 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Quoted To</div>
+              <div style={{ fontSize: t === 'Modern' ? 20 : 16, fontWeight: 700, marginTop: 4 }}>{printing.client}</div>
+              {clientMatch?.address && <div style={{ fontSize: 12, color: '#666', marginTop: 10, whiteSpace: 'pre-wrap' }}>{clientMatch.address}</div>}
+            </div>
+            {printing.shipTo && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Ship To</div>
+                <div style={{ fontSize: 13, color: '#333', marginTop: 4, whiteSpace: 'pre-wrap' }}>{printing.shipTo}</div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Items Table */}
@@ -183,7 +213,16 @@ export default function Quotations({ user }) {
               <span style={{ color: '#666' }}>Subtotal</span><span>{fmt(ptots.sub)}</span>
             </div>
             {ptots.discAmt > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: '#d97706' }}><span>Discount ({printing.disc}%)</span><span>- {fmt(ptots.discAmt)}</span></div>}
-            {ptots.taxTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}><span>Tax</span><span>{fmt(ptots.taxTotal)}</span></div>}
+            {ptots.taxTotal > 0 && (
+              isInterState ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}><span>IGST</span><span>{fmt(ptots.taxTotal)}</span></div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}><span>CGST</span><span>{fmt(ptots.taxTotal / 2)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}><span>SGST</span><span>{fmt(ptots.taxTotal / 2)}</span></div>
+                </>
+              )
+            )}
             {ptots.tdsAmt > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: '#dc2626' }}><span>TDS ({printing.tdsRate}%)</span><span>- {fmt(ptots.tdsAmt)}</span></div>}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '15px 0 0 0', fontSize: 20, fontWeight: 800, borderTop: t === 'Minimal' ? '1px solid #eee' : '2px solid #000', marginTop: 10 }}>
               <span>Total</span><span style={{ color: t === 'Modern' ? 'var(--accent)' : '#000' }}>{fmt(ptots.total)}</span>
@@ -221,6 +260,8 @@ export default function Quotations({ user }) {
       </div>
     );
   }
+
+  if (isLoading) return <div className="p-xl">Loading...</div>;
 
   return (
     <div>
@@ -304,6 +345,27 @@ export default function Quotations({ user }) {
                 </div>
               </div>
 
+              {profile?.reqShipping !== 'Hidden' && (
+                <div style={{ background: '#f8fafc', padding: 15, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 20 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+                    {profile?.reqShipping === 'Mandatory' ? (
+                      <span style={{ color: 'var(--accent)' }}>Shipping Address (Required)</span>
+                    ) : (
+                      <>
+                        <input type="checkbox" checked={form.addShipping} onChange={e => setForm(p => ({ ...p, addShipping: e.target.checked }))} style={{ width: 16, height: 16 }} />
+                        Ship To Address
+                      </>
+                    )}
+                  </label>
+                  {(form.addShipping || profile?.reqShipping === 'Mandatory') && (
+                    <div className="fg" style={{ marginTop: 15, marginBottom: 0 }}>
+                      <textarea value={form.shipTo} onChange={e => setForm(p => ({ ...p, shipTo: e.target.value }))} placeholder="Enter full shipping address..." style={{ minHeight: 60 }} />
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4}}>Leave blank if same as billing</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Line Items */}
               <div style={{ marginTop: 12 }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
@@ -323,7 +385,7 @@ export default function Quotations({ user }) {
                         <td><input className="li-input" type="number" value={it.rate} onChange={e => updateItem(i, 'rate', e.target.value)} style={{ textAlign: 'right' }} /></td>
                         <td>
                           <select className="li-input" value={it.taxRate} onChange={e => updateItem(i, 'taxRate', e.target.value)}>
-                            {TAX_OPTIONS.map(t => <option key={t.label} value={t.rate}>{t.label}</option>)}
+                            {taxRates.map(t => <option key={t.label} value={t.rate}>{t.label}</option>)}
                           </select>
                         </td>
                         <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 12 }}>{((it.qty || 0) * (it.rate || 0)).toFixed(2)}</td>
@@ -350,7 +412,21 @@ export default function Quotations({ user }) {
                     </div>
                     <span style={{ color: '#dc2626', fontSize: 12 }}>- {fmt(tots.discAmt)}</span>
                   </div>
-                  <div className="total-row"><span style={{ color: 'var(--muted)' }}>Tax (GST)</span><span style={{ fontWeight: 600, color: '#16a34a' }}>{fmt(tots.taxTotal)}</span></div>
+                  {(() => {
+                    const clientMatchForm = customers.find(c => c.name === form.client);
+                    const isInterStateForm = profile?.bizState && clientMatchForm?.state && profile.bizState !== clientMatchForm.state;
+                    if (tots.taxTotal > 0) {
+                      return isInterStateForm ? (
+                        <div className="total-row"><span style={{ color: 'var(--muted)' }}>IGST</span><span style={{ fontWeight: 600, color: '#16a34a' }}>{fmt(tots.taxTotal)}</span></div>
+                      ) : (
+                        <>
+                          <div className="total-row"><span style={{ color: 'var(--muted)' }}>CGST</span><span style={{ fontWeight: 600, color: '#16a34a' }}>{fmt(tots.taxTotal / 2)}</span></div>
+                          <div className="total-row"><span style={{ color: 'var(--muted)' }}>SGST</span><span style={{ fontWeight: 600, color: '#16a34a' }}>{fmt(tots.taxTotal / 2)}</span></div>
+                        </>
+                      );
+                    }
+                    return <div className="total-row"><span style={{ color: 'var(--muted)' }}>Tax (GST)</span><span style={{ fontWeight: 600, color: '#16a34a' }}>{fmt(0)}</span></div>;
+                  })()}
                   <div className="total-row">
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <span style={{ color: 'var(--muted)', fontSize: 12 }}>TDS</span>

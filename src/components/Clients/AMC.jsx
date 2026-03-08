@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { sendEmail, sendEmailMock, renderTemplate } from '../../utils/messaging';
 import SearchableSelect from '../UI/SearchableSelect';
 
-const EMPTY = { client: '', email: '', phone: '', contractNo: '', cycle: 'Yearly', startDate: '', endDate: '', amount: '', plan: 'Basic', status: 'Active', notes: '' };
+const EMPTY = { client: '', email: '', phone: '', contractNo: '', cycle: 'Yearly', startDate: '', endDate: '', amount: '', taxRate: 0, plan: '', status: 'Active', notes: '' };
 
 export default function AMC({ user }) {
   const [modal, setModal] = useState(false);
@@ -20,10 +20,14 @@ export default function AMC({ user }) {
     amc: { $: { where: { userId: user.id } } },
     customers: { $: { where: { userId: user.id } } },
     invoices: { $: { where: { userId: user.id } } }, // Fetch invoices solely to get accurate next invoice numbers
+    products: { $: { where: { userId: user.id } } },
     userProfiles: { $: { where: { userId: user.id } } }
   });
   const amcList = data?.amc || [];
   const customers = data?.customers || [];
+  const products = data?.products || [];
+  const profile = data?.userProfiles?.[0] || {};
+  const taxRates = profile.taxRates || [{ label: 'None (0%)', rate: 0 }, { label: 'GST @ 5%', rate: 5 }, { label: 'GST @ 12%', rate: 12 }, { label: 'GST @ 18%', rate: 18 }, { label: 'GST @ 28%', rate: 28 }];
 
   const filtered = useMemo(() => {
     const now = new Date();
@@ -78,7 +82,7 @@ export default function AMC({ user }) {
 
   const save = async () => {
     if (!form.client.trim()) { toast('Client required', 'error'); return; }
-    const payload = { ...form, amount: parseFloat(form.amount) || 0, userId: user.id };
+    const payload = { ...form, amount: parseFloat(form.amount) || 0, taxRate: parseFloat(form.taxRate) || 0, userId: user.id };
     if (editData) { await db.transact(db.tx.amc[editData.id].update(payload)); toast('AMC updated', 'success'); }
     else { await db.transact(db.tx.amc[id()].update(payload)); toast('AMC contract created', 'success'); }
     setModal(false);
@@ -158,7 +162,7 @@ export default function AMC({ user }) {
         desc: `${fmtD(a.startDate)} to ${fmtD(a.endDate)}`,
         qty: 1,
         rate: a.amount,
-        taxRate: 0
+        taxRate: a.taxRate || 0
       }]
     };
 
@@ -203,7 +207,7 @@ export default function AMC({ user }) {
                     <td style={{ fontSize: 12 }}>{a.phone || '-'}</td>
                     <td>
                       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', cycle: a.cycle || 'Yearly', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, plan: a.plan, status: a.status, notes: a.notes || '' }); setModal(true); }}>Edit</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', cycle: a.cycle || 'Yearly', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, taxRate: a.taxRate || 0, plan: a.plan, status: a.status, notes: a.notes || '' }); setModal(true); }}>Edit</button>
                         <button className={`btn-icon ${a.needsFollowUp ? 'text-primary' : ''}`} style={{ padding: '4px 8px', fontSize: 13 }} onClick={() => toggleFollowUp(a)}>
                           {a.needsFollowUp ? '📌' : '📍'}
                         </button>
@@ -248,7 +252,25 @@ export default function AMC({ user }) {
                 <div className="fg"><label>Cycle</label><select value={form.cycle} onChange={e => handleCycleChange(e.target.value)}>{['Custom', 'Monthly', 'Yearly'].map(c => <option key={c}>{c}</option>)}</select></div>
                 <div className="fg"><label>Start Date</label><input type="date" value={form.startDate} onChange={e => handleStartDateChange(e.target.value)} /></div>
                 <div className="fg"><label>End Date (Expiry)</label><input type="date" value={form.endDate} readOnly={form.cycle !== 'Custom'} onChange={e => form.cycle === 'Custom' && f('endDate')(e)} style={{ border: form.cycle !== 'Custom' ? 'none' : '', background: form.cycle !== 'Custom' ? '#f1f5f9' : '#fff' }} /></div>
-                <div className="fg"><label>Plan</label><select value={form.plan} onChange={f('plan')}>{['Basic', 'Standard', 'Premium', 'Custom'].map(s => <option key={s}>{s}</option>)}</select></div>
+                <div className="fg" style={{ zIndex: 9 }}>
+                  <label>Plan / Service</label>
+                  <SearchableSelect 
+                    options={products} 
+                    displayKey="name" 
+                    returnKey="name"
+                    value={form.plan} 
+                    onChange={val => {
+                       const pMatch = products.find(p => p.name === val);
+                       setForm(prev => ({ ...prev, plan: val, amount: pMatch ? pMatch.rate : prev.amount, taxRate: pMatch ? (pMatch.tax || 0) : prev.taxRate }));
+                    }} 
+                    placeholder="e.g. Server AMC" 
+                  />
+                </div>
+                <div className="fg"><label>Tax (GST %)</label>
+                  <select value={form.taxRate} onChange={f('taxRate')}>
+                    {taxRates.map(t => <option key={t.label} value={t.rate}>{t.label}</option>)}
+                  </select>
+                </div>
                 <div className="fg"><label>Amount (₹)</label><input type="number" value={form.amount} onChange={f('amount')} /></div>
                 <div className="fg"><label>Status</label><select value={form.status} onChange={f('status')}>{['Active', 'Expired'].map(s => <option key={s}>{s}</option>)}</select></div>
                 <div className="fg span2"><label>Notes</label><textarea value={form.notes} onChange={f('notes')} /></div>

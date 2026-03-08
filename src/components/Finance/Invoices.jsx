@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS } from '../../utils/helpers';
@@ -13,7 +13,7 @@ function calcTotals(items, disc, discType, adj) {
   return { sub, taxTotal, discAmt, total };
 }
 
-const EMPTY = { client: '', dueDate: '', status: 'Draft', template: 'Classic', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '' };
+const EMPTY = { client: '', dueDate: '', status: 'Draft', template: 'Classic', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false };
 export default function Invoices({ user }) {
   const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
@@ -23,7 +23,7 @@ export default function Invoices({ user }) {
   const [printing, setPrinting] = useState(null);
   const toast = useToast();
 
-  const { data } = db.useQuery({
+  const { data, isLoading } = db.useQuery({
     invoices: { $: { where: { userId: user.id } } },
     products: { $: { where: { userId: user.id } } },
     customers: { $: { where: { userId: user.id } } },
@@ -33,6 +33,7 @@ export default function Invoices({ user }) {
   const products = data?.products || [];
   const customers = data?.customers || [];
   const profile = data?.userProfiles?.[0] || {};
+  const taxRates = profile.taxRates || TAX_OPTIONS;
   const filtered = React.useMemo(() => {
     return invoices.filter(inv => tab === 'all' || inv.status === tab)
       .filter(inv => {
@@ -51,7 +52,8 @@ export default function Invoices({ user }) {
       client: inv.client, dueDate: inv.dueDate || '', status: inv.status || 'Draft', template: inv.template || 'Classic', 
       notes: inv.notes || '', terms: inv.terms || '', disc: inv.disc || 0, discType: inv.discType || '%', adj: inv.adj || 0, 
       items: inv.items?.length ? inv.items : EMPTY.items,
-      isAmc: false, amcCycle: inv.amcCycle || 'Yearly', amcStart: inv.amcStart || '', amcEnd: inv.amcEnd || '', amcPlan: '', amcAmount: ''
+      isAmc: false, amcCycle: inv.amcCycle || 'Yearly', amcStart: inv.amcStart || '', amcEnd: inv.amcEnd || '', amcPlan: '', amcAmount: '', amcTaxRate: 0,
+      shipTo: inv.shipTo || '', addShipping: !!inv.shipTo
     });
     setModal(true);
   };
@@ -82,14 +84,19 @@ export default function Invoices({ user }) {
 
   const save = async () => {
     if (!form.client.trim()) { toast('Client required', 'error'); return; }
+    if (profile.reqShipping === 'Mandatory' && !form.shipTo?.trim()) { toast('Shipping Address is required', 'error'); return; }
     
     // Extract auto-amc trigger fields vs actual invoice fields
-    const { isAmc, amcPlan, amcAmount, amcStart, amcEnd, amcCycle, ...invPayload } = form;
+    const { isAmc, amcPlan, amcAmount, amcTaxRate, amcStart, amcEnd, amcCycle, addShipping, ...invPayload } = form;
     
     // We'll optionally attach amcStart/EndDate to the final invoice IF AND ONLY IF isAmc is indeed checked.
     if (isAmc) {
       invPayload.amcStart = amcStart;
       invPayload.amcEnd = amcEnd;
+    }
+
+    if (profile.reqShipping === 'Hidden' || (!addShipping && profile.reqShipping !== 'Mandatory')) {
+      invPayload.shipTo = '';
     }
 
     const payload = { ...invPayload, userId: user.id, date: new Date().toISOString().split('T')[0], total: tots.total };
@@ -117,6 +124,7 @@ export default function Invoices({ user }) {
         endDate: amcEnd,
         cycle: amcCycle,
         amount: parseFloat(amcAmount) || tots.total,
+        taxRate: parseFloat(amcTaxRate) || 0,
         plan: amcPlan || 'Custom',
         status: 'Active',
         notes: `Auto-generated from Invoice`
@@ -138,15 +146,27 @@ export default function Invoices({ user }) {
     let newIt = { ...form.items[i], [k]: k === 'name' || k === 'desc' ? v : parseFloat(v) || 0 };
     if (k === 'name') {
       const pMatch = products.find(p => p.name === v);
-      if (pMatch) newIt = { ...newIt, rate: pMatch.rate || 0, taxRate: pMatch.taxRate || 0 };
+      if (pMatch) newIt = { ...newIt, rate: pMatch.rate || 0, taxRate: pMatch.tax || 0 };
     }
     const items = form.items.map((it, idx) => idx === i ? newIt : it);
     setForm(p => ({ ...p, items }));
   };
 
+  // Auto-fill shipping address when client changes
+  useEffect(() => {
+    if (form.client && !editData && profile?.reqShipping !== 'Hidden') {
+      const match = customers.find(c => c.name === form.client);
+      if (match && match.address) {
+        setForm(p => ({ ...p, shipTo: match.address, addShipping: profile?.reqShipping === 'Optional' ? true : p.addShipping }));
+      }
+    }
+  }, [form.client, customers, editData, profile?.reqShipping]);
+
   if (printing) {
     const ptots = calcTotals(printing.items, printing.disc, printing.discType, printing.adj);
     const t = printing.template || 'Classic';
+    const clientMatch = customers.find(c => c.name === printing.client);
+    const isInterState = profile?.bizState && clientMatch?.state && profile.bizState !== clientMatch.state;
     
     return (
       <div style={{ padding: t === 'Minimal' ? '20px' : '40px', maxWidth: 900, margin: '0 auto', background: '#fff', color: '#000', fontFamily: t === 'Modern' ? 'Outfit, sans-serif' : 'sans-serif' }}>
@@ -186,13 +206,21 @@ export default function Invoices({ user }) {
 
         {/* Client Section */}
         <div style={{ marginBottom: 40, borderLeft: t === 'Classic' ? '3px solid var(--accent)' : 'none', paddingLeft: t === 'Classic' ? 15 : 0, display: 'flex', justifyContent: 'space-between' }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Billed To</div>
-            <div style={{ fontSize: t === 'Modern' ? 20 : 16, fontWeight: 700, marginTop: 4 }}>{printing.client}</div>
-            {t === 'Minimal' && <div style={{ fontSize: 12, color: '#666', marginTop: 10 }}>{profile.bizName} • {profile.address}</div>}
+          <div style={{ display: 'flex', gap: 60 }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Billed To</div>
+              <div style={{ fontSize: t === 'Modern' ? 20 : 16, fontWeight: 700, marginTop: 4 }}>{printing.client}</div>
+              {clientMatch?.address && <div style={{ fontSize: 12, color: '#666', marginTop: 10, whiteSpace: 'pre-wrap' }}>{clientMatch.address}</div>}
+            </div>
+            {printing.shipTo && (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Ship To</div>
+                <div style={{ fontSize: 13, color: '#333', marginTop: 4, whiteSpace: 'pre-wrap' }}>{printing.shipTo}</div>
+              </div>
+            )}
           </div>
           {(t !== 'Classic' && printing.amcStart && printing.amcEnd) && (
-            <div style={{ textAlign: 'right', background: '#f8fafc', padding: '10px 15px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+            <div style={{ textAlign: 'right', background: '#f8fafc', padding: '10px 15px', borderRadius: 8, border: '1px solid #e2e8f0', alignSelf: 'flex-start' }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Contract Period</div>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>{fmtD(printing.amcStart)} — {fmtD(printing.amcEnd)}</div>
             </div>
@@ -234,7 +262,16 @@ export default function Invoices({ user }) {
               <span style={{ color: '#666' }}>Subtotal</span><span>{fmt(ptots.sub)}</span>
             </div>
             {ptots.discAmt > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: '#d97706' }}><span>Discount ({printing.discType === '₹' ? 'Flat' : `${printing.disc}%`})</span><span>- {fmt(ptots.discAmt)}</span></div>}
-            {ptots.taxTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}><span>Tax</span><span>{fmt(ptots.taxTotal)}</span></div>}
+            {ptots.taxTotal > 0 && (
+              isInterState ? (
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}><span>IGST</span><span>{fmt(ptots.taxTotal)}</span></div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}><span>CGST</span><span>{fmt(ptots.taxTotal / 2)}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}><span>SGST</span><span>{fmt(ptots.taxTotal / 2)}</span></div>
+                </>
+              )
+            )}
             {printing.adj !== 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}><span>Adjustment</span><span>{printing.adj > 0 ? '+' : ''}{fmt(printing.adj)}</span></div>}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '15px 0 0 0', fontSize: 20, fontWeight: 800, borderTop: t === 'Minimal' ? '1px solid #eee' : '2px solid #000', marginTop: 10 }}>
               <span>Total</span><span style={{ color: t === 'Modern' ? 'var(--accent)' : '#000' }}>{fmt(ptots.total)}</span>
@@ -272,6 +309,8 @@ export default function Invoices({ user }) {
       </div>
     );
   }
+
+  if (isLoading) return <div className="p-xl">Loading...</div>;
 
   return (
     <div>
@@ -359,6 +398,27 @@ export default function Invoices({ user }) {
                 </div>
               </div>
 
+              {profile?.reqShipping !== 'Hidden' && (
+                <div style={{ background: '#f8fafc', padding: 15, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 20 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+                    {profile?.reqShipping === 'Mandatory' ? (
+                      <span style={{ color: 'var(--accent)' }}>Shipping Address (Required)</span>
+                    ) : (
+                      <>
+                        <input type="checkbox" checked={form.addShipping} onChange={e => setForm(p => ({ ...p, addShipping: e.target.checked }))} style={{ width: 16, height: 16 }} />
+                        Ship To Address
+                      </>
+                    )}
+                  </label>
+                  {(form.addShipping || profile?.reqShipping === 'Mandatory') && (
+                    <div className="fg" style={{ marginTop: 15, marginBottom: 0 }}>
+                      <textarea value={form.shipTo} onChange={e => setForm(p => ({ ...p, shipTo: e.target.value }))} placeholder="Enter full shipping address..." style={{ minHeight: 60 }} />
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4}}>Leave blank if same as billing</div>
+                    </div>
+                  )}
+                </div>
+              )}
+
 
               <div style={{ background: '#f8fafc', padding: 15, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 20 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
@@ -376,7 +436,7 @@ export default function Invoices({ user }) {
                         value={form.amcPlan} 
                         onChange={val => {
                            const pMatch = products.find(p => p.name === val);
-                           setForm(prev => ({ ...prev, amcPlan: val, amcAmount: pMatch ? pMatch.rate : prev.amcAmount }));
+                           setForm(prev => ({ ...prev, amcPlan: val, amcAmount: pMatch ? pMatch.rate : prev.amcAmount, amcTaxRate: pMatch ? (pMatch.tax || 0) : prev.amcTaxRate }));
                         }} 
                         placeholder="e.g. Hosting, Maintenance..." 
                       />
@@ -384,6 +444,12 @@ export default function Invoices({ user }) {
                     <div className="fg" style={{ marginBottom: 0 }}>
                       <label>AMC Amount (₹)</label>
                       <input type="number" value={form.amcAmount} onChange={e => setForm(p => ({ ...p, amcAmount: e.target.value }))} placeholder="Amount for AMC" />
+                    </div>
+                    <div className="fg" style={{ marginBottom: 0 }}>
+                      <label>AMC Tax (GST)</label>
+                      <select value={form.amcTaxRate} onChange={e => setForm(p => ({ ...p, amcTaxRate: parseFloat(e.target.value) || 0 }))}>
+                        {taxRates.map(t => <option key={t.label} value={t.rate}>{t.label}</option>)}
+                      </select>
                     </div>
                     <div className="fg" style={{ marginBottom: 0 }}>
                       <label>Billing Cycle</label>
@@ -446,7 +512,21 @@ export default function Invoices({ user }) {
                     <input type="number" value={form.disc} onChange={e => setForm(p => ({ ...p, disc: parseFloat(e.target.value) || 0 }))} style={{ width: 80, padding: 4, textAlign: 'right', border: '1px solid var(--border)', borderRadius: 4 }} placeholder="0" />
                   </div>
                   {(tots.discAmt > 0 && form.discType === '%') && <div className="total-row"><span style={{ color: 'var(--muted)' }}>Discount Amount</span><span style={{ color: '#dc2626' }}>- {fmt(tots.discAmt)}</span></div>}
-                  <div className="total-row"><span style={{ color: 'var(--muted)' }}>GST</span><span style={{ color: '#16a34a' }}>{fmt(tots.taxTotal)}</span></div>
+                  {(() => {
+                    const clientMatchForm = customers.find(c => c.name === form.client);
+                    const isInterStateForm = profile?.bizState && clientMatchForm?.state && profile.bizState !== clientMatchForm.state;
+                    if (tots.taxTotal > 0) {
+                      return isInterStateForm ? (
+                        <div className="total-row"><span style={{ color: 'var(--muted)' }}>IGST</span><span style={{ color: '#16a34a' }}>{fmt(tots.taxTotal)}</span></div>
+                      ) : (
+                        <>
+                          <div className="total-row"><span style={{ color: 'var(--muted)' }}>CGST</span><span style={{ color: '#16a34a' }}>{fmt(tots.taxTotal / 2)}</span></div>
+                          <div className="total-row"><span style={{ color: 'var(--muted)' }}>SGST</span><span style={{ color: '#16a34a' }}>{fmt(tots.taxTotal / 2)}</span></div>
+                        </>
+                      );
+                    }
+                    return <div className="total-row"><span style={{ color: 'var(--muted)' }}>GST</span><span style={{ color: '#16a34a' }}>{fmt(0)}</span></div>;
+                  })()}
                   <div className="total-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ color: 'var(--muted)', fontSize: 13, marginRight: 10 }}>Adjustment</span>
                     <input type="number" value={form.adj} onChange={e => setForm(p => ({ ...p, adj: parseFloat(e.target.value) || 0 }))} style={{ width: 80, padding: 4, textAlign: 'right', border: '1px solid var(--border)', borderRadius: 4 }} placeholder="0" />
