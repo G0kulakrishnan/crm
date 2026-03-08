@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
-import { sendEmail, sendWhatsAppMock } from '../../utils/messaging';
+import { sendEmail, sendWhatsApp, sendWhatsAppMock } from '../../utils/messaging';
 import { fmtD, INDIAN_STATES } from '../../utils/helpers';
 
 const STAGES = ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
@@ -16,7 +16,11 @@ const TEMPLATES = [
   { id: 'reengage', name: '👋 Re-engagement', subject: 'Are you still looking for services, {{name}}?', body: 'Hi {{name}},\n\nIt\'s been a while since we last spoke! I wanted to check in and see if you are still looking for solutions in this space. Our team has added some great new features recently that might be perfect for you.\n\nLet me know if you have time for a quick 5-minute chat this week.\n\nBest,\nYour Dedicated Rep' }
 ];
 
-export default function Campaigns({ user }) {
+export default function Campaigns({ user, perms, ownerId }) {
+  const canCreate = perms?.can('Campaigns', 'create') !== false;
+  const canEdit = perms?.can('Campaigns', 'edit') !== false;
+  const canDelete = perms?.can('Campaigns', 'delete') !== false;
+
   const [tab, setTab] = useState('compose'); // 'compose' | 'history'
   
   // Filters
@@ -54,14 +58,14 @@ export default function Campaigns({ user }) {
   const toast = useToast();
 
   const { data } = db.useQuery({
-    leads: { $: { where: { userId: user.id } } },
-    customers: { $: { where: { userId: user.id } } },
-    invoices: { $: { where: { userId: user.id } } },
-    amc: { $: { where: { userId: user.id } } },
-    products: { $: { where: { userId: user.id } } },
-    campaigns: { $: { where: { userId: user.id } } },
-    userProfiles: { $: { where: { userId: user.id } } },
-    campaignTemplates: { $: { where: { userId: user.id } } }
+    leads: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId } } },
+    invoices: { $: { where: { userId: ownerId } } },
+    amc: { $: { where: { userId: ownerId } } },
+    products: { $: { where: { userId: ownerId } } },
+    campaigns: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
+    campaignTemplates: { $: { where: { userId: ownerId } } }
   });
 
   const leads = data?.leads || [];
@@ -223,7 +227,7 @@ export default function Campaigns({ user }) {
 
       const newTid = id();
       await db.transact(db.tx.campaignTemplates[newTid].update({
-        userId: user.id,
+        userId: ownerId,
         name: templateName.trim(),
         subject,
         body,
@@ -247,6 +251,7 @@ export default function Campaigns({ user }) {
   const handleSend = async () => {
     if (!campaignName.trim()) return toast('Please enter a Campaign Name', 'error');
     if (channel === 'email' && !profile?.smtpHost) return toast('Please configure your SMTP settings in the Settings page first', 'error');
+    if (channel === 'whatsapp' && !profile?.waPhoneNumberId) return toast('Please configure your WhatsApp API credentials in Settings > WhatsApp first', 'error');
     if (targetAudience.length === 0) return toast('No leads match your selected filters. Please adjust your audience.', 'error');
     if (channel === 'email' && (!subject.trim() || !body.trim())) return toast('Please enter a subject and email body.', 'error');
     if (channel === 'whatsapp' && !body.trim()) return toast('Please enter a message body.', 'error');
@@ -258,7 +263,7 @@ export default function Campaigns({ user }) {
       
       const campId = id();
       await db.transact(db.tx.campaigns[campId].update({
-        userId: user.id,
+        userId: ownerId,
         name: campaignName,
         channel: channel,
         subject: channel === 'email' ? subject : null,
@@ -289,7 +294,7 @@ export default function Campaigns({ user }) {
     
     // Create the campaign record first
     await db.transact(db.tx.campaigns[campId].update({
-      userId: user.id,
+      userId: ownerId,
       name: campaignName,
       channel: channel,
       subject: channel === 'email' ? subject : null,
@@ -316,18 +321,24 @@ export default function Campaigns({ user }) {
         if (channel === 'email') {
           await sendEmail(effEmail, pSubj, pBody, profile);
         } else {
-          await sendWhatsAppMock(user.id, effPhone, pBody, { entityId: recipient.entityId, entityType: recipient.type.toLowerCase() });
+          // Use real WhatsApp API if credentials are configured, otherwise log to outbox
+          if (profile?.waToken && profile?.waPhoneNumberId) {
+            await sendWhatsApp(effPhone, pBody, { waToken: profile.waToken, waPhoneNumberId: profile.waPhoneNumberId }, ownerId);
+          } else {
+            await sendWhatsAppMock(ownerId, effPhone, pBody, { entityId: recipient.entityId, entityType: recipient.type.toLowerCase() });
+          }
         }
         
         // Log to timeline
-        await db.transact(db.tx.activityLogs[id()].update({
-          entityId: recipient.entityId,
-          entityType: recipient.type.toLowerCase(),
-          text: logText,
-          userId: user.id,
-          userName: 'System (Campaign)',
-          createdAt: Date.now()
-        }));
+          await db.transact(db.tx.activityLogs[id()].update({
+            entityId: recipient.entityId,
+            entityType: recipient.type.toLowerCase(),
+            text: logText,
+            userId: ownerId,
+            actorId: user.id,
+            userName: 'System (Campaign)',
+            createdAt: Date.now()
+          }));
         
         sentCount++;
       } catch (err) {
@@ -367,9 +378,9 @@ export default function Campaigns({ user }) {
       </div>
 
       <div className="tabs">
-        <div className={`tab${tab === 'compose' ? ' active' : ''}`} onClick={() => !sending && setTab('compose')}>Compose Campaign</div>
+        {canCreate && <div className={`tab${tab === 'compose' ? ' active' : ''}`} onClick={() => !sending && setTab('compose')}>Compose Campaign</div>}
         <div className={`tab${tab === 'history' ? ' active' : ''}`} onClick={() => !sending && setTab('history')}>Campaign History</div>
-        <div className={`tab${tab === 'templates' ? ' active' : ''}`} onClick={() => !sending && setTab('templates')}>My Templates</div>
+        {canEdit && <div className={`tab${tab === 'templates' ? ' active' : ''}`} onClick={() => !sending && setTab('templates')}>My Templates</div>}
       </div>
 
       {tab === 'compose' && (
@@ -709,11 +720,11 @@ export default function Campaigns({ user }) {
               <div style={{ display: 'flex', gap: 10 }}>
                 {userTemplates.some(t => t.id === selectedTemplate) ? (
                   <>
-                    <button className="btn btn-secondary btn-sm" onClick={handleSaveTemplate} disabled={sending}>💾 Update Current Template</button>
-                    <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={handleDeleteTemplate} disabled={sending}>🗑 Delete Template</button>
+                    {canEdit && <button className="btn btn-secondary btn-sm" onClick={handleSaveTemplate} disabled={sending}>💾 Update Current Template</button>}
+                    {canDelete && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={handleDeleteTemplate} disabled={sending}>🗑 Delete Template</button>}
                   </>
                 ) : (
-                  <button className="btn btn-secondary btn-sm" onClick={handleSaveTemplate} disabled={sending}>💾 Save as New Template</button>
+                  canCreate && <button className="btn btn-secondary btn-sm" onClick={handleSaveTemplate} disabled={sending}>💾 Save as New Template</button>
                 )}
               </div>
             </div>
@@ -747,9 +758,11 @@ export default function Campaigns({ user }) {
                 )}
 
                 <div style={{ display: 'flex', gap: 15, justifyContent: 'flex-end' }}>
-                  <button className="btn btn-primary" onClick={handleSend}>
-                    {sendMode === 'now' ? `🚀 Send Now to ${targetAudience.length} Leads` : '📅 Schedule Campaign'}
-                  </button>
+                  {canCreate && (
+                    <button className="btn btn-primary" onClick={handleSend}>
+                      {sendMode === 'now' ? `🚀 Send Now to ${targetAudience.length} Leads` : '📅 Schedule Campaign'}
+                    </button>
+                  )}
                 </div>
               </div>
             )}

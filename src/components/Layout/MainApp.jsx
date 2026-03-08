@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useApp } from '../../context/AppContext';
+import { usePermissions } from '../../hooks/usePermissions';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import NotifPanel from './NotifPanel';
@@ -35,16 +36,45 @@ const DEFAULT_PLANS = [
   { name: 'Premium Pro', duration: 365, price: 29999 },
 ];
 
-export default function MainApp({ user }) {
-  // Start automation background worker
-  useAutomationEngine(user);
-
-  const { activeView, notifOpen } = useApp();
+export default function MainApp({ user, settings }) {
+  const { activeView, notifOpen, setActiveView } = useApp();
   
-  // Optimized query: only fetch what we need
-  const { isLoading, data, error } = db.useQuery({
-    // Standard queries for profile and check if any profiles exist
-    userProfiles: { $: { where: { userId: user.id } } },
+  // 1. Initial State for Team Info
+  const [teamInfo, setTeamInfo] = useState(() => {
+    try {
+      const stored = localStorage.getItem('tc_team_member');
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
+
+  // 2. Discovery: If no teamInfo, check if this user IS a team member somewhere
+  const { data: discovery, isLoading: discoveryLoading } = db.useQuery(
+    (!teamInfo && user.email) ? { teamMembers: { $: { where: { email: user.email.toLowerCase() }, limit: 1 } } } : null
+  );
+
+  // Sync discovered team info
+  useEffect(() => {
+    if (discovery?.teamMembers?.[0] && !teamInfo) {
+      const discovered = {
+        isTeamMember: true,
+        ownerUserId: discovery.teamMembers[0].userId,
+        teamMemberId: discovery.teamMembers[0].id
+      };
+      console.log("🔍 [MainApp] Discovered team membership:", discovered);
+      setTeamInfo(discovered);
+      localStorage.setItem('tc_team_member', JSON.stringify(discovered));
+    }
+  }, [discovery, teamInfo]);
+
+  // 3. Main Data Fetch (target the owner's data)
+  const targetUserId = teamInfo?.isTeamMember ? teamInfo.ownerUserId : user.id;
+
+  const { isLoading: mainLoading, data, error } = db.useQuery({
+    userProfiles: { $: { where: { userId: targetUserId } } },
+    teamMembers: { $: { where: { userId: targetUserId } } },
+    amc: { $: { where: { userId: targetUserId } } },
+    leads: { $: { where: { userId: targetUserId } } },
+    subs: { $: { where: { userId: targetUserId } } },
     checkProfiles: { userProfiles: { $: { limit: 1 } } }, 
   });
 
@@ -53,15 +83,25 @@ export default function MainApp({ user }) {
   const leads = data?.leads || [];
   const amc = data?.amc || [];
   const subs = data?.subs || [];
+  const teamMembers = data?.teamMembers || [];
   const profile = data?.userProfiles?.[0];
-  const isSuperadmin = profile?.role === 'superadmin' || user.email === SUPERADMIN_KEY;
+  
+  // Permissions hook
+  const perms = usePermissions(user, profile, teamMembers);
+
+  // 2. Load Automation Engine (for background checks)
+  useAutomationEngine(user, targetUserId);
+
+  const isSuperadmin = user.email === SUPERADMIN_KEY;
   const isExpired = profile?.planExpiry && profile.planExpiry < Date.now();
 
   // Strict guard to prevent infinite transaction loops
   const syncRef = useRef(false);
 
   useEffect(() => {
-    if (isLoading || !data) return;
+    // Only owners can trigger profile creation/sync
+    // Also wait for discovery to finish if it's running
+    if (discoveryLoading || mainLoading || !data || teamInfo?.isTeamMember) return;
 
     const rawReg = localStorage.getItem('tc_reg_data');
     const regData = rawReg ? JSON.parse(rawReg) : {};
@@ -91,18 +131,20 @@ export default function MainApp({ user }) {
         syncRef.current = false; // Allow retry on failure
       });
     } else if (profile) {
-      // Sync metadata if missing or incorrect (also catch if email is a UUID)
+      // Sync metadata if missing or incorrect
       const isUuid = profile.email && profile.email.length === 36 && !profile.email.includes('@');
       const needsEmail = !profile.email || profile.email === '' || isUuid;
       const needsPhone = !profile.phone && (user.phone || regData.phone); 
       const needsAdmin = user.email === SUPERADMIN_KEY && profile.role !== 'superadmin';
+      const needsUserId = !profile.userId && user.id;
       const needsExpiry = !profile.planExpiry;
 
-      if (needsEmail || needsPhone || needsAdmin || needsExpiry) {
+      if (needsEmail || needsPhone || needsAdmin || needsUserId || needsExpiry) {
         const updates = {};
         if (needsEmail) updates.email = user.email;
         if (needsPhone) updates.phone = user.phone || regData.phone;
         if (needsAdmin) updates.role = 'superadmin';
+        if (needsUserId) updates.userId = user.id;
         if (needsExpiry) {
           const planDuration = DEFAULT_PLANS.find(p => p.name === (profile.plan || 'Trial'))?.duration || 7;
           updates.planExpiry = Date.now() + (planDuration * 24 * 60 * 60 * 1000);
@@ -114,73 +156,117 @@ export default function MainApp({ user }) {
           .catch(e => console.error("❌ [MainApp] Metadata sync failed", e));
       }
     }
-  }, [isLoading, data, profile, user.id, user.email]);
+
+    // 3. Strict Role Cleanup: Demote unauthorized superadmins
+    if (profile && profile.role === 'superadmin' && user.email !== SUPERADMIN_KEY) {
+      console.warn("🛡 [MainApp] Unauthorized Superadmin detected. Demoting:", user.email);
+      db.transact(db.tx.userProfiles[profile.id].update({ role: 'user' }))
+        .then(() => { toast('Profile role updated', 'info'); console.log("✅ [MainApp] User demoted to 'user'"); })
+        .catch(e => console.error("❌ [MainApp] Demotion failed", e));
+    }
+  }, [discoveryLoading, mainLoading, data, profile, user.id, user.email, teamInfo]);
 
   // Notifications calculation
   const liveNotifs = useMemo(() => {
     const now = new Date();
     const notifs = [];
+    const isTeam = perms && !perms.isOwner;
+
     amc.forEach(a => {
+      if (isTeam && a.actorId !== user.id) return;
       const diff = Math.ceil((new Date(a.endDate) - now) / (1000 * 60 * 60 * 24));
       if (diff <= 30 && diff >= 0)
         notifs.push({ id: 'amc-' + a.id, unread: true, title: `🛡 AMC Expiring: ${a.client}`, desc: `Contract ${a.contractNo} expires in ${diff} day${diff !== 1 ? 's' : ''}`, time: new Date().toLocaleString() });
     });
+
     subs.forEach(s => {
+      if (isTeam && s.actorId !== user.id) return;
       const diff = Math.ceil((new Date(s.nextPayment) - now) / (1000 * 60 * 60 * 24));
       if (diff <= 7 && diff >= 0)
         notifs.push({ id: 'sub-' + s.id, unread: true, title: `💰 Payment Due: ${s.client}`, desc: `₹${(s.amount || 0).toLocaleString()} for ${s.plan} due in ${diff} day${diff !== 1 ? 's' : ''}`, time: new Date().toLocaleString() });
     });
-    const overdueLeads = leads.filter(l => l.followup && new Date(l.followup) < now);
+
+    const leadFilter = l => {
+      if (!isTeam) return true;
+      const isAssigned = l.assign === user.email || (perms?.name && l.assign === perms.name);
+      const isCreator = l.actorId === user.id;
+      return isAssigned || isCreator;
+    };
+
+    const overdueLeads = leads.filter(l => leadFilter(l) && l.followup && new Date(l.followup) < now);
     if (overdueLeads.length)
       notifs.push({ id: 'fu-overdue', unread: true, title: `⏰ ${overdueLeads.length} Overdue Follow-up${overdueLeads.length > 1 ? 's' : ''}`, desc: `Leads: ${overdueLeads.map(l => l.name).join(', ')}`, time: new Date().toLocaleString() });
+
     return notifs;
-  }, [amc, subs, leads]);
+  }, [amc, subs, leads, perms, user]);
 
   const amcExpiringCount = amc.filter(a => {
+    const isTeam = perms && !perms.isOwner;
+    if (isTeam && a.actorId !== user.id) return false;
     const d = Math.ceil((new Date(a.endDate) - new Date()) / (1000 * 60 * 60 * 24));
     return d <= 30 && d >= 0;
   }).length;
 
   const views = {
-    dashboard: <Dashboard user={user} />,
-    leads: <LeadsView user={user} />,
-    quotations: <Quotations user={user} />,
-    invoices: <Invoices user={user} />,
-    pos: <POSBilling user={user} />,
-    customers: <Customers user={user} />,
-    amc: <AMC user={user} />,
-    expenses: <Expenses user={user} />,
-    products: <Products user={user} />,
-    campaigns: <Campaigns user={user} />,
-    projects: <Projects user={user} />,
-    alltasks: <AllTasks user={user} />,
-    teams: <Teams user={user} />,
-    automation: <AutomationView user={user} />,
-    integrations: <Integrations user={user} />,
-    'messaging-logs': <MessagingLogs user={user} />,
-    reports: <Reports user={user} />,
-    settings: <Settings user={user} profile={profile} isExpired={isExpired} />,
-    admin: isSuperadmin ? <AdminPanel user={user} /> : null,
+    dashboard: { component: <Dashboard user={user} ownerId={targetUserId} perms={perms} />, label: 'Dashboard' },
+    leads: { component: <LeadsView user={user} perms={perms} ownerId={targetUserId} />, label: 'Leads' },
+    quotations: { component: <Quotations user={user} perms={perms} ownerId={targetUserId} />, label: 'Quotations' },
+    invoices: { component: <Invoices user={user} perms={perms} ownerId={targetUserId} />, label: 'Invoices' },
+    pos: { component: <POSBilling user={user} perms={perms} ownerId={targetUserId} />, label: 'Invoices' }, 
+    customers: { component: <Customers user={user} perms={perms} ownerId={targetUserId} />, label: 'Customers' },
+    amc: { component: <AMC user={user} perms={perms} ownerId={targetUserId} />, label: 'AMC' },
+    expenses: { component: <Expenses user={user} perms={perms} ownerId={targetUserId} />, label: 'Expenses' },
+    products: { component: <Products user={user} perms={perms} ownerId={targetUserId} />, label: 'Products' },
+    campaigns: { component: <Campaigns user={user} perms={perms} ownerId={targetUserId} />, label: 'Campaigns' },
+    projects: { component: <Projects user={user} perms={perms} ownerId={targetUserId} />, label: 'Projects' },
+    alltasks: { component: <AllTasks user={user} perms={perms} ownerId={targetUserId} />, label: 'Tasks' },
+    teams: { component: <Teams user={user} ownerId={targetUserId} />, label: 'Settings' }, 
+    automation: { component: <AutomationView user={user} perms={perms} ownerId={targetUserId} />, label: 'Settings' },
+    integrations: { component: <Integrations user={user} ownerId={targetUserId} />, label: 'Settings' },
+    'messaging-logs': { component: <MessagingLogs user={user} ownerId={targetUserId} />, label: 'Settings' },
+    reports: { component: <Reports user={user} perms={perms} ownerId={targetUserId} />, label: 'Reports' },
+    settings: { component: <Settings user={user} profile={profile} isExpired={isExpired} ownerId={targetUserId} />, label: 'Settings' },
+    admin: { component: isSuperadmin ? <AdminPanel user={user} /> : null, label: 'Admin' },
   };
 
-  // Only block for absolute loading state or if new user (non-admin) is being provisioned
-  if (isLoading || (data && !profile && !isSuperadmin)) {
+  // 1. Guard against unauthorised views for team members
+  useEffect(() => {
+    if (perms && activeView !== 'dashboard') {
+      const viewConfig = views[activeView];
+      if (viewConfig && !perms.can(viewConfig.label, 'list') && !perms.isOwner) {
+        if (activeView !== 'dashboard') setActiveView('dashboard');
+      }
+    }
+  }, [perms, activeView, setActiveView]);
+
+  const isDiscovering = !teamInfo && discoveryLoading;
+
+  if (isDiscovering || mainLoading || !perms) {
     return (
       <div className="loading-screen">
-        <div className="logo">TC</div>
+        <div className="logo">{settings?.brandShort || 'TC'}</div>
         <div className="spinner" />
-        <p>Configuring TechCRM...</p>
+        <p>{isDiscovering ? 'Discovering Workspace...' : `Configuring ${settings?.brandName || 'TechCRM'}...`}</p>
       </div>
     );
   }
 
+  const currentView = views[activeView] || views.dashboard;
+
   return (
     <div className="app">
-      <Sidebar isSuperadmin={isSuperadmin} leadCount={leads.length} amcCount={amcExpiringCount} isExpired={isExpired} />
+      <Sidebar 
+        isSuperadmin={isSuperadmin} 
+        leadCount={leads.length} 
+        amcCount={amcExpiringCount} 
+        isExpired={isExpired} 
+        perms={perms}
+        settings={settings}
+      />
       <div className="main">
-        <Topbar user={{ ...user, profile }} notifCount={liveNotifs.filter(n => n.unread).length} isExpired={isExpired} />
+        <Topbar user={{ ...user, profile }} notifCount={liveNotifs.filter(n => n.unread).length} isExpired={isExpired} teamInfo={teamInfo} teamMembers={teamMembers} />
         <div className="content">
-          {views[activeView] || views.dashboard}
+          {currentView.component ? React.cloneElement(currentView.component, { perms }) : <div className="p-xl">View not found or access denied</div>}
         </div>
       </div>
       <NotifPanel notifications={liveNotifs} onMarkRead={() => {}} onMarkAllRead={() => {}} />

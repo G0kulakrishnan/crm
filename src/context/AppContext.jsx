@@ -17,6 +17,7 @@ export function AppProvider({ children, user }) {
     return localStorage.getItem('tc_activeView') || 'dashboard';
   });
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
   // Sync state upward to URL and LocalStorage
@@ -44,6 +45,7 @@ export function AppProvider({ children, user }) {
       user,
       activeView, setActiveView,
       sidebarExpanded, setSidebarExpanded,
+      mobileSidebarOpen, setMobileSidebarOpen,
       notifOpen, setNotifOpen,
     }}>
       {children}

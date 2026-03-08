@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import db from '../../instant';
 import { useApp } from '../../context/AppContext';
 
@@ -11,14 +11,27 @@ const VIEW_TITLES = {
   admin: 'Admin Panel', pos: 'POS Billing',
 };
 
-export default function Topbar({ user, notifCount, isExpired }) {
-  const { activeView, setActiveView, setSidebarExpanded, setNotifOpen } = useApp();
+export default function Topbar({ user, notifCount, isExpired, teamInfo, teamMembers }) {
+  const { activeView, setActiveView, setSidebarExpanded, mobileSidebarOpen, setMobileSidebarOpen, setNotifOpen } = useApp();
+
+  // Find team member role if applicable
+  const roleName = useMemo(() => {
+    if (!teamInfo?.isTeamMember || !teamMembers) return null;
+    const member = teamMembers.find(m => m.id === teamInfo.teamMemberId);
+    return member?.role || 'Team';
+  }, [teamInfo, teamMembers]);
 
   return (
     <div className="topbar">
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <button className="btn-icon" onClick={() => setSidebarExpanded(v => !v)}>
-          <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+        <button className="menu-toggle" onClick={() => {
+          if (window.innerWidth <= 768) {
+            setMobileSidebarOpen(v => !v);
+          } else {
+            setSidebarExpanded(v => !v);
+          }
+        }}>
+          <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="18" x2="21" y2="18" />
           </svg>
         </button>
@@ -26,6 +39,13 @@ export default function Topbar({ user, notifCount, isExpired }) {
       </div>
 
       <div className="topbar-right">
+        {/* Team Badge */}
+        {roleName && (
+          <div style={{ background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, border: '1px solid #bbf7d0', textTransform: 'uppercase' }}>
+            👥 {roleName}
+          </div>
+        )}
+
         {/* Notification Bell */}
         <div className="notif-btn-wrap">
           <button className="btn-icon" onClick={() => setNotifOpen(v => !v)}>

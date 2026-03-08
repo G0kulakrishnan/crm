@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
-import { renderTemplate, sendEmailMock, sendEmail } from '../../utils/messaging';
+import { renderTemplate, sendEmailMock, sendEmail, sendWhatsApp } from '../../utils/messaging';
 import { INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
 
 const SETTING_NAV = ['My Profile', 'Business', 'Finance', 'Billing', 'Taxes', 'Custom Fields', 'Sources', 'Stages', 'Labels', 'Product Categories', 'Expense Categories', 'Task Statuses', 'SMTP', 'WhatsApp', 'Reminders'];
@@ -22,7 +22,7 @@ const DEFAULT_TAX_OPTIONS = [
   { label: 'GST @ 28%', rate: 28 }
 ];
 
-export default function Settings({ user, profile, isExpired, initialTab }) {
+export default function Settings({ user, profile, isExpired, initialTab, ownerId }) {
   const [active, setActive] = useState(initialTab || 'My Profile');
   const [userProfile, setUserProfile] = useState({
     fullName: profile?.fullName || '',
@@ -62,9 +62,13 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
   const [smtpUser, setSmtpUser] = useState(profile?.smtpUser || '');
   const [smtpPass, setSmtpPass] = useState(profile?.smtpPass || '');
   const [waToken, setWaToken] = useState(profile?.waToken || '');
-  const [waFrom, setWaFrom] = useState(profile?.waFrom || '');
+  const [waPhoneNumberId, setWaPhoneNumberId] = useState(profile?.waPhoneNumberId || '');
+  const [waTestNumber, setWaTestNumber] = useState('');
   const [newSource, setNewSource] = useState('');
   const [newStage, setNewStage] = useState('');
+  const [editingStageIdx, setEditingStageIdx] = useState(null);
+  const [editingStageVal, setEditingStageVal] = useState('');
+  const stageDragIdx = useRef(null);
   const [newLabel, setNewLabel] = useState('');
   const [newExpCat, setNewExpCat] = useState('');
   const [newProdCat, setNewProdCat] = useState('');
@@ -78,7 +82,7 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
   const [editingCFIndex, setEditingCFIndex] = useState(null);
   const toast = useToast();
 
-  const { data } = db.useQuery({ userProfiles: { $: { where: { userId: user.id } } } });
+  const { data } = db.useQuery({ userProfiles: { $: { where: { userId: ownerId } } } });
   const profileId = data?.userProfiles?.[0]?.id;
   const sources = data?.userProfiles?.[0]?.sources || DEFAULT_SOURCES;
   const stages = data?.userProfiles?.[0]?.stages || DEFAULT_STAGES;
@@ -100,27 +104,27 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
 
   const saveUserProfile = async () => {
     if (!userProfile.email.includes('@')) return toast('Valid email required', 'error');
-    const payload = { ...userProfile, userId: user.id };
+    const payload = { ...userProfile, userId: ownerId };
     if (profileId) await db.transact(db.tx.userProfiles[profileId].update(payload));
     toast('Profile updated!', 'success');
   };
 
   const saveBiz = async () => {
-    const payload = { ...biz, userId: user.id };
+    const payload = { ...biz, userId: ownerId };
     if (profileId) await db.transact(db.tx.userProfiles[profileId].update(payload));
     toast('Business details saved!', 'success');
   };
 
   const saveFin = async () => {
-    const payload = { ...fin, userId: user.id };
+    const payload = { ...fin, userId: ownerId };
     if (profileId) await db.transact(db.tx.userProfiles[profileId].update(payload));
     toast('Finance settings saved!', 'success');
   };
 
   const saveList = async (key, list) => {
-    const payload = { [key]: list, userId: user.id };
+    const payload = { [key]: list, userId: ownerId };
     if (profileId) { await db.transact(db.tx.userProfiles[profileId].update(payload)); }
-    else { await db.transact(db.tx.userProfiles[id()].update(payload)); }
+    else { await db.transact(db.tx.userProfiles[id()].update({ ...payload, userId: ownerId })); }
     toast('Saved!', 'success');
   };
 
@@ -166,7 +170,7 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
   };
 
   const saveSMTP = async () => {
-    const payload = { smtpHost, smtpPort, smtpUser, smtpPass, smtpSender: smtpUser, userId: user.id };
+    const payload = { smtpHost, smtpPort, smtpUser, smtpPass, smtpSender: smtpUser, userId: ownerId };
     if (profileId) { await db.transact(db.tx.userProfiles[profileId].update(payload)); }
     toast('SMTP settings saved!', 'success');
   };
@@ -183,7 +187,7 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
     try {
       toast('Sending test email via SMTP...', 'info');
       const smtpConfig = { smtpHost, smtpPort, smtpUser, smtpPass, bizName: biz.bizName };
-      const result = await sendEmail(testEmail, testSubject, testBody, smtpConfig, user.id);
+      const result = await sendEmail(testEmail, testSubject, testBody, smtpConfig, ownerId);
       
       if (result === 'OK') {
         toast('Test email sent successfully! 🚀', 'success');
@@ -197,13 +201,43 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
   };
 
   const saveWA = async () => {
-    const payload = { waToken, waFrom, userId: user.id };
+    if (!waToken.trim()) return toast('Access Token is required', 'error');
+    if (!waPhoneNumberId.trim()) return toast('Phone Number ID is required', 'error');
+    const payload = { waToken, waPhoneNumberId, userId: ownerId };
     if (profileId) { await db.transact(db.tx.userProfiles[profileId].update(payload)); }
     toast('WhatsApp settings saved!', 'success');
   };
 
+  const testWA = async () => {
+    if (!waToken || !waPhoneNumberId) return toast('Please save WhatsApp settings first', 'error');
+    const testTo = waTestNumber || prompt('Send test message to (with country code e.g. +919876543210):');
+    if (!testTo) return;
+    const testMsg = `Hello! This is a test message from your TechCRM account. WhatsApp integration is working correctly! 🚀\n\nBusiness: ${biz.bizName || 'Your Business'}`;
+    try {
+      toast('Sending test WhatsApp message...', 'info');
+      const result = await sendWhatsApp(testTo, testMsg, { waToken, waPhoneNumberId }, ownerId);
+      if (result === 'OK') {
+        toast('✅ Test WhatsApp message sent successfully!', 'success');
+      } else {
+        let errHint = result;
+        if (result.includes('access token') || result.includes('parse')) {
+          errHint = `Invalid Token! Please check your Meta Access Token and ensure it hasn't expired.`;
+        } else if (result.includes('15 characters') || result.includes('ID')) {
+          errHint = `Check your Phone Number ID. It should be a 15-digit number from Meta's API Setup page.`;
+        }
+        toast(`Error: ${errHint}`, 'warning');
+      }
+    } catch (e) {
+      let msg = e.message;
+      if (msg.includes('parse access token')) {
+        msg = "Meta Error: Cannot parse Access Token. Please re-copy the token from Meta Dashboard and ensure no extra characters.";
+      }
+      toast(`Failed: ${msg}`, 'error');
+    }
+  };
+
   const saveReminders = async () => {
-    const payload = { reminders, userId: user.id };
+    const payload = { reminders, userId: ownerId };
     if (profileId) { await db.transact(db.tx.userProfiles[profileId].update(payload)); }
     toast('Reminder rules updated!', 'success');
   };
@@ -311,7 +345,7 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                               const res = await fetch('/api/auth/change-password', {
                                  method: 'POST',
                                  headers: { 'Content-Type': 'application/json' },
-                                 body: JSON.stringify({ email: userProfile.email, newPassword: newPass, userId: user.id })
+                                 body: JSON.stringify({ email: userProfile.email, newPassword: newPass, userId: ownerId })
                               });
                               const data = await res.json();
                               if (!res.ok) throw new Error(data.error);
@@ -462,20 +496,22 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                   <input type="number" value={newTax.rate} onChange={e => setNewTax({ ...newTax, rate: e.target.value })} placeholder="Rate (%)" style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }} />
                   <button className="btn btn-primary btn-sm" onClick={addTaxRate}>Add Tax</button>
                 </div>
-                <table style={{ background: 'var(--bg)', borderRadius: 8, overflow: 'hidden' }}>
-                  <thead><tr><th>Tax Label</th><th>Percentage Rate</th><th>Action</th></tr></thead>
-                  <tbody>
-                    {taxRates.length === 0 ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: 14, color: 'var(--muted)' }}>No taxes defined</td></tr> : taxRates.map((t, i) => (
-                      <tr key={i}>
-                        <td><strong>{t.label}</strong></td>
-                        <td><span className="badge bg-purple">{t.rate}%</span></td>
-                        <td>
-                           <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 8px' }} onClick={() => removeItem('taxRates', taxRates, i)}>Del</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="tw-scroll">
+                  <table style={{ background: 'var(--bg)', borderRadius: 8, overflow: 'hidden' }}>
+                    <thead><tr><th>Tax Label</th><th>Percentage Rate</th><th>Action</th></tr></thead>
+                    <tbody>
+                      {taxRates.length === 0 ? <tr><td colSpan={3} style={{ textAlign: 'center', padding: 14, color: 'var(--muted)' }}>No taxes defined</td></tr> : taxRates.map((t, i) => (
+                        <tr key={i}>
+                          <td><strong>{t.label}</strong></td>
+                          <td><span className="badge bg-purple">{t.rate}%</span></td>
+                          <td>
+                             <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 8px' }} onClick={() => removeItem('taxRates', taxRates, i)}>Del</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -497,22 +533,24 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                   <button className="btn btn-primary btn-sm" onClick={addCF}>{editingCFIndex !== null ? 'Update Field' : 'Add Field'}</button>
                   {editingCFIndex !== null && <button className="btn btn-secondary btn-sm" onClick={cancelEditCF}>Cancel</button>}
                 </div>
-                <table style={{ background: 'var(--bg)', borderRadius: 8, overflow: 'hidden' }}>
-                  <thead><tr><th>Field Name</th><th>Type</th><th>Options</th><th>Action</th></tr></thead>
-                  <tbody>
-                    {customFields.length === 0 ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: 14, color: 'var(--muted)' }}>No custom fields defined</td></tr> : customFields.map((cf, i) => (
-                      <tr key={i}>
-                        <td><strong>{cf.name}</strong></td>
-                        <td><span className="badge bg-gray">{cf.type}</span></td>
-                        <td>{cf.type === 'dropdown' ? cf.options : '-'}</td>
-                        <td style={{ display: 'flex', gap: 6 }}>
-                           <button className="btn btn-sm btn-secondary" style={{ padding: '2px 8px' }} onClick={() => editCF(i)}>✎ Edit</button>
-                           <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 8px' }} onClick={() => removeItem('customFields', customFields, i)}>Del</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="tw-scroll">
+                  <table style={{ background: 'var(--bg)', borderRadius: 8, overflow: 'hidden' }}>
+                    <thead><tr><th>Field Name</th><th>Type</th><th>Options</th><th>Action</th></tr></thead>
+                    <tbody>
+                      {customFields.length === 0 ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: 14, color: 'var(--muted)' }}>No custom fields defined</td></tr> : customFields.map((cf, i) => (
+                        <tr key={i}>
+                          <td><strong>{cf.name}</strong></td>
+                          <td><span className="badge bg-gray">{cf.type}</span></td>
+                          <td>{cf.type === 'dropdown' ? cf.options : '-'}</td>
+                          <td style={{ display: 'flex', gap: 6 }}>
+                             <button className="btn btn-sm btn-secondary" style={{ padding: '2px 8px' }} onClick={() => editCF(i)}>✎ Edit</button>
+                             <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', padding: '2px 8px' }} onClick={() => removeItem('customFields', customFields, i)}>Del</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           )}
@@ -542,18 +580,70 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
             <div className="tw">
               <div className="tw-head"><h3>Lead Stages</h3></div>
               <div style={{ padding: '16px 20px' }}>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>Drag ⠿ to reorder. Changes apply to the Kanban board and all stage dropdowns.</div>
+
+                {/* Add New Stage */}
                 <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                  <input value={newStage} onChange={e => setNewStage(e.target.value)} placeholder="New stage..." style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }} />
-                  <button className="btn btn-primary btn-sm" onClick={() => addItem('stages', stages, newStage, setNewStage)}>Add</button>
+                  <input
+                    value={newStage}
+                    onChange={e => setNewStage(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && newStage.trim() && (saveList('stages', [...stages, newStage.trim()]), setNewStage(''))}
+                    placeholder="New stage name..."
+                    style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }}
+                  />
+                  <button className="btn btn-primary btn-sm" onClick={() => { if (!newStage.trim()) return; saveList('stages', [...stages, newStage.trim()]); setNewStage(''); }}>+ Add Stage</button>
                 </div>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+
+                {/* Stage List */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {stages.map((s, i) => (
-                    <span key={i} className="badge bg-teal" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 10px' }}>
-                      {s} 
-                      <span style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => editItem('stages', stages, i, s)}>✎</span>
-                      <span style={{ cursor: 'pointer' }} onClick={() => removeItem('stages', stages, i)}>✕</span>
-                    </span>
+                    <div
+                      key={i}
+                      draggable
+                      onDragStart={e => { stageDragIdx.current = i; e.dataTransfer.effectAllowed = 'move'; }}
+                      onDragOver={e => e.preventDefault()}
+                      onDrop={e => {
+                        const from = stageDragIdx.current;
+                        if (from === null || from === i) return;
+                        const reordered = [...stages];
+                        const [moved] = reordered.splice(from, 1);
+                        reordered.splice(i, 0, moved);
+                        saveList('stages', reordered);
+                        stageDragIdx.current = null;
+                      }}
+                      onDragEnd={() => { stageDragIdx.current = null; }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, cursor: 'grab', userSelect: 'none' }}
+                    >
+                      <span style={{ fontSize: 18, color: 'var(--muted)', lineHeight: 1, cursor: 'grab' }}>⠿</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', width: 20, textAlign: 'center' }}>#{i + 1}</span>
+                      {editingStageIdx === i ? (
+                        <input
+                          autoFocus
+                          value={editingStageVal}
+                          onChange={e => setEditingStageVal(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter') { const nl = [...stages]; nl[i] = editingStageVal.trim() || s; saveList('stages', nl); setEditingStageIdx(null); }
+                            if (e.key === 'Escape') setEditingStageIdx(null);
+                          }}
+                          onBlur={() => { const nl = [...stages]; nl[i] = editingStageVal.trim() || s; saveList('stages', nl); setEditingStageIdx(null); }}
+                          style={{ flex: 1, padding: '4px 8px', border: '1.5px solid var(--accent)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }}
+                        />
+                      ) : (
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{s}</span>
+                      )}
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ fontSize: 11, padding: '2px 8px' }}
+                        onClick={() => { setEditingStageIdx(i); setEditingStageVal(s); }}
+                      >✎ Rename</button>
+                      <button
+                        className="btn btn-sm"
+                        style={{ fontSize: 11, padding: '2px 8px', background: '#fee2e2', color: '#991b1b' }}
+                        onClick={() => removeItem('stages', stages, i)}
+                      >✕</button>
+                    </div>
                   ))}
+                  {stages.length === 0 && <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: 20 }}>No stages yet. Add one above.</div>}
                 </div>
               </div>
             </div>
@@ -671,14 +761,83 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
 
           {active === 'WhatsApp' && (
             <div className="tw">
-              <div className="tw-head"><h3>WhatsApp Integration</h3><button className="btn btn-primary btn-sm" onClick={saveWA}>Save</button></div>
-              <div style={{ padding: '20px' }}>
-                <div className="fgrid">
-                  <div className="fg span2"><label>WhatsApp API Token</label><input value={waToken} onChange={e => setWaToken(e.target.value)} placeholder="Bearer token from WA Business API" /></div>
-                  <div className="fg"><label>From Number</label><input value={waFrom} onChange={e => setWaFrom(e.target.value)} placeholder="+91..." /></div>
+              <div className="tw-head">
+                <h3>📱 WhatsApp Business API</h3>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-secondary btn-sm" onClick={testWA}>Test Send</button>
+                  <button className="btn btn-primary btn-sm" onClick={saveWA}>Save</button>
                 </div>
-                <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: 12, fontSize: 12, marginTop: 8, color: '#166534' }}>
-                  ✓ Supports WhatsApp Business API. Use Meta's official API for production messaging.
+              </div>
+              <div style={{ padding: '20px' }}>
+                <div className="sub" style={{ marginBottom: 18 }}>
+                  Connect your official Meta WhatsApp Business API to send messages directly from the CRM.
+                </div>
+
+                {/* Status indicator */}
+                {waToken && waPhoneNumberId ? (
+                  <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10, padding: '10px 14px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                    <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ Configured</span>
+                    <span style={{ color: '#166534' }}>— WhatsApp API credentials are on file. Use "Test Send" to verify.</span>
+                  </div>
+                ) : (
+                  <div style={{ background: '#fefce8', border: '1px solid #fde047', borderRadius: 10, padding: '10px 14px', marginBottom: 18, fontSize: 13, color: '#854d0e' }}>
+                    ⚠ Not configured. Fill in your Meta API credentials below and click Save.
+                  </div>
+                )}
+
+                <div className="fgrid">
+                  <div className="fg span2">
+                    <label>Access Token *</label>
+                    <input
+                      type="password"
+                      value={waToken}
+                      onChange={e => setWaToken(e.target.value)}
+                      placeholder="EAAxxxxxxxxxx... (Permanent or Temporary Token)"
+                    />
+                  </div>
+                  <div className="fg">
+                    <label>Phone Number ID *</label>
+                    <input
+                      value={waPhoneNumberId}
+                      onChange={e => setWaPhoneNumberId(e.target.value)}
+                      placeholder="e.g. 123456789012345"
+                    />
+                  </div>
+                  <div className="fg">
+                    <label>Test Phone Number (for Test Send)</label>
+                    <input
+                      value={waTestNumber}
+                      onChange={e => setWaTestNumber(e.target.value)}
+                      placeholder="+919876543210"
+                    />
+                  </div>
+                </div>
+
+                {/* Setup Guide */}
+                <div style={{ marginTop: 20, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                  <div style={{ padding: '10px 14px', background: 'var(--bg)', fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>📋 Setup Guide</div>
+                  <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {[
+                      ['1', 'Go to', 'Meta Developer Portal', 'https://developers.facebook.com/apps', 'and create/select your App.'],
+                      ['2', 'Under', 'WhatsApp > API Setup', null, '— find your Phone Number ID and Temporary Access Token.'],
+                      ['3', 'For production, create a', 'System User Token', 'https://business.facebook.com/settings/system-users', 'with whatsapp_business_messaging permission.'],
+                      ['4', 'Paste your Token and Phone Number ID above, then click Save.'],
+                      ['5', 'Use "Test Send" to verify delivery to your registered test number.'],
+                    ].map(([num, ...parts]) => (
+                      <div key={num} style={{ display: 'flex', gap: 10, fontSize: 12 }}>
+                        <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#22c55e', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{num}</span>
+                        <span style={{ color: 'var(--text)', lineHeight: 1.5 }}>
+                          {parts.length === 4 ? (
+                            <>{parts[0]} <a href={parts[2]} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontWeight: 600 }}>{parts[1]}</a> {parts[3]}</>
+                          ) : parts.join(' ')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12, fontSize: 12, marginTop: 12, color: '#1e40af' }}>
+                  💡 <strong>Note:</strong> Free tier allows sending to <strong>verified test numbers only</strong>. To message anyone, your WhatsApp Business account must be approved by Meta.
                 </div>
               </div>
             </div>

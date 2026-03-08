@@ -3,7 +3,8 @@ import db from '../../instant';
 import { DEFAULT_PLANS } from '../../context/AppContext';
 import { useToast } from '../../context/ToastContext';
 
-export default function AuthScreen() {
+export default function AuthScreen({ settings }) {
+  const activePlans = settings?.plans || DEFAULT_PLANS;
   const [tab, setTab] = useState('login'); // 'login' | 'register'
   const [authMethod, setAuthMethod] = useState('password'); // 'password' | 'magic'
   const [step, setStep] = useState('email'); // 'email' | 'code' | 'forgot' | 'reset'
@@ -46,7 +47,7 @@ export default function AuthScreen() {
     setLoading(true);
     try {
       await db.auth.signInWithMagicCode({ email: email.trim(), code: code.trim() });
-      toast('Welcome to TechCRM! 👋', 'success');
+      toast(`Welcome to ${settings?.brandName || 'TechCRM'}! 👋`, 'success');
     } catch (err) {
       toast(err?.body?.message || 'Invalid code. Try again.', 'error');
       setCode('');
@@ -77,6 +78,16 @@ export default function AuthScreen() {
       // Attempt to sign in with custom token
       await db.auth.signInWithToken(data.token);
       
+      if (data.isTeamMember) {
+        localStorage.setItem('tc_team_member', JSON.stringify({
+          isTeamMember: true,
+          ownerUserId: data.ownerUserId,
+          teamMemberId: data.teamMemberId
+        }));
+      } else {
+        localStorage.removeItem('tc_team_member');
+      }
+
       if (tab === 'register') {
         localStorage.setItem('tc_reg_data', JSON.stringify({
           bizName, fullName, phone, selectedPlan: selectedPlan || 'Trial'
@@ -148,14 +159,14 @@ export default function AuthScreen() {
       {/* LEFT PANEL */}
       <div className="auth-left">
         <div style={{ textAlign: 'center', marginBottom: 12 }}>
-          <div style={{ width: 52, height: 52, background: 'var(--accent)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontWeight: 800, fontSize: 18, color: '#fff' }}>TC</div>
-          <h1>TechCRM</h1>
+          <div style={{ width: 52, height: 52, background: 'var(--accent)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontWeight: 800, fontSize: 18, color: '#fff' }}>{settings?.brandShort || 'TC'}</div>
+          <h1>{settings?.brandName || 'TechCRM'}</h1>
           <p>All-in-one SaaS CRM to manage leads,<br />invoices, projects &amp; automation.</p>
         </div>
         <div style={{ marginTop: 20, width: '100%' }}>
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'rgba(255,255,255,.35)', marginBottom: 10 }}>Choose a Plan</div>
           <div className="auth-plans">
-            {DEFAULT_PLANS.map(p => (
+            {activePlans.map(p => (
               <div
                 key={p.id}
                 className={`auth-plan-card${selectedPlan === p.name ? ' selected' : ''}`}
@@ -178,7 +189,7 @@ export default function AuthScreen() {
           <h2>{step === 'email' ? 'Welcome 👋' : step === 'reset' ? 'Reset Password 🔑' : 'Check Your Email 📧'}</h2>
           <p className="sub">
             {step === 'email'
-              ? 'Sign in to your TechCRM workspace'
+              ? `Sign in to your ${settings?.brandName || 'TechCRM'} workspace`
               : step === 'reset'
               ? 'Enter the 6-digit code and a new password'
               : `We sent a 6-digit code to ${email}`}

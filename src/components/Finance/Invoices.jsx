@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS } from '../../utils/helpers';
@@ -13,8 +13,12 @@ function calcTotals(items, disc, discType, adj) {
   return { sub, taxTotal, discAmt, total };
 }
 
-const EMPTY = { client: '', dueDate: '', status: 'Draft', template: 'Classic', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false };
-export default function Invoices({ user }) {
+const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', template: 'Classic', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false };
+export default function Invoices({ user, perms, ownerId }) {
+  const canCreate = perms?.can('Invoices', 'create') !== false;
+  const canEdit = perms?.can('Invoices', 'edit') !== false;
+  const canDelete = perms?.can('Invoices', 'delete') !== false;
+
   const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(false);
@@ -24,12 +28,18 @@ export default function Invoices({ user }) {
   const toast = useToast();
 
   const { data, isLoading } = db.useQuery({
-    invoices: { $: { where: { userId: user.id } } },
-    products: { $: { where: { userId: user.id } } },
-    customers: { $: { where: { userId: user.id } } },
-    userProfiles: { $: { where: { userId: user.id } } },
+    invoices: { $: { where: { userId: ownerId } } },
+    products: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
   });
-  const invoices = data?.invoices || [];
+  const invoices = useMemo(() => {
+    const rawInvoices = data?.invoices || [];
+    const isTeam = perms && !perms.isOwner;
+    if (!isTeam) return rawInvoices;
+    return rawInvoices.filter(i => i.actorId === user.id);
+  }, [data?.invoices, perms, user]);
+
   const products = data?.products || [];
   const customers = data?.customers || [];
   const profile = data?.userProfiles?.[0] || {};
@@ -45,11 +55,16 @@ export default function Invoices({ user }) {
   }, [invoices, tab, search]);
   const tots = calcTotals(form.items, form.disc, form.discType, form.adj);
 
-  const openCreate = () => { setEditData(null); setForm(EMPTY); setModal(true); };
+  const openCreate = () => { 
+    setEditData(null); 
+    const nextNo = `INV/${new Date().getFullYear()}/${String(invoices.length + 1).padStart(3, '0')}`;
+    setForm({ ...EMPTY, no: nextNo }); 
+    setModal(true); 
+  };
   const openEdit = (inv) => {
     setEditData(inv);
     setForm({ 
-      client: inv.client, dueDate: inv.dueDate || '', status: inv.status || 'Draft', template: inv.template || 'Classic', 
+      no: inv.no || '', client: inv.client, dueDate: inv.dueDate || '', status: inv.status || 'Draft', template: inv.template || 'Classic', 
       notes: inv.notes || '', terms: inv.terms || '', disc: inv.disc || 0, discType: inv.discType || '%', adj: inv.adj || 0, 
       items: inv.items?.length ? inv.items : EMPTY.items,
       isAmc: false, amcCycle: inv.amcCycle || 'Yearly', amcStart: inv.amcStart || '', amcEnd: inv.amcEnd || '', amcPlan: '', amcAmount: '', amcTaxRate: 0,
@@ -99,14 +114,19 @@ export default function Invoices({ user }) {
       invPayload.shipTo = '';
     }
 
-    const payload = { ...invPayload, userId: user.id, date: new Date().toISOString().split('T')[0], total: tots.total };
+    const payload = { ...invPayload, userId: ownerId, actorId: user.id, date: editData ? editData.date : new Date().toISOString().split('T')[0], total: tots.total, taxAmt: tots.taxTotal };
+    
+    // Ensure no is present. If user cleared it, generate one
+    if (!payload.no) {
+      payload.no = editData ? editData.no : `INV/${new Date().getFullYear()}/${String(invoices.length + 1).padStart(3, '0')}`;
+    }
     
     let invAction;
+
     if (editData) {
       invAction = db.tx.invoices[editData.id].update(payload);
     } else {
-      const no = `INV/${new Date().getFullYear()}/${String(invoices.length + 1).padStart(3, '0')}`;
-      invAction = db.tx.invoices[id()].update({ ...payload, no });
+      invAction = db.tx.invoices[id()].update({ ...payload });
     }
 
     const txs = [invAction];
@@ -116,7 +136,8 @@ export default function Invoices({ user }) {
       const custMatch = customers.find(c => c.name === form.client);
       const amcId = id();
       txs.push(db.tx.amc[amcId].update({
-        userId: user.id,
+        userId: ownerId,
+        actorId: user.id,
         client: form.client,
         email: custMatch ? custMatch.email : '',
         phone: custMatch ? custMatch.phone : '',
@@ -316,7 +337,7 @@ export default function Invoices({ user }) {
     <div>
       <div className="sh">
         <div><h2>Invoices</h2></div>
-        <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Create</button>
+        {canCreate && <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Create</button>}
       </div>
       <div className="tabs">
         {['all', 'Draft', 'Sent', 'Paid', 'Overdue'].map(t => (
@@ -331,49 +352,55 @@ export default function Invoices({ user }) {
             <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
         </div>
-        <table>
-          <thead><tr><th>#</th><th>Invoice No.</th><th>Client</th><th>Status</th><th>Date</th><th>Due Date</th><th>Amount</th><th>Actions</th></tr></thead>
-          <tbody>
-            {filtered.length === 0
-              ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No invoices yet</td></tr>
-              : filtered.map((inv, i) => (
-                <tr key={inv.id}>
-                  <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
-                  <td>
-                    <strong style={{ fontSize: 12 }}>{inv.no}</strong>
-                    {inv.fromAmc && <span style={{ marginLeft: 6, fontSize: 10, background: '#e0e7ff', color: '#4338ca', padding: '2px 4px', borderRadius: 4, fontWeight: 600 }}>AMC</span>}
-                  </td>
-                  <td>{inv.client}</td>
-                  <td><span className={`badge ${stageBadgeClass(inv.status)}`}>{inv.status}</span></td>
-                  <td style={{ fontSize: 12 }}>{fmtD(inv.date)}</td>
-                  <td style={{ fontSize: 12 }}>{fmtD(inv.dueDate)}</td>
-                  <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>
-                  <td>
-                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <button className="btn btn-secondary btn-sm" onClick={() => openEdit(inv)}>Edit</button>
-                      <button className="btn-icon" onClick={(e) => {
-                        const dm = e.currentTarget.nextElementSibling;
-                        document.querySelectorAll('.dd-menu').forEach(el => el !== dm && (el.style.display = 'none'));
-                        dm.style.display = dm.style.display === 'block' ? 'none' : 'block';
-                      }}>⋮</button>
-                      <div className="dd-menu" style={{ display: 'none', position: 'absolute', right: 0, top: 28, background: '#fff', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, width: 100, overflow: 'hidden' }}>
-                        <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { setPrinting(inv); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>📄 Print</div>
-                        <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', color: '#dc2626' }} onClick={() => { del(inv.id); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>🗑 Delete</div>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+        <div className="tw-scroll">
+          <table>
+            <thead><tr><th>#</th><th>Invoice No.</th><th>Client</th><th>Status</th><th>Date</th><th>Due Date</th><th>Amount</th><th>Actions</th></tr></thead>
+            <tbody>
+              {filtered.length === 0
+                ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No invoices yet</td></tr>
+                : filtered.map((inv, i) => (
+                  <tr key={inv.id}>
+                    <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
+                    <td>
+                      <strong style={{ fontSize: 12 }}>{inv.no}</strong>
+                      {inv.fromAmc && <span style={{ marginLeft: 6, fontSize: 10, background: '#e0e7ff', color: '#4338ca', padding: '2px 4px', borderRadius: 4, fontWeight: 600 }}>AMC</span>}
+                    </td>
+                    <td>{inv.client}</td>
+                    <td><span className={`badge ${stageBadgeClass(inv.status)}`}>{inv.status}</span></td>
+                    <td style={{ fontSize: 12 }}>{fmtD(inv.date)}</td>
+                    <td style={{ fontSize: 12 }}>{fmtD(inv.dueDate)}</td>
+                    <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>
+                     <td>
+                       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
+                         {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => openEdit(inv)}>Edit</button>}
+                         <button className="btn-icon" onClick={(e) => {
+                          const dm = e.currentTarget.nextElementSibling;
+                          document.querySelectorAll('.dd-menu').forEach(el => el !== dm && (el.style.display = 'none'));
+                          dm.style.display = dm.style.display === 'block' ? 'none' : 'block';
+                         }}>⋮</button>
+                         <div className="dd-menu" style={{ display: 'none', position: 'absolute', right: 0, top: 28, background: '#fff', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, width: 100, overflow: 'hidden' }}>
+                           <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { setPrinting(inv); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>📄 Print</div>
+                           {canDelete && <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', color: '#dc2626' }} onClick={() => { del(inv.id); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>🗑 Delete</div>}
+                         </div>
+                       </div>
+                     </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {modal && (
-        <div className="mo open" onClick={e => e.target === e.currentTarget && setModal(false)}>
+        <div className="mo open">
           <div className="mo-box wide">
             <div className="mo-head"><h3>{editData ? 'Edit Invoice' : 'Create Invoice'}</h3><button className="btn-icon" onClick={() => setModal(false)}>✕</button></div>
             <div className="mo-body">
-              <div className="fgrid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+              <div className="fgrid" style={{ gridTemplateColumns: 'minmax(120px, 1fr) 2fr 1fr 1fr 1fr' }}>
+                <div className="fg">
+                  <label>Invoice No.</label>
+                  <input value={form.no} onChange={e => setForm(p => ({ ...p, no: e.target.value }))} placeholder="INV/..." />
+                </div>
                 <div className="fg">
                   <label>Client *</label>
                   <SearchableSelect 

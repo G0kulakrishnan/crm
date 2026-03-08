@@ -3,7 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 
-export default function SheetIntegration({ user, onBack, existingConfig, editIndex }) {
+export default function SheetIntegration({ user, ownerId, onBack, existingConfig, editIndex }) {
   const [configName, setConfigName] = useState(existingConfig?.configName || '');
   const [sheetInput, setSheetInput] = useState(existingConfig?.sheetId || '');
   const [sheetId, setSheetId] = useState(existingConfig?.sheetId || '');
@@ -25,13 +25,15 @@ export default function SheetIntegration({ user, onBack, existingConfig, editInd
   const toast = useToast();
 
   const { data: profileData } = db.useQuery({ 
-    userProfiles: { $: { where: { userId: user.id } } } 
+    userProfiles: { $: { where: { userId: ownerId } } },
+    globalSettings: {}
   });
   const profile = profileData?.userProfiles?.[0] || {};
   const labels = profile.labels || ['Hot', 'Warm', 'Cold'];
   const stages = profile.stages || ['New Enquiry', 'Enquiry Contacted', 'Won', 'Lost'];
   const sources = profile.sources || ['Google Sheets', 'FB Ads', 'Direct'];
   const globalCustomFields = profile.customFields || [];
+  const crmDomain = profileData?.globalSettings?.[0]?.crmDomain || window.location.origin;
 
   const extractSheetId = (input) => {
     const regex = /\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/;
@@ -138,7 +140,8 @@ export default function SheetIntegration({ user, onBack, existingConfig, editInd
 
     try {
       const lead = {
-        userId: user.id,
+        userId: ownerId,
+        actorId: user.id,
         createdAt: Date.now(),
         custom: {}
       };
@@ -269,40 +272,71 @@ export default function SheetIntegration({ user, onBack, existingConfig, editInd
     );
   };
 
-  const appsScriptCode = `// Step 1: Paste this entire script into Extensions > Apps Script
+  const appsScriptCode = `// ===== AUTO-PUSH LEADS TO CRM =====
+// Step 1: Paste this script into Extensions > Apps Script
 // Step 2: Click Save (💾)
 // Step 3: Click the ⏰ Triggers icon (left sidebar, clock icon)
 // Step 4: Click "+ Add Trigger" and set:
-//         Function: pushLeadToCRM
+//         Function: onSheetChange
 //         Event source: From spreadsheet
-//         Event type: On edit
+//         Event type: On change   ← IMPORTANT: use "On change", NOT "On edit"
 // Step 5: Click Save & authorize the permissions
 
-function pushLeadToCRM(e) {
+function onSheetChange(e) {
+  // "On change" fires for edits, pastes, form submissions, and inserts
   if (!e) return;
-  
-  var sheet = e.source.getActiveSheet();
-  var row = e.range.getRow();
+  var changeType = e.changeType;
+  // We only care about new content being added
+  if (changeType !== "EDIT" && changeType !== "INSERT_ROW" && changeType !== "OTHER") return;
+
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
   var lastRow = sheet.getLastRow();
-  
-  if (row == lastRow) {
-    var data = sheet.getRange(row, 1, 1, sheet.getLastColumn()).getValues()[0];
+  if (lastRow <= 1) return; // Only header, no data
+
+  // Track which row we last pushed so we don't send duplicates
+  var props = PropertiesService.getScriptProperties();
+  var lastPushed = parseInt(props.getProperty("LAST_PUSHED_ROW") || "1", 10);
+
+  if (lastRow <= lastPushed) return; // Nothing new
+
+  // Push all new rows (from lastPushed+1 to lastRow)
+  var numCols = sheet.getLastColumn();
+
+  for (var r = lastPushed + 1; r <= lastRow; r++) {
+    var data = sheet.getRange(r, 1, 1, numCols).getValues()[0];
+    // Skip empty rows (no name in first column)
+    if (!data[0] || String(data[0]).trim() === "") continue;
+
     var payload = {
-      "userId": "${user.id}",
+      "userId": "${ownerId}",
+      "actorId": "${user.id}",
       "type": "gsheet_push",
       "data": data
     };
-    
+
     var options = {
       "method": "post",
       "contentType": "application/json",
       "payload": JSON.stringify(payload),
       "muteHttpExceptions": true
     };
-    
-    var response = UrlFetchApp.fetch("https://mycrm.t2gcrm.in/api/webhook/gsheets", options);
-    Logger.log("CRM Response: " + response.getContentText());
+
+    try {
+      var response = UrlFetchApp.fetch("${crmDomain}/api/webhook/gsheets", options);
+      Logger.log("Row " + r + " → CRM: " + response.getContentText());
+    } catch (err) {
+      Logger.log("Row " + r + " FAILED: " + err);
+    }
   }
+
+  props.setProperty("LAST_PUSHED_ROW", String(lastRow));
+}
+
+// Optional: Run this once manually to push ALL existing rows
+function pushAllRows() {
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty("LAST_PUSHED_ROW", "1"); // Reset tracker
+  onSheetChange({ changeType: "OTHER" });    // Trigger push
 }
   `;
 

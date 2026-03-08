@@ -27,7 +27,7 @@ const TEMPLATES = [
   { name: 'Payment Reminder', trigger: 'trig-payment', action: 'act-wa', desc: 'WhatsApp payment reminder' },
 ];
 
-export default function AutomationView({ user }) {
+export default function AutomationView({ user, ownerId }) {
   const [tab, setTab] = useState('flows');
   const [modal, setModal] = useState(false);
   const [flowName, setFlowName] = useState('');
@@ -36,14 +36,14 @@ export default function AutomationView({ user }) {
   const [step, setStep] = useState(1); // 1=name, 2=trigger, 3=action
   const toast = useToast();
 
-  const { data } = db.useQuery({ automations: { $: { where: { userId: user.id } } } });
+  const { data } = db.useQuery({ automations: { $: { where: { userId: ownerId } } } });
   const automations = data?.automations || [];
 
   const saveFlow = async () => {
     if (!flowName || !selectedTrig || !selectedAct) { toast('Please complete all steps', 'error'); return; }
     await db.transact(db.tx.automations[id()].update({
       name: flowName, trigger: selectedTrig, action: selectedAct,
-      active: true, userId: user.id, createdAt: Date.now(),
+      active: true, userId: ownerId, createdAt: Date.now(),
     }));
     toast(`Automation "${flowName}" created!`, 'success');
     setModal(false); setFlowName(''); setSelectedTrig(null); setSelectedAct(null); setStep(1);
@@ -81,23 +81,25 @@ export default function AutomationView({ user }) {
           ) : (
             <div className="tw">
               <div className="tw-head"><h3>Active Flows ({automations.filter(a => a.active).length}/{automations.length})</h3></div>
-              <table>
-                <thead><tr><th>#</th><th>Flow Name</th><th>Trigger</th><th>Action</th><th>Active</th><th>Actions</th></tr></thead>
-                <tbody>
-                  {automations.map((a, i) => (
-                    <tr key={a.id}>
-                      <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
-                      <td><strong>{a.name}</strong></td>
-                      <td style={{ fontSize: 12 }}>{trigLabel(a.trigger)}</td>
-                      <td style={{ fontSize: 12 }}>{actLabel(a.action)}</td>
-                      <td>
-                        <label className="toggle"><input type="checkbox" checked={a.active !== false} onChange={() => toggleFlow(a)} /><span className="toggle-slider" /></label>
-                      </td>
-                      <td><button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(a.id)}>Del</button></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <div className="tw-scroll">
+                <table>
+                  <thead><tr><th>#</th><th>Flow Name</th><th>Trigger</th><th>Action</th><th>Active</th><th>Actions</th></tr></thead>
+                  <tbody>
+                    {automations.map((a, i) => (
+                      <tr key={a.id}>
+                        <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
+                        <td><strong>{a.name}</strong></td>
+                        <td style={{ fontSize: 12 }}>{trigLabel(a.trigger)}</td>
+                        <td style={{ fontSize: 12 }}>{actLabel(a.action)}</td>
+                        <td>
+                          <label className="toggle"><input type="checkbox" checked={a.active !== false} onChange={() => toggleFlow(a)} /><span className="toggle-slider" /></label>
+                        </td>
+                        <td><button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(a.id)}>Del</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
 
@@ -146,7 +148,7 @@ export default function AutomationView({ user }) {
 
       {/* Create Flow Modal */}
       {modal && (
-        <div className="mo open" onClick={e => e.target === e.currentTarget && setModal(false)}>
+        <div className="mo open">
           <div className="mo-box">
             <div className="mo-head"><h3>Create Automation Flow</h3><button className="btn-icon" onClick={() => setModal(false)}>✕</button></div>
             <div className="mo-body">

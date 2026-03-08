@@ -80,6 +80,39 @@ export const sendEmailMock = async (userId, to, subject, body, metadata = {}) =>
   await logToOutbox(userId, 'email', to, `Subject: ${subject}\n\n${body}`, metadata);
 };
 
+/**
+ * Sends a WhatsApp message via Meta Cloud API through /api/send-whatsapp.
+ * Config object should have: { waToken, waPhoneNumberId, bizName }
+ */
+export const sendWhatsApp = async (to, message, config, userId) => {
+  const { waToken, waPhoneNumberId } = config;
+
+  if (!waToken || !waPhoneNumberId) {
+    throw new Error("WhatsApp configuration is incomplete. Please fill in the Access Token and Phone Number ID in Settings.");
+  }
+
+  try {
+    const resp = await fetch('/api/send-whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to, message, waToken, waPhoneNumberId })
+    });
+
+    const data = await resp.json();
+
+    if (resp.ok && data.success) {
+      if (userId) await logToOutbox(userId, 'whatsapp', to, message, { status: 'Sent' });
+      return 'OK';
+    } else {
+      throw new Error(data.error || 'Failed to send WhatsApp message');
+    }
+  } catch (err) {
+    const errMsg = err.message || JSON.stringify(err);
+    if (userId) await logToOutbox(userId, 'whatsapp', to, message, { status: 'Failed', error: errMsg });
+    throw new Error(errMsg);
+  }
+};
+
 export const sendWhatsAppMock = async (userId, to, body, metadata = {}) => {
   await logToOutbox(userId, 'whatsapp', to, body, metadata);
 };

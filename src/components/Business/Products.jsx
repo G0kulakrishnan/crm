@@ -6,15 +6,19 @@ import { useToast } from '../../context/ToastContext';
 
 const EMPTY = { name: '', code: '', type: 'Product', category: 'General', unit: 'Nos', rate: '', tax: 18, desc: '' };
 
-export default function Products({ user }) {
+export default function Products({ user, perms, ownerId }) {
+  const canCreate = perms?.can('Products', 'create') !== false;
+  const canEdit = perms?.can('Products', 'edit') !== false;
+  const canDelete = perms?.can('Products', 'delete') !== false;
+
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const toast = useToast();
 
   const { data } = db.useQuery({ 
-    products: { $: { where: { userId: user.id } } },
-    userProfiles: { $: { where: { userId: user.id } } }
+    products: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } }
   });
   const products = data?.products || [];
   const profile = data?.userProfiles?.[0] || {};
@@ -32,7 +36,7 @@ export default function Products({ user }) {
 
   const save = async () => {
     if (!form.name.trim()) { toast('Name required', 'error'); return; }
-    const payload = { ...form, rate: parseFloat(form.rate) || 0, tax: parseFloat(form.tax) || 0, userId: user.id };
+    const payload = { ...form, rate: parseFloat(form.rate) || 0, tax: parseFloat(form.tax) || 0, userId: ownerId };
     if (editData) { await db.transact(db.tx.products[editData.id].update(payload)); toast('Updated', 'success'); }
     else { await db.transact(db.tx.products[id()].update(payload)); toast('Product created', 'success'); }
     setModal(false);
@@ -42,7 +46,7 @@ export default function Products({ user }) {
 
   return (
     <div>
-      <div className="sh"><div><h2>Products & Services</h2></div><button className="btn btn-primary btn-sm" onClick={() => { setEditData(null); setForm(EMPTY); setModal(true); }}>+ Create</button></div>
+      <div className="sh"><div><h2>Products & Services</h2></div>{canCreate && <button className="btn btn-primary btn-sm" onClick={() => { setEditData(null); setForm(EMPTY); setModal(true); }}>+ Create</button>}</div>
       <div className="tw">
         <div className="tw-head">
           <h3>Products & Services ({filtered.length})</h3>
@@ -51,31 +55,33 @@ export default function Products({ user }) {
             <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
         </div>
-        <table>
-          <thead><tr><th>#</th><th>Name</th><th>Category</th><th>Code</th><th>Type</th><th>Unit</th><th>Rate</th><th>GST %</th><th>Actions</th></tr></thead>
-          <tbody>
-            {filtered.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No products found.</td></tr>
-              : filtered.map((p, i) => (
-                <tr key={p.id}>
-                  <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
-                  <td><strong>{p.name}</strong><div style={{ fontSize: 10, color: 'var(--muted)' }}>{p.desc}</div></td>
-                  <td><span style={{ fontSize: 11, background: 'var(--bg-soft)', padding: '2px 8px', borderRadius: 4 }}>{p.category || 'General'}</span></td>
-                  <td style={{ fontSize: 12, fontFamily: 'monospace' }}>{p.code || '-'}</td>
-                  <td><span className={`badge ${p.type === 'Service' ? 'bg-blue' : 'bg-purple'}`}>{p.type}</span></td>
-                  <td style={{ fontSize: 12 }}>{p.unit}</td>
-                  <td style={{ fontWeight: 700 }}>{fmt(p.rate)}</td>
-                  <td>{p.tax}%</td>
-                  <td>
-                    <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(p); setForm({ name: p.name, code: p.code || '', type: p.type, category: p.category || 'General', unit: p.unit, rate: p.rate, tax: p.tax, desc: p.desc || '' }); setModal(true); }}>Edit</button>{' '}
-                    <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(p.id)}>Del</button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+        <div className="tw-scroll">
+          <table>
+            <thead><tr><th>#</th><th>Name</th><th>Category</th><th>Code</th><th>Type</th><th>Unit</th><th>Rate</th><th>GST %</th><th>Actions</th></tr></thead>
+            <tbody>
+              {filtered.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No products found.</td></tr>
+                : filtered.map((p, i) => (
+                  <tr key={p.id}>
+                    <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
+                    <td><strong>{p.name}</strong><div style={{ fontSize: 10, color: 'var(--muted)' }}>{p.desc}</div></td>
+                    <td><span style={{ fontSize: 11, background: 'var(--bg-soft)', padding: '2px 8px', borderRadius: 4 }}>{p.category || 'General'}</span></td>
+                    <td style={{ fontSize: 12, fontFamily: 'monospace' }}>{p.code || '-'}</td>
+                    <td><span className={`badge ${p.type === 'Service' ? 'bg-blue' : 'bg-purple'}`}>{p.type}</span></td>
+                    <td style={{ fontSize: 12 }}>{p.unit}</td>
+                    <td style={{ fontWeight: 700 }}>{fmt(p.rate)}</td>
+                    <td>{p.tax}%</td>
+                    <td>
+                      {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(p); setForm({ name: p.name, code: p.code || '', type: p.type, category: p.category || 'General', unit: p.unit, rate: p.rate, tax: p.tax, desc: p.desc || '' }); setModal(true); }}>Edit</button>}{' '}
+                      {canDelete && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(p.id)}>Del</button>}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       {modal && (
-        <div className="mo open" onClick={e => e.target === e.currentTarget && setModal(false)}>
+        <div className="mo open">
           <div className="mo-box">
             <div className="mo-head"><h3>{editData ? 'Edit' : 'Create'} Product/Service</h3><button className="btn-icon" onClick={() => setModal(false)}>✕</button></div>
             <div className="mo-body">

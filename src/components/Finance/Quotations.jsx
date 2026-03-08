@@ -4,7 +4,7 @@ import { id } from '@instantdb/react';
 import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
-const EMPTY = { client: '', validUntil: '', status: 'Created', template: 'Classic', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], shipTo: '', addShipping: false };
+const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', template: 'Classic', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], shipTo: '', addShipping: false };
 
 function calcTotals(items, disc, tdsRate, adj) {
   const sub = items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
@@ -15,7 +15,11 @@ function calcTotals(items, disc, tdsRate, adj) {
   return { sub, taxTotal, discAmt, tdsAmt, total };
 }
 
-export default function Quotations({ user }) {
+export default function Quotations({ user, perms, ownerId }) {
+  const canCreate = perms?.can('Quotations', 'create') !== false;
+  const canEdit = perms?.can('Quotations', 'edit') !== false;
+  const canDelete = perms?.can('Quotations', 'delete') !== false;
+
   const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(false);
@@ -25,14 +29,20 @@ export default function Quotations({ user }) {
   const toast = useToast();
 
   const { data, isLoading } = db.useQuery({
-    quotes: { $: { where: { userId: user.id } } },
-    products: { $: { where: { userId: user.id } } },
-    customers: { $: { where: { userId: user.id } } },
-    userProfiles: { $: { where: { userId: user.id } } },
+    quotes: { $: { where: { userId: ownerId } } },
+    products: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
   });
+  const quotes = useMemo(() => {
+    const rawQuotes = data?.quotes || [];
+    const isTeam = perms && !perms.isOwner;
+    if (!isTeam) return rawQuotes;
+    return rawQuotes.filter(q => q.actorId === user.id);
+  }, [data?.quotes, perms, user]);
+
   const products = data?.products || [];
   const customers = data?.customers || [];
-  const quotes = data?.quotes || [];
   const profile = data?.userProfiles?.[0] || {};
   const taxRates = profile.taxRates || TAX_OPTIONS;
 
@@ -47,10 +57,15 @@ export default function Quotations({ user }) {
   }, [quotes, tab, search]);
   const tots = calcTotals(form.items, form.disc, form.tdsRate, form.adj);
 
-  const openCreate = () => { setEditData(null); setForm(EMPTY); setModal(true); };
+  const openCreate = () => { 
+    setEditData(null); 
+    const nextNo = `QUOTE/${new Date().getFullYear()}/${String(quotes.length + 1).padStart(3, '0')}`;
+    setForm({ ...EMPTY, no: nextNo }); 
+    setModal(true); 
+  };
   const openEdit = (q) => {
     setEditData(q);
-    setForm({ client: q.client, validUntil: q.validUntil || '', status: q.status, template: q.template || 'Classic', notes: q.notes || '', terms: q.terms || '', disc: q.disc || 0, adj: q.adj || 0, tdsRate: q.tdsRate || 0, items: q.items?.length ? q.items : EMPTY.items, shipTo: q.shipTo || '', addShipping: !!q.shipTo });
+    setForm({ no: q.no || '', client: q.client, validUntil: q.validUntil || '', status: q.status, template: q.template || 'Classic', notes: q.notes || '', terms: q.terms || '', disc: q.disc || 0, adj: q.adj || 0, tdsRate: q.tdsRate || 0, items: q.items?.length ? q.items : EMPTY.items, shipTo: q.shipTo || '', addShipping: !!q.shipTo });
     setModal(true);
   };
 
@@ -63,14 +78,19 @@ export default function Quotations({ user }) {
       qPayload.shipTo = '';
     }
 
-    const payload = { ...qPayload, userId: user.id, date: new Date().toISOString().split('T')[0], total: tots.total, sub: tots.sub, taxAmt: tots.taxTotal };
+    const payload = { ...qPayload, userId: ownerId, actorId: user.id, date: editData ? editData.date : new Date().toISOString().split('T')[0], total: tots.total, sub: tots.sub, taxAmt: tots.taxTotal };
+    
+    // Ensure no is present. If user cleared it, generate one
+    if (!payload.no) {
+      payload.no = editData ? editData.no : `QUOTE/${new Date().getFullYear()}/${String(quotes.length + 1).padStart(3, '0')}`;
+    }
+
     try {
       if (editData) {
         await db.transact(db.tx.quotes[editData.id].update(payload));
         toast('Quotation updated', 'success');
       } else {
-        const qno = `QUOTE/${new Date().getFullYear()}/${String(quotes.length + 1).padStart(3, '0')}`;
-        await db.transact(db.tx.quotes[id()].update({ ...payload, no: qno }));
+        await db.transact(db.tx.quotes[id()].update({ ...payload }));
         toast('Quotation created', 'success');
       }
       setModal(false);
@@ -267,7 +287,7 @@ export default function Quotations({ user }) {
     <div>
       <div className="sh">
         <div><h2>Quotations</h2></div>
-        <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Create</button>
+        {canCreate && <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Create</button>}
       </div>
       <div className="tabs">
         {['all', 'Created', 'Sent', 'Completed', 'Cancelled'].map(t => (
@@ -282,51 +302,57 @@ export default function Quotations({ user }) {
             <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
         </div>
-        <table>
-          <thead><tr><th>#</th><th>Quote No.</th><th>Client</th><th>Status</th><th>Date</th><th>Valid Until</th><th>Amount</th><th>Actions</th></tr></thead>
-          <tbody>
-            {filtered.length === 0 ? (
-              <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No quotations yet</td></tr>
-            ) : filtered.map((q, i) => (
-              <tr key={q.id}>
-                <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
-                <td><strong style={{ fontSize: 12 }}>{q.no}</strong></td>
-                <td>{q.client}</td>
-                <td><span className={`badge ${stageBadgeClass(q.status)}`}>{q.status}</span></td>
-                <td style={{ fontSize: 12 }}>{fmtD(q.date)}</td>
-                <td style={{ fontSize: 12 }}>{fmtD(q.validUntil)}</td>
-                <td style={{ fontWeight: 700 }}>{fmt(q.total)}</td>
-                <td>
-                  <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(q)}>Edit</button>
-                    <button className="btn-icon" onClick={(e) => {
-                      const dm = e.currentTarget.nextElementSibling;
-                      document.querySelectorAll('.dd-menu').forEach(el => el !== dm && (el.style.display = 'none'));
-                      dm.style.display = dm.style.display === 'block' ? 'none' : 'block';
-                    }}>⋮</button>
-                    <div className="dd-menu" style={{ display: 'none', position: 'absolute', right: 0, top: 28, background: '#fff', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, width: 140, overflow: 'hidden' }}>
-                      <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { setPrinting(q); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>📄 View / PDF</div>
-                      <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { convertToInvoice(q); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>💵 Convert to Invoice</div>
-                      <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', color: '#dc2626' }} onClick={() => { del(q.id); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>🗑 Delete</div>
+        <div className="tw-scroll">
+          <table>
+            <thead><tr><th>#</th><th>Quote No.</th><th>Client</th><th>Status</th><th>Date</th><th>Valid Until</th><th>Amount</th><th>Actions</th></tr></thead>
+            <tbody>
+              {filtered.length === 0 ? (
+                <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No quotations yet</td></tr>
+              ) : filtered.map((q, i) => (
+                <tr key={q.id}>
+                  <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
+                  <td><strong style={{ fontSize: 12 }}>{q.no}</strong></td>
+                  <td>{q.client}</td>
+                  <td><span className={`badge ${stageBadgeClass(q.status)}`}>{q.status}</span></td>
+                  <td style={{ fontSize: 12 }}>{fmtD(q.date)}</td>
+                  <td style={{ fontSize: 12 }}>{fmtD(q.validUntil)}</td>
+                  <td style={{ fontWeight: 700 }}>{fmt(q.total)}</td>
+                  <td>
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => openEdit(q)}>Edit</button>}
+                      <button className="btn-icon" onClick={(e) => {
+                        const dm = e.currentTarget.nextElementSibling;
+                        document.querySelectorAll('.dd-menu').forEach(el => el !== dm && (el.style.display = 'none'));
+                        dm.style.display = dm.style.display === 'block' ? 'none' : 'block';
+                      }}>⋮</button>
+                      <div className="dd-menu" style={{ display: 'none', position: 'absolute', right: 0, top: 28, background: '#fff', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, width: 140, overflow: 'hidden' }}>
+                        <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { setPrinting(q); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>📄 View / PDF</div>
+                        {canEdit && <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { convertToInvoice(q); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>💵 Convert to Invoice</div>}
+                        {canDelete && <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', color: '#dc2626' }} onClick={() => { del(q.id); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>🗑 Delete</div>}
+                      </div>
                     </div>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       {/* MODAL */}
       {modal && (
-        <div className="mo open" onClick={e => e.target === e.currentTarget && setModal(false)}>
+        <div className="mo open">
           <div className="mo-box wide">
             <div className="mo-head">
               <h3>{editData ? 'Edit Quotation' : 'Create Quotation'}</h3>
               <button className="btn-icon" onClick={() => setModal(false)}>✕</button>
             </div>
             <div className="mo-body">
-              <div className="fgrid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+              <div className="fgrid" style={{ gridTemplateColumns: 'minmax(120px, 1fr) 2fr 1fr 1fr 1fr' }}>
+                <div className="fg">
+                  <label>Quote No.</label>
+                  <input value={form.no} onChange={e => setForm(p => ({ ...p, no: e.target.value }))} placeholder="QUOTE/..." />
+                </div>
                 <div className="fg">
                   <label>Client *</label>
                   <input list="custList" value={form.client} onChange={e => setForm(p => ({ ...p, client: e.target.value }))} placeholder="Search or enter client..." />

@@ -7,17 +7,26 @@ import { useToast } from '../../context/ToastContext';
 const DEFAULT_CATS = ['Software', 'Hardware', 'Travel', 'Office', 'Marketing', 'Utilities', 'Salaries', 'Misc'];
 const EMPTY = { desc: '', amount: '', taxRate: 0, taxAmt: 0, category: 'Office', date: '', status: 'Pending', notes: '' };
 
-export default function Expenses({ user }) {
+export default function Expenses({ user, perms, ownerId }) {
+  const canCreate = perms?.can('Expenses', 'create') !== false;
+  const canEdit = perms?.can('Expenses', 'edit') !== false;
+  const canDelete = perms?.can('Expenses', 'delete') !== false;
+
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const toast = useToast();
 
   const { data } = db.useQuery({ 
-    expenses: { $: { where: { userId: user.id } } },
-    userProfiles: { $: { where: { userId: user.id } } }
+    expenses: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } }
   });
-  const expenses = data?.expenses || [];
+  const expenses = useMemo(() => {
+    const rawExpenses = data?.expenses || [];
+    const isTeam = perms && !perms.isOwner;
+    if (!isTeam) return rawExpenses;
+    return rawExpenses.filter(e => e.actorId === user.id);
+  }, [data?.expenses, perms, user]);
   const profile = data?.userProfiles?.[0] || {};
   const cats = profile.expCats || DEFAULT_CATS;
   const taxRates = profile.taxRates || [{ label: 'None (0%)', rate: 0 }, { label: 'GST @ 5%', rate: 5 }, { label: 'GST @ 12%', rate: 12 }, { label: 'GST @ 18%', rate: 18 }, { label: 'GST @ 28%', rate: 28 }];
@@ -33,7 +42,7 @@ export default function Expenses({ user }) {
       amount: parseFloat(form.amount) || 0,
       taxRate: parseFloat(form.taxRate) || 0,
       taxAmt: parseFloat(form.taxAmt) || 0,
-      userId: user.id 
+      userId: ownerId
     };
     if (editData) { await db.transact(db.tx.expenses[editData.id].update(payload)); toast('Updated', 'success'); }
     else { await db.transact(db.tx.expenses[id()].update(payload)); toast('Expense added', 'success'); }
@@ -45,7 +54,7 @@ export default function Expenses({ user }) {
 
   return (
     <div>
-      <div className="sh"><div><h2>Expenses</h2></div><button className="btn btn-primary btn-sm" onClick={() => { setEditData(null); setForm(EMPTY); setModal(true); }}>+ Add Expense</button></div>
+      <div className="sh"><div><h2>Expenses</h2></div>{canCreate && <button className="btn btn-primary btn-sm" onClick={() => { setEditData(null); setForm(EMPTY); setModal(true); }}>+ Add Expense</button>}</div>
       <div className="stat-grid" style={{ marginBottom: 18 }}>
         <div className="stat-card sc-green"><div className="lbl">Approved</div><div className="val">{fmt(total)}</div></div>
         <div className="stat-card sc-yellow"><div className="lbl">Pending</div><div className="val">{fmt(pending)}</div></div>
@@ -53,31 +62,33 @@ export default function Expenses({ user }) {
       </div>
       <div className="tw">
         <div className="tw-head"><h3>Expenses ({expenses.length})</h3></div>
-        <table>
-          <thead><tr><th>#</th><th>Description</th><th>Category</th><th>Date</th><th>Amount</th><th>Tax (GST)</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody>
-            {expenses.length === 0 ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No expenses</td></tr>
-              : expenses.map((e, i) => (
-                <tr key={e.id}>
-                  <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
-                  <td>{e.desc}</td>
-                  <td><span className="badge bg-gray">{e.category}</span></td>
-                  <td style={{ fontSize: 12 }}>{fmtD(e.date)}</td>
-                  <td style={{ fontWeight: 700 }}>{fmt(e.amount)}</td>
-                  <td style={{ fontSize: 12, color: '#16a34a' }}>{e.taxAmt ? fmt(e.taxAmt) : '—'}</td>
-                  <td><span className={`badge ${stageBadgeClass(e.status)}`}>{e.status}</span></td>
-                  <td style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                    {e.status === 'Pending' && <><button className="btn btn-sm" style={{ background: '#dcfce7', color: '#166534' }} onClick={() => changeStatus(e.id, 'Approved')}>✓</button><button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => changeStatus(e.id, 'Rejected')}>✕</button></>}
-                    <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(e); setForm({ desc: e.desc, amount: e.amount, category: e.category, date: e.date || '', status: e.status, notes: e.notes || '' }); setModal(true); }}>Edit</button>
-                    <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(e.id)}>Del</button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
+        <div className="tw-scroll">
+          <table>
+            <thead><tr><th>#</th><th>Description</th><th>Category</th><th>Date</th><th>Amount</th><th>Tax (GST)</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+              {expenses.length === 0 ? <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No expenses</td></tr>
+                : expenses.map((e, i) => (
+                  <tr key={e.id}>
+                    <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
+                    <td>{e.desc}</td>
+                    <td><span className="badge bg-gray">{e.category}</span></td>
+                    <td style={{ fontSize: 12 }}>{fmtD(e.date)}</td>
+                    <td style={{ fontWeight: 700 }}>{fmt(e.amount)}</td>
+                    <td style={{ fontSize: 12, color: '#16a34a' }}>{e.taxAmt ? fmt(e.taxAmt) : '—'}</td>
+                     <td><span className={`badge ${stageBadgeClass(e.status)}`}>{e.status}</span></td>
+                     <td style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                       {e.status === 'Pending' && canEdit && <><button className="btn btn-sm" style={{ background: '#dcfce7', color: '#166534' }} onClick={() => changeStatus(e.id, 'Approved')}>✓</button><button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => changeStatus(e.id, 'Rejected')}>✕</button></>}
+                       {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(e); setForm({ desc: e.desc, amount: e.amount, category: e.category, date: e.date || '', status: e.status, notes: e.notes || '' }); setModal(true); }}>Edit</button>}
+                       {canDelete && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(e.id)}>Del</button>}
+                     </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       {modal && (
-        <div className="mo open" onClick={e => e.target === e.currentTarget && setModal(false)}>
+        <div className="mo open">
           <div className="mo-box">
             <div className="mo-head"><h3>{editData ? 'Edit' : 'Add'} Expense</h3><button className="btn-icon" onClick={() => setModal(false)}>✕</button></div>
             <div className="mo-body">

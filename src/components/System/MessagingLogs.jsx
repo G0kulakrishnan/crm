@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import db from '../../instant';
 import { fmtD, stageBadgeClass } from '../../utils/helpers';
 
-export default function MessagingLogs({ user }) {
+export default function MessagingLogs({ user, ownerId }) {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -10,7 +10,7 @@ export default function MessagingLogs({ user }) {
   const [viewMessage, setViewMessage] = useState(null);
 
   const { data, isLoading } = db.useQuery({
-    outbox: { $: { where: { userId: user.id } } },
+    outbox: { $: { where: { userId: ownerId } } },
   });
 
   const logs = data?.outbox || [];
@@ -108,7 +108,7 @@ export default function MessagingLogs({ user }) {
           </div>
         </div>
 
-        <div style={{ overflowX: 'auto' }}>
+        <div className="tw-scroll">
           <table>
             <thead>
               <tr>
@@ -155,7 +155,7 @@ export default function MessagingLogs({ user }) {
       </div>
 
       {viewMessage && (
-        <div className="mo open" onClick={e => e.target === e.currentTarget && setViewMessage(null)}>
+        <div className="mo open">
           <div className="mo-box" style={{ maxWidth: 500 }}>
             <div className="mo-head">
               <h3>Message Details</h3>

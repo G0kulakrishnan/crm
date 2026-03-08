@@ -1,21 +1,41 @@
 import React, { useMemo } from 'react';
 import db from '../../instant';
+import { useApp } from '../../context/AppContext';
 import { fmt, fmtD, daysLeft, stageBadgeClass } from '../../utils/helpers';
 
-export default function Dashboard({ user }) {
+export default function Dashboard({ user, ownerId, perms }) {
+  const { setActiveView } = useApp();
   const { data } = db.useQuery({
-    leads: { $: { where: { userId: user.id } } },
-    quotes: { $: { where: { userId: user.id } } },
-    invoices: { $: { where: { userId: user.id } } },
-    projects: { $: { where: { userId: user.id } } },
-    amc: { $: { where: { userId: user.id } } },
+    leads: { $: { where: { userId: ownerId } } },
+    quotes: { $: { where: { userId: ownerId } } },
+    invoices: { $: { where: { userId: ownerId } } },
+    projects: { $: { where: { userId: ownerId } } },
+    tasks: { $: { where: { userId: ownerId } } },
+    amc: { $: { where: { userId: ownerId } } },
   });
 
-  const leads = data?.leads || [];
-  const quotes = data?.quotes || [];
-  const invoices = data?.invoices || [];
-  const projects = data?.projects || [];
-  const amc = data?.amc || [];
+  const leadsRaw = data?.leads || [];
+  const quotesRaw = data?.quotes || [];
+  const invoicesRaw = data?.invoices || [];
+  const projectsRaw = data?.projects || [];
+  const tasksRaw = data?.tasks || [];
+  const amcRaw = data?.amc || [];
+  
+  console.log("🔍 [Dashboard] Props - ownerId:", ownerId, "perms:", perms?.isOwner ? "Owner" : "Team");
+  console.log("📊 [Dashboard] Data - leadsRaw count:", leadsRaw.length);
+
+  const { leads, quotes, invoices, projects, amc } = useMemo(() => {
+    const isTeam = perms && !perms.isOwner;
+    if (!isTeam) return { leads: leadsRaw, quotes: quotesRaw, invoices: invoicesRaw, projects: projectsRaw, amc: amcRaw };
+
+    const filteredLeads = leadsRaw.filter(l => l.assign === user.email || l.assign === perms.name || l.actorId === user.id);
+    const filteredInvoices = invoicesRaw.filter(i => i.actorId === user.id);
+    const filteredQuotes = quotesRaw.filter(q => q.actorId === user.id);
+    const filteredAmc = amcRaw.filter(a => a.actorId === user.id);
+    const filteredProjects = projectsRaw.filter(p => p.actorId === user.id || tasksRaw.some(t => t.projectId === p.id && (t.assignTo === user.email || t.assignTo === perms.name)));
+
+    return { leads: filteredLeads, quotes: filteredQuotes, invoices: filteredInvoices, projects: filteredProjects, amc: filteredAmc };
+  }, [leadsRaw, quotesRaw, invoicesRaw, projectsRaw, amcRaw, tasksRaw, perms, user]);
   const now = new Date();
 
   const stats = useMemo(() => {
@@ -38,8 +58,8 @@ export default function Dashboard({ user }) {
   // Upcoming reminders
   const reminders = useMemo(() => {
     const rem = [];
-    amc.forEach(a => { const d = daysLeft(a.endDate); if (d <= 30 && d >= 0) rem.push({ icon: '🛡', text: `<strong>${a.client}</strong> AMC expires in <strong>${d} days</strong>` }); });
-    leads.filter(l => l.followup && new Date(l.followup) < now).forEach(l => rem.push({ icon: '⏰', text: `Follow-up overdue: <strong>${l.name}</strong>` }));
+    amc.forEach(a => { const d = daysLeft(a.endDate); if (d <= 30 && d >= 0) rem.push({ icon: '🛡', text: `<strong>${a.client}</strong> AMC ${a.plan ? `(<strong>${a.plan}</strong>) ` : ''}expires in <strong>${d} days</strong>`, actionInfo: { type: 'amc', id: a.id } }); });
+    leads.filter(l => l.followup && new Date(l.followup) < now).forEach(l => rem.push({ icon: '⏰', text: `Follow-up overdue: <strong>${l.name}</strong>`, actionInfo: { type: 'lead', id: l.id } }));
     return rem;
   }, [amc, leads]);
 
@@ -90,6 +110,17 @@ export default function Dashboard({ user }) {
     return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   }, []);
 
+  const handleReminderClick = (info) => {
+    if (!info) return;
+    if (info.type === 'amc') {
+      localStorage.setItem('tc_open_amc', info.id);
+      setActiveView('amc');
+    } else if (info.type === 'lead') {
+      localStorage.setItem('tc_open_lead', info.id);
+      setActiveView('leads');
+    }
+  };
+
   return (
     <div>
       {/* Header */}
@@ -139,7 +170,7 @@ export default function Dashboard({ user }) {
             {reminders.length === 0 ? (
               <div style={{ textAlign: 'center', padding: 28, color: 'var(--muted)', fontSize: 12 }}>✓ No pending reminders</div>
             ) : reminders.map((r, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'start', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
+              <div key={i} style={{ display: 'flex', alignItems: 'start', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: '.15s', ':hover': { background: 'var(--bg)' } }} onClick={() => handleReminderClick(r.actionInfo)} className="rem-item-hover">
                 <span style={{ fontSize: 16, flexShrink: 0 }}>{r.icon}</span>
                 <div style={{ flex: 1, fontSize: 12, lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: r.text }} />
               </div>

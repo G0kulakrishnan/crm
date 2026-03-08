@@ -2,7 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import db from '../../instant';
 import { fmt, fmtD } from '../../utils/helpers';
 
-export default function Reports({ user }) {
+export default function Reports({ user, perms, ownerId }) {
+  const canExport = (perms?.can('Reports', 'create') !== false) || (perms?.can('Reports', 'edit') !== false);
+
   const [tab, setTab] = useState('pl');
   const [dateFilter, setDateFilter] = useState('This Month');
   const [fromDate, setFromDate] = useState(() => { const d = new Date(); d.setMonth(0, 1); return d.toISOString().split('T')[0]; });
@@ -38,11 +40,11 @@ export default function Reports({ user }) {
   }, [dateFilter]);
 
   const { data } = db.useQuery({
-    invoices: { $: { where: { userId: user.id } } },
-    expenses: { $: { where: { userId: user.id } } },
-    leads: { $: { where: { userId: user.id } } },
-    tasks: { $: { where: { userId: user.id } } },
-    teamMembers: { $: { where: { userId: user.id } } },
+    invoices: { $: { where: { userId: ownerId } } },
+    expenses: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId } } },
+    tasks: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
   });
 
   const invoices = data?.invoices || [];
@@ -57,14 +59,20 @@ export default function Reports({ user }) {
     return d >= new Date(fromDate) && d <= new Date(toDate + 'T23:59:59');
   };
 
-  const filteredInv = invoices.filter(inv => inRange(inv.date));
+  const filteredInv = invoices.filter(inv => inRange(inv.date) && inv.status !== 'Draft');
   const filteredExp = expenses.filter(e => inRange(e.date));
+
+  const getInvTax = (inv) => {
+    if (typeof inv.taxAmt === 'number') return inv.taxAmt;
+    if (!inv.items) return 0;
+    return inv.items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0) * (it.taxRate || 0) / 100, 0);
+  };
 
   const { revenue, gst, inputGst } = useMemo(() => {
     let revenue = 0, gst = 0, inputGst = 0;
     filteredInv.filter(inv => inv.status === 'Paid').forEach(inv => {
       revenue += (inv.total || 0);
-      gst += (inv.taxAmt || 0);
+      gst += getInvTax(inv);
     });
     filteredExp.filter(e => e.status === 'Approved').forEach(e => {
       inputGst += (e.taxAmt || 0);
@@ -126,7 +134,7 @@ export default function Reports({ user }) {
       const d = new Date(inv.date);
       const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
       if (!months[k]) months[k] = { out: 0, inp: 0 };
-      months[k].out += (inv.taxAmt || 0);
+      months[k].out += getInvTax(inv);
     });
     filteredExp.filter(e => e.status === 'Approved').forEach(e => {
       const d = new Date(e.date);
@@ -161,7 +169,10 @@ export default function Reports({ user }) {
         [''],
         ['--- Invoice Details ---'],
         ['Invoice No', 'Client', 'Status', 'Taxable Amount', 'GST Amount'],
-        ...filteredInv.map(inv => [inv.no, inv.client, inv.status, (inv.total || 0) - (inv.taxAmt || 0), inv.taxAmt])
+        ...filteredInv.map(inv => {
+          const t = getInvTax(inv);
+          return [inv.no, inv.client, inv.status, (inv.total || 0) - t, t];
+        })
       ];
       exportCSV(rows[0], rows.slice(1), `GST_Detailed_Report_${fromDate}_to_${toDate}`);
     } else if (tab === 'team') {
@@ -172,11 +183,21 @@ export default function Reports({ user }) {
   };
 
   return (
-    <div>
-      <div className="sh" style={{ marginBottom: 12 }}>
+    <div className="reports-view">
+      <style>{`
+        .reports-view .tw { border: none !important; box-shadow: 0 6px 24px rgba(0,0,0,0.04) !important; border-radius: 16px !important; overflow: hidden; }
+        .reports-view .tw-head { background: #fff; border-bottom: 1px solid #f4f4f4 !important; }
+        .reports-view .stat-card { border: none !important; box-shadow: 0 6px 24px rgba(0,0,0,0.04) !important; border-radius: 16px !important; background: #fff !important; transition: transform 0.2s ease; }
+        .reports-view .stat-card:hover { transform: translateY(-3px); box-shadow: 0 10px 30px rgba(0,0,0,0.06) !important; }
+        .reports-view .sh { border: none !important; box-shadow: 0 6px 24px rgba(0,0,0,0.04) !important; }
+        .reports-view .tabs { border: none !important; box-shadow: 0 6px 24px rgba(0,0,0,0.04) !important; padding: 6px !important; }
+        .reports-view .tab { padding: 8px 16px !important; border-radius: 8px !important; }
+        .reports-view table th { background: #fdfdfd !important; text-transform: none; color: #888; font-size: 11px; /* softer headers */ }
+      `}</style>
+      <div className="sh" style={{ marginBottom: 20, background: '#fff', padding: '16px 20px', borderRadius: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
-          <h2>Reports & Analytics</h2>
-          <button className="btn btn-secondary btn-sm" onClick={handleExport}>⬇ Export (Excel/CSV)</button>
+          <h2 style={{ fontSize: 18, color: '#111' }}>Reports & Analytics</h2>
+          {canExport && <button className="btn btn-secondary btn-sm" style={{ background: '#f8faf9', border: '1.5px solid #e2e8f0' }} onClick={handleExport}>⬇ Export (Excel/CSV)</button>}
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <select value={dateFilter} onChange={e => setDateFilter(e.target.value)} style={{ padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 12, fontFamily: 'inherit' }}>
@@ -193,20 +214,35 @@ export default function Reports({ user }) {
         </div>
       </div>
 
-      <div className="tabs no-print">
-        {[
-          ['pl', 'P&L Statement'], 
-          ['gst', 'GST Summary'], 
-          ['leads', 'Lead Pipeline'], 
-          ['funnel', 'Sales Funnel'],
-          ['rev-src', 'Revenue by Source'],
-          ['team', 'Team Performance']
-        ].map(([t, l]) => (
-          <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{l}</div>
-        ))}
-      </div>
+      <div style={{ display: 'flex', gap: '24px', alignItems: 'flex-start' }}>
+        <div className="tabs no-print" style={{ 
+          display: 'flex', 
+          flexDirection: 'column', 
+          gap: '4px',
+          width: '240px', 
+          flexShrink: 0,
+          marginBottom: 24, 
+          padding: 12, 
+          background: '#fff', 
+          borderRadius: 16, 
+          border: '1px solid var(--border)', 
+          boxShadow: '0 2px 10px rgba(0,0,0,0.02)' 
+        }}>
+          <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', padding: '0 12px 12px', letterSpacing: '0.05em' }}>Report Types</div>
+          {[
+            ['pl', 'P&L Statement'], 
+            ['gst', 'GST Summary'], 
+            ['leads', 'Lead Pipeline'], 
+            ['funnel', 'Sales Funnel'],
+            ['rev-src', 'Revenue by Source'],
+            ['team', 'Team Performance']
+          ].map(([t, l]) => (
+            <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)} style={{ padding: '10px 16px', borderRadius: 8, width: '100%', textAlign: 'left' }}>{l}</div>
+          ))}
+        </div>
 
-      {tab === 'pl' && (
+        <div style={{ flex: 1, minWidth: 0 }}>
+          {tab === 'pl' && (
         <div>
           <div className="stat-grid" style={{ marginBottom: 18 }}>
             <div className="stat-card sc-green"><div className="lbl">Revenue (Paid)</div><div className="val" style={{ fontSize: 20 }}>{fmt(revenue)}</div></div>
@@ -216,13 +252,15 @@ export default function Reports({ user }) {
           </div>
           <div className="tw">
             <div className="tw-head"><h3>Invoice Breakdown</h3></div>
-            <table>
-              <thead><tr><th>Invoice No.</th><th>Client</th><th>Date</th><th>Status</th><th>Amount</th></tr></thead>
-              <tbody>
-                {filteredInv.length === 0 ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No invoices in this period</td></tr>
-                  : filteredInv.map(inv => <tr key={inv.id}><td style={{ fontSize: 12 }}>{inv.no}</td><td>{inv.client}</td><td style={{ fontSize: 12 }}>{fmtD(inv.date)}</td><td><span className={`badge ${inv.status === 'Paid' ? 'bg-green' : inv.status === 'Overdue' ? 'bg-red' : 'bg-gray'}`}>{inv.status}</span></td><td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td></tr>)}
-              </tbody>
-            </table>
+            <div className="tw-scroll">
+              <table>
+                <thead><tr><th>Invoice No.</th><th>Client</th><th>Date</th><th>Status</th><th>Amount</th></tr></thead>
+                <tbody>
+                  {filteredInv.length === 0 ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No invoices in this period</td></tr>
+                    : filteredInv.map(inv => <tr key={inv.id}><td style={{ fontSize: 12 }}>{inv.no}</td><td>{inv.client}</td><td style={{ fontSize: 12 }}>{fmtD(inv.date)}</td><td><span className={`badge ${inv.status === 'Paid' ? 'bg-green' : inv.status === 'Overdue' ? 'bg-red' : 'bg-gray'}`}>{inv.status}</span></td><td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td></tr>)}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}
@@ -260,32 +298,47 @@ export default function Reports({ user }) {
           <div className="tw">
             <div className="tw-head"><h3>Monthly GST Breakdown</h3></div>
             <div style={{ padding: '0 20px 20px' }}>
-              <table className="li-table" style={{ width: '100%' }}>
-                <thead><tr><th>Month</th><th>Output Tax</th><th>Input Tax</th><th>Net Payable</th></tr></thead>
-                <tbody>
-                  {gstBreakdown.length === 0 ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: 20 }}>No data for this period</td></tr>
-                    : gstBreakdown.map(([k, v]) => (
-                      <tr key={k}>
-                        <td>{new Date(k + '-01').toLocaleString('default', { month: 'short', year: 'numeric' })}</td>
-                        <td style={{ textAlign: 'right', color: '#16a34a' }}>{fmt(v.out)}</td>
-                        <td style={{ textAlign: 'right', color: '#dc2626' }}>{fmt(v.inp)}</td>
-                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(v.out - v.inp)}</td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
+              <div className="tw-scroll">
+                <table className="li-table" style={{ width: '100%' }}>
+                  <thead><tr><th>Month</th><th>Output Tax</th><th>Input Tax</th><th>Net Payable</th></tr></thead>
+                  <tbody>
+                    {gstBreakdown.length === 0 ? <tr><td colSpan={4} style={{ textAlign: 'center', padding: 20 }}>No data for this period</td></tr>
+                      : gstBreakdown.map(([k, v]) => (
+                        <tr key={k}>
+                          <td>{new Date(k + '-01').toLocaleString('default', { month: 'short', year: 'numeric' })}</td>
+                          <td style={{ textAlign: 'right', color: '#16a34a' }}>{fmt(v.out)}</td>
+                          <td style={{ textAlign: 'right', color: '#dc2626' }}>{fmt(v.inp)}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(v.out - v.inp)}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
           <div className="tw">
             <div className="tw-head"><h3>Invoice-wise Tax Details</h3></div>
             <div style={{ padding: '0 20px 20px' }}>
-              <table className="li-table" style={{ width: '100%' }}>
-                <thead><tr><th>Invoice No.</th><th>Client</th><th>Status</th><th>Taxable Amount</th><th>GST Amount</th></tr></thead>
-                <tbody>
-                  {filteredInv.map(inv => <tr key={inv.id}><td>{inv.no}</td><td>{inv.client}</td><td><span className={`badge ${inv.status === 'Paid' ? 'bg-green' : 'bg-gray'}`}>{inv.status}</span></td><td style={{ textAlign: 'right' }}>{fmt((inv.total || 0) - (inv.taxAmt || 0))}</td><td style={{ textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>{fmt(inv.taxAmt || 0)}</td></tr>)}
-                </tbody>
-              </table>
+              <div className="tw-scroll">
+                <table className="li-table" style={{ width: '100%' }}>
+                  <thead><tr><th>Invoice No.</th><th>Client</th><th>Status</th><th>Taxable Amount</th><th>GST Amount</th></tr></thead>
+                  <tbody>
+                    {filteredInv.map(inv => {
+                      const t = getInvTax(inv);
+                      return (
+                        <tr key={inv.id}>
+                          <td>{inv.no}</td>
+                          <td>{inv.client}</td>
+                          <td><span className={`badge ${inv.status === 'Paid' ? 'bg-green' : 'bg-gray'}`}>{inv.status}</span></td>
+                          <td style={{ textAlign: 'right' }}>{fmt((inv.total || 0) - t)}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>{fmt(t)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </div>
@@ -353,26 +406,30 @@ export default function Reports({ user }) {
       {tab === 'team' && (
         <div className="tw">
           <div className="tw-head"><h3>Team Performance</h3></div>
-          <table>
-            <thead><tr><th>Name</th><th>Leads Assigned</th><th>Tasks Total</th><th>Tasks Done</th><th>Completion</th></tr></thead>
-            <tbody>
-              {teamPerf.length === 0 ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>Add team members to see performance</td></tr>
-                : teamPerf.map((m, i) => {
-                  const pct = m.tasks ? Math.round((m.done / m.tasks) * 100) : 0;
-                  return (
-                    <tr key={i}>
-                      <td><strong>{m.name}</strong></td>
-                      <td><span className="badge bg-blue">{m.leads}</span></td>
-                      <td>{m.tasks}</td>
-                      <td><span className="badge bg-green">{m.done}</span></td>
-                      <td style={{ minWidth: 100 }}><div className="pbar"><div className="pfill" style={{ width: `${pct}%` }} /></div><span style={{ fontSize: 11, color: 'var(--muted)' }}>{pct}%</span></td>
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
+          <div className="tw-scroll">
+            <table>
+              <thead><tr><th>Name</th><th>Leads Assigned</th><th>Tasks Total</th><th>Tasks Done</th><th>Completion</th></tr></thead>
+              <tbody>
+                {teamPerf.length === 0 ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>Add team members to see performance</td></tr>
+                  : teamPerf.map((m, i) => {
+                    const pct = m.tasks ? Math.round((m.done / m.tasks) * 100) : 0;
+                    return (
+                      <tr key={i}>
+                        <td><strong>{m.name}</strong></td>
+                        <td><span className="badge bg-blue">{m.leads}</span></td>
+                        <td>{m.tasks}</td>
+                        <td><span className="badge bg-green">{m.done}</span></td>
+                        <td style={{ minWidth: 100 }}><div className="pbar"><div className="pfill" style={{ width: `${pct}%` }} /></div><span style={{ fontSize: 11, color: 'var(--muted)' }}>{pct}%</span></td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD, stageBadgeClass, uid } from '../../utils/helpers';
@@ -9,7 +9,11 @@ const SOURCES = ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsA
 
 const EMPTY_LEAD = { name: '', email: '', phone: '', source: 'FB Ads', stage: 'New Enquiry', assign: '', followup: '', label: 'Hot', notes: '', remWA: false, remEmail: true, remSMS: false, custom: {} };
 
-export default function LeadsView({ user }) {
+export default function LeadsView({ user, perms, ownerId }) {
+  const canCreate = perms?.can('Leads', 'create') !== false;
+  const canEdit = perms?.can('Leads', 'edit') !== false;
+  const canDelete = perms?.can('Leads', 'delete') !== false;
+
   const [view, setView] = useState('list'); // 'list' | 'kanban'
   const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
@@ -24,26 +28,51 @@ export default function LeadsView({ user }) {
   const [tempStages, setTempStages] = useState([]);
   const [viewLead, setViewLead] = useState(null);
   const [noteText, setNoteText] = useState('');
+  const [dragOverStage, setDragOverStage] = useState(null);
+  const dragLeadId = useRef(null);
   const toast = useToast();
 
   const { data } = db.useQuery({
-    leads: { $: { where: { userId: user.id } } },
-    teamMembers: { $: { where: { userId: user.id } } },
-    userProfiles: { $: { where: { userId: user.id } } },
-    activityLogs: { $: { where: { userId: user.id } } },
+    leads: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
+    activityLogs: { $: { where: { userId: ownerId } } },
   });
-  const leads = data?.leads || [];
   const team = data?.teamMembers || [];
   const activityLogs = data?.activityLogs || [];
   const customFields = data?.userProfiles?.[0]?.customFields || [];
   const profileId = data?.userProfiles?.[0]?.id;
   
+  console.log("🔍 [LeadsView] Props - ownerId:", ownerId, "perms:", perms?.isOwner ? "Owner" : "Team");
+  console.log("📊 [LeadsView] Data - leadsRaw count:", data?.leads?.length || 0);
+
+  const leads = useMemo(() => {
+    const rawLeads = data?.leads || [];
+    const isTeam = perms && !perms.isOwner;
+    if (!isTeam) return rawLeads;
+    const filtered = rawLeads.filter(l => l.assign === user.email || l.assign === perms.name || l.actorId === user.id);
+    console.log("🎯 [LeadsView] Filtered leads count:", filtered.length);
+    return filtered;
+  }, [data?.leads, perms, user]);
+  
+  useEffect(() => {
+    const openId = localStorage.getItem('tc_open_lead');
+    if (openId && leads.length > 0) {
+      const target = leads.find(l => l.id === openId);
+      if (target) {
+        setViewLead(target);
+        localStorage.removeItem('tc_open_lead');
+      }
+    }
+  }, [leads]);
+
   const savedCols = data?.userProfiles?.[0]?.leadCols;
   const allPossibleCols = ['Created', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Label', 'Reminder', ...customFields.map(c => c.name)];
   const activeCols = savedCols || allPossibleCols;
 
-  const savedStages = data?.userProfiles?.[0]?.leadStages;
-  const activeStages = savedStages || STAGES;
+  const allStages = data?.userProfiles?.[0]?.stages || STAGES;  // ordered full list from Settings
+  const savedLeadStages = data?.userProfiles?.[0]?.leadStages;   // visible subset saved from Leads colModal
+  const activeStages = allStages.filter(s => !savedLeadStages || savedLeadStages.includes(s));
 
   // Filtering
   const filtered = useMemo(() => {
@@ -89,7 +118,8 @@ export default function LeadsView({ user }) {
       entityId: leadId,
       entityType: 'lead',
       text,
-      userId: user.id,
+      userId: ownerId,
+      actorId: user.id, // Track who actually did it
       userName: user.email,
       createdAt: Date.now()
     }));
@@ -118,7 +148,7 @@ export default function LeadsView({ user }) {
           }
         });
         
-        await db.transact(db.tx.leads[editData.id].update({ ...form, userId: user.id, updatedAt: Date.now() }));
+        await db.transact(db.tx.leads[editData.id].update({ ...form, userId: ownerId, actorId: user.id, updatedAt: Date.now() }));
         
         if (changes.length > 0) {
           await logActivity(editData.id, changes.join(' | '));
@@ -127,7 +157,7 @@ export default function LeadsView({ user }) {
         toast('Lead updated!', 'success');
       } else {
         const newId = id();
-        await db.transact(db.tx.leads[newId].update({ ...form, userId: user.id, createdAt: Date.now() }));
+        await db.transact(db.tx.leads[newId].update({ ...form, userId: ownerId, actorId: user.id, createdAt: Date.now() }));
         await logActivity(newId, 'Lead created');
         toast(`Lead "${form.name}" created!`, 'success');
       }
@@ -175,7 +205,7 @@ export default function LeadsView({ user }) {
         name: l.name,
         email: l.email || '',
         phone: l.phone || '',
-        userId: user.id,
+        userId: ownerId,
         createdAt: Date.now()
       };
       await db.transact([
@@ -188,19 +218,17 @@ export default function LeadsView({ user }) {
     }
   };
 
-  const saveViewConfig = async (colsToSave, stagesToSave) => {
+  const saveViewConfig = async (colsToSave, stagesVisible) => {
     if (profileId) {
-      await db.transact(db.tx.userProfiles[profileId].update({ leadCols: colsToSave, leadStages: stagesToSave }));
+      await db.transact(db.tx.userProfiles[profileId].update({ leadCols: colsToSave, leadStages: stagesVisible }));
     } else {
-      await db.transact(db.tx.userProfiles[id()].update({ leadCols: colsToSave, leadStages: stagesToSave, userId: user.id }));
+      await db.transact(db.tx.userProfiles[id()].update({ leadCols: colsToSave, leadStages: stagesVisible, userId: ownerId }));
     }
     setColModal(false);
     toast('View configuration saved', 'success');
   };
 
-  const resetViewConfig = () => {
-    saveViewConfig(allPossibleCols, STAGES);
-  };
+  const resetViewConfig = () => saveViewConfig(allPossibleCols, allStages);
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   const cf = (k) => (e) => setForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
@@ -228,9 +256,29 @@ export default function LeadsView({ user }) {
                 {l.phone && <span>☏ {l.phone}</span>}
                 <span className={`badge ${stageBadgeClass(l.stage)}`} style={{ marginLeft: 15 }}>{l.stage}</span>
               </div>
+              <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
+                {l.phone && (
+                  <>
+                    <a href={`tel:${l.phone}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: '50%', background: '#eff6ff', color: '#2563eb', textDecoration: 'none' }} title="Call">
+                      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                    </a>
+                    <a href={`https://wa.me/${l.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: '50%', background: '#e8fdf0', color: '#16a34a', textDecoration: 'none' }} title="WhatsApp">
+                      <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.663-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+                    </a>
+                    <a href={`sms:${l.phone}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: '50%', background: '#f5f3ff', color: '#7c3aed', textDecoration: 'none' }} title="SMS">
+                      <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    </a>
+                  </>
+                )}
+                {l.email && (
+                  <a href={`mailto:${l.email}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: '50%', background: '#f3f4f6', color: '#4b5563', textDecoration: 'none' }} title="Email">
+                    <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                  </a>
+                )}
+              </div>
             </div>
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={() => openEdit(l)}>Edit Lead</button>
+          {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => openEdit(l)}>Edit Lead</button>}
         </div>
 
         <div className="stat-grid" style={{ marginBottom: 25 }}>
@@ -294,7 +342,7 @@ export default function LeadsView({ user }) {
         </div>
 
         {modal && (
-          <div className="mo open" onClick={e => e.target === e.currentTarget && setModal(false)}>
+          <div className="mo open">
             <div className="mo-box">
               <div className="mo-head">
                 <h3>Edit Lead</h3>
@@ -349,7 +397,7 @@ export default function LeadsView({ user }) {
         <div style={{ display: 'flex', gap: 8 }}>
           <button className={`btn btn-sm ${view === 'list' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setView('list')}>☰ List</button>
           <button className={`btn btn-sm ${view === 'kanban' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setView('kanban')}>⊞ Kanban</button>
-          <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Create Lead</button>
+          {canCreate && <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Create Lead</button>}
         </div>
       </div>
 
@@ -374,7 +422,7 @@ export default function LeadsView({ user }) {
                 <option value="">Change Stage...</option>
                 {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
-              <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={bulkDelete}>🗑 Delete Selected</button>
+              {canDelete && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={bulkDelete}>🗑 Delete Selected</button>}
               <button className="btn btn-secondary btn-sm" onClick={() => setSelectedIds(new Set())}>✕ Clear</button>
             </div>
           )}
@@ -394,9 +442,9 @@ export default function LeadsView({ user }) {
                 </select>
                 <select className="si" style={{ width: 130 }} value={stgFilter} onChange={e => setStgFilter(e.target.value)}>
                   <option value="">All Stages</option>
-                  {STAGES.map(s => <option key={s}>{s}</option>)}
+                  {activeStages.map(s => <option key={s}>{s}</option>)}
                 </select>
-                <button className="btn btn-secondary btn-sm" onClick={() => { setTempCols(activeCols); setTempStages(activeStages); setColModal(true); }}>⚙ View Preferences</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => { setTempCols(activeCols); setTempStages(activeStages); setColModal(true); }}>⚙ Configure View</button>
               </div>
             </div>
             <div style={{ overflowX: 'auto', paddingBottom: 60 /* space for dropdowns */ }}>
@@ -425,7 +473,30 @@ export default function LeadsView({ user }) {
                   <tr key={l.id}>
                     <td><input type="checkbox" checked={selectedIds.has(l.id)} onChange={e => { const s = new Set(selectedIds); e.target.checked ? s.add(l.id) : s.delete(l.id); setSelectedIds(s); }} style={{ width: 14, height: 14, accentColor: 'var(--accent)' }} /></td>
                     <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
-                    <td><strong>{l.name}</strong><div style={{ fontSize: 10, color: 'var(--muted)' }}>{l.email}</div></td>
+                    <td>
+                      <strong>{l.name}</strong>
+                      <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>{l.email}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        {l.phone && (
+                          <>
+                            <a href={`tel:${l.phone}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: '#eff6ff', color: '#2563eb', textDecoration: 'none' }} title="Call">
+                              <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                            </a>
+                            <a href={`https://wa.me/${l.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: '#e8fdf0', color: '#16a34a', textDecoration: 'none' }} title="WhatsApp">
+                              <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.663-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+                            </a>
+                            <a href={`sms:${l.phone}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: '#f5f3ff', color: '#7c3aed', textDecoration: 'none' }} title="SMS">
+                              <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                            </a>
+                          </>
+                        )}
+                        {l.email && (
+                          <a href={`mailto:${l.email}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: '#f3f4f6', color: '#4b5563', textDecoration: 'none' }} title="Email">
+                            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                          </a>
+                        )}
+                      </div>
+                    </td>
                     {activeCols.includes('Created') && <td style={{ fontSize: 11 }}>{l.createdAt ? fmtD(l.createdAt) : '-'}</td>}
                     {activeCols.includes('Phone') && <td style={{ fontSize: 12 }}>{l.phone || '-'}</td>}
                     {activeCols.includes('Source') && <td><span style={{ fontSize: 11 }}>{l.source}</span></td>}
@@ -452,9 +523,9 @@ export default function LeadsView({ user }) {
                           dm.style.display = dm.style.display === 'block' ? 'none' : 'block';
                         }}>⋮</button>
                         <div className="dd-menu" style={{ display: 'none', position: 'absolute', right: 0, top: 28, background: '#fff', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 100, width: 160, overflow: 'hidden', textAlign: 'left' }}>
-                          <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { openEdit(l); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>✎ Edit</div>
-                          <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { convertToCustomer(l); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>👤 Convert to Customer</div>
-                          <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', color: '#dc2626' }} onClick={() => { deleteLead(l.id); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>🗑 Delete</div>
+                          {canEdit && <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { openEdit(l); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>✎ Edit</div>}
+                          {canEdit && <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { convertToCustomer(l); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>👤 Convert to Customer</div>}
+                          {canDelete && <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', color: '#dc2626' }} onClick={() => { deleteLead(l.id); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>🗑 Delete</div>}
                         </div>
                       </div>
                     </td>
@@ -468,15 +539,65 @@ export default function LeadsView({ user }) {
       ) : (
         /* KANBAN */
         <div className="kanban">
-          {STAGES.map(stage => {
-            const cards = leads.filter(l => l.stage === stage);
+          {activeStages.map(stage => {
+            const cards = filtered.filter(l => l.stage === stage);
+            const isOver = dragOverStage === stage;
             return (
-              <div key={stage} className="kb-col">
+              <div
+                key={stage}
+                className="kb-col"
+                style={{ background: isOver ? 'rgba(99,102,241,0.06)' : undefined, outline: isOver ? '2px dashed var(--accent)' : undefined, borderRadius: 8, transition: 'background 0.15s' }}
+                onDragOver={e => { e.preventDefault(); setDragOverStage(stage); }}
+                onDragLeave={() => setDragOverStage(null)}
+                onDrop={async e => {
+                  e.preventDefault();
+                  setDragOverStage(null);
+                  const lid = dragLeadId.current;
+                  if (!lid) return;
+                  const lead = leads.find(l => l.id === lid);
+                  if (!lead || lead.stage === stage) return;
+                  await db.transact(db.tx.leads[lid].update({ stage }));
+                  await logActivity(lid, `Stage changed from "${lead.stage}" to "${stage}" (drag & drop)`);
+                  toast(`Moved to ${stage}`, 'success');
+                }}
+              >
                 <div className="kb-col-head">{stage} <span>{cards.length}</span></div>
                 {cards.map(l => (
-                  <div key={l.id} className="kb-card" onClick={() => openEdit(l)}>
-                    <div className="nm">{l.name}</div>
-                    <div className="mt">{l.source} · {l.phone || '-'}</div>
+                  <div
+                    key={l.id}
+                    className="kb-card"
+                    draggable
+                    onDragStart={e => { dragLeadId.current = l.id; e.dataTransfer.effectAllowed = 'move'; }}
+                    onDragEnd={() => { dragLeadId.current = null; setDragOverStage(null); }}
+                    style={{ cursor: 'grab' }}
+                  >
+                    <div className="nm" onClick={() => openEdit(l)} style={{ cursor: 'pointer' }}>{l.name}</div>
+                    <div className="mt" style={{ marginBottom: 4 }}>{l.source} · {l.phone || '-'}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {l.phone && (
+                        <>
+                          <a href={`tel:${l.phone}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: '#eff6ff', color: '#2563eb', textDecoration: 'none' }} title="Call">
+                            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>
+                          </a>
+                          <a href={`https://wa.me/${l.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: '#e8fdf0', color: '#16a34a', textDecoration: 'none' }} title="WhatsApp">
+                            <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.888-.788-1.489-1.761-1.663-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51a12.8 12.8 0 0 0-.57-.01c-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413Z"/></svg>
+                          </a>
+                          <a href={`sms:${l.phone}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: '#f5f3ff', color: '#7c3aed', textDecoration: 'none' }} title="SMS">
+                            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                          </a>
+                        </>
+                      )}
+                      {l.email && (
+                        <a href={`mailto:${l.email}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24, borderRadius: '50%', background: '#f3f4f6', color: '#4b5563', textDecoration: 'none' }} title="Email">
+                          <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                        </a>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, marginTop: 7, flexWrap: 'wrap' }}>
+                      {canEdit && <button className="btn btn-secondary btn-sm" style={{ fontSize: 10, padding: '2px 6px' }} onClick={() => openEdit(l)}>Edit</button>}
+                      {canEdit && <button className="btn btn-secondary btn-sm" style={{ fontSize: 10, padding: '2px 6px' }} onClick={() => convertToCustomer(l)}>→ Customer</button>}
+                      {canDelete && <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 6px', background: '#fee2e2', color: '#991b1b' }} onClick={() => deleteLead(l.id)}>Del</button>}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -487,7 +608,7 @@ export default function LeadsView({ user }) {
 
       {/* MODAL */}
       {modal && (
-        <div className="mo open" onClick={e => e.target === e.currentTarget && setModal(false)}>
+        <div className="mo open">
           <div className="mo-box">
             <div className="mo-head">
               <h3>{editData ? 'Edit Lead' : 'Create Lead'}</h3>
@@ -505,7 +626,7 @@ export default function LeadsView({ user }) {
                 </div>
                 <div className="fg"><label>Stage</label>
                   <select value={form.stage} onChange={f('stage')}>
-                    {STAGES.map(s => <option key={s}>{s}</option>)}
+                    {activeStages.map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
                 <div className="fg"><label>Assign To</label>
@@ -560,20 +681,21 @@ export default function LeadsView({ user }) {
         </div>
       )}
 
-      {/* COLUMNS MODAL */}
+      {/* CONFIGURE VIEW MODAL */}
       {colModal && (
-        <div className="mo open" onClick={e => e.target === e.currentTarget && setColModal(false)}>
+        <div className="mo open">
           <div className="mo-box" style={{ width: 480 }}>
             <div className="mo-head">
               <h3>Configure View</h3>
               <button className="btn-icon" onClick={() => setColModal(false)}>✕</button>
             </div>
             <div className="mo-body" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxHeight: '60vh', overflowY: 'auto' }}>
-              
+
+              {/* Visible Stages */}
               <div>
                 <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Visible Stages</strong>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  {STAGES.map(s => (
+                  {allStages.map(s => (
                     <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
                       <input type="checkbox" checked={tempStages.includes(s)} onChange={e => {
                         if (e.target.checked) setTempStages([...tempStages, s]);
@@ -585,6 +707,7 @@ export default function LeadsView({ user }) {
                 </div>
               </div>
 
+              {/* Visible Columns */}
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
                 <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Visible Columns</strong>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>

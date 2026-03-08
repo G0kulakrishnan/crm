@@ -27,7 +27,7 @@ export default async function handler(req, res) {
     }
 
     // Find the user by email
-    const data = await db.query({ userCredentials: { $: { where: { email: email.trim() } } } });
+    const data = await db.query({ userCredentials: { $: { where: { email: email.trim().toLowerCase() } } } });
     const user = data.userCredentials ? data.userCredentials[0] : null;
 
     if (!user) {
@@ -41,9 +41,18 @@ export default async function handler(req, res) {
     }
 
     // Generate token securely through InstantDB
-    const token = await db.auth.createToken({ email: email.trim() });
+    const token = await db.auth.createToken({ email: email.trim().toLowerCase() });
 
-    return res.status(200).json({ success: true, token });
+    // Check if this is a team member login
+    const isTeamMember = !!(user.isTeamMember && user.ownerUserId);
+    
+    return res.status(200).json({
+      success: true,
+      token,
+      isTeamMember,
+      ownerUserId: isTeamMember ? user.ownerUserId : null,
+      teamMemberId: isTeamMember ? user.teamMemberId : null
+    });
   } catch (err) {
     console.error('Login error:', err);
     return res.status(500).json({ error: err.message || 'Failed to login' });

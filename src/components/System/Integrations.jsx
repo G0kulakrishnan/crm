@@ -1,19 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import db from '../../instant';
+import { id as genId } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import SheetIntegration from './SheetIntegration';
 
-export default function Integrations({ user }) {
+const COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
+
+export default function Integrations({ user, ownerId }) {
   const toast = useToast();
   const [syncing, setSyncing] = useState(null);
-  const [showConfig, setShowConfig] = useState(null); // { type: 'gsheets', index: number | null }
+  const [syncResults, setSyncResults] = useState(null);
+  const [showConfig, setShowConfig] = useState(null);
   const [activeTab, setActiveTab] = useState('all');
+  const [cooldownEnd, setCooldownEnd] = useState(() => {
+    const stored = localStorage.getItem('tc_sync_cooldown');
+    return stored ? parseInt(stored, 10) : 0;
+  });
+  const [cooldownLeft, setCooldownLeft] = useState(0);
+
+  useEffect(() => {
+    const tick = () => {
+      const remaining = Math.max(0, cooldownEnd - Date.now());
+      setCooldownLeft(remaining);
+    };
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [cooldownEnd]);
+
+  const isCoolingDown = cooldownLeft > 0;
+  const cooldownMinutes = Math.ceil(cooldownLeft / 60000);
 
   const { data } = db.useQuery({ 
-    userProfiles: { $: { where: { userId: user.id } } } 
+    userProfiles: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId } } }
   });
   const profile = data?.userProfiles?.[0];
   const gsheets = profile?.gsheets || [];
+  const existingLeads = data?.leads || [];
 
   const integrations = [
     {
@@ -24,7 +48,6 @@ export default function Integrations({ user }) {
       connected: gsheets.length > 0,
       count: gsheets.length
     },
-    // ... rest same
     {
       id: 'fbads',
       name: 'Facebook Ads',
@@ -41,7 +64,136 @@ export default function Integrations({ user }) {
     }
   ];
 
+  const syncGoogleSheet = async (configIndex) => {
+    if (isCoolingDown) {
+      return toast(`Please wait ${cooldownMinutes} min before syncing again.`, 'warning');
+    }
+    const config = gsheets[configIndex];
+    if (!config?.sheetId || !config?.mapping || !config?.columns) {
+      return toast('Integration is not fully configured. Please edit and fetch columns first.', 'error');
+    }
+
+    setSyncing('gsheets');
+    setSyncResults(null);
+
+    try {
+      const url = `https://docs.google.com/spreadsheets/d/${config.sheetId}/gviz/tq?tqx=out:json`;
+      const res = await fetch(url);
+      const text = await res.text();
+      const json = JSON.parse(text.substring(47).slice(0, -2));
+
+      const rawRows = json.table.rows.map(r => r.c.map(cell => cell?.f || cell?.v || ''));
+
+      const cols = json.table.cols.map((c, i) => {
+        const label = c.label;
+        if (label && label.length > 1) return label;
+        const firstRowVal = rawRows[0]?.[i];
+        if (firstRowVal && typeof firstRowVal === 'string') return firstRowVal;
+        return c.label || c.id;
+      });
+
+      const headersFound = json.table.cols.some(c => c.label && c.label.length > 1);
+      const dataRows = headersFound ? rawRows : rawRows.slice(1);
+
+      if (dataRows.length === 0) {
+        setSyncing(null);
+        return toast('Sheet has no data rows.', 'error');
+      }
+
+      // Build dedup Sets for O(1) lookups
+      const emailSet = new Set(existingLeads.filter(l => l.email).map(l => l.email.toLowerCase()));
+      const phoneSet = new Set(existingLeads.filter(l => l.phone).map(l => l.phone));
+
+      const { mapping, customMappings } = config;
+      let added = 0, skipped = 0, errors = 0;
+      let batch = [];
+
+      for (const row of dataRows) {
+        try {
+          const lead = { userId: ownerId, actorId: user.id, createdAt: Date.now(), custom: {} };
+
+          Object.entries(mapping).forEach(([field, m]) => {
+            let val = '';
+            if (m.type === 'column') {
+              const idx = cols.indexOf(m.value);
+              if (idx !== -1 && idx < row.length) val = row[idx] != null ? String(row[idx]) : '';
+            } else {
+              val = m.value;
+            }
+            if (field === 'phone' && val) {
+              const str = String(val);
+              const hasPlus = str.includes('+');
+              const digits = str.replace(/[^0-9]/g, '');
+              val = (hasPlus ? '+' : '') + digits;
+            }
+            if (['name', 'email', 'phone', 'source', 'stage', 'label', 'notes', 'followup'].includes(field)) {
+              lead[field] = val;
+            } else {
+              lead.custom[field] = val;
+            }
+          });
+
+          if (customMappings && Array.isArray(customMappings)) {
+            customMappings.forEach(m => {
+              if (!m.field) return;
+              let val = '';
+              if (m.type === 'column') {
+                const idx = cols.indexOf(m.value);
+                if (idx !== -1 && idx < row.length) val = row[idx] != null ? String(row[idx]) : '';
+              } else {
+                val = m.value;
+              }
+              lead.custom[m.field] = val;
+            });
+          }
+
+          if (!lead.name || !lead.name.trim()) { skipped++; continue; }
+
+          // O(1) dedup check
+          const dupEmail = lead.email && emailSet.has(lead.email.toLowerCase());
+          const dupPhone = lead.phone && phoneSet.has(lead.phone);
+          if (dupEmail || dupPhone) { skipped++; continue; }
+
+          // Add to dedup sets immediately
+          if (lead.email) emailSet.add(lead.email.toLowerCase());
+          if (lead.phone) phoneSet.add(lead.phone);
+
+          batch.push(db.tx.leads[genId()].update(lead));
+          added++;
+
+          // Flush batch every 50 leads
+          if (batch.length >= 50) {
+            await db.transact(batch);
+            batch = [];
+          }
+        } catch {
+          errors++;
+        }
+      }
+
+      // Flush remaining batch
+      if (batch.length > 0) await db.transact(batch);
+
+      // Start cooldown
+      const end = Date.now() + COOLDOWN_MS;
+      setCooldownEnd(end);
+      localStorage.setItem('tc_sync_cooldown', String(end));
+
+      setSyncResults({ total: dataRows.length, added, skipped, errors, configName: config.configName });
+      toast(`Synced! ${added} new lead(s) added, ${skipped} skipped.`, 'success');
+    } catch (e) {
+      console.error('Sync Error:', e);
+      toast('Failed to sync. Ensure the sheet is shared or public.', 'error');
+    } finally {
+      setSyncing(null);
+    }
+  };
+
   const handleSync = (id) => {
+    if (id === 'gsheets' && gsheets.length > 0) {
+      syncGoogleSheet(0);
+      return;
+    }
     setSyncing(id);
     setTimeout(() => {
       setSyncing(null);
@@ -53,6 +205,7 @@ export default function Integrations({ user }) {
     return (
       <SheetIntegration 
         user={user} 
+        ownerId={ownerId}
         onBack={() => setShowConfig(null)} 
         existingConfig={showConfig.index !== null ? gsheets[showConfig.index] : null} 
         editIndex={showConfig.index}
@@ -87,13 +240,26 @@ export default function Integrations({ user }) {
             {item.id === 'gsheets' && gsheets.length > 0 && (
               <div style={{ marginTop: -10, marginBottom: 15 }}>
                 {gsheets.map((gs, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg-soft)', borderRadius: 8, marginBottom: 6, fontSize: 12 }}>
-                    <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 180 }}>
-                      📄 {gs.configName || gs.mapping?.source?.value || gs.sheetId.substring(0, 8) + '...'}
+                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg)', borderRadius: 8, marginBottom: 6, fontSize: 12 }}>
+                    <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
+                      📄 {gs.configName || gs.sheetId.substring(0, 8) + '...'}
                     </span>
-                    <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: 10 }} onClick={() => setShowConfig({ type: 'gsheets', index: idx })}>Edit</button>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <button className="btn btn-primary btn-sm" style={{ padding: '2px 10px', fontSize: 10 }} onClick={() => syncGoogleSheet(idx)} disabled={syncing !== null || isCoolingDown}>
+                        {syncing === 'gsheets' ? '⟳ Syncing...' : isCoolingDown ? `⏳ ${cooldownMinutes}m` : '⟳ Sync Now'}
+                      </button>
+                      <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: 10 }} onClick={() => setShowConfig({ type: 'gsheets', index: idx })}>Edit</button>
+                    </div>
                   </div>
                 ))}
+                {syncResults && (
+                  <div style={{ background: '#ecfdf5', border: '1px solid #10b981', borderRadius: 8, padding: '10px 14px', marginTop: 10, fontSize: 11, color: '#065f46' }}>
+                    <strong>Last Sync: {syncResults.configName}</strong>
+                    <div style={{ marginTop: 4 }}>
+                      ✅ {syncResults.added} added · ⏭ {syncResults.skipped} skipped · ❌ {syncResults.errors} errors · 📊 {syncResults.total} total rows
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             <button 

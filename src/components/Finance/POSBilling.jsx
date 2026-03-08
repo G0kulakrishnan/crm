@@ -4,29 +4,36 @@ import { id } from '@instantdb/react';
 import { fmt, fmtD } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
-export default function POSBilling({ user }) {
-  const [search, setSearch] = useState('');
-  const [cart, setCart] = useState([]);
-  const [custSearch, setCustSearch] = useState('');
-  const [selectedCust, setSelectedCust] = useState(null);
-  const [payMode, setPayMode] = useState('Cash');
-  const [selectedCat, setSelectedCat] = useState('All');
-  const [printing, setPrinting] = useState(null);
-  const [showCustList, setShowCustList] = useState(false);
-  const toast = useToast();
-  
+export default function POSBilling({ user, ownerId, perms }) {
   const { data } = db.useQuery({
-    products: { $: { where: { userId: user.id } } },
-    customers: { $: { where: { userId: user.id } } },
-    userProfiles: { $: { where: { userId: user.id } } },
+    products: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId } } },
+    invoices: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
   });
   
+  const [cart, setCart] = useState([]);
+  const [selectedCat, setSelectedCat] = useState('All');
+  const [search, setSearch] = useState('');
+  const [custSearch, setCustSearch] = useState('');
+  const [selectedCust, setSelectedCust] = useState(null);
+  const [showCustList, setShowCustList] = useState(false);
+  const [printing, setPrinting] = useState(null);
+  const [payMode, setPayMode] = useState('Cash');
+
+  const invoices = useMemo(() => {
+    const rawInvoices = data?.invoices || [];
+    const isTeam = perms && !perms.isOwner;
+    if (!isTeam) return rawInvoices;
+    return rawInvoices.filter(i => i.actorId === user.id);
+  }, [data?.invoices, perms, user]);
+
   const products = data?.products || [];
   const customers = data?.customers || [];
   const profile = data?.userProfiles?.[0] || {};
 
   const categories = useMemo(() => {
-    const cats = profile.productCats || ['General'];
+    const cats = profile.productCats || ['Electronics', 'Home Appliances', 'Services', 'Furniture', 'General'];
     return ['All', ...cats];
   }, [profile.productCats]);
 
@@ -86,9 +93,11 @@ export default function POSBilling({ user }) {
       total: totals.total,
       status: 'Paid',
       payMode,
-      userId: user.id,
+      userId: ownerId,
+      actorId: user.id,
       createdAt: Date.now(),
-      type: 'POS'
+      type: 'POS',
+      taxAmt: totals.tax
     };
 
     try {

@@ -30,7 +30,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { userId, type, data } = req.body;
+    const { userId, actorId, type, data } = req.body;
 
     // Validate payload
     if (!userId || !data || !Array.isArray(data)) {
@@ -74,6 +74,7 @@ export default async function handler(req, res) {
     const lead = {
       id: leadId,
       userId: userId,
+      actorId: actorId || null,
       createdAt: Date.now(),
       custom: {}
     };
@@ -152,6 +153,7 @@ export default async function handler(req, res) {
           entityType: 'lead',
           text: `Lead submitted again from Google Sheets.\nOriginal creation date: ${createDateStr}\n**Resubmitted on: ${new Date().toLocaleString()}**`,
           userId: userId,
+          actorId: actorId || null,
           userName: 'System (Webhook)',
           createdAt: Date.now()
         }),

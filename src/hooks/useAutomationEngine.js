@@ -3,13 +3,13 @@ import db from '../instant';
 import { id } from '@instantdb/react';
 import { renderTemplate, sendEmailMock, sendWhatsAppMock, sendEmail } from '../utils/messaging';
 
-export default function useAutomationEngine(user) {
+export default function useAutomationEngine(user, ownerId) {
   const { data } = db.useQuery({
-    leads: { $: { where: { userId: user.id } } },
-    amc: { $: { where: { userId: user.id } } },
-    automations: { $: { where: { userId: user.id } } },
-    userProfiles: { $: { where: { userId: user.id } } },
-    campaigns: { $: { where: { userId: user.id } } }
+    leads: { $: { where: { userId: ownerId } } },
+    amc: { $: { where: { userId: ownerId } } },
+    automations: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
+    campaigns: { $: { where: { userId: ownerId } } }
   });
 
   const leads = data?.leads || [];
@@ -35,7 +35,7 @@ export default function useAutomationEngine(user) {
   }, []);
 
   useEffect(() => {
-    if (!user || (!automations.length && !profile.id && !campaigns.length)) return;
+    if (!user || !ownerId || (!automations.length && !profile.id && !campaigns.length)) return;
 
     const activeFlows = automations.filter(a => a.active);
     const nowStamp = Date.now();
@@ -47,7 +47,7 @@ export default function useAutomationEngine(user) {
         entityId,
         entityType,
         text: `🤖 [Auto] ${text}`,
-        userId: user.id,
+        userId: ownerId,
         userName: 'Automation Bot',
         createdAt: Date.now()
       }));
@@ -63,11 +63,11 @@ export default function useAutomationEngine(user) {
         leadFlows.forEach(async (f) => {
           const body = renderTemplate(f.template || "Hello {client}, thanks for choosing us!", { client: l.name, bizName: profile.bizName });
           if (f.action === 'act-email') {
-            await sendEmailMock(user.id, l.email, 'Welcome to ' + (profile.bizName || 'TechCRM'), body, { entityId: l.id, entityType: 'lead' });
+            await sendEmailMock(ownerId, l.email, 'Welcome to ' + (profile.bizName || 'TechCRM'), body, { entityId: l.id, entityType: 'lead' });
             logAutoActivity(l.id, 'lead', `Sent welcome email to ${l.email}`);
           }
           if (f.action === 'act-wa') {
-            await sendWhatsAppMock(user.id, l.phone, body, { entityId: l.id, entityType: 'lead' });
+            await sendWhatsAppMock(ownerId, l.phone, body, { entityId: l.id, entityType: 'lead' });
             logAutoActivity(l.id, 'lead', `Sent welcome WhatsApp to ${l.phone}`);
           }
           if (f.action === 'act-notif') logAutoActivity(l.id, 'lead', `New lead notification sent to team`);
@@ -82,7 +82,7 @@ export default function useAutomationEngine(user) {
       if (diff === reminders.amc.days && !processedRef.current.has(key)) {
         processedRef.current.add(key);
         const body = renderTemplate(reminders.amc.msg, { client: a.client, date: a.endDate, bizName: profile.bizName, contractNo: a.contractNo });
-        sendEmailMock(user.id, a.email || 'client@example.com', 'AMC Renewal Reminder', body, { entityId: a.id, entityType: 'amc' });
+        sendEmailMock(ownerId, a.email || 'client@example.com', 'AMC Renewal Reminder', body, { entityId: a.id, entityType: 'amc' });
         logAutoActivity(a.id, 'amc', `Auto-sent renewal reminder to ${a.client}`);
       }
     });
@@ -128,17 +128,17 @@ export default function useAutomationEngine(user) {
             if (isEmail) {
               const pSubj = camp.subject.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
               const pBody = camp.body.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
-              await sendEmail(lead.email, pSubj, pBody, profile);
+              await sendEmail(lead.email, pSubj, pBody, profile, ownerId);
             } else {
               const pBody = camp.body.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
-              await sendWhatsAppMock(user.id, lead.phone, pBody, { entityId: lead.id, entityType: 'lead' });
+              await sendWhatsAppMock(ownerId, lead.phone, pBody, { entityId: lead.id, entityType: 'lead' });
             }
             
             await db.transact(db.tx.activityLogs[id()].update({
               entityId: lead.id,
               entityType: 'lead',
               text: logText,
-              userId: user.id,
+              userId: ownerId,
               userName: 'System (Campaign)',
               createdAt: Date.now()
             }));

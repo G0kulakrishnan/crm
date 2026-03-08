@@ -1,13 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { stageBadgeClass, prioBadgeClass, fmtD } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
+import SearchableSelect from '../UI/SearchableSelect';
 
 const PROJ_EMPTY = { name: '', client: '', status: 'Planning', startDate: '', endDate: '', desc: '' };
 const DEFAULT_TASK_STATUSES = ['Pending', 'In Progress', 'Completed'];
 
-export default function Projects({ user }) {
+export default function Projects({ user, perms, ownerId }) {
+  const canCreateProj = perms?.can('Projects', 'create') !== false;
+  const canEditProj = perms?.can('Projects', 'edit') !== false;
+  const canDeleteProj = perms?.can('Projects', 'delete') !== false;
+
+  const canCreateTask = perms?.can('Tasks', 'create') !== false;
+  const canEditTask = perms?.can('Tasks', 'edit') !== false;
+  const canDeleteTask = perms?.can('Tasks', 'delete') !== false;
+
   const [projModal, setProjModal] = useState(false);
   const [editProj, setEditProj] = useState(null);
   const [projForm, setProjForm] = useState(PROJ_EMPTY);
@@ -19,26 +28,34 @@ export default function Projects({ user }) {
   const toast = useToast();
 
   const { data } = db.useQuery({
-    projects: { $: { where: { userId: user.id } } },
-    tasks: { $: { where: { userId: user.id } } },
-    teamMembers: { $: { where: { userId: user.id } } },
-    userProfiles: { $: { where: { userId: user.id } } },
-    activityLogs: { $: { where: { userId: user.id } } },
+    projects: { $: { where: { userId: ownerId } } },
+    tasks: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
+    activityLogs: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId } } },
   });
-  const projects = data?.projects || [];
   const tasks = data?.tasks || [];
   const team = data?.teamMembers || [];
+  const customers = data?.customers || [];
   const taskStatuses = data?.userProfiles?.[0]?.taskStatuses || DEFAULT_TASK_STATUSES;
   const activityLogs = data?.activityLogs || [];
   const [noteText, setNoteText] = useState('');
   
+  const projects = useMemo(() => {
+    const rawProjects = data?.projects || [];
+    const isTeam = perms && !perms.isOwner;
+    if (!isTeam) return rawProjects;
+    return rawProjects.filter(p => p.actorId === user.id || tasks.some(t => t.projectId === p.id && (t.assignTo === user.email || t.assignTo === perms.name)));
+  }, [data?.projects, tasks, perms, user]);
+
   const filteredProjects = projects.filter(p => {
     if (!search) return true;
     const q = search.toLowerCase();
     return [p.name, p.client, p.desc, p.status].some(v => (v || '').toLowerCase().includes(q));
   });
 
-  const [taskForm, setTaskForm] = useState({ title: '', assignTo: '', dueDate: '', priority: 'Medium', status: taskStatuses[0], notes: '' });
+  const [taskForm, setTaskForm] = useState({ title: '', assignTo: '', dueDate: '', priority: 'Medium', status: taskStatuses[0], notes: '', client: '' });
 
   const pf = (k) => (e) => setProjForm(p => ({ ...p, [k]: e.target.value }));
   const tf = (k) => (e) => setTaskForm(p => ({ ...p, [k]: e.target.value }));
@@ -49,7 +66,8 @@ export default function Projects({ user }) {
       entityType,
       text,
       projectId,
-      userId: user.id,
+      userId: ownerId,
+      actorId: user.id,
       userName: user.email,
       createdAt: Date.now()
     }));
@@ -57,7 +75,7 @@ export default function Projects({ user }) {
 
   const saveProj = async () => {
     if (!projForm.name.trim()) { toast('Project name required', 'error'); return; }
-    const payload = { ...projForm, userId: user.id };
+    const payload = { ...projForm, userId: ownerId, actorId: user.id };
     if (editProj) {
       const changes = [];
       const fields = { name: 'Name', client: 'Client', status: 'Status', startDate: 'Start Date', endDate: 'End Date', desc: 'Description' };
@@ -91,7 +109,7 @@ export default function Projects({ user }) {
 
   const saveTask = async () => {
     if (!taskForm.title.trim()) { toast('Task title required', 'error'); return; }
-    const payload = { ...taskForm, projectId: selectedProj.id, userId: user.id };
+    const payload = { ...taskForm, projectId: selectedProj.id, userId: ownerId, actorId: user.id };
     if (editTask) {
       const changes = [];
       const fields = { title: 'Title', assignTo: 'Assignee', dueDate: 'Due Date', priority: 'Priority', status: 'Status', notes: 'Notes' };
@@ -132,57 +150,61 @@ export default function Projects({ user }) {
         <div><h2>Projects & Tasks</h2></div>
         <div style={{ display: 'flex', gap: 8 }}>
           {selectedProj && <button className="btn btn-secondary btn-sm" onClick={() => setSelectedProj(null)}>← Projects</button>}
-          <button className="btn btn-primary btn-sm" onClick={() => {
-            if (selectedProj) { setEditTask(null); setTaskForm({ title: '', assignTo: '', dueDate: '', priority: 'Medium', status: taskStatuses[0], notes: '' }); setTaskModal(true); }
-            else { setEditProj(null); setProjForm(PROJ_EMPTY); setProjModal(true); }
-          }}>
-            + {selectedProj ? 'Create Task' : 'Create Project'}
-          </button>
+          {((selectedProj && canCreateTask) || (!selectedProj && canCreateProj)) && (
+            <button className="btn btn-primary btn-sm" onClick={() => {
+              if (selectedProj) { setEditTask(null); setTaskForm({ title: '', assignTo: '', dueDate: '', priority: 'Medium', status: taskStatuses[0], notes: '', client: selectedProj.client || '' }); setTaskModal(true); }
+              else { setEditProj(null); setProjForm(PROJ_EMPTY); setProjModal(true); }
+            }}>
+              + {selectedProj ? 'Create Task' : 'Create Project'}
+            </button>
+          )}
         </div>
       </div>
 
       {!selectedProj ? (
         /* PROJECT LIST VIEW */
         <div className="tw">
-          <div className="tw-head">
-            <h3>Projects ({filteredProjects.length})</h3>
-            <div className="sw">
-              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-              <input className="si" placeholder="Search projects..." value={search} onChange={e => setSearch(e.target.value)} />
+            <div className="tw-head">
+              <h3>Projects ({filteredProjects.length})</h3>
+              <div className="sw">
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input className="si" placeholder="Search projects..." value={search} onChange={e => setSearch(e.target.value)} />
+              </div>
             </div>
+          <div className="tw-scroll">
+            <table>
+              <thead><tr><th>#</th><th>Project Name</th><th>Client</th><th>Start Date</th><th>End Date</th><th style={{width:120}}>Progress</th><th>Status</th><th>Actions</th></tr></thead>
+              <tbody>
+                {filteredProjects.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No projects found</td></tr>
+                  : filteredProjects.map((p, i) => {
+                    const ptasks = tasks.filter(t => t.projectId === p.id);
+                    const done = ptasks.filter(t => t.status === taskStatuses[taskStatuses.length - 1]).length;
+                    const pct = ptasks.length ? Math.round((done / ptasks.length) * 100) : 0;
+                    return (
+                      <tr key={p.id}>
+                        <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
+                        <td><strong>{p.name}</strong><br/><span style={{fontSize: 10, color: 'var(--muted)'}}>{p.desc?.substring(0,30)}{p.desc?.length > 30 ? '...' : ''}</span></td>
+                        <td>{p.client || '-'}</td>
+                        <td>{fmtD(p.startDate)}</td>
+                        <td>{fmtD(p.endDate)}</td>
+                        <td>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>
+                            <span>{done}/{ptasks.length}</span><span>{pct}%</span>
+                          </div>
+                          <div className="pbar" style={{height: 4}}><div className="pfill" style={{ width: `${pct}%` }} /></div>
+                        </td>
+                        <td><span className={`badge ${stageBadgeClass(p.status)}`}>{p.status}</span></td>
+                        <td>
+                          <button className="btn btn-primary btn-sm" onClick={() => setSelectedProj(p)}>Tasks</button>{' '}
+                          {canEditProj && <button className="btn btn-secondary btn-sm" onClick={() => { setEditProj(p); setProjForm({ name: p.name, client: p.client || '', status: p.status, startDate: p.startDate || '', endDate: p.endDate || '', desc: p.desc || '' }); setProjModal(true); }}>Edit</button>}{' '}
+                          {canDeleteProj && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => delProj(p.id, p.name)}>Del</button>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
           </div>
-          <table>
-            <thead><tr><th>#</th><th>Project Name</th><th>Client</th><th>Start Date</th><th>End Date</th><th style={{width:120}}>Progress</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody>
-              {filteredProjects.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No projects found</td></tr>
-                : filteredProjects.map((p, i) => {
-                  const ptasks = tasks.filter(t => t.projectId === p.id);
-                  const done = ptasks.filter(t => t.status === taskStatuses[taskStatuses.length - 1]).length;
-                  const pct = ptasks.length ? Math.round((done / ptasks.length) * 100) : 0;
-                  return (
-                    <tr key={p.id}>
-                      <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
-                      <td><strong>{p.name}</strong><br/><span style={{fontSize: 10, color: 'var(--muted)'}}>{p.desc?.substring(0,30)}{p.desc?.length > 30 ? '...' : ''}</span></td>
-                      <td>{p.client || '-'}</td>
-                      <td>{fmtD(p.startDate)}</td>
-                      <td>{fmtD(p.endDate)}</td>
-                      <td>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', marginBottom: 2 }}>
-                          <span>{done}/{ptasks.length}</span><span>{pct}%</span>
-                        </div>
-                        <div className="pbar" style={{height: 4}}><div className="pfill" style={{ width: `${pct}%` }} /></div>
-                      </td>
-                      <td><span className={`badge ${stageBadgeClass(p.status)}`}>{p.status}</span></td>
-                      <td>
-                        <button className="btn btn-primary btn-sm" onClick={() => setSelectedProj(p)}>Tasks</button>{' '}
-                        <button className="btn btn-secondary btn-sm" onClick={() => { setEditProj(p); setProjForm({ name: p.name, client: p.client || '', status: p.status, startDate: p.startDate || '', endDate: p.endDate || '', desc: p.desc || '' }); setProjModal(true); }}>Edit</button>{' '}
-                        <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => delProj(p.id, p.name)}>Del</button>
-                      </td>
-                    </tr>
-                  );
-                })}
-            </tbody>
-          </table>
         </div>
       ) : (
         /* TASKS KANBAN */
@@ -204,11 +226,14 @@ export default function Projects({ user }) {
                         <span className={`badge ${prioBadgeClass(t.priority)}`} style={{ fontSize: 10 }}>{t.priority}</span>
                         {t.dueDate && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{fmtD(t.dueDate)}</span>}
                       </div>
-                      {t.assignTo && <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>→ {t.assignTo}</div>}
+                      <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
+                        {t.assignTo && <span>→ {t.assignTo}</span>}
+                        {t.client && <span style={{ marginLeft: 8 }}>👤 {t.client}</span>}
+                      </div>
                       <div style={{ display: 'flex', gap: 4, marginTop: 7 }}>
-                        <button className="btn btn-secondary btn-sm" style={{ fontSize: 11, padding: '3px 7px' }} onClick={() => cycleStatus(t)}>▶ {taskStatuses.indexOf(t.status) === taskStatuses.length - 1 ? 'Reset' : 'Next'}</button>
-                        <button className="btn btn-secondary btn-sm" style={{ fontSize: 11, padding: '3px 7px' }} onClick={() => { setEditTask(t); setTaskForm({ title: t.title, assignTo: t.assignTo || '', dueDate: t.dueDate || '', priority: t.priority, status: t.status, notes: t.notes || '' }); setTaskModal(true); }}>Edit</button>
-                        <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', fontSize: 11, padding: '3px 7px' }} onClick={() => delTask(t.id, t.title)}>Del</button>
+                        {canEditTask && <button className="btn btn-secondary btn-sm" style={{ fontSize: 11, padding: '3px 7px' }} onClick={() => cycleStatus(t)}>▶ {taskStatuses.indexOf(t.status) === taskStatuses.length - 1 ? 'Reset' : 'Next'}</button>}
+                        {canEditTask && <button className="btn btn-secondary btn-sm" style={{ fontSize: 11, padding: '3px 7px' }} onClick={() => { setEditTask(t); setTaskForm({ title: t.title, assignTo: t.assignTo || '', dueDate: t.dueDate || '', priority: t.priority, status: t.status, notes: t.notes || '', client: t.client || '' }); setTaskModal(true); }}>Edit</button>}
+                        {canDeleteTask && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', fontSize: 11, padding: '3px 7px' }} onClick={() => delTask(t.id, t.title)}>Del</button>}
                       </div>
                     </div>
                   ))}
@@ -255,13 +280,23 @@ export default function Projects({ user }) {
 
       {/* Project Modal */}
       {projModal && (
-        <div className="mo open" onClick={e => e.target === e.currentTarget && setProjModal(false)}>
+        <div className="mo open">
           <div className="mo-box">
             <div className="mo-head"><h3>{editProj ? 'Edit' : 'Create'} Project</h3><button className="btn-icon" onClick={() => setProjModal(false)}>✕</button></div>
             <div className="mo-body">
               <div className="fgrid">
                 <div className="fg span2"><label>Project Name *</label><input value={projForm.name} onChange={pf('name')} /></div>
-                <div className="fg"><label>Client</label><input value={projForm.client} onChange={pf('client')} /></div>
+                <div className="fg">
+                  <label>Client</label>
+                  <SearchableSelect 
+                    options={customers} 
+                    displayKey="name" 
+                    returnKey="name"
+                    value={projForm.client} 
+                    onChange={val => setProjForm(p => ({ ...p, client: val }))} 
+                    placeholder="Search client..." 
+                  />
+                </div>
                 <div className="fg"><label>Status</label><select value={projForm.status} onChange={pf('status')}>{['Planning', 'In Progress', 'On Hold', 'Completed', 'Cancelled'].map(s => <option key={s}>{s}</option>)}</select></div>
                 <div className="fg"><label>Start Date</label><input type="date" value={projForm.startDate} onChange={pf('startDate')} /></div>
                 <div className="fg"><label>End Date</label><input type="date" value={projForm.endDate} onChange={pf('endDate')} /></div>
@@ -275,12 +310,34 @@ export default function Projects({ user }) {
 
       {/* Task Modal */}
       {taskModal && (
-        <div className="mo open" onClick={e => e.target === e.currentTarget && setTaskModal(false)}>
+        <div className="mo open">
           <div className="mo-box">
             <div className="mo-head"><h3>{editTask ? 'Edit' : 'Create'} Task</h3><button className="btn-icon" onClick={() => setTaskModal(false)}>✕</button></div>
             <div className="mo-body">
               <div className="fgrid">
                 <div className="fg span2"><label>Task Title *</label><input value={taskForm.title} onChange={tf('title')} /></div>
+                <div className="fg">
+                  {selectedProj?.client ? (
+                    <>
+                      <label>Client</label>
+                      <div style={{ padding: '8px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13, color: 'var(--muted)' }}>
+                        👤 {selectedProj.client} <span style={{ fontSize: 10, color: 'var(--accent)' }}>(from project)</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <label>Client</label>
+                      <SearchableSelect 
+                        options={customers} 
+                        displayKey="name" 
+                        returnKey="name"
+                        value={taskForm.client} 
+                        onChange={val => setTaskForm(p => ({ ...p, client: val }))} 
+                        placeholder="Search client..." 
+                      />
+                    </>
+                  )}
+                </div>
                 <div className="fg"><label>Assign To</label><select value={taskForm.assignTo} onChange={tf('assignTo')}><option value="">Unassigned</option>{team.map(t => <option key={t.id}>{t.name}</option>)}</select></div>
                 <div className="fg"><label>Due Date</label><input type="date" value={taskForm.dueDate} onChange={tf('dueDate')} /></div>
                 <div className="fg"><label>Priority</label><select value={taskForm.priority} onChange={tf('priority')}>{['High', 'Medium', 'Low'].map(s => <option key={s}>{s}</option>)}</select></div>
