@@ -11,9 +11,7 @@ import LeadsView from '../Leads/LeadsView';
 import Quotations from '../Finance/Quotations';
 import Invoices from '../Finance/Invoices';
 import POSBilling from '../Finance/POSBilling';
-import Recurring from '../Finance/Recurring';
 import AMC from '../Clients/AMC';
-import Subscriptions from '../Clients/Subscriptions';
 import Customers from '../Clients/Customers';
 import Expenses from '../Business/Expenses';
 import Products from '../Business/Products';
@@ -70,8 +68,7 @@ export default function MainApp({ user }) {
 
     if (!profile && !syncRef.current) {
       syncRef.current = true;
-      const noProfilesExist = (data.checkProfiles || []).length === 0;
-      const role = (noProfilesExist || user.email === SUPERADMIN_KEY) ? 'superadmin' : 'user';
+      const role = (user.email === SUPERADMIN_KEY) ? 'superadmin' : 'user';
 
       console.log("🛠 [MainApp] Creating user profile for:", user.email, "Role:", role);
       
@@ -150,10 +147,8 @@ export default function MainApp({ user }) {
     quotations: <Quotations user={user} />,
     invoices: <Invoices user={user} />,
     pos: <POSBilling user={user} />,
-    recurring: <Recurring user={user} />,
     customers: <Customers user={user} />,
     amc: <AMC user={user} />,
-    subscriptions: <Subscriptions user={user} />,
     expenses: <Expenses user={user} />,
     products: <Products user={user} />,
     campaigns: <Campaigns user={user} />,

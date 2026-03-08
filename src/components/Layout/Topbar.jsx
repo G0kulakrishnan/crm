@@ -3,9 +3,9 @@ import db from '../../instant';
 import { useApp } from '../../context/AppContext';
 
 const VIEW_TITLES = {
-  dashboard: 'Dashboard', leads: 'Leads', quotations: 'Quotations',
-  invoices: 'Invoices', recurring: 'Recurring Invoices', amc: 'AMC Contracts',
-  subscriptions: 'Subscriptions', expenses: 'Expenses', products: 'Products & Services',
+  dashboard: 'Dashboard', leads: 'Leads',  quotations: 'Quotations',
+  invoices: 'Invoices', amc: 'AMC Contracts',
+  expenses: 'Expenses', products: 'Products & Services',
   projects: 'Projects & Tasks', alltasks: 'All Tasks', teams: 'Teams',
   automation: 'Automation', reports: 'Reports & Analytics', settings: 'Settings',
   admin: 'Admin Panel', pos: 'POS Billing',

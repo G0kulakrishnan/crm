@@ -3,18 +3,17 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
+import SearchableSelect from '../UI/SearchableSelect';
 
-function calcTotals(items, disc, tdsRate, adj) {
+function calcTotals(items, disc, discType, adj) {
   const sub = items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
   const taxTotal = items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0) * (it.taxRate || 0) / 100, 0);
-  const discAmt = sub * (disc || 0) / 100;
-  const tdsAmt = (sub - discAmt) * (tdsRate || 0) / 100;
-  const total = Math.round(sub - discAmt + taxTotal - tdsAmt + (parseFloat(adj) || 0));
-  return { sub, taxTotal, discAmt, tdsAmt, total };
+  const discAmt = discType === '₹' ? (parseFloat(disc) || 0) : (sub * (parseFloat(disc) || 0) / 100);
+  const total = Math.round(sub - discAmt + taxTotal + (parseFloat(adj) || 0));
+  return { sub, taxTotal, discAmt, total };
 }
 
-const EMPTY = { client: '', dueDate: '', status: 'Draft', template: 'Classic', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }] };
-
+const EMPTY = { client: '', dueDate: '', status: 'Draft', template: 'Classic', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '' };
 export default function Invoices({ user }) {
   const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
@@ -43,26 +42,89 @@ export default function Invoices({ user }) {
                (inv.items || []).some(it => (it.name || '').toLowerCase().includes(s));
       });
   }, [invoices, tab, search]);
-  const tots = calcTotals(form.items, form.disc, form.tdsRate, form.adj);
+  const tots = calcTotals(form.items, form.disc, form.discType, form.adj);
 
   const openCreate = () => { setEditData(null); setForm(EMPTY); setModal(true); };
   const openEdit = (inv) => {
     setEditData(inv);
-    setForm({ client: inv.client, dueDate: inv.dueDate || '', status: inv.status || 'Draft', template: inv.template || 'Classic', notes: inv.notes || '', terms: inv.terms || '', disc: inv.disc || 0, adj: inv.adj || 0, tdsRate: inv.tdsRate || 0, items: inv.items?.length ? inv.items : EMPTY.items });
+    setForm({ 
+      client: inv.client, dueDate: inv.dueDate || '', status: inv.status || 'Draft', template: inv.template || 'Classic', 
+      notes: inv.notes || '', terms: inv.terms || '', disc: inv.disc || 0, discType: inv.discType || '%', adj: inv.adj || 0, 
+      items: inv.items?.length ? inv.items : EMPTY.items,
+      isAmc: false, amcCycle: inv.amcCycle || 'Yearly', amcStart: inv.amcStart || '', amcEnd: inv.amcEnd || '', amcPlan: '', amcAmount: ''
+    });
     setModal(true);
+  };
+
+  const handleAmcStartChange = (val) => {
+    let endDate = form.amcEnd;
+    if (val && form.amcCycle !== 'Custom') {
+      const d = new Date(val);
+      if (form.amcCycle === 'Monthly') d.setMonth(d.getMonth() + 1);
+      else if (form.amcCycle === 'Yearly') d.setFullYear(d.getFullYear() + 1);
+      d.setDate(d.getDate() - 1); // Expiry is conventionally the day before
+      endDate = d.toISOString().split('T')[0];
+    }
+    setForm(p => ({ ...p, amcStart: val, amcEnd: endDate }));
+  };
+  
+  const handleAmcCycleChange = (val) => {
+    let endDate = form.amcEnd;
+    if (form.amcStart && val !== 'Custom') {
+      const d = new Date(form.amcStart);
+      if (val === 'Monthly') d.setMonth(d.getMonth() + 1);
+      else if (val === 'Yearly') d.setFullYear(d.getFullYear() + 1);
+      d.setDate(d.getDate() - 1);
+      endDate = d.toISOString().split('T')[0];
+    }
+    setForm(p => ({ ...p, amcCycle: val, amcEnd: endDate }));
   };
 
   const save = async () => {
     if (!form.client.trim()) { toast('Client required', 'error'); return; }
-    const payload = { ...form, userId: user.id, date: new Date().toISOString().split('T')[0], total: tots.total };
+    
+    // Extract auto-amc trigger fields vs actual invoice fields
+    const { isAmc, amcPlan, amcAmount, amcStart, amcEnd, amcCycle, ...invPayload } = form;
+    
+    // We'll optionally attach amcStart/EndDate to the final invoice IF AND ONLY IF isAmc is indeed checked.
+    if (isAmc) {
+      invPayload.amcStart = amcStart;
+      invPayload.amcEnd = amcEnd;
+    }
+
+    const payload = { ...invPayload, userId: user.id, date: new Date().toISOString().split('T')[0], total: tots.total };
+    
+    let invAction;
     if (editData) {
-      await db.transact(db.tx.invoices[editData.id].update(payload));
-      toast('Invoice updated', 'success');
+      invAction = db.tx.invoices[editData.id].update(payload);
     } else {
       const no = `INV/${new Date().getFullYear()}/${String(invoices.length + 1).padStart(3, '0')}`;
-      await db.transact(db.tx.invoices[id()].update({ ...payload, no }));
-      toast('Invoice created', 'success');
+      invAction = db.tx.invoices[id()].update({ ...payload, no });
     }
+
+    const txs = [invAction];
+
+    // Auto-create AMC contract if ticked
+    if (isAmc && amcStart && amcEnd) {
+      const custMatch = customers.find(c => c.name === form.client);
+      const amcId = id();
+      txs.push(db.tx.amc[amcId].update({
+        userId: user.id,
+        client: form.client,
+        email: custMatch ? custMatch.email : '',
+        phone: custMatch ? custMatch.phone : '',
+        startDate: amcStart,
+        endDate: amcEnd,
+        cycle: amcCycle,
+        amount: parseFloat(amcAmount) || tots.total,
+        plan: amcPlan || 'Custom',
+        status: 'Active',
+        notes: `Auto-generated from Invoice`
+      }));
+    }
+
+    await db.transact(txs);
+    toast('Invoice saved' + (isAmc ? ' & AMC created' : ''), 'success');
     setModal(false);
   };
 
@@ -83,7 +145,7 @@ export default function Invoices({ user }) {
   };
 
   if (printing) {
-    const ptots = calcTotals(printing.items, printing.disc, printing.tdsRate, printing.adj);
+    const ptots = calcTotals(printing.items, printing.disc, printing.discType, printing.adj);
     const t = printing.template || 'Classic';
     
     return (
@@ -111,6 +173,7 @@ export default function Invoices({ user }) {
                 <div style={{ fontSize: 13, color: '#666', marginTop: 5 }}>No: <strong>{printing.no}</strong></div>
                 <div style={{ fontSize: 13, color: '#666' }}>Date: {fmtD(printing.date)}</div>
                 {printing.dueDate && <div style={{ fontSize: 13, color: '#666' }}>Due Date: {fmtD(printing.dueDate)}</div>}
+                {(printing.amcStart && printing.amcEnd) && <div style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 600, marginTop: 4 }}>AMC Period: {fmtD(printing.amcStart)} to {fmtD(printing.amcEnd)}</div>}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
@@ -122,10 +185,18 @@ export default function Invoices({ user }) {
         )}
 
         {/* Client Section */}
-        <div style={{ marginBottom: 40, borderLeft: t === 'Classic' ? '3px solid var(--accent)' : 'none', paddingLeft: t === 'Classic' ? 15 : 0 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Billed To</div>
-          <div style={{ fontSize: t === 'Modern' ? 20 : 16, fontWeight: 700, marginTop: 4 }}>{printing.client}</div>
-          {t === 'Minimal' && <div style={{ fontSize: 12, color: '#666', marginTop: 10 }}>{profile.bizName} • {profile.address}</div>}
+        <div style={{ marginBottom: 40, borderLeft: t === 'Classic' ? '3px solid var(--accent)' : 'none', paddingLeft: t === 'Classic' ? 15 : 0, display: 'flex', justifyContent: 'space-between' }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Billed To</div>
+            <div style={{ fontSize: t === 'Modern' ? 20 : 16, fontWeight: 700, marginTop: 4 }}>{printing.client}</div>
+            {t === 'Minimal' && <div style={{ fontSize: 12, color: '#666', marginTop: 10 }}>{profile.bizName} • {profile.address}</div>}
+          </div>
+          {(t !== 'Classic' && printing.amcStart && printing.amcEnd) && (
+            <div style={{ textAlign: 'right', background: '#f8fafc', padding: '10px 15px', borderRadius: 8, border: '1px solid #e2e8f0' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Contract Period</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)' }}>{fmtD(printing.amcStart)} — {fmtD(printing.amcEnd)}</div>
+            </div>
+          )}
         </div>
 
         {/* Items Table */}
@@ -162,9 +233,9 @@ export default function Invoices({ user }) {
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
               <span style={{ color: '#666' }}>Subtotal</span><span>{fmt(ptots.sub)}</span>
             </div>
-            {ptots.discAmt > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: '#d97706' }}><span>Discount ({printing.disc}%)</span><span>- {fmt(ptots.discAmt)}</span></div>}
+            {ptots.discAmt > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: '#d97706' }}><span>Discount ({printing.discType === '₹' ? 'Flat' : `${printing.disc}%`})</span><span>- {fmt(ptots.discAmt)}</span></div>}
             {ptots.taxTotal > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}><span>Tax</span><span>{fmt(ptots.taxTotal)}</span></div>}
-            {ptots.tdsAmt > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: '#dc2626' }}><span>TDS ({printing.tdsRate}%)</span><span>- {fmt(ptots.tdsAmt)}</span></div>}
+            {printing.adj !== 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}><span>Adjustment</span><span>{printing.adj > 0 ? '+' : ''}{fmt(printing.adj)}</span></div>}
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '15px 0 0 0', fontSize: 20, fontWeight: 800, borderTop: t === 'Minimal' ? '1px solid #eee' : '2px solid #000', marginTop: 10 }}>
               <span>Total</span><span style={{ color: t === 'Modern' ? 'var(--accent)' : '#000' }}>{fmt(ptots.total)}</span>
             </div>
@@ -229,7 +300,10 @@ export default function Invoices({ user }) {
               : filtered.map((inv, i) => (
                 <tr key={inv.id}>
                   <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
-                  <td><strong style={{ fontSize: 12 }}>{inv.no}</strong></td>
+                  <td>
+                    <strong style={{ fontSize: 12 }}>{inv.no}</strong>
+                    {inv.fromAmc && <span style={{ marginLeft: 6, fontSize: 10, background: '#e0e7ff', color: '#4338ca', padding: '2px 4px', borderRadius: 4, fontWeight: 600 }}>AMC</span>}
+                  </td>
                   <td>{inv.client}</td>
                   <td><span className={`badge ${stageBadgeClass(inv.status)}`}>{inv.status}</span></td>
                   <td style={{ fontSize: 12 }}>{fmtD(inv.date)}</td>
@@ -263,8 +337,14 @@ export default function Invoices({ user }) {
               <div className="fgrid" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
                 <div className="fg">
                   <label>Client *</label>
-                  <input list="custList_inv" value={form.client} onChange={e => setForm(p => ({ ...p, client: e.target.value }))} placeholder="Search or enter client..." />
-                  <datalist id="custList_inv">{customers.map(c => <option key={c.id} value={c.name} />)}</datalist>
+                  <SearchableSelect 
+                    options={customers} 
+                    displayKey="name" 
+                    returnKey="name"
+                    value={form.client} 
+                    onChange={val => setForm(p => ({ ...p, client: val }))} 
+                    placeholder="Search client..." 
+                  />
                 </div>
                 <div className="fg"><label>Due Date</label><input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} /></div>
                 <div className="fg"><label>Status</label>
@@ -278,6 +358,46 @@ export default function Invoices({ user }) {
                   </select>
                 </div>
               </div>
+
+
+              <div style={{ background: '#f8fafc', padding: 15, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 20 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+                  <input type="checkbox" checked={form.isAmc} onChange={e => setForm(p => ({ ...p, isAmc: e.target.checked }))} style={{ width: 16, height: 16 }} />
+                  Automatically generate AMC Contract for this Invoice
+                </label>
+                {form.isAmc && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginTop: 15 }}>
+                    <div className="fg" style={{ marginBottom: 0 }}>
+                      <label>AMC Product / Plan</label>
+                      <SearchableSelect 
+                        options={products} 
+                        displayKey="name" 
+                        returnKey="name"
+                        value={form.amcPlan} 
+                        onChange={val => {
+                           const pMatch = products.find(p => p.name === val);
+                           setForm(prev => ({ ...prev, amcPlan: val, amcAmount: pMatch ? pMatch.rate : prev.amcAmount }));
+                        }} 
+                        placeholder="e.g. Hosting, Maintenance..." 
+                      />
+                    </div>
+                    <div className="fg" style={{ marginBottom: 0 }}>
+                      <label>AMC Amount (₹)</label>
+                      <input type="number" value={form.amcAmount} onChange={e => setForm(p => ({ ...p, amcAmount: e.target.value }))} placeholder="Amount for AMC" />
+                    </div>
+                    <div className="fg" style={{ marginBottom: 0 }}>
+                      <label>Billing Cycle</label>
+                      <select value={form.amcCycle} onChange={e => handleAmcCycleChange(e.target.value)}>
+                        {['Custom', 'Monthly', 'Yearly'].map(c => <option key={c}>{c}</option>)}
+                      </select>
+                    </div>
+                    <div className="fg" style={{ marginBottom: 0 }}></div>
+                    <div className="fg" style={{ marginBottom: 0 }}><label>AMC Start Date</label><input type="date" value={form.amcStart} onChange={e => handleAmcStartChange(e.target.value)} /></div>
+                    <div className="fg" style={{ marginBottom: 0 }}><label>AMC End Date (Expiry)</label><input type="date" value={form.amcEnd} readOnly={form.amcCycle !== 'Custom'} onChange={e => form.amcCycle === 'Custom' && setForm(p => ({ ...p, amcEnd: e.target.value }))} style={{ border: form.amcCycle !== 'Custom' ? 'none' : '', background: form.amcCycle !== 'Custom' ? '#f1f5f9' : '#fff' }} /></div>
+                  </div>
+                )}
+              </div>
+
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Line Items</label>
                 <button className="btn btn-secondary btn-sm" onClick={() => setForm(p => ({ ...p, items: [...p.items, { name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }] }))}>+ Add Row</button>
@@ -288,8 +408,16 @@ export default function Invoices({ user }) {
                   {form.items.map((it, i) => (
                     <tr key={i}>
                       <td>
-                        <input className="li-input" list="prodList" value={it.name} onChange={e => updateItem(i, 'name', e.target.value)} placeholder="Item" />
-                        <datalist id="prodList">{products.map(p => <option key={p.id} value={p.name} />)}</datalist>
+                        <div style={{ position: 'relative', minWidth: 200 }}>
+                          <SearchableSelect 
+                            options={[...products, { name: it.name }]} // Allow raw typed names by just giving it options
+                            displayKey="name"
+                            returnKey="name"
+                            value={it.name}
+                            onChange={val => updateItem(i, 'name', val)}
+                            placeholder="Select Product"
+                          />
+                        </div>
                       </td>
                       <td><input className="li-input" type="number" value={it.qty} onChange={e => updateItem(i, 'qty', e.target.value)} style={{ width: 55, textAlign: 'center' }} /></td>
                       <td><input className="li-input" type="number" value={it.rate} onChange={e => updateItem(i, 'rate', e.target.value)} style={{ textAlign: 'right' }} /></td>
@@ -307,9 +435,22 @@ export default function Invoices({ user }) {
                 </div>
                 <div className="totals-box">
                   <div className="total-row"><span style={{ color: 'var(--muted)' }}>Sub Total</span><span style={{ fontWeight: 700 }}>{fmt(tots.sub)}</span></div>
-                  <div className="total-row"><span style={{ color: 'var(--muted)' }}>Discount</span><span style={{ color: '#dc2626' }}>- {fmt(tots.discAmt)}</span></div>
+                  <div className="total-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted)', fontSize: 13, marginRight: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      Discount 
+                      <select value={form.discType} onChange={e => setForm(p => ({ ...p, discType: e.target.value, disc: 0 }))} style={{ border: '1px solid var(--border)', background: '#fff', borderRadius: 4, padding: '2px', fontSize: 11, cursor: 'pointer' }}>
+                        <option value="%">%</option>
+                        <option value="₹">₹</option>
+                      </select>
+                    </span>
+                    <input type="number" value={form.disc} onChange={e => setForm(p => ({ ...p, disc: parseFloat(e.target.value) || 0 }))} style={{ width: 80, padding: 4, textAlign: 'right', border: '1px solid var(--border)', borderRadius: 4 }} placeholder="0" />
+                  </div>
+                  {(tots.discAmt > 0 && form.discType === '%') && <div className="total-row"><span style={{ color: 'var(--muted)' }}>Discount Amount</span><span style={{ color: '#dc2626' }}>- {fmt(tots.discAmt)}</span></div>}
                   <div className="total-row"><span style={{ color: 'var(--muted)' }}>GST</span><span style={{ color: '#16a34a' }}>{fmt(tots.taxTotal)}</span></div>
-                  <div className="total-row"><span style={{ color: 'var(--muted)' }}>TDS</span><span style={{ color: '#dc2626' }}>- {fmt(tots.tdsAmt)}</span></div>
+                  <div className="total-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted)', fontSize: 13, marginRight: 10 }}>Adjustment</span>
+                    <input type="number" value={form.adj} onChange={e => setForm(p => ({ ...p, adj: parseFloat(e.target.value) || 0 }))} style={{ width: 80, padding: 4, textAlign: 'right', border: '1px solid var(--border)', borderRadius: 4 }} placeholder="0" />
+                  </div>
                   <div className="total-row grand"><strong style={{ fontSize: 14 }}>Total (₹)</strong><strong style={{ fontSize: 18, color: 'var(--accent2)' }}>{fmt(tots.total)}</strong></div>
                 </div>
               </div>

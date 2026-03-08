@@ -3,7 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 
-const PERMS = ['Dashboard', 'Leads', 'Quotations', 'Invoices', 'AMC', 'Subscriptions', 'Expenses', 'Products', 'Projects', 'Tasks', 'Reports', 'Settings'];
+const PERMS = ['Dashboard', 'Leads', 'Quotations', 'Invoices', 'AMC', 'Expenses', 'Products', 'Projects', 'Tasks', 'Reports', 'Settings'];
 const DEFAULT_ROLES = [
   { name: 'Admin', perms: [...PERMS] },
   { name: 'Sales', perms: ['Dashboard', 'Leads', 'Quotations', 'Products', 'Tasks'] },

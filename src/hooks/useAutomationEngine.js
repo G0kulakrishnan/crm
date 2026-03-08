@@ -7,7 +7,6 @@ export default function useAutomationEngine(user) {
   const { data } = db.useQuery({
     leads: { $: { where: { userId: user.id } } },
     amc: { $: { where: { userId: user.id } } },
-    subs: { $: { where: { userId: user.id } } },
     automations: { $: { where: { userId: user.id } } },
     userProfiles: { $: { where: { userId: user.id } } },
     campaigns: { $: { where: { userId: user.id } } }
@@ -15,13 +14,11 @@ export default function useAutomationEngine(user) {
 
   const leads = data?.leads || [];
   const amc = data?.amc || [];
-  const subs = data?.subs || [];
   const automations = data?.automations || [];
   const campaigns = data?.campaigns || [];
   const profile = data?.userProfiles?.[0] || {};
   const reminders = profile.reminders || {
     amc: { days: 30, msg: 'Hello {client}, your AMC contract is expiring on {date}.' },
-    sub: { days: 7, msg: 'Hello {client}, your subscription payment of {amount} is due on {date}.' },
     followup: { days: 1, msg: 'Reminder: Follow-up with {client} is scheduled for {date}.' }
   };
 
@@ -87,18 +84,6 @@ export default function useAutomationEngine(user) {
         const body = renderTemplate(reminders.amc.msg, { client: a.client, date: a.endDate, bizName: profile.bizName, contractNo: a.contractNo });
         sendEmailMock(user.id, a.email || 'client@example.com', 'AMC Renewal Reminder', body, { entityId: a.id, entityType: 'amc' });
         logAutoActivity(a.id, 'amc', `Auto-sent renewal reminder to ${a.client}`);
-      }
-    });
-
-    // 3. Subscription Payment Due Trigger
-    subs.forEach(s => {
-      const diff = Math.ceil((new Date(s.nextPayment) - Date.now()) / (1000 * 60 * 60 * 24));
-      const key = `sub-due-${s.id}-${diff}`;
-      if (diff === reminders.sub.days && !processedRef.current.has(key)) {
-        processedRef.current.add(key);
-        const body = renderTemplate(reminders.sub.msg, { client: s.client, date: s.nextPayment, amount: s.amount, bizName: profile.bizName });
-        sendWhatsAppMock(user.id, s.phone || '0000000000', body, { entityId: s.id, entityType: 'sub' });
-        logAutoActivity(s.id, 'sub', `Auto-sent payment reminder for ${s.plan}`);
       }
     });
 
@@ -174,5 +159,5 @@ export default function useAutomationEngine(user) {
 
     runScheduledCampaigns();
 
-  }, [leads, amc, subs, automations, campaigns, user, profile, reminders]);
+  }, [leads, amc, automations, campaigns, user, profile, reminders]);
 }

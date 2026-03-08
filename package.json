@@ -12,9 +12,11 @@
     "@emailjs/browser": "^4.4.1",
     "@instantdb/admin": "^0.22.155",
     "@instantdb/react": "^0.17.31",
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "nodemailer": "^8.0.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

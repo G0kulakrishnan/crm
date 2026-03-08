@@ -60,7 +60,6 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
   const [newCF, setNewCF] = useState({ name: '', type: 'text', options: '' });
   const [reminders, setReminders] = useState(profile?.reminders || {
     amc: { days: 30, msg: 'Hello {client}, your AMC contract is expiring on {date}. Please contact us for renewal.' },
-    sub: { days: 7, msg: 'Hello {client}, your subscription payment of {amount} is due on {date}.' },
     followup: { days: 1, msg: 'Reminder: Follow-up with {client} is scheduled for {date}.' }
   });
   const [editingCFIndex, setEditingCFIndex] = useState(null);
@@ -189,7 +188,6 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
     const msg = renderTemplate(reminders[key].msg, {
       client: 'Sample Client',
       date: new Date().toLocaleDateString(),
-      amount: 1499,
       bizName: biz.bizName || 'My Business'
     });
     alert(`📢 Template Preview:\n\n${msg}\n\n(This is how your automated message will look)`);
@@ -264,8 +262,49 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                 <div className="sub" style={{ marginBottom: 20 }}>Your personal contact information used for login and account management.</div>
                 <div className="fgrid">
                   <div className="fg span2"><label>Full Name</label><input value={userProfile.fullName} onChange={e => setUserProfile(p => ({ ...p, fullName: e.target.value }))} /></div>
-                  <div className="fg"><label>Personal Email</label><input type="email" value={userProfile.email} onChange={e => setUserProfile(p => ({ ...p, email: e.target.value }))} /></div>
+                  <div className="fg"><label>Personal Email</label><input type="email" value={userProfile.email} onChange={e => setUserProfile(p => ({ ...p, email: e.target.value }))} disabled style={{ background: '#f8fafc', color: '#94a3b8' }} title="Email cannot be changed directly" /></div>
                   <div className="fg"><label>Personal Phone</label><input value={userProfile.phone} onChange={e => setUserProfile(p => ({ ...p, phone: e.target.value }))} /></div>
+                </div>
+
+                <div style={{ marginTop: 30, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
+                  <h4 style={{ marginBottom: 15 }}>Security</h4>
+                  <div className="fgrid">
+                     <div className="fg">
+                        <label>Set New Password</label>
+                        <input 
+                           type="password" 
+                           id="new-password-input"
+                           placeholder="Enter new password" 
+                        />
+                     </div>
+                     <div className="fg" style={{ display: 'flex', alignItems: 'flex-end' }}>
+                        <button className="btn btn-secondary" onClick={async () => {
+                           const pwdInput = document.getElementById('new-password-input');
+                           const newPass = pwdInput.value;
+                           if (!newPass || newPass.length < 6) return toast('Password must be at least 6 characters', 'error');
+                           
+                           try {
+                              const res = await fetch('/api/auth/change-password', {
+                                 method: 'POST',
+                                 headers: { 'Content-Type': 'application/json' },
+                                 body: JSON.stringify({ email: userProfile.email, newPassword: newPass })
+                              });
+                              const data = await res.json();
+                              if (!res.ok) throw new Error(data.error);
+                              
+                              toast('Password updated successfully! 🔐', 'success');
+                              pwdInput.value = '';
+                           } catch (err) {
+                              toast(err.message, 'error');
+                           }
+                        }}>
+                           Update Password
+                        </button>
+                     </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8 }}>
+                     You can set a new password here directly without needing to enter your current one.
+                  </div>
                 </div>
               </div>
             </div>
@@ -562,7 +601,6 @@ export default function Settings({ user, profile, isExpired, initialTab }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                   {[
                     { key: 'amc', name: 'AMC Expiry Alert', desc: 'Alert sent before AMC contracts expire.' },
-                    { key: 'sub', name: 'Subscription Due', desc: 'Alert sent before subscription payments are due.' },
                     { key: 'followup', name: 'Follow-Up Due', desc: 'Alert sent before a lead follow-up is scheduled.' }
                   ].map(rule => (
                     <div key={rule.key} style={{ paddingBottom: 20, borderBottom: '1px solid var(--border)' }}>

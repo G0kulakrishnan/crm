@@ -39,7 +39,7 @@ export default function LeadsView({ user }) {
   const profileId = data?.userProfiles?.[0]?.id;
   
   const savedCols = data?.userProfiles?.[0]?.leadCols;
-  const allPossibleCols = ['Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Label', 'Reminder', ...customFields.map(c => c.name)];
+  const allPossibleCols = ['Created', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Label', 'Reminder', ...customFields.map(c => c.name)];
   const activeCols = savedCols || allPossibleCols;
 
   const savedStages = data?.userProfiles?.[0]?.leadStages;
@@ -406,6 +406,7 @@ export default function LeadsView({ user }) {
                     <th style={{ width: 36 }}><input type="checkbox" onChange={e => { if (e.target.checked) setSelectedIds(new Set(filtered.map(l => l.id))); else setSelectedIds(new Set()); }} /></th>
                     <th>#</th>
                     <th>Name</th>
+                    {activeCols.includes('Created') && <th>Created</th>}
                     {activeCols.includes('Phone') && <th>Phone</th>}
                     {activeCols.includes('Source') && <th>Source</th>}
                     {activeCols.includes('Stage') && <th>Stage</th>}
@@ -425,6 +426,7 @@ export default function LeadsView({ user }) {
                     <td><input type="checkbox" checked={selectedIds.has(l.id)} onChange={e => { const s = new Set(selectedIds); e.target.checked ? s.add(l.id) : s.delete(l.id); setSelectedIds(s); }} style={{ width: 14, height: 14, accentColor: 'var(--accent)' }} /></td>
                     <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
                     <td><strong>{l.name}</strong><div style={{ fontSize: 10, color: 'var(--muted)' }}>{l.email}</div></td>
+                    {activeCols.includes('Created') && <td style={{ fontSize: 11 }}>{l.createdAt ? fmtD(l.createdAt) : '-'}</td>}
                     {activeCols.includes('Phone') && <td style={{ fontSize: 12 }}>{l.phone || '-'}</td>}
                     {activeCols.includes('Source') && <td><span style={{ fontSize: 11 }}>{l.source}</span></td>}
                     {activeCols.includes('Stage') && <td><span className={`badge ${stageBadgeClass(l.stage)}`}>{l.stage}</span></td>}

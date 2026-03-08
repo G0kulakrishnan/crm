@@ -4,8 +4,9 @@ import { id } from '@instantdb/react';
 import { fmtD, fmt, stageBadgeClass, daysLeft } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import { sendEmail, sendEmailMock, renderTemplate } from '../../utils/messaging';
+import SearchableSelect from '../UI/SearchableSelect';
 
-const EMPTY = { client: '', email: '', phone: '', contractNo: '', startDate: '', endDate: '', amount: '', plan: 'Basic', status: 'Active', notes: '' };
+const EMPTY = { client: '', email: '', phone: '', contractNo: '', cycle: 'Yearly', startDate: '', endDate: '', amount: '', plan: 'Basic', status: 'Active', notes: '' };
 
 export default function AMC({ user }) {
   const [modal, setModal] = useState(false);
@@ -18,6 +19,7 @@ export default function AMC({ user }) {
   const { data } = db.useQuery({ 
     amc: { $: { where: { userId: user.id } } },
     customers: { $: { where: { userId: user.id } } },
+    invoices: { $: { where: { userId: user.id } } }, // Fetch invoices solely to get accurate next invoice numbers
     userProfiles: { $: { where: { userId: user.id } } }
   });
   const amcList = data?.amc || [];
@@ -40,8 +42,31 @@ export default function AMC({ user }) {
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
 
-  const handleClientSelect = (e) => {
-    const cName = e.target.value;
+  const handleStartDateChange = (val) => {
+    let endDate = form.endDate;
+    if (val && form.cycle !== 'Custom') {
+      const d = new Date(val);
+      if (form.cycle === 'Monthly') d.setMonth(d.getMonth() + 1);
+      else if (form.cycle === 'Yearly') d.setFullYear(d.getFullYear() + 1);
+      d.setDate(d.getDate() - 1);
+      endDate = d.toISOString().split('T')[0];
+    }
+    setForm(p => ({ ...p, startDate: val, endDate }));
+  };
+
+  const handleCycleChange = (val) => {
+    let endDate = form.endDate;
+    if (form.startDate && val !== 'Custom') {
+      const d = new Date(form.startDate);
+      if (val === 'Monthly') d.setMonth(d.getMonth() + 1);
+      else if (val === 'Yearly') d.setFullYear(d.getFullYear() + 1);
+      d.setDate(d.getDate() - 1);
+      endDate = d.toISOString().split('T')[0];
+    }
+    setForm(p => ({ ...p, cycle: val, endDate }));
+  };
+
+  const handleClientSelect = (cName) => {
     const cust = customers.find(c => c.name === cName);
     setForm(p => ({ 
       ...p, 
@@ -107,6 +132,40 @@ export default function AMC({ user }) {
     }
   };
 
+  const handleGenerateInvoice = async (a) => {
+    if (!confirm(`Generate Draft Invoice for ${a.client} (₹${a.amount})?`)) return;
+    
+    // Get existing invoices length rough count to make a tentative invoice no
+    const currentInvoicesLength = data?.invoices ? data.invoices.length : 0;
+    const no = `INV/${new Date().getFullYear()}/${String(currentInvoicesLength + 1).padStart(3, '0')}`;
+    
+    const invoicePayload = {
+      userId: user.id,
+      no,
+      client: a.client,
+      date: new Date().toISOString().split('T')[0],
+      dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 7 Days from now
+      status: 'Draft',
+      template: 'Classic',
+      total: a.amount,
+      disc: 0,
+      adj: 0,
+      tdsRate: 0,
+      notes: a.contractNo || '',
+      fromAmc: true,
+      items: [{
+        name: a.plan || 'AMC Plan',
+        desc: `${fmtD(a.startDate)} to ${fmtD(a.endDate)}`,
+        qty: 1,
+        rate: a.amount,
+        taxRate: 0
+      }]
+    };
+
+    await db.transact(db.tx.invoices[id()].update(invoicePayload));
+    toast('Draft Invoice created!', 'success');
+  };
+
   return (
     <div>
       <div className="sh"><div><h2>AMC Contracts</h2><div className="sub">Annual Maintenance Contracts</div></div>
@@ -143,12 +202,22 @@ export default function AMC({ user }) {
                     <td><span className={`badge ${s.cls}`}>{s.label}</span></td>
                     <td style={{ fontSize: 12 }}>{a.phone || '-'}</td>
                     <td>
-                      <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, plan: a.plan, status: a.status, notes: a.notes || '' }); setModal(true); }}>Edit</button>{' '}
-                      <button className="btn btn-sm" style={{ background: '#eff6ff', color: '#2563eb', padding: '4px 8px', fontSize: 13 }} onClick={() => handleSendReminder(a)}>📧 Remind</button>{' '}
-                      <button className={`btn btn-sm ${a.needsFollowUp ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '4px 8px', fontSize: 13 }} onClick={() => toggleFollowUp(a)}>
-                        {a.needsFollowUp ? '📌 Following Up' : '📍 Flag'}
-                      </button>{' '}
-                      <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(a.id)}>Del</button>
+                      <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', cycle: a.cycle || 'Yearly', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, plan: a.plan, status: a.status, notes: a.notes || '' }); setModal(true); }}>Edit</button>
+                        <button className={`btn-icon ${a.needsFollowUp ? 'text-primary' : ''}`} style={{ padding: '4px 8px', fontSize: 13 }} onClick={() => toggleFollowUp(a)}>
+                          {a.needsFollowUp ? '📌' : '📍'}
+                        </button>
+                        <button className="btn-icon" style={{ background: '#fee2e2', color: '#991b1b', padding: '4px 8px', fontSize: 13 }} onClick={() => del(a.id)}>Del</button>
+                        <button className="btn-icon" onClick={(e) => {
+                          const dm = e.currentTarget.nextElementSibling;
+                          document.querySelectorAll('.dd-menu').forEach(el => el !== dm && (el.style.display = 'none'));
+                          dm.style.display = dm.style.display === 'block' ? 'none' : 'block';
+                        }}>⋮</button>
+                        <div className="dd-menu" style={{ display: 'none', position: 'absolute', right: 0, top: 28, background: '#fff', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, minWidth: 140, overflow: 'hidden' }}>
+                          <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { handleGenerateInvoice(a); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>💳 Generate Invoice</div>
+                          <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer' }} onClick={() => { handleSendReminder(a); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>📧 Send Reminder</div>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -162,18 +231,23 @@ export default function AMC({ user }) {
             <div className="mo-head"><h3>{editData ? 'Edit' : 'Create'} AMC Contract</h3><button className="btn-icon" onClick={() => setModal(false)}>✕</button></div>
             <div className="mo-body">
               <div className="fgrid">
-                <div className="fg">
+                <div className="fg" style={{ zIndex: 10 }}>
                   <label>Client *</label>
-                  <select value={form.client} onChange={handleClientSelect}>
-                    <option value="">Select Customer...</option>
-                    {customers.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                  </select>
+                  <SearchableSelect 
+                    options={customers} 
+                    displayKey="name" 
+                    returnKey="name"
+                    value={form.client} 
+                    onChange={handleClientSelect} 
+                    placeholder="Search client..." 
+                  />
                 </div>
                 <div className="fg"><label>Contract No.</label><input value={form.contractNo} onChange={f('contractNo')} placeholder="AMC/2025/001" /></div>
                 <div className="fg"><label>Email</label><input type="email" value={form.email} onChange={f('email')} /></div>
                 <div className="fg"><label>Phone</label><input value={form.phone} onChange={f('phone')} /></div>
-                <div className="fg"><label>Start Date</label><input type="date" value={form.startDate} onChange={f('startDate')} /></div>
-                <div className="fg"><label>End Date (Expiry)</label><input type="date" value={form.endDate} onChange={f('endDate')} /></div>
+                <div className="fg"><label>Cycle</label><select value={form.cycle} onChange={e => handleCycleChange(e.target.value)}>{['Custom', 'Monthly', 'Yearly'].map(c => <option key={c}>{c}</option>)}</select></div>
+                <div className="fg"><label>Start Date</label><input type="date" value={form.startDate} onChange={e => handleStartDateChange(e.target.value)} /></div>
+                <div className="fg"><label>End Date (Expiry)</label><input type="date" value={form.endDate} readOnly={form.cycle !== 'Custom'} onChange={e => form.cycle === 'Custom' && f('endDate')(e)} style={{ border: form.cycle !== 'Custom' ? 'none' : '', background: form.cycle !== 'Custom' ? '#f1f5f9' : '#fff' }} /></div>
                 <div className="fg"><label>Plan</label><select value={form.plan} onChange={f('plan')}>{['Basic', 'Standard', 'Premium', 'Custom'].map(s => <option key={s}>{s}</option>)}</select></div>
                 <div className="fg"><label>Amount (₹)</label><input type="number" value={form.amount} onChange={f('amount')} /></div>
                 <div className="fg"><label>Status</label><select value={form.status} onChange={f('status')}>{['Active', 'Expired'].map(s => <option key={s}>{s}</option>)}</select></div>

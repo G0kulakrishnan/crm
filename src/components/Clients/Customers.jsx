@@ -23,8 +23,6 @@ export default function Customers({ user }) {
     tasks: { $: { where: { userId: user.id } } },
     activityLogs: { $: { where: { userId: user.id } } },
     amc: { $: { where: { userId: user.id } } },
-    subscriptions: { $: { where: { userId: user.id } } },
-    recur: { $: { where: { userId: user.id } } },
   });
   const customers = data?.customers || [];
   const customFields = data?.userProfiles?.[0]?.customFields || [];
@@ -34,8 +32,6 @@ export default function Customers({ user }) {
   const tasks = data?.tasks || [];
   const activityLogs = data?.activityLogs || [];
   const amcList = data?.amc || [];
-  const subsList = data?.subscriptions || [];
-  const recurList = data?.recur || [];
 
   const filtered = useMemo(() => {
     return customers.filter(c => {
@@ -50,15 +46,50 @@ export default function Customers({ user }) {
   const openCreate = () => { setEditData(null); setForm(EMPTY_CUSTOMER); setModal(true); };
   const openEdit = (c) => { setEditData(c); setForm({ name: c.name, email: c.email || '', phone: c.phone || '', custom: c.custom || {} }); setModal(true); };
 
+  const logActivity = async (customerId, text) => {
+    await db.transact(db.tx.activityLogs[id()].update({
+      entityId: customerId,
+      entityType: 'customer',
+      text,
+      userId: user.id,
+      userName: user.email,
+      createdAt: Date.now()
+    }));
+  };
+
   const saveCustomer = async () => {
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
     if (!form.email.trim()) { toast('Email is mandatory for clients', 'error'); return; }
     try {
       if (editData) {
+        const changes = [];
+        const fields = { name: 'Name', phone: 'Phone', email: 'Email' };
+        Object.entries(fields).forEach(([k, label]) => {
+          if (editData[k] !== form[k]) {
+            const oldVal = editData[k] || 'None';
+            const newVal = form[k] || 'None';
+            changes.push(`${label} changed from "${oldVal}" to "${newVal}"`);
+          }
+        });
+
+        const oldCustom = editData.custom || {};
+        const newCustom = form.custom || {};
+        customFields.forEach(cf => {
+          if (oldCustom[cf.name] !== newCustom[cf.name]) {
+            changes.push(`${cf.name} (Custom) changed from "${oldCustom[cf.name] || 'None'}" to "${newCustom[cf.name] || 'None'}"`);
+          }
+        });
+
         await db.transact(db.tx.customers[editData.id].update({ ...form, userId: user.id, updatedAt: Date.now() }));
+        if (changes.length > 0) {
+          await logActivity(editData.id, changes.join(' | '));
+        }
+
         toast('Customer updated!', 'success');
       } else {
-        await db.transact(db.tx.customers[id()].update({ ...form, userId: user.id, createdAt: Date.now() }));
+        const newId = id();
+        await db.transact(db.tx.customers[newId].update({ ...form, userId: user.id, createdAt: Date.now() }));
+        await logActivity(newId, 'Customer created');
         toast(`Customer "${form.name}" created!`, 'success');
       }
       setModal(false);
@@ -91,8 +122,6 @@ export default function Customers({ user }) {
     
     // CRM entities matching client name
     const relAmc = amcList.filter(cReq);
-    const relSubs = subsList.filter(cReq);
-    const relRecur = recurList.filter(cReq);
     
     // Sort logs newest first
     const cLogs = activityLogs.filter(l => l.entityId === c.id).sort((a,b) => b.createdAt - a.createdAt);
@@ -146,7 +175,7 @@ export default function Customers({ user }) {
           <div className="stat-card sc-yellow"><div className="lbl">Quotations</div><div className="val">{relQuotes.length}</div></div>
           <div className="stat-card sc-green"><div className="lbl">Invoices</div><div className="val">{relInvoices.length}</div></div>
           <div className="stat-card sc-purple"><div className="lbl">Tasks</div><div className="val">{relTasks.length}</div></div>
-          <div className="stat-card sc-blue"><div className="lbl">AMC / Subs</div><div className="val">{relAmc.length + relSubs.length + relRecur.length}</div></div>
+          <div className="stat-card sc-blue"><div className="lbl">AMC</div><div className="val">{relAmc.length}</div></div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 20, alignItems: 'start' }}>
@@ -225,10 +254,10 @@ export default function Customers({ user }) {
             )}
           </div>
 
-          {/* Subscriptions & AMC Box */}
+          {/* AMC Box */}
           <div className="tw">
-            <div className="tw-head"><h3>Subscriptions & AMC</h3></div>
-            {(relAmc.length === 0 && relSubs.length === 0 && relRecur.length === 0) ? <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No active contracts/subs found.</div> : (
+            <div className="tw-head"><h3>AMC Contracts</h3></div>
+            {relAmc.length === 0 ? <div style={{ padding: 20, textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>No active AMC contracts found.</div> : (
               <table>
                 <thead><tr><th>Type</th><th>Plan / Amount</th><th>Status</th></tr></thead>
                 <tbody>
@@ -237,20 +266,6 @@ export default function Customers({ user }) {
                       <td><strong>AMC</strong> <span style={{ fontSize: 11, color: 'var(--muted)' }}>({a.contractNo})</span></td>
                       <td style={{ fontWeight: 600 }}>₹{a.amount} <span style={{ fontWeight: 400, color: 'var(--muted)' }}>({a.plan})</span></td>
                       <td><span className={`badge ${a.status === 'Active' ? 'bg-green' : 'bg-red'}`}>{a.status}</span></td>
-                    </tr>
-                  ))}
-                  {relSubs.map(s => (
-                    <tr key={s.id}>
-                      <td><strong>Sub ({s.service})</strong></td>
-                      <td style={{ fontWeight: 600 }}>₹{s.amount} <span style={{ fontWeight: 400, color: 'var(--muted)' }}>/{s.frequency}</span></td>
-                      <td><span className={`badge ${s.status === 'Active' ? 'bg-green' : 'bg-gray'}`}>{s.status}</span></td>
-                    </tr>
-                  ))}
-                  {relRecur.map(r => (
-                    <tr key={r.id}>
-                      <td><strong>Recur. Inv</strong></td>
-                      <td style={{ fontWeight: 600 }}>₹{r.amount} <span style={{ fontWeight: 400, color: 'var(--muted)' }}>/{r.frequency}</span></td>
-                      <td><span className={`badge ${r.status === 'Active' ? 'bg-green' : 'bg-gray'}`}>{r.status}</span></td>
                     </tr>
                   ))}
                 </tbody>

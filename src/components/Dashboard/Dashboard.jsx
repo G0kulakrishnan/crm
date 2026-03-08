@@ -9,7 +9,6 @@ export default function Dashboard({ user }) {
     invoices: { $: { where: { userId: user.id } } },
     projects: { $: { where: { userId: user.id } } },
     amc: { $: { where: { userId: user.id } } },
-    subs: { $: { where: { userId: user.id } } },
   });
 
   const leads = data?.leads || [];
@@ -17,17 +16,15 @@ export default function Dashboard({ user }) {
   const invoices = data?.invoices || [];
   const projects = data?.projects || [];
   const amc = data?.amc || [];
-  const subs = data?.subs || [];
   const now = new Date();
 
   const stats = useMemo(() => {
     const overdue = leads.filter(l => l.followup && new Date(l.followup) < now).length;
     const active = leads.filter(l => !['Won', 'Lost'].includes(l.stage)).length;
     const amcExp = amc.filter(a => { const d = daysLeft(a.endDate); return d <= 30 && d >= 0; }).length;
-    const subRem = subs.filter(s => { const d = daysLeft(s.nextPayment); return d <= 7; }).length;
     const inProgress = projects.filter(p => p.status === 'In Progress').length;
-    return { overdue, active, amcExp, subRem, inProgress };
-  }, [leads, amc, subs, projects]);
+    return { overdue, active, amcExp, inProgress };
+  }, [leads, amc, projects]);
 
   // Source chart data
   const srcData = useMemo(() => {
@@ -42,10 +39,9 @@ export default function Dashboard({ user }) {
   const reminders = useMemo(() => {
     const rem = [];
     amc.forEach(a => { const d = daysLeft(a.endDate); if (d <= 30 && d >= 0) rem.push({ icon: '🛡', text: `<strong>${a.client}</strong> AMC expires in <strong>${d} days</strong>` }); });
-    subs.forEach(s => { const d = daysLeft(s.nextPayment); if (d <= 7) rem.push({ icon: '💰', text: `<strong>${s.client}</strong> payment due in <strong>${d} days</strong>` }); });
     leads.filter(l => l.followup && new Date(l.followup) < now).forEach(l => rem.push({ icon: '⏰', text: `Follow-up overdue: <strong>${l.name}</strong>` }));
     return rem;
-  }, [amc, subs, leads]);
+  }, [amc, leads]);
 
   // Revenue Trend (Last 6 Months)
   const revenueTrend = useMemo(() => {
@@ -104,7 +100,6 @@ export default function Dashboard({ user }) {
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
           {stats.amcExp > 0 && <span className="rem-badge">🛡 {stats.amcExp} AMC expiring</span>}
-          {stats.subRem > 0 && <span className="rem-badge">💰 {stats.subRem} payment due</span>}
         </div>
       </div>
 
@@ -117,7 +112,6 @@ export default function Dashboard({ user }) {
         <div className="stat-card sc-purple"><div className="lbl">Invoices</div><div className="val">{invoices.length}</div></div>
         <div className="stat-card sc-teal"><div className="lbl">Projects</div><div className="val">{stats.inProgress}</div></div>
         <div className="stat-card sc-red"><div className="lbl">AMC Expiring</div><div className="val">{stats.amcExp}</div></div>
-        <div className="stat-card sc-yellow"><div className="lbl">Sub Reminders</div><div className="val">{stats.subRem}</div></div>
       </div>
 
       {/* Charts Row */}
