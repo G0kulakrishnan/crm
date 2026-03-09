@@ -16,6 +16,8 @@ export default function Dashboard({ user, ownerId, perms }) {
     teamMembers: { $: { where: { userId: ownerId } } },
   });
 
+  const profile = data?.userProfiles?.[0] || {};
+  const wonStage = profile.wonStage || 'Won';
   const leadsRaw = data?.leads || [];
   const quotesRaw = data?.quotes || [];
   const invoicesRaw = data?.invoices || [];
@@ -222,7 +224,7 @@ export default function Dashboard({ user, ownerId, perms }) {
                   {leads.slice(-5).reverse().map(l => (
                     <tr key={l.id}>
                       <td><strong>{l.name}</strong></td>
-                      <td><span className={`badge ${stageBadgeClass(l.stage)}`}>{l.stage}</span></td>
+                      <td><span className={`badge ${stageBadgeClass(l.stage, wonStage)}`}>{l.stage}</span></td>
                       <td style={{ color: 'var(--muted)' }}>{l.source}</td>
                     </tr>
                   ))}
@@ -244,7 +246,7 @@ export default function Dashboard({ user, ownerId, perms }) {
                       <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{l.source} • {l.phone}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
-                      <span className={`badge ${stageBadgeClass(l.stage)}`} style={{ fontSize: 10 }}>{l.stage}</span>
+                      <span className={`badge ${stageBadgeClass(l.stage, wonStage)}`} style={{ fontSize: 10 }}>{l.stage}</span>
                       <div style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 700, marginTop: 4 }}>
                         {l.followup ? `Next: ${fmtD(l.followup)}` : 'Hot Label'}
                       </div>

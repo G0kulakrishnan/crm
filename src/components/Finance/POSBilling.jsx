@@ -13,7 +13,10 @@ export default function POSBilling({ user, ownerId, perms }) {
     customers: { $: { where: { userId: ownerId } } },
     invoices: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId } } },
   });
+  const profile = data?.userProfiles?.[0] || {};
+  const wonStage = profile.wonStage || 'Won';
 
   // 2. State
   const [cart, setCart] = useState([]);
@@ -30,7 +33,6 @@ export default function POSBilling({ user, ownerId, perms }) {
   // 3. Derived Data
   const products = data?.products || [];
   const customers = data?.customers || [];
-  const profile = data?.userProfiles?.[0] || {};
   const customFields = profile.customFields || [];
 
   // 4. Memos
@@ -124,8 +126,27 @@ export default function POSBilling({ user, ownerId, perms }) {
       type: 'POS',
       taxAmt: totals.tax
     };
+    
+    const txs = [db.tx.invoices[id()].update(payload)];
+
+    // Lead matching and conversion
+    if (selectedCust) {
+       const lMatch = (data?.leads || []).find(l => l.name === selectedCust.name && l.stage !== wonStage);
+       if (lMatch) {
+          txs.push(db.tx.leads[lMatch.id].update({ 
+             stage: wonStage,
+             email: lMatch.email || selectedCust.email || '',
+             phone: lMatch.phone || selectedCust.phone || ''
+          }));
+          txs.push(db.tx.activityLogs[id()].update({
+             entityId: lMatch.id, entityType: 'lead', text: `Lead converted to Customer. Stage changed to ${wonStage} (via POS Checkout).`,
+             userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+          }));
+       }
+    }
+
     try {
-      await db.transact(db.tx.invoices[id()].update(payload));
+      await db.transact(txs);
       setPrinting({ ...payload, profile });
       setCart([]);
       setSelectedCust(null);

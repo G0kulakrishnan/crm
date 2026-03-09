@@ -58,6 +58,7 @@ export default function Quotations({ user, perms, ownerId }) {
   const leads = data?.leads || [];
   const team = data?.teamMembers || [];
   const profile = data?.userProfiles?.[0] || {};
+  const wonStage = profile.wonStage || 'Won';
   const taxRates = profile.taxRates || TAX_OPTIONS;
   const customFields = profile.customFields || [];
   
@@ -67,7 +68,7 @@ export default function Quotations({ user, perms, ownerId }) {
   const clientOptions = useMemo(() => {
     return [
       ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
-      ...leads.filter(l => l.stage !== 'Won').map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+      ...leads.filter(l => l.stage !== wonStage).map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
     ];
   }, [customers, leads]);
 
@@ -124,16 +125,29 @@ export default function Quotations({ user, perms, ownerId }) {
       txs.push(db.tx.quotes[id()].update({ ...payload }));
     }
 
-    const cMatch = customers.find(c => c.name === form.client);
-    if (!cMatch) {
-      const lMatch = leads.find(l => l.name === form.client);
-      if (lMatch) {
-         txs.push(db.tx.customers[id()].update({
-            name: lMatch.name, email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
-         }));
-         txs.push(db.tx.leads[lMatch.id].update({ stage: 'Won' }));
-         isNewCustomer = true;
-      }
+    const lMatch = leads.find(l => l.name === form.client && l.stage !== wonStage);
+    if (lMatch) {
+       if (payload.status === 'Sent') {
+          txs.push(db.tx.leads[lMatch.id].update({ 
+             stage: 'Quotation Sent',
+             email: lMatch.email || payload.email || '',
+             phone: lMatch.phone || payload.phone || ''
+          }));
+          txs.push(db.tx.activityLogs[id()].update({
+             entityId: lMatch.id, entityType: 'lead', text: 'Stage changed to Quotation Sent (via Quotation)',
+             userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+          }));
+       } else if (payload.status === 'Draft' || payload.status === 'Created') {
+           txs.push(db.tx.leads[lMatch.id].update({ 
+              stage: 'Quotation Created',
+              email: lMatch.email || payload.email || '',
+              phone: lMatch.phone || payload.phone || ''
+           }));
+           txs.push(db.tx.activityLogs[id()].update({
+              entityId: lMatch.id, entityType: 'lead', text: 'Stage changed to Quotation Created (via Quotation)',
+              userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+           }));
+        }
     }
 
     try {
@@ -146,7 +160,18 @@ export default function Quotations({ user, perms, ownerId }) {
 
   const del = async (qid) => {
     if (!confirm('Delete this quotation?')) return;
-    await db.transact(db.tx.quotes[qid].delete());
+    const q = quotes.find(x => x.id === qid);
+    const txs = [db.tx.quotes[qid].delete()];
+    if (q) {
+      const lMatch = leads.find(l => l.name === q.client);
+      if (lMatch) {
+        txs.push(db.tx.activityLogs[id()].update({
+          entityId: lMatch.id, entityType: 'lead', text: `Quotation ${q.no} was deleted.`,
+          userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+        }));
+      }
+    }
+    await db.transact(txs);
     toast('Deleted', 'error');
   };
 
@@ -169,10 +194,26 @@ export default function Quotations({ user, perms, ownerId }) {
       const payload = { ...q, no: invNo, status: 'Draft', createdAt: Date.now() };
       delete payload.id;
       
-      await db.transact([
+      const txs = [
         db.tx.invoices[id()].update(payload),
         db.tx.quotes[q.id].update({ status: 'Completed' })
-      ]);
+      ];
+
+      // Sync lead stage
+      const lMatch = (data?.leads || []).find(l => l.name === q.client && l.stage !== wonStage);
+      if (lMatch) {
+        txs.push(db.tx.leads[lMatch.id].update({ 
+           stage: 'Invoice Created',
+           email: lMatch.email || q.email || '',
+           phone: lMatch.phone || q.phone || ''
+        }));
+        txs.push(db.tx.activityLogs[id()].update({
+           entityId: lMatch.id, entityType: 'lead', text: `Quotation converted to Invoice (${invNo}). Stage changed to Invoice Created.`,
+           userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+        }));
+      }
+
+      await db.transact(txs);
       toast('Converted to Invoice successfully!', 'success');
     } catch { toast('Error converting', 'error'); }
   };

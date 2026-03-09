@@ -60,6 +60,7 @@ export default function Invoices({ user, perms, ownerId }) {
   const leads = data?.leads || [];
   const team = data?.teamMembers || [];
   const profile = data?.userProfiles?.[0] || {};
+  const wonStage = profile.wonStage || 'Won';
   const taxRates = profile.taxRates || TAX_OPTIONS;
   const customFields = profile.customFields || [];
   
@@ -69,7 +70,7 @@ export default function Invoices({ user, perms, ownerId }) {
   const clientOptions = useMemo(() => {
     return [
       ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
-      ...leads.filter(l => l.stage !== 'Won').map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+      ...leads.filter(l => l.stage !== wonStage).map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
     ];
   }, [customers, leads]);
   
@@ -206,14 +207,39 @@ export default function Invoices({ user, perms, ownerId }) {
     }
 
     let isNewCustomer = false;
-    if (payload.status === 'Paid') {
-      const lMatch = leads.find(l => l.name === payload.client && l.stage !== 'Won');
-      if (lMatch) {
-         txs.push(db.tx.customers[id()].update({
-            name: lMatch.name, email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
-         }));
-         txs.push(db.tx.leads[lMatch.id].update({ stage: 'Won' }));
-         isNewCustomer = true;
+    const lMatch = leads.find(l => l.name === payload.client && l.stage !== wonStage);
+    
+    if (lMatch) {
+      if (payload.status === 'Sent') {
+        txs.push(db.tx.leads[lMatch.id].update({ stage: 'Invoice Sent' }));
+        txs.push(db.tx.activityLogs[id()].update({
+           entityId: lMatch.id, entityType: 'lead', text: 'Stage changed to Invoice Sent (via Invoice)',
+           userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+        }));
+      } else if (payload.status === 'Draft') {
+        txs.push(db.tx.leads[lMatch.id].update({ 
+           stage: 'Invoice Created',
+           email: lMatch.email || payload.email || '',
+           phone: lMatch.phone || payload.phone || ''
+        }));
+        txs.push(db.tx.activityLogs[id()].update({
+           entityId: lMatch.id, entityType: 'lead', text: 'Stage changed to Invoice Created (via Invoice)',
+           userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+        }));
+      } else if (payload.status === 'Paid' || payload.status === 'Partially Paid') {
+        txs.push(db.tx.customers[id()].update({
+          name: lMatch.name, email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
+        }));
+        txs.push(db.tx.leads[lMatch.id].update({ 
+           stage: wonStage,
+           email: lMatch.email || payload.email || '',
+           phone: lMatch.phone || payload.phone || ''
+        }));
+        txs.push(db.tx.activityLogs[id()].update({
+           entityId: lMatch.id, entityType: 'lead', text: `Lead converted to Customer. Stage changed to ${wonStage} (via Invoice save).`,
+           userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+        }));
+        isNewCustomer = true;
       }
     }
 
@@ -224,7 +250,18 @@ export default function Invoices({ user, perms, ownerId }) {
 
   const del = async (iid) => {
     if (!confirm('Delete?')) return;
-    await db.transact(db.tx.invoices[iid].delete());
+    const inv = invoices.find(x => x.id === iid);
+    const txs = [db.tx.invoices[iid].delete()];
+    if (inv) {
+      const lMatch = leads.find(l => l.name === inv.client);
+      if (lMatch) {
+         txs.push(db.tx.activityLogs[id()].update({
+           entityId: lMatch.id, entityType: 'lead', text: `Invoice ${inv.no} was deleted.`,
+           userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+         }));
+      }
+    }
+    await db.transact(txs);
     toast('Deleted', 'error');
   };
 
@@ -409,13 +446,21 @@ export default function Invoices({ user, perms, ownerId }) {
     const txs = [db.tx.invoices[payModal.id].update({ payments: nw, status: stat })];
     let isNewCustomer = false;
     
-    if (stat === 'Paid') {
-      const lMatch = leads.find(l => l.name === payModal.client && l.stage !== 'Won');
+    if (stat === 'Paid' || stat === 'Partially Paid') {
+      const lMatch = leads.find(l => l.name === payModal.client && l.stage !== wonStage);
       if (lMatch) {
          txs.push(db.tx.customers[id()].update({
             name: lMatch.name, email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
          }));
-         txs.push(db.tx.leads[lMatch.id].update({ stage: 'Won' }));
+         txs.push(db.tx.leads[lMatch.id].update({ 
+            stage: wonStage,
+            email: lMatch.email || payModal.email || '', // payModal might not have email/phone, depends on where it comes from
+            phone: lMatch.phone || payModal.phone || ''
+         }));
+         txs.push(db.tx.activityLogs[id()].update({
+            entityId: lMatch.id, entityType: 'lead', text: `Payment received. Lead converted to Customer. Stage changed to ${wonStage} (via Invoice payment).`,
+            userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+         }));
          isNewCustomer = true;
       }
     }

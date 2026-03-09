@@ -115,21 +115,55 @@ export default function Projects({ user, perms, ownerId }) {
     }
     else {
       const newId = id();
-      await db.transact(db.tx.projects[newId].update(payload));
-      await logActivity(newId, 'project', `Project "${projForm.name}" created`, newId);
+      const txs = [
+          db.tx.projects[newId].update(payload),
+          db.tx.activityLogs[id()].update({
+            entityId: newId, entityType: 'project', text: `Project "${projForm.name}" created`, projectId: newId,
+            userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+          })
+      ];
+
+      const wonStage = profile.wonStage || 'Won';
+      const lMatch = leads.find(l => l.name === projForm.client && l.stage !== wonStage);
+      if (lMatch) {
+         txs.push(db.tx.leads[lMatch.id].update({ 
+            stage: wonStage,
+            email: lMatch.email || '',
+            phone: lMatch.phone || ''
+         }));
+         txs.push(db.tx.activityLogs[id()].update({
+            entityId: lMatch.id, entityType: 'lead', text: `Project "${projForm.name}" started. Lead converted to Customer. Stage changed to ${wonStage}.`,
+            userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+         }));
+      }
+
+      await db.transact(txs);
       toast('Project created', 'success');
     }
     setProjModal(false);
   };
 
-  const delProj = async (pid, pName) => {
+  const delProj = async (pid, pName, client) => {
     if (!confirm('Delete project and all its tasks?')) return;
     const projTasks = tasks.filter(t => t.projectId === pid);
-    await Promise.all([
-      db.transact(db.tx.projects[pid].delete()),
-      ...projTasks.map(t => db.transact(db.tx.tasks[t.id].delete())),
-      logActivity(pid, 'project', `Project "${pName}" deleted with all its tasks`, pid)
-    ]);
+    const txs = [
+      db.tx.projects[pid].delete(),
+      ...projTasks.map(t => db.tx.tasks[t.id].delete()),
+      db.tx.activityLogs[id()].update({
+        entityId: pid, entityType: 'project', text: `Project "${pName}" deleted with all its tasks`, projectId: pid,
+        userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+      })
+    ];
+
+    const lMatch = leads.find(l => l.name === client);
+    if (lMatch) {
+      txs.push(db.tx.activityLogs[id()].update({
+        entityId: lMatch.id, entityType: 'lead', text: `Project "${pName}" was deleted.`,
+        userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+      }));
+    }
+
+    await db.transact(txs);
     if (selectedProj?.id === pid) setSelectedProj(null);
     toast('Project deleted', 'error');
   };
@@ -233,7 +267,7 @@ export default function Projects({ user, perms, ownerId }) {
                         <td>
                           <button className="btn btn-primary btn-sm" onClick={() => setSelectedProj(p)}>Tasks</button>{' '}
                           {canEditProj && <button className="btn btn-secondary btn-sm" onClick={() => { setEditProj(p); setProjForm({ name: p.name, client: p.client || '', status: p.status, startDate: p.startDate || '', endDate: p.endDate || '', desc: p.desc || '', assignTo: p.assignTo || '' }); setProjModal(true); }}>Edit</button>}{' '}
-                          {canDeleteProj && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => delProj(p.id, p.name)}>Del</button>}
+                          {canDeleteProj && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => delProj(p.id, p.name, p.client)}>Del</button>}
                         </td>
                       </tr>
                     );

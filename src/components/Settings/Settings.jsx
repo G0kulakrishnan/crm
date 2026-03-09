@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
@@ -8,7 +8,8 @@ import { INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
 const SETTING_NAV = ['My Profile', 'Business', 'Finance', 'Billing', 'Taxes', 'Custom Fields', 'Sources', 'Stages', 'Labels', 'Product Categories', 'Expense Categories', 'Task Statuses', 'SMTP', 'WhatsApp', 'Reminders'];
 
 const DEFAULT_SOURCES = ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
-const DEFAULT_STAGES = ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
+const DEFAULT_STAGES = ['New Enquiry', 'Enquiry Contacted', 'Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
+const SYSTEM_STAGES = ['Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Won'];
 const DEFAULT_LABELS = ['Hot', 'Warm', 'Cold', 'VIP', 'Pending'];
 const DEFAULT_CFIELDS = []; // { name: 'Requirement', type: 'text'|'number'|'dropdown', options: 'A,B' }
 const DEFAULT_PROD_CATS = ['Electronics', 'Home Appliances', 'Services', 'Furniture', 'General'];
@@ -88,16 +89,56 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   const [editingCFIndex, setEditingCFIndex] = useState(null);
   const toast = useToast();
 
-  const { data } = db.useQuery({ userProfiles: { $: { where: { userId: ownerId } } } });
+  const { data } = db.useQuery({ 
+     userProfiles: { $: { where: { userId: ownerId } } },
+     leads: { $: { where: { userId: ownerId } } },
+     customers: { $: { where: { userId: ownerId } } },
+     quotes: { $: { where: { userId: ownerId } } },
+     invoices: { $: { where: { userId: ownerId } } }
+  });
   const profileId = data?.userProfiles?.[0]?.id;
   const sources = data?.userProfiles?.[0]?.sources || DEFAULT_SOURCES;
   const stages = data?.userProfiles?.[0]?.stages || DEFAULT_STAGES;
+  const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
+  const disabledStages = data?.userProfiles?.[0]?.disabledStages || [];
   const labels = data?.userProfiles?.[0]?.labels || DEFAULT_LABELS;
   const customFields = data?.userProfiles?.[0]?.customFields || DEFAULT_CFIELDS;
   const productCats = data?.userProfiles?.[0]?.productCats || DEFAULT_PROD_CATS;
   const expCats = data?.userProfiles?.[0]?.expCats || DEFAULT_EXP_CATS;
   const taskStatuses = data?.userProfiles?.[0]?.taskStatuses || DEFAULT_TASK_STATUSES;
   const taxRates = data?.userProfiles?.[0]?.taxRates || DEFAULT_TAX_OPTIONS;
+
+  // Auto-migration for revamped stage names: Drafted -> Created
+  useEffect(() => {
+    if (!profileId || !stages) return;
+    let updated = false;
+    const nl = [...stages];
+    const txs = [];
+    
+    const migrations = [
+      { old: 'Quotation Drafted', new: 'Quotation Created' },
+      { old: 'Invoice Drafted', new: 'Invoice Created' }
+    ];
+
+    migrations.forEach(m => {
+      const idx = nl.indexOf(m.old);
+      if (idx !== -1) {
+        nl[idx] = m.new;
+        updated = true;
+        // Also update leads currently in this stage
+        (data?.leads || []).filter(l => l.stage === m.old).forEach(l => {
+          txs.push(db.tx.leads[l.id].update({ stage: m.new }));
+        });
+      }
+    });
+
+    if (updated) {
+      txs.push(db.tx.userProfiles[profileId].update({ stages: nl }));
+      db.transact(txs).then(() => {
+         console.log("✅ Stages migrated successfully (Drafted -> Created)");
+      }).catch(e => console.error("❌ Stage migration failed:", e));
+    }
+  }, [profileId, stages, data?.leads]);
 
   const handleFile = (e, callback) => {
     const file = e.target.files[0];
@@ -127,11 +168,82 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     toast('Finance settings saved!', 'success');
   };
 
-  const saveList = async (key, list) => {
-    const payload = { [key]: list, userId: ownerId };
+  const saveList = async (key, list, extra = {}) => {
+    const payload = { [key]: list, userId: ownerId, ...extra };
     if (profileId) { await db.transact(db.tx.userProfiles[profileId].update(payload)); }
     else { await db.transact(db.tx.userProfiles[id()].update({ ...payload, userId: ownerId })); }
     toast('Saved!', 'success');
+  };
+
+  const syncExistingData = async () => {
+    const leads = data?.leads || [];
+    const customers = data?.customers || [];
+    const quotes = data?.quotes || [];
+    const invoices = data?.invoices || [];
+    const txs = [];
+    let count = 0;
+    let stageCount = 0;
+
+    const STAGE_ORDER = ['New Enquiry', 'Enquiry Contacted', 'Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Won'];
+
+    leads.forEach(l => {
+      let updated = false;
+      const updates = {};
+
+      // 1. Sync Contact Details from Customers
+      const cMatch = customers.find(c => c.name === l.name);
+      if (cMatch) {
+        if ((cMatch.email && l.email !== cMatch.email) || (cMatch.phone && l.phone !== cMatch.phone)) {
+          updates.email = cMatch.email || l.email || '';
+          updates.phone = cMatch.phone || l.phone || '';
+          updated = true;
+          count++;
+        }
+      }
+
+      // 2. Sync Stage from Quotes & Invoices
+      const lQuotes = quotes.filter(q => q.client === l.name);
+      const lInvoices = invoices.filter(i => i.client === l.name);
+      
+      let targetStage = l.stage;
+      const getRank = (s) => {
+         if (s === wonStage) return STAGE_ORDER.indexOf('Won');
+         const r = STAGE_ORDER.indexOf(s);
+         return r === -1 ? -1 : r;
+      };
+
+      const currentRank = getRank(l.stage);
+
+      // Check Invoices first (higher priority)
+      if (lInvoices.some(i => i.status === 'Paid' || i.status === 'Partially Paid')) {
+         targetStage = wonStage;
+      } else if (lInvoices.some(i => i.status === 'Sent')) {
+         targetStage = 'Invoice Sent';
+      } else if (lInvoices.some(i => i.status === 'Draft')) {
+         targetStage = 'Invoice Created';
+      } else if (lQuotes.some(q => q.status === 'Sent')) {
+         targetStage = 'Quotation Sent';
+      } else if (lQuotes.some(q => q.status === 'Draft' || q.status === 'Created')) {
+         targetStage = 'Quotation Created';
+      }
+
+      if (targetStage !== l.stage && getRank(targetStage) > currentRank) {
+         updates.stage = targetStage;
+         updated = true;
+         stageCount++;
+      }
+
+      if (updated) {
+        txs.push(db.tx.leads[l.id].update(updates));
+      }
+    });
+
+    if (txs.length > 0) {
+      await db.transact(txs);
+      toast(`Synced details for ${count} leads and updated stages for ${stageCount} leads!`, 'success');
+    } else {
+      toast('All lead data is already in sync', 'info');
+    }
   };
 
   const addItem = (key, list, val, reset) => {
@@ -413,6 +525,17 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                     </div>
                   </div>
                 </div>
+
+                <div style={{ marginTop: 30, paddingTop: 20, borderTop: '2px dashed var(--border)' }}>
+                  <h4 style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 2v6h-6M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6m12-4a9 9 0 01-15 6.7L3 16" /></svg>
+                    Data Maintenance
+                  </h4>
+                  <div className="sub" style={{ marginBottom: 15 }}>Sync existing lead contact details (Phone/Email) with their matching customer records.</div>
+                  <button className="btn btn-secondary" onClick={syncExistingData}>
+                    🔄 Sync Existing Lead & Customer Data
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -634,25 +757,81 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                           value={editingStageVal}
                           onChange={e => setEditingStageVal(e.target.value)}
                           onKeyDown={e => {
-                            if (e.key === 'Enter') { const nl = [...stages]; nl[i] = editingStageVal.trim() || s; saveList('stages', nl); setEditingStageIdx(null); }
+                            if (e.key === 'Enter') { 
+                               const newVal = editingStageVal.trim();
+                               if (newVal && newVal !== s) {
+                                  const nl = [...stages]; 
+                                  nl[i] = newVal;
+                                  const extra = {};
+                                  if (s === wonStage) extra.wonStage = newVal;
+                                  
+                                  const txs = [db.tx.userProfiles[profileId].update({ stages: nl, ...extra })];
+                                  // Update leads
+                                  (data?.leads || []).filter(l => l.stage === s).forEach(l => {
+                                     txs.push(db.tx.leads[l.id].update({ stage: newVal }));
+                                  });
+                                  db.transact(txs).then(() => toast('Stage updated!', 'success'));
+                               }
+                               setEditingStageIdx(null); 
+                            }
                             if (e.key === 'Escape') setEditingStageIdx(null);
                           }}
-                          onBlur={() => { const nl = [...stages]; nl[i] = editingStageVal.trim() || s; saveList('stages', nl); setEditingStageIdx(null); }}
+                          onBlur={() => { 
+                             const newVal = editingStageVal.trim();
+                             if (newVal && newVal !== s) {
+                                const nl = [...stages]; 
+                                nl[i] = newVal;
+                                const extra = {};
+                                if (s === wonStage) extra.wonStage = newVal;
+                                
+                                const txs = [db.tx.userProfiles[profileId].update({ stages: nl, ...extra })];
+                                (data?.leads || []).filter(l => l.stage === s).forEach(l => {
+                                   txs.push(db.tx.leads[l.id].update({ stage: newVal }));
+                                });
+                                db.transact(txs).then(() => toast('Stage updated!', 'success'));
+                             }
+                             setEditingStageIdx(null); 
+                          }}
                           style={{ flex: 1, padding: '4px 8px', border: '1.5px solid var(--accent)', borderRadius: 6, fontSize: 13, fontFamily: 'inherit' }}
                         />
                       ) : (
-                        <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{s}</span>
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: 500 }}>{s} {(SYSTEM_STAGES.includes(s) || s === wonStage) && <span style={{ color: 'var(--muted)', fontSize: 10, fontWeight: 400, marginLeft: 8 }}>(System Stage)</span>}</span>
                       )}
-                      <button
-                        className="btn btn-secondary btn-sm"
-                        style={{ fontSize: 11, padding: '2px 8px' }}
-                        onClick={() => { setEditingStageIdx(i); setEditingStageVal(s); }}
-                      >✎ Rename</button>
-                      <button
-                        className="btn btn-sm"
-                        style={{ fontSize: 11, padding: '2px 8px', background: '#fee2e2', color: '#991b1b' }}
-                        onClick={() => removeItem('stages', stages, i)}
-                      >✕</button>
+                      
+                      {(!SYSTEM_STAGES.includes(s) || s === wonStage) && (
+                         <button
+                           className="btn btn-secondary btn-sm"
+                           style={{ fontSize: 11, padding: '2px 8px' }}
+                           onClick={() => { setEditingStageIdx(i); setEditingStageVal(s); }}
+                         >✎ Rename</button>
+                      )}
+
+                      {(!SYSTEM_STAGES.includes(s) && s !== wonStage) && (
+                         <button
+                           className="btn btn-sm"
+                           style={{ fontSize: 11, padding: '2px 8px', background: '#fee2e2', color: '#991b1b' }}
+                           onClick={() => removeItem('stages', stages, i)}
+                         >✕</button>
+                      )}
+                      
+                      {(SYSTEM_STAGES.includes(s) || s === wonStage) && (
+                        <button
+                          className="btn btn-sm"
+                          style={{ 
+                            fontSize: 11, 
+                            padding: '2px 8px', 
+                            background: disabledStages.includes(s) ? '#f3f4f6' : '#ecfdf5', 
+                            color: disabledStages.includes(s) ? '#4b5563' : '#047857',
+                            border: `1px solid ${disabledStages.includes(s) ? '#d1d5db' : '#a7f3d0'}`
+                          }}
+                          onClick={() => {
+                            const nw = disabledStages.includes(s) ? disabledStages.filter(x => x !== s) : [...disabledStages, s];
+                            saveList('disabledStages', nw);
+                          }}
+                        >
+                          {disabledStages.includes(s) ? 'Enable' : 'Disable'}
+                        </button>
+                      )}
                     </div>
                   ))}
                   {stages.length === 0 && <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: 20 }}>No stages yet. Add one above.</div>}

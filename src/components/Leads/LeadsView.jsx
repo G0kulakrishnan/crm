@@ -4,7 +4,7 @@ import { id } from '@instantdb/react';
 import { fmtD, stageBadgeClass, uid } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
-const STAGES = ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
+const STAGES = ['New Enquiry', 'Enquiry Contacted', 'Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
 const SOURCES = ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
 
 const EMPTY_LEAD = { name: '', email: '', phone: '', source: 'FB Ads', stage: 'New Enquiry', assign: '', followup: '', label: 'Hot', notes: '', remWA: false, remEmail: true, remSMS: false, custom: {} };
@@ -58,6 +58,8 @@ export default function LeadsView({ user, perms, ownerId }) {
   const team = data?.teamMembers || [];
   const activityLogs = data?.activityLogs || [];
   const customFields = data?.userProfiles?.[0]?.customFields || [];
+  const disabledStages = data?.userProfiles?.[0]?.disabledStages || [];
+  const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
   const profileId = data?.userProfiles?.[0]?.id;
   
   console.log("🔍 [LeadsView] Props - ownerId:", ownerId, "perms:", perms?.isOwner ? "Owner" : "Team");
@@ -94,7 +96,8 @@ export default function LeadsView({ user, perms, ownerId }) {
 
   const allStages = data?.userProfiles?.[0]?.stages || STAGES;  // ordered full list from Settings
   const savedLeadStages = data?.userProfiles?.[0]?.leadStages;   // visible subset saved from Leads colModal
-  const activeStages = savedLeadStages?.length > 0 ? savedLeadStages : allStages;
+  const activeStages = (savedLeadStages?.length > 0 ? savedLeadStages : allStages).filter(s => !disabledStages.includes(s));
+  const isWon = (s) => s === wonStage;
 
   // Filtering
   const filtered = useMemo(() => {
@@ -355,9 +358,19 @@ export default function LeadsView({ user, perms, ownerId }) {
         userId: ownerId,
         createdAt: Date.now()
       };
+      // Assuming 'lMatch' refers to 'l' from the function parameter, and 'data' is available in scope.
+      // If 'data' is not available, this will cause a runtime error.
       await db.transact([
         db.tx.customers[id()].update(payload),
-        db.tx.leads[l.id].update({ stage: 'Won' })
+        db.tx.leads[l.id].update({ 
+           stage: (data?.userProfiles?.[0]?.wonStage || 'Won'), // use wonStage from profile if possible, it's defined in the component
+           email: l.email || '',
+           phone: l.phone || ''
+        }),
+        db.tx.activityLogs[id()].update({
+           entityId: l.id, entityType: 'lead', text: `Manually converted to Customer. Stage changed to ${(data?.userProfiles?.[0]?.wonStage || 'Won')}.`,
+           userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+        })
       ]);
       toast(`${l.name} is now a Customer!`, 'success');
     } catch {
@@ -409,7 +422,7 @@ export default function LeadsView({ user, perms, ownerId }) {
               <div className="sub" style={{ fontSize: 13, marginTop: 4 }}>
                 {l.email && <span style={{ marginRight: 15 }}>✉ {l.email}</span>}
                 {l.phone && <span>☏ {l.phone}</span>}
-                <span className={`badge ${stageBadgeClass(l.stage)}`} style={{ marginLeft: 15 }}>{l.stage}</span>
+                <span className={`badge ${stageBadgeClass(l.stage, wonStage)}`} style={{ marginLeft: 15 }}>{l.stage}</span>
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>
                 {l.phone && (
@@ -515,7 +528,7 @@ export default function LeadsView({ user, perms, ownerId }) {
                   </div>
                   <div className="fg"><label>Stage</label>
                     <select value={form.stage} onChange={f('stage')}>
-                      {STAGES.map(s => <option key={s}>{s}</option>)}
+                      {activeStages.map(s => <option key={s}>{s}</option>)}
                     </select>
                   </div>
                   <div className="fg"><label>Assign To</label>
@@ -586,7 +599,7 @@ export default function LeadsView({ user, perms, ownerId }) {
               </select>
               <select style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }} onChange={e => { bulkStage(e.target.value); e.target.value = ''; }}>
                 <option value="">Change Stage...</option>
-                {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                {activeStages.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
               {canDelete && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={bulkDelete}>🗑 Delete Selected</button>}
               <button className="btn btn-secondary btn-sm" onClick={() => setSelectedIds(new Set())}>✕ Clear</button>
@@ -608,7 +621,7 @@ export default function LeadsView({ user, perms, ownerId }) {
                 </select>
                 <select className="si" style={{ width: 130 }} value={stgFilter} onChange={e => setStgFilter(e.target.value)}>
                   <option value="">All Stages</option>
-                  {activeStages.map(s => <option key={s}>{s}</option>)}
+                  {allStages.map(s => <option key={s}>{s}</option>)}
                 </select>
                 <button className="btn btn-secondary btn-sm" onClick={() => { setTempCols(activeCols); setTempStages(activeStages); setColModal(true); }}>⚙ Configure View</button>
               </div>
@@ -666,7 +679,7 @@ export default function LeadsView({ user, perms, ownerId }) {
                     {activeCols.includes('Created') && <td style={{ fontSize: 11 }}>{l.createdAt ? fmtD(l.createdAt) : '-'}</td>}
                     {activeCols.includes('Phone') && <td style={{ fontSize: 12 }}>{l.phone || '-'}</td>}
                     {activeCols.includes('Source') && <td><span style={{ fontSize: 11 }}>{l.source}</span></td>}
-                    {activeCols.includes('Stage') && <td><span className={`badge ${stageBadgeClass(l.stage)}`}>{l.stage}</span></td>}
+                    {activeCols.includes('Stage') && <td><span className={`badge ${stageBadgeClass(l.stage, wonStage)}`}>{l.stage}</span></td>}
                     {activeCols.includes('Assigned') && <td style={{ fontSize: 12 }}>{l.assign || <span style={{ color: 'var(--muted)' }}>-</span>}</td>}
                     {activeCols.includes('Follow Up') && <td style={{ fontSize: 11 }}>{l.followup ? fmtD(l.followup) : '-'}</td>}
                     {activeCols.includes('Label') && <td><span className="badge bg-gray" style={{ fontSize: 10 }}>{l.label || '-'}</span></td>}

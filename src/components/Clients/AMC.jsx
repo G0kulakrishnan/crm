@@ -50,6 +50,7 @@ export default function AMC({ user, perms, ownerId }) {
     products: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId } } },
   });
 
   const profile = data?.userProfiles?.[0] || {};
@@ -144,11 +145,43 @@ export default function AMC({ user, perms, ownerId }) {
     if (!form.client.trim()) { toast('Client required', 'error'); return; }
     const payload = { ...form, amount: parseFloat(form.amount) || 0, taxRate: parseFloat(form.taxRate) || 0, userId: ownerId, actorId: user.id };
     if (editData) { await db.transact(db.tx.amc[editData.id].update(payload)); toast('AMC updated', 'success'); }
-    else { await db.transact(db.tx.amc[id()].update(payload)); toast('AMC contract created', 'success'); }
+    else { 
+      const txs = [db.tx.amc[id()].update(payload)];
+      const wonStage = profile.wonStage || 'Won';
+      const lMatch = (data?.leads || []).find(l => l.name === payload.client && l.stage !== wonStage);
+      if (lMatch) {
+        txs.push(db.tx.leads[lMatch.id].update({ 
+           stage: wonStage,
+           email: lMatch.email || payload.email || '',
+           phone: lMatch.phone || payload.phone || ''
+        }));
+        txs.push(db.tx.activityLogs[id()].update({
+           entityId: lMatch.id, entityType: 'lead', text: `AMC Contract created (${payload.contractNo || 'N/A'}). Stage changed to ${wonStage}.`,
+           userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+        }));
+      }
+      await db.transact(txs); 
+      toast('AMC contract created', 'success'); 
+    }
     setModal(false);
   };
 
-  const del = async (aid) => { if (!confirm('Delete?')) return; await db.transact(db.tx.amc[aid].delete()); toast('Deleted', 'error'); };
+  const del = async (aid) => {
+    if (!confirm('Delete?')) return;
+    const a = amcList.find(x => x.id === aid);
+    const txs = [db.tx.amc[aid].delete()];
+    if (a) {
+      const lMatch = (data?.leads || []).find(l => l.name === a.client);
+      if (lMatch) {
+        txs.push(db.tx.activityLogs[id()].update({
+          entityId: lMatch.id, entityType: 'lead', text: `AMC Contract ${a.contractNo || ''} was deleted.`,
+          userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+        }));
+      }
+    }
+    await db.transact(txs);
+    toast('Deleted', 'error');
+  };
 
   // ─── RENEWAL LOGIC ───────────────────────────────────────────────
   const openRenewModal = (a) => {

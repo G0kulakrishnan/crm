@@ -12,9 +12,13 @@ export const fmtD = (d) => {
 export const daysLeft = (d) => Math.ceil((new Date(d) - new Date()) / (1000 * 60 * 60 * 24));
 
 // Stage badge class
-export const stageBadgeClass = (s) => {
+export const stageBadgeClass = (s, wonStage = 'Won') => {
+  if (s === wonStage) return 'bg-green';
   const m = {
-    'New Enquiry': 'bg-blue', 'Enquiry Contacted': 'bg-teal', 'Budget Negotiation': 'bg-yellow',
+    'New Enquiry': 'bg-blue', 'Enquiry Contacted': 'bg-teal', 
+    'Quotation Created': 'bg-gray', 'Quotation Sent': 'bg-purple', 
+    'Invoice Created': 'bg-gray', 'Invoice Sent': 'bg-indigo',
+    'Budget Negotiation': 'bg-yellow',
     'Advance Paid': 'bg-purple', 'Won': 'bg-green', 'Lost': 'bg-red',
     'In Progress': 'bg-blue', 'Planning': 'bg-teal', 'On Hold': 'bg-yellow', 'Completed': 'bg-green',
     'Paid': 'bg-green', 'Draft': 'bg-gray', 'Sent': 'bg-teal', 'Overdue': 'bg-red',
