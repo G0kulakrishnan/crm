@@ -28,6 +28,10 @@ export default function Projects({ user, perms, ownerId }) {
   const toast = useToast();
 
   const { data } = db.useQuery({
+    projects: { $: { where: { userId: ownerId } } },
+    tasks: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
     activityLogs: { $: { where: { userId: ownerId } } },
     customers: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
@@ -61,13 +65,16 @@ export default function Projects({ user, perms, ownerId }) {
     const isTeam = perms && !perms.isOwner;
     if (!isTeam) return raw;
     return raw.filter(p => {
-      if (p.actorId === user.id || perms.isAdmin || perms.isManager) return true;
+      if (perms.isAdmin || perms.isManager || p.actorId === user.id) return true;
       const assignKey = (p.assignTo || '').toLowerCase().trim();
       const userName = (perms.name || '').toLowerCase().trim();
       const userEmail = (user.email || '').toLowerCase().trim();
-      return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
+      const isAssigned = (assignKey && (assignKey === userName || assignKey === userEmail));
+      if (isAssigned) return true;
+      // Also show if assigned to any task in this project
+      return tasks.some(t => t.projectId === p.id && (t.assignTo === user.email || (perms.name && t.assignTo === perms.name)));
     });
-  }, [data?.projects, perms, user]);
+  }, [data?.projects, tasks, perms, user]);
 
   const filteredProjects = projects.filter(p => {
     if (!search) return true;

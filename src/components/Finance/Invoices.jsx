@@ -40,6 +40,7 @@ export default function Invoices({ user, perms, ownerId }) {
     customers: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
   });
   const invoices = useMemo(() => {
     const raw = data?.invoices || [];

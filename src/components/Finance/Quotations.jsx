@@ -38,6 +38,7 @@ export default function Quotations({ user, perms, ownerId }) {
     customers: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
   });
   const quotes = useMemo(() => {
     const raw = data?.quotes || [];

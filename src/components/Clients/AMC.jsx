@@ -48,7 +48,8 @@ export default function AMC({ user, perms, ownerId }) {
     customers: { $: { where: { userId: ownerId } } },
     invoices: { $: { where: { userId: ownerId } } },
     products: { $: { where: { userId: ownerId } } },
-    userProfiles: { $: { where: { userId: ownerId } } }
+    userProfiles: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
   });
 
   const profile = data?.userProfiles?.[0] || {};

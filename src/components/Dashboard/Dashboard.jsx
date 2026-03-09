@@ -12,6 +12,8 @@ export default function Dashboard({ user, ownerId, perms }) {
     projects: { $: { where: { userId: ownerId } } },
     tasks: { $: { where: { userId: ownerId } } },
     amc: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
   });
 
   const leadsRaw = data?.leads || [];

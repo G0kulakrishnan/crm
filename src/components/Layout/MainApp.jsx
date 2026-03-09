@@ -3,6 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useApp } from '../../context/AppContext';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useToast } from '../../context/ToastContext';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import NotifPanel from './NotifPanel';
@@ -38,6 +39,7 @@ const DEFAULT_PLANS = [
 
 export default function MainApp({ user, settings }) {
   const { activeView, notifOpen, setActiveView, settingsTab } = useApp();
+  const toast = useToast();
   
   // 1. Initial State for Team Info
   const [teamInfo, setTeamInfo] = useState(() => {

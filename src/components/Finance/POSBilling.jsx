@@ -5,13 +5,17 @@ import { fmt, fmtD } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
 export default function POSBilling({ user, ownerId, perms }) {
+  const toast = useToast();
+  
+  // 1. Data Query
   const { data } = db.useQuery({
     products: { $: { where: { userId: ownerId } } },
     customers: { $: { where: { userId: ownerId } } },
     invoices: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
   });
-  
+
+  // 2. State
   const [cart, setCart] = useState([]);
   const [selectedCat, setSelectedCat] = useState('All');
   const [search, setSearch] = useState('');
@@ -20,11 +24,57 @@ export default function POSBilling({ user, ownerId, perms }) {
   const [showCustList, setShowCustList] = useState(false);
   const [printing, setPrinting] = useState(null);
   const [payMode, setPayMode] = useState('Cash');
-  
   const [custModal, setCustModal] = useState(false);
   const [newCustForm, setNewCustForm] = useState({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
-  const toast = useToast();
-  
+
+  // 3. Derived Data
+  const products = data?.products || [];
+  const customers = data?.customers || [];
+  const profile = data?.userProfiles?.[0] || {};
+  const customFields = profile.customFields || [];
+
+  // 4. Memos
+  const categories = useMemo(() => {
+    const cats = profile.productCats || ['Electronics', 'Home Appliances', 'Services', 'Furniture', 'General'];
+    return ['All', ...cats];
+  }, [profile.productCats]);
+
+  const filteredInvoices = useMemo(() => {
+    const rawInvoices = data?.invoices || [];
+    const isTeam = perms && !perms.isOwner;
+    if (!isTeam) return rawInvoices;
+    return rawInvoices.filter(i => {
+      if (i.actorId === user.id || perms.isAdmin || perms.isManager) return true;
+      return false;
+    });
+  }, [data?.invoices, perms, user]);
+
+  const filteredProducts = useMemo(() => {
+    let f = products;
+    if (selectedCat !== 'All') f = f.filter(p => (p.category || 'General') === selectedCat);
+    if (search) {
+      const s = search.toLowerCase();
+      f = f.filter(p => p.name.toLowerCase().includes(s) || p.code?.toLowerCase().includes(s));
+    }
+    return f;
+  }, [products, search, selectedCat]);
+
+  const filteredCustomers = useMemo(() => {
+    if (!custSearch) return customers.slice(0, 5);
+    const s = custSearch.toLowerCase();
+    return customers.filter(c => c.name.toLowerCase().includes(s) || c.phone?.includes(s)).slice(0, 10);
+  }, [customers, custSearch]);
+
+  const totals = useMemo(() => {
+    const sub = cart.reduce((s, it) => s + (it.qty * it.rate), 0);
+    const tax = cart.reduce((s, it) => s + (it.qty * it.rate * (it.tax || 0) / 100), 0);
+    return { sub, tax, total: Math.round(sub + tax) };
+  }, [cart]);
+
+  // 5. Handlers
+  const ncf = (k) => (e) => setNewCustForm(p => ({ ...p, [k]: e.target.value }));
+  const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
+
   const createCustomer = async () => {
     if (!newCustForm.name.trim()) return toast('Name required', 'error');
     if (!newCustForm.email.trim()) return toast('Email is mandatory for clients', 'error');
@@ -36,46 +86,6 @@ export default function POSBilling({ user, ownerId, perms }) {
     setNewCustForm({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
     toast('Customer created!', 'success');
   };
-  const invoices = useMemo(() => {
-    const rawInvoices = data?.invoices || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return rawInvoices;
-    return rawInvoices.filter(i => {
-      if (i.actorId === user.id || perms.isAdmin || perms.isManager) return true;
-      return false;
-    });
-  }, [data?.invoices, perms, user]);
-
-  const products = data?.products || [];
-  const customers = data?.customers || [];
-  const profile = data?.userProfiles?.[0] || {};
-  
-  const customFields = profile.customFields || [];
-  const ncf = (k) => (e) => setNewCustForm(p => ({ ...p, [k]: e.target.value }));
-  const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
-
-  const categories = useMemo(() => {
-    const cats = profile.productCats || ['Electronics', 'Home Appliances', 'Services', 'Furniture', 'General'];
-    return ['All', ...cats];
-  }, [profile.productCats]);
-
-  const filteredProducts = useMemo(() => {
-    let filtered = products;
-    if (selectedCat !== 'All') {
-      filtered = filtered.filter(p => (p.category || 'General') === selectedCat);
-    }
-    if (search) {
-      const s = search.toLowerCase();
-      filtered = filtered.filter(p => p.name.toLowerCase().includes(s) || p.code?.toLowerCase().includes(s));
-    }
-    return filtered;
-  }, [products, search, selectedCat]);
-
-  const filteredCustomers = useMemo(() => {
-    if (!custSearch) return customers.slice(0, 5);
-    const s = custSearch.toLowerCase();
-    return customers.filter(c => c.name.toLowerCase().includes(s) || c.phone?.includes(s)).slice(0, 10);
-  }, [customers, custSearch]);
 
   const addToCart = (p) => {
     const existing = cart.find(item => item.id === p.id);
@@ -96,15 +106,8 @@ export default function POSBilling({ user, ownerId, perms }) {
     }).filter(item => item.qty > 0));
   };
 
-  const totals = useMemo(() => {
-    const sub = cart.reduce((s, it) => s + (it.qty * it.rate), 0);
-    const tax = cart.reduce((s, it) => s + (it.qty * it.rate * (it.tax || 0) / 100), 0);
-    return { sub, tax, total: Math.round(sub + tax) };
-  }, [cart]);
-
   const handleCheckout = async () => {
     if (cart.length === 0) return toast('Cart is empty', 'error');
-    
     const invNo = `POS-${Date.now().toString().slice(-6)}`;
     const payload = {
       no: invNo,
@@ -121,7 +124,6 @@ export default function POSBilling({ user, ownerId, perms }) {
       type: 'POS',
       taxAmt: totals.tax
     };
-
     try {
       await db.transact(db.tx.invoices[id()].update(payload));
       setPrinting({ ...payload, profile });
@@ -129,10 +131,11 @@ export default function POSBilling({ user, ownerId, perms }) {
       setSelectedCust(null);
       setCustSearch('');
       toast('Bill Generated!', 'success');
-    } catch (e) {
+    } catch {
       toast('Checkout failed', 'error');
     }
   };
+
 
   if (printing) {
     return (
