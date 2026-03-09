@@ -568,7 +568,7 @@ export default function LeadsView({ user, perms, ownerId }) {
           ['today', `Today (${todayCount})`],
           ['tomorrow', `Tomorrow (${tomorrowCount})`],
           ['next7days', `Next 7 Days (${next7Count})`],
-          ['overdue', `Overdue${overdueCount ? ` (${overdueCount})` : ''}`]
+          ['overdue', `Overdue (${overdueCount})`]
         ].map(([t, label]) => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{label}</div>
         ))}
