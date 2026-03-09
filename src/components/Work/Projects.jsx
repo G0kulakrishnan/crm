@@ -124,7 +124,7 @@ export default function Projects({ user, perms, ownerId }) {
       ];
 
       const wonStage = profile.wonStage || 'Won';
-      const lMatch = leads.find(l => l.name === projForm.client && l.stage !== wonStage);
+      const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (projForm.client || '').trim().toLowerCase() && l.stage !== wonStage);
       if (lMatch) {
          txs.push(db.tx.leads[lMatch.id].update({ 
             stage: wonStage,

@@ -125,7 +125,7 @@ export default function Quotations({ user, perms, ownerId }) {
       txs.push(db.tx.quotes[id()].update({ ...payload }));
     }
 
-    const lMatch = leads.find(l => l.name === form.client && l.stage !== wonStage);
+    const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (form.client || '').trim().toLowerCase() && l.stage !== wonStage);
     if (lMatch) {
        if (payload.status === 'Sent') {
           txs.push(db.tx.leads[lMatch.id].update({ 

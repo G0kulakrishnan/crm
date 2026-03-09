@@ -28,6 +28,7 @@ export default function Customers({ user, perms, ownerId }) {
     tasks: { $: { where: { userId: ownerId } } },
     activityLogs: { $: { where: { userId: ownerId } } },
     amc: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId } } },
   });
   const customers = useMemo(() => {
     const raw = data?.customers || [];
@@ -46,6 +47,7 @@ export default function Customers({ user, perms, ownerId }) {
   const tasks = data?.tasks || [];
   const activityLogs = data?.activityLogs || [];
   const amcList = data?.amc || [];
+  const leads = data?.leads || [];
 
   const filtered = useMemo(() => {
     return customers.filter(c => {
@@ -76,6 +78,7 @@ export default function Customers({ user, perms, ownerId }) {
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
     if (!form.email.trim()) { toast('Email is mandatory for clients', 'error'); return; }
     try {
+      const txs = [];
       if (editData) {
         const changes = [];
         const fields = { name: 'Name', phone: 'Phone', email: 'Email', address: 'Address', state: 'State', country: 'Country', pincode: 'Pincode', gstin: 'GSTIN' };
@@ -95,16 +98,34 @@ export default function Customers({ user, perms, ownerId }) {
           }
         });
 
-        await db.transact(db.tx.customers[editData.id].update({ ...form, userId: ownerId, actorId: user.id, updatedAt: Date.now() }));
-        if (changes.length > 0) {
-          await logActivity(editData.id, changes.join(' | '));
+        txs.push(db.tx.customers[editData.id].update({ ...form, userId: ownerId, actorId: user.id, updatedAt: Date.now() }));
+        
+        // Sync to Lead if name matches (case-insensitive & trimmed)
+        const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (editData.name || '').trim().toLowerCase());
+        if (lMatch) {
+          txs.push(db.tx.leads[lMatch.id].update({ name: form.name, email: form.email, phone: form.phone }));
+          txs.push(db.tx.activityLogs[id()].update({
+            entityId: lMatch.id, entityType: 'lead', text: `Contact details synced from Customer update (${form.name}).`,
+            userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+          }));
         }
 
+        if (changes.length > 0) {
+          txs.push(db.tx.activityLogs[id()].update({
+            entityId: editData.id, entityType: 'customer', text: changes.join(' | '),
+            userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+          }));
+        }
+        await db.transact(txs);
         toast('Customer updated!', 'success');
       } else {
         const newId = id();
-        await db.transact(db.tx.customers[newId].update({ ...form, userId: ownerId, actorId: user.id, createdAt: Date.now() }));
-        await logActivity(newId, 'Customer created');
+        txs.push(db.tx.customers[newId].update({ ...form, userId: ownerId, actorId: user.id, createdAt: Date.now() }));
+        txs.push(db.tx.activityLogs[id()].update({
+          entityId: newId, entityType: 'customer', text: 'Customer created',
+          userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+        }));
+        await db.transact(txs);
         toast(`Customer "${form.name}" created!`, 'success');
       }
       setModal(false);

@@ -190,8 +190,8 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       let updated = false;
       const updates = {};
 
-      // 1. Sync Contact Details from Customers
-      const cMatch = customers.find(c => c.name === l.name);
+      // 1. Sync Contact Details from Customers (case-insensitive & trimmed)
+      const cMatch = customers.find(c => (c.name || '').trim().toLowerCase() === (l.name || '').trim().toLowerCase());
       if (cMatch) {
         if ((cMatch.email && l.email !== cMatch.email) || (cMatch.phone && l.phone !== cMatch.phone)) {
           updates.email = cMatch.email || l.email || '';
@@ -201,9 +201,9 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
         }
       }
 
-      // 2. Sync Stage from Quotes & Invoices
-      const lQuotes = quotes.filter(q => q.client === l.name);
-      const lInvoices = invoices.filter(i => i.client === l.name);
+      // 2. Sync Stage from Quotes & Invoices (case-insensitive & trimmed)
+      const lQuotes = quotes.filter(q => (q.client || '').trim().toLowerCase() === (l.name || '').trim().toLowerCase());
+      const lInvoices = invoices.filter(i => (i.client || '').trim().toLowerCase() === (l.name || '').trim().toLowerCase());
       
       let targetStage = l.stage;
       const getRank = (s) => {

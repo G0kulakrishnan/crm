@@ -148,7 +148,7 @@ export default function AMC({ user, perms, ownerId }) {
     else { 
       const txs = [db.tx.amc[id()].update(payload)];
       const wonStage = profile.wonStage || 'Won';
-      const lMatch = (data?.leads || []).find(l => l.name === payload.client && l.stage !== wonStage);
+      const lMatch = (data?.leads || []).find(l => (l.name || '').trim().toLowerCase() === (payload.client || '').trim().toLowerCase() && l.stage !== wonStage);
       if (lMatch) {
         txs.push(db.tx.leads[lMatch.id].update({ 
            stage: wonStage,

@@ -131,7 +131,7 @@ export default function POSBilling({ user, ownerId, perms }) {
 
     // Lead matching and conversion
     if (selectedCust) {
-       const lMatch = (data?.leads || []).find(l => l.name === selectedCust.name && l.stage !== wonStage);
+       const lMatch = (data?.leads || []).find(l => (l.name || '').trim().toLowerCase() === (selectedCust.name || '').trim().toLowerCase() && l.stage !== wonStage);
        if (lMatch) {
           txs.push(db.tx.leads[lMatch.id].update({ 
              stage: wonStage,

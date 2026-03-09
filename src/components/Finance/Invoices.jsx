@@ -187,7 +187,7 @@ export default function Invoices({ user, perms, ownerId }) {
 
     // Auto-create AMC contract if ticked
     if (isAmc && amcStart && amcEnd && (!editData || !editData.amcStart)) {
-      const custMatch = customers.find(c => c.name === form.client);
+      const custMatch = customers.find(c => (c.name || '').trim().toLowerCase() === (form.client || '').trim().toLowerCase());
       const amcId = id();
       txs.push(db.tx.amc[amcId].update({
         userId: ownerId,
@@ -207,7 +207,7 @@ export default function Invoices({ user, perms, ownerId }) {
     }
 
     let isNewCustomer = false;
-    const lMatch = leads.find(l => l.name === payload.client && l.stage !== wonStage);
+    const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (payload.client || '').trim().toLowerCase() && l.stage !== wonStage);
     
     if (lMatch) {
       if (payload.status === 'Sent') {
@@ -447,7 +447,7 @@ export default function Invoices({ user, perms, ownerId }) {
     let isNewCustomer = false;
     
     if (stat === 'Paid' || stat === 'Partially Paid') {
-      const lMatch = leads.find(l => l.name === payModal.client && l.stage !== wonStage);
+      const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (payModal.client || '').trim().toLowerCase() && l.stage !== wonStage);
       if (lMatch) {
          txs.push(db.tx.customers[id()].update({
             name: lMatch.name, email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
