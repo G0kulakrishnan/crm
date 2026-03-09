@@ -22,8 +22,11 @@ export default function Expenses({ user, perms, ownerId }) {
     userProfiles: { $: { where: { userId: ownerId } } }
   });
   const expenses = useMemo(() => {
-    return data?.expenses || [];
-  }, [data?.expenses]);
+    const raw = data?.expenses || [];
+    const isTeam = perms && !perms.isOwner;
+    if (!isTeam) return raw;
+    return raw.filter(e => e.actorId === user.id || perms.isAdmin || perms.isManager);
+  }, [data?.expenses, perms, user]);
   const profile = data?.userProfiles?.[0] || {};
   const cats = profile.expCats || DEFAULT_CATS;
   const taxRates = profile.taxRates || [{ label: 'None (0%)', rate: 0 }, { label: 'GST @ 5%', rate: 5 }, { label: 'GST @ 12%', rate: 12 }, { label: 'GST @ 18%', rate: 18 }, { label: 'GST @ 28%', rate: 28 }];
@@ -39,7 +42,8 @@ export default function Expenses({ user, perms, ownerId }) {
       amount: parseFloat(form.amount) || 0,
       taxRate: parseFloat(form.taxRate) || 0,
       taxAmt: parseFloat(form.taxAmt) || 0,
-      userId: ownerId
+      userId: ownerId,
+      actorId: user.id
     };
     if (editData) { await db.transact(db.tx.expenses[editData.id].update(payload)); toast('Updated', 'success'); }
     else { await db.transact(db.tx.expenses[id()].update(payload)); toast('Expense added', 'success'); }

@@ -13,7 +13,7 @@ function calcTotals(items, disc, discType, adj) {
   return { sub, taxTotal, discAmt, total };
 }
 
-const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', template: 'Classic', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [] };
+const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', template: 'Classic', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [], assign: '' };
 const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 export default function Invoices({ user, perms, ownerId }) {
   const canCreate = perms?.can('Invoices', 'create') !== false;
@@ -38,20 +38,38 @@ export default function Invoices({ user, perms, ownerId }) {
     invoices: { $: { where: { userId: ownerId } } },
     products: { $: { where: { userId: ownerId } } },
     customers: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
   });
   const invoices = useMemo(() => {
-    return data?.invoices || [];
-  }, [data?.invoices]);
+    const raw = data?.invoices || [];
+    const isTeam = perms && !perms.isOwner;
+    if (!isTeam) return raw;
+    return raw.filter(inv => {
+      if (inv.actorId === user.id || perms.isAdmin || perms.isManager) return true;
+      const assignKey = (inv.assign || '').toLowerCase().trim();
+      const userName = (perms.name || '').toLowerCase().trim();
+      const userEmail = (user.email || '').toLowerCase().trim();
+      return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
+    });
+  }, [data?.invoices, perms, user]);
 
   const products = data?.products || [];
   const customers = data?.customers || [];
+  const leads = data?.leads || [];
   const profile = data?.userProfiles?.[0] || {};
   const taxRates = profile.taxRates || TAX_OPTIONS;
   const customFields = profile.customFields || [];
   
   const ncf = (k) => (e) => setNewCustForm(p => ({ ...p, [k]: e.target.value }));
   const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
+  
+  const clientOptions = useMemo(() => {
+    return [
+      ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
+      ...leads.filter(l => l.stage !== 'Won').map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+    ];
+  }, [customers, leads]);
   
   const allPossibleCols = ['Date', 'Due Date', 'Status', 'Paid Amount', 'Balance Due'];
   const savedCols = profile?.invoiceCols;
@@ -81,8 +99,15 @@ export default function Invoices({ user, perms, ownerId }) {
       no: inv.no || '', client: inv.client, dueDate: inv.dueDate || '', status: inv.status || 'Draft', template: inv.template || 'Classic', 
       notes: inv.notes || '', terms: inv.terms || '', disc: inv.disc || 0, discType: inv.discType || '%', adj: inv.adj || 0, 
       items: inv.items?.length ? inv.items : EMPTY.items,
-      isAmc: !!inv.amcStart, amcCycle: inv.amcCycle || 'Yearly', amcStart: inv.amcStart || '', amcEnd: inv.amcEnd || '', amcPlan: '', amcAmount: '', amcTaxRate: 0,
-      shipTo: inv.shipTo || '', addShipping: !!inv.shipTo, payments: inv.payments || []
+      isAmc: !!inv.amcStart || !!inv.isAmc, 
+      amcCycle: inv.amcCycle || 'Yearly', 
+      amcStart: inv.amcStart || '', 
+      amcEnd: inv.amcEnd || '', 
+      amcPlan: inv.amcPlan || '', 
+      amcAmount: inv.amcAmount || '', 
+      amcTaxRate: inv.amcTaxRate || 0,
+      shipTo: inv.shipTo || '', addShipping: !!inv.shipTo, payments: inv.payments || [],
+      fromAmc: !!inv.fromAmc
     });
     setModal(true);
   };
@@ -128,7 +153,19 @@ export default function Invoices({ user, perms, ownerId }) {
       invPayload.shipTo = '';
     }
 
-    const payload = { ...invPayload, userId: ownerId, actorId: user.id, date: editData ? editData.date : new Date().toISOString().split('T')[0], total: tots.total, taxAmt: tots.taxTotal };
+    const payload = { 
+      ...invPayload, 
+      userId: ownerId, 
+      actorId: user.id, 
+      date: editData ? editData.date : new Date().toISOString().split('T')[0], 
+      total: tots.total, 
+      taxAmt: tots.taxTotal,
+      isAmc: !!isAmc,
+      amcPlan: amcPlan || '',
+      amcAmount: amcAmount || '',
+      amcTaxRate: amcTaxRate || 0,
+      amcCycle: amcCycle || 'Yearly'
+    };
     
     // Ensure no is present. If user cleared it, generate one
     if (!payload.no) {
@@ -166,8 +203,20 @@ export default function Invoices({ user, perms, ownerId }) {
       }));
     }
 
+    let isNewCustomer = false;
+    if (payload.status === 'Paid') {
+      const lMatch = leads.find(l => l.name === payload.client && l.stage !== 'Won');
+      if (lMatch) {
+         txs.push(db.tx.customers[id()].update({
+            name: lMatch.name, email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
+         }));
+         txs.push(db.tx.leads[lMatch.id].update({ stage: 'Won' }));
+         isNewCustomer = true;
+      }
+    }
+
     await db.transact(txs);
-    toast('Invoice saved' + (isAmc ? ' & AMC created' : ''), 'success');
+    toast('Invoice saved' + (isAmc ? ' & AMC created' : '') + (isNewCustomer ? ' & Lead Converted!' : ''), 'success');
     setModal(false);
   };
 
@@ -354,8 +403,23 @@ export default function Invoices({ user, perms, ownerId }) {
     const nw = [...existing, { date: Date.now(), amount: parseFloat(payAmt) }];
     const totalPaid = nw.reduce((s, p) => s + p.amount, 0);
     const stat = totalPaid >= payModal.total ? 'Paid' : 'Partially Paid';
-    await db.transact(db.tx.invoices[payModal.id].update({ payments: nw, status: stat }));
-    toast('Payment added', 'success');
+    
+    const txs = [db.tx.invoices[payModal.id].update({ payments: nw, status: stat })];
+    let isNewCustomer = false;
+    
+    if (stat === 'Paid') {
+      const lMatch = leads.find(l => l.name === payModal.client && l.stage !== 'Won');
+      if (lMatch) {
+         txs.push(db.tx.customers[id()].update({
+            name: lMatch.name, email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
+         }));
+         txs.push(db.tx.leads[lMatch.id].update({ stage: 'Won' }));
+         isNewCustomer = true;
+      }
+    }
+
+    await db.transact(txs);
+    toast('Payment added' + (isNewCustomer ? ' & Lead Converted!' : ''), 'success');
     setPayModal(null);
     setPayAmt('');
   };
@@ -473,12 +537,12 @@ export default function Invoices({ user, perms, ownerId }) {
                   <div style={{ display: 'flex', gap: 6 }}>
                     <div style={{ flex: 1 }}>
                       <SearchableSelect 
-                        options={customers} 
-                        displayKey="name" 
+                        options={clientOptions} 
+                        displayKey="displayName" 
                         returnKey="name"
                         value={form.client} 
                         onChange={val => setForm(p => ({ ...p, client: val }))} 
-                        placeholder="Search client..." 
+                        placeholder="Search client or lead..." 
                       />
                     </div>
                     <button className="btn btn-secondary" style={{ padding: '0 10px' }} onClick={() => setCustModal(true)} title="Add New Customer">+</button>
@@ -495,7 +559,14 @@ export default function Invoices({ user, perms, ownerId }) {
                     {['Classic', 'Modern', 'Minimal'].map(t => <option key={t}>{t}</option>)}
                   </select>
                 </div>
-              </div>
+                <div className="fg">
+                  <label>Assign To</label>
+                  <select value={form.assign} onChange={e => setForm(p => ({ ...p, assign: e.target.value }))}>
+                    <option value="">Unassigned</option>
+                    {data?.teamMembers?.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  </select>
+                </div>
+</div>
 
               {profile?.reqShipping !== 'Hidden' && (
                 <div style={{ background: '#f8fafc', padding: 15, borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 20 }}>

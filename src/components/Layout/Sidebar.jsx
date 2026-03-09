@@ -33,7 +33,7 @@ export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, 
   const filteredItems = NAV_ITEMS.filter(item => {
     if (item.group) return true;
     if (perms?.isOwner) return true;
-    if (item.id === 'dashboard') return true; // Always allow dash
+    if (item.id === 'dashboard') return perms?.can('Dashboard', 'view');
     return perms?.can(item.permKey, 'list');
   });
 

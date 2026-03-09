@@ -40,9 +40,15 @@ export function usePermissions(user, profile, teamMembers = []) {
       perms = Object.fromEntries(perms.map(module => [module, ['view', 'list', 'create', 'edit', 'delete']]));
     }
 
+    const roleName = (member.role || '').toLowerCase();
+    const isAdmin = roleName === 'admin' || roleName === 'superadmin';
+    const isManager = roleName.includes('manager');
+
     return {
       isOwner: false,
       role: member.role,
+      isAdmin,
+      isManager,
       name: member.name,
       modules: perms,
       /**

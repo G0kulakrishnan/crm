@@ -31,19 +31,35 @@ export default function AllTasks({ user, perms, ownerId }) {
     const isTeam = perms && !perms.isOwner;
     if (!isTeam) return rawTasks;
     return rawTasks.filter(t => {
-      if (t.actorId === user.id) return true;
+      if (t.actorId === user.id || perms.isAdmin || perms.isManager) return true;
       const assign = (t.assignTo || '').toLowerCase().trim();
       const userName = (perms.name || '').toLowerCase().trim();
       const userEmail = (user.email || '').toLowerCase().trim();
-      return (assign && userName && assign === userName) || (assign && userEmail && assign === userEmail);
+      return (assign && (assign === userName || assign === userEmail));
     });
   }, [data?.tasks, perms, user]);
 
   const projects = data?.projects || [];
   const team = data?.teamMembers || [];
   const customers = data?.customers || [];
-  const taskStatuses = data?.userProfiles?.[0]?.taskStatuses || DEFAULT_TASK_STATUSES;
+  const leads = data?.leads || [];
+  const profile = data?.userProfiles?.[0] || {};
+  const customFields = profile.customFields || [];
+  const taskStatuses = profile.taskStatuses || DEFAULT_TASK_STATUSES;
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
+  
+  const [custModal, setCustModal] = useState(false);
+  const [newCustForm, setNewCustForm] = useState({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+  
+  const ncf = (k) => (e) => setNewCustForm(p => ({ ...p, [k]: e.target.value }));
+  const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
+
+  const clientOptions = useMemo(() => {
+    return [
+      ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
+      ...leads.filter(l => l.stage !== 'Won').map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+    ];
+  }, [customers, leads]);
 
   const projName = (pid) => projects.find(p => p.id === pid)?.name || '-';
 
@@ -67,6 +83,17 @@ export default function AllTasks({ user, perms, ownerId }) {
   };
 
   const del = async (tid) => { await db.transact(db.tx.tasks[tid].delete()); toast('Deleted', 'error'); };
+
+  const createCustomer = async () => {
+    if (!newCustForm.name.trim()) return toast('Name required', 'error');
+    if (!newCustForm.email.trim()) return toast('Email is mandatory for clients', 'error');
+    const newId = id();
+    await db.transact(db.tx.customers[newId].update({ ...newCustForm, name: newCustForm.name.trim(), userId: ownerId, actorId: user.id, createdAt: Date.now() }));
+    setForm(p => ({ ...p, client: newCustForm.name.trim() }));
+    setCustModal(false);
+    setNewCustForm({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+    toast('Customer created!', 'success');
+  };
 
   return (
     <div>
@@ -120,14 +147,19 @@ export default function AllTasks({ user, perms, ownerId }) {
                 <div className="fg span2"><label>Task Title *</label><input value={form.title} onChange={f('title')} /></div>
                 <div className="fg">
                   <label>Client</label>
-                  <SearchableSelect 
-                    options={customers} 
-                    displayKey="name" 
-                    returnKey="name"
-                    value={form.client} 
-                    onChange={val => setForm(p => ({ ...p, client: val }))} 
-                    placeholder="Search client..." 
-                  />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ flex: 1 }}>
+                      <SearchableSelect 
+                        options={clientOptions} 
+                        displayKey="displayName" 
+                        returnKey="name"
+                        value={form.client} 
+                        onChange={val => setForm(p => ({ ...p, client: val }))} 
+                        placeholder="Search client or lead..." 
+                      />
+                    </div>
+                    <button className="btn btn-secondary" style={{ padding: '0 10px' }} onClick={() => setCustModal(true)} title="Add New Customer">+</button>
+                  </div>
                 </div>
                 <div className="fg"><label>Project</label><select value={form.projectId} onChange={f('projectId')}><option value="">No Project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
                 <div className="fg"><label>Assign To</label><select value={form.assignTo} onChange={f('assignTo')}><option value="">Unassigned</option>{team.map(t => <option key={t.id}>{t.name}</option>)}</select></div>
@@ -138,6 +170,46 @@ export default function AllTasks({ user, perms, ownerId }) {
               </div>
             </div>
             <div className="mo-foot"><button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>Cancel</button><button className="btn btn-primary btn-sm" onClick={save}>Save</button></div>
+          </div>
+        </div>
+      )}
+      {/* Quick Add Customer Modal */}
+      {custModal && (
+        <div className="mo open">
+          <div className="mo-box">
+            <div className="mo-head"><h3>Quick Add Customer</h3><button className="btn-icon" onClick={() => setCustModal(false)}>✕</button></div>
+            <div className="mo-body">
+              <div className="fgrid">
+                <div className="fg span2"><label>Full Name *</label><input value={newCustForm.name} onChange={ncf('name')} placeholder="e.g. John Doe" /></div>
+                <div className="fg"><label>Email *</label><input value={newCustForm.email} onChange={ncf('email')} placeholder="john@example.com" /></div>
+                <div className="fg"><label>Phone</label><input value={newCustForm.phone} onChange={ncf('phone')} placeholder="+91..." /></div>
+                <div className="fg span2"><label>Address</label><textarea value={newCustForm.address} onChange={ncf('address')} placeholder="Full address..." /></div>
+                <div className="fg"><label>Country</label>
+                  <select value={newCustForm.country} onChange={ncf('country')}>
+                    {['India', 'USA', 'UK', 'UAE', 'Australia', 'Other'].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>State</label><input value={newCustForm.state} onChange={ncf('state')} placeholder="e.g. Tamil Nadu" /></div>
+                <div className="fg"><label>Pincode</label><input value={newCustForm.pincode} onChange={ncf('pincode')} placeholder="600XXX" /></div>
+                <div className="fg"><label>GSTIN</label><input value={newCustForm.gstin} onChange={ncf('gstin')} placeholder="22AAAAA0000A1Z5" /></div>
+                
+                {customFields.map(cf => (
+                  <div key={cf.name} className="fg">
+                    <label>{cf.name} {cf.required ? '*' : ''}</label>
+                    <input 
+                      type={cf.type === 'Number' ? 'number' : 'text'} 
+                      value={newCustForm.custom?.[cf.name] || ''} 
+                      onChange={nccf(cf.name)} 
+                      placeholder={cf.name} 
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mo-foot">
+              <button className="btn btn-secondary btn-sm" onClick={() => setCustModal(false)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={createCustomer}>Create Customer</button>
+            </div>
           </div>
         </div>
       )}

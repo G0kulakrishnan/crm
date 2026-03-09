@@ -191,7 +191,7 @@ export default function MainApp({ user, settings }) {
 
     const leadFilter = l => {
       if (!isTeam) return true;
-      const isAssigned = l.assign === user.email || (perms?.name && l.assign === perms.name);
+      const isAssigned = l.assign === user.email || (perms?.name && l.assign === perms.name) || perms?.isAdmin || perms?.isManager;
       const isCreator = l.actorId === user.id;
       return isAssigned || isCreator;
     };
@@ -234,10 +234,24 @@ export default function MainApp({ user, settings }) {
 
   // 1. Guard against unauthorised views for team members
   useEffect(() => {
-    if (perms && activeView !== 'dashboard') {
-      const viewConfig = views[activeView];
-      if (viewConfig && !perms.can(viewConfig.label, 'list') && !perms.isOwner) {
-        if (activeView !== 'dashboard') setActiveView('dashboard');
+    if (!perms || perms.isOwner) return;
+
+    // Check if the current view is allowed
+    const viewConfig = views[activeView];
+    const permKey = viewConfig?.label || '';
+    const canSeeCurrent = activeView === 'dashboard' ? perms.can('Dashboard', 'view') : perms.can(permKey, 'list');
+
+    if (!canSeeCurrent) {
+      // Find the first module they DO have access to
+      const firstAvailableKey = Object.keys(views).find(key => {
+        const conf = views[key];
+        if (!conf || !conf.label) return false;
+        if (key === 'dashboard') return perms.can('Dashboard', 'view');
+        return perms.can(conf.label, 'list');
+      });
+
+      if (firstAvailableKey && firstAvailableKey !== activeView) {
+        setActiveView(firstAvailableKey);
       }
     }
   }, [perms, activeView, setActiveView]);

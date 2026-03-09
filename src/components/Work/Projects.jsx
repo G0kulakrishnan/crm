@@ -5,7 +5,7 @@ import { stageBadgeClass, prioBadgeClass, fmtD } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
 
-const PROJ_EMPTY = { name: '', client: '', status: 'Planning', startDate: '', endDate: '', desc: '' };
+const PROJ_EMPTY = { name: '', client: '', status: 'Planning', startDate: '', endDate: '', desc: '', assignTo: '' };
 const DEFAULT_TASK_STATUSES = ['Pending', 'In Progress', 'Completed'];
 
 export default function Projects({ user, perms, ownerId }) {
@@ -28,23 +28,46 @@ export default function Projects({ user, perms, ownerId }) {
   const toast = useToast();
 
   const { data } = db.useQuery({
-    projects: { $: { where: { userId: ownerId } } },
-    tasks: { $: { where: { userId: ownerId } } },
-    teamMembers: { $: { where: { userId: ownerId } } },
-    userProfiles: { $: { where: { userId: ownerId } } },
     activityLogs: { $: { where: { userId: ownerId } } },
     customers: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId } } },
   });
   const tasks = data?.tasks || [];
   const team = data?.teamMembers || [];
   const customers = data?.customers || [];
-  const taskStatuses = data?.userProfiles?.[0]?.taskStatuses || DEFAULT_TASK_STATUSES;
+  const leads = data?.leads || [];
+  const profile = data?.userProfiles?.[0] || {};
+  const taxRates = profile.taxRates || [];
+  const customFields = profile.customFields || [];
+  const taskStatuses = profile.taskStatuses || DEFAULT_TASK_STATUSES;
   const activityLogs = data?.activityLogs || [];
   const [noteText, setNoteText] = useState('');
   
+  const [custModal, setCustModal] = useState(false);
+  const [newCustForm, setNewCustForm] = useState({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+  
+  const ncf = (k) => (e) => setNewCustForm(p => ({ ...p, [k]: e.target.value }));
+  const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
+
+  const clientOptions = useMemo(() => {
+    return [
+      ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
+      ...leads.filter(l => l.stage !== 'Won').map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+    ];
+  }, [customers, leads]);
+  
   const projects = useMemo(() => {
-    return data?.projects || [];
-  }, [data?.projects]);
+    const raw = data?.projects || [];
+    const isTeam = perms && !perms.isOwner;
+    if (!isTeam) return raw;
+    return raw.filter(p => {
+      if (p.actorId === user.id || perms.isAdmin || perms.isManager) return true;
+      const assignKey = (p.assignTo || '').toLowerCase().trim();
+      const userName = (perms.name || '').toLowerCase().trim();
+      const userEmail = (user.email || '').toLowerCase().trim();
+      return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
+    });
+  }, [data?.projects, perms, user]);
 
   const filteredProjects = projects.filter(p => {
     if (!search) return true;
@@ -132,11 +155,20 @@ export default function Projects({ user, perms, ownerId }) {
     toast('Task deleted', 'error'); 
   };
   const cycleStatus = async (t) => {
-    const curIdx = taskStatuses.indexOf(t.status);
-    const nextIdx = (curIdx + 1) % taskStatuses.length;
-    const nextStatus = taskStatuses[nextIdx];
     await db.transact(db.tx.tasks[t.id].update({ status: nextStatus }));
     await logActivity(t.id, 'task', `Status changed from ${t.status} to ${nextStatus}`, selectedProj.id);
+  };
+
+  const createCustomer = async () => {
+    if (!newCustForm.name.trim()) return toast('Name required', 'error');
+    if (!newCustForm.email.trim()) return toast('Email is mandatory for clients', 'error');
+    const newId = id();
+    await db.transact(db.tx.customers[newId].update({ ...newCustForm, name: newCustForm.name.trim(), userId: ownerId, actorId: user.id, createdAt: Date.now() }));
+    if (projModal) setProjForm(p => ({ ...p, client: newCustForm.name.trim() }));
+    if (taskModal) setTaskForm(p => ({ ...p, client: newCustForm.name.trim() }));
+    setCustModal(false);
+    setNewCustForm({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+    toast('Customer created!', 'success');
   };
 
   const projTasks = selectedProj ? tasks.filter(t => t.projectId === selectedProj.id) : [];
@@ -193,7 +225,7 @@ export default function Projects({ user, perms, ownerId }) {
                         <td><span className={`badge ${stageBadgeClass(p.status)}`}>{p.status}</span></td>
                         <td>
                           <button className="btn btn-primary btn-sm" onClick={() => setSelectedProj(p)}>Tasks</button>{' '}
-                          {canEditProj && <button className="btn btn-secondary btn-sm" onClick={() => { setEditProj(p); setProjForm({ name: p.name, client: p.client || '', status: p.status, startDate: p.startDate || '', endDate: p.endDate || '', desc: p.desc || '' }); setProjModal(true); }}>Edit</button>}{' '}
+                          {canEditProj && <button className="btn btn-secondary btn-sm" onClick={() => { setEditProj(p); setProjForm({ name: p.name, client: p.client || '', status: p.status, startDate: p.startDate || '', endDate: p.endDate || '', desc: p.desc || '', assignTo: p.assignTo || '' }); setProjModal(true); }}>Edit</button>}{' '}
                           {canDeleteProj && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => delProj(p.id, p.name)}>Del</button>}
                         </td>
                       </tr>
@@ -285,18 +317,24 @@ export default function Projects({ user, perms, ownerId }) {
                 <div className="fg span2"><label>Project Name *</label><input value={projForm.name} onChange={pf('name')} /></div>
                 <div className="fg">
                   <label>Client</label>
-                  <SearchableSelect 
-                    options={customers} 
-                    displayKey="name" 
-                    returnKey="name"
-                    value={projForm.client} 
-                    onChange={val => setProjForm(p => ({ ...p, client: val }))} 
-                    placeholder="Search client..." 
-                  />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ flex: 1 }}>
+                      <SearchableSelect 
+                        options={clientOptions} 
+                        displayKey="displayName" 
+                        returnKey="name"
+                        value={projForm.client} 
+                        onChange={val => setProjForm(p => ({ ...p, client: val }))} 
+                        placeholder="Search client or lead..." 
+                      />
+                    </div>
+                    <button className="btn btn-secondary" style={{ padding: '0 10px' }} onClick={() => setCustModal(true)} title="Add New Customer">+</button>
+                  </div>
                 </div>
                 <div className="fg"><label>Status</label><select value={projForm.status} onChange={pf('status')}>{['Planning', 'In Progress', 'On Hold', 'Completed', 'Cancelled'].map(s => <option key={s}>{s}</option>)}</select></div>
                 <div className="fg"><label>Start Date</label><input type="date" value={projForm.startDate} onChange={pf('startDate')} /></div>
                 <div className="fg"><label>End Date</label><input type="date" value={projForm.endDate} onChange={pf('endDate')} /></div>
+                <div className="fg"><label>Assign To</label><select value={projForm.assignTo} onChange={pf('assignTo')}><option value="">Unassigned</option>{team.map(t => <option key={t.id}>{t.name}</option>)}</select></div>
                 <div className="fg span2"><label>Description</label><textarea value={projForm.desc} onChange={pf('desc')} /></div>
               </div>
             </div>
@@ -324,14 +362,19 @@ export default function Projects({ user, perms, ownerId }) {
                   ) : (
                     <>
                       <label>Client</label>
-                      <SearchableSelect 
-                        options={customers} 
-                        displayKey="name" 
-                        returnKey="name"
-                        value={taskForm.client} 
-                        onChange={val => setTaskForm(p => ({ ...p, client: val }))} 
-                        placeholder="Search client..." 
-                      />
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <div style={{ flex: 1 }}>
+                          <SearchableSelect 
+                            options={clientOptions} 
+                            displayKey="displayName" 
+                            returnKey="name"
+                            value={taskForm.client} 
+                            onChange={val => setTaskForm(p => ({ ...p, client: val }))} 
+                            placeholder="Search client or lead..." 
+                          />
+                        </div>
+                        <button className="btn btn-secondary" style={{ padding: '0 10px' }} onClick={() => setCustModal(true)} title="Add New Customer">+</button>
+                      </div>
                     </>
                   )}
                 </div>
@@ -343,6 +386,46 @@ export default function Projects({ user, perms, ownerId }) {
               </div>
             </div>
             <div className="mo-foot"><button className="btn btn-secondary btn-sm" onClick={() => setTaskModal(false)}>Cancel</button><button className="btn btn-primary btn-sm" onClick={saveTask}>Save</button></div>
+          </div>
+        </div>
+      )}
+      {/* Quick Add Customer Modal */}
+      {custModal && (
+        <div className="mo open">
+          <div className="mo-box">
+            <div className="mo-head"><h3>Quick Add Customer</h3><button className="btn-icon" onClick={() => setCustModal(false)}>✕</button></div>
+            <div className="mo-body">
+              <div className="fgrid">
+                <div className="fg span2"><label>Full Name *</label><input value={newCustForm.name} onChange={ncf('name')} placeholder="e.g. John Doe" /></div>
+                <div className="fg"><label>Email *</label><input value={newCustForm.email} onChange={ncf('email')} placeholder="john@example.com" /></div>
+                <div className="fg"><label>Phone</label><input value={newCustForm.phone} onChange={ncf('phone')} placeholder="+91..." /></div>
+                <div className="fg span2"><label>Address</label><textarea value={newCustForm.address} onChange={ncf('address')} placeholder="Full address..." /></div>
+                <div className="fg"><label>Country</label>
+                  <select value={newCustForm.country} onChange={ncf('country')}>
+                    {['India', 'USA', 'UK', 'UAE', 'Australia', 'Other'].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>State</label><input value={newCustForm.state} onChange={ncf('state')} placeholder="e.g. Tamil Nadu" /></div>
+                <div className="fg"><label>Pincode</label><input value={newCustForm.pincode} onChange={ncf('pincode')} placeholder="600XXX" /></div>
+                <div className="fg"><label>GSTIN</label><input value={newCustForm.gstin} onChange={ncf('gstin')} placeholder="22AAAAA0000A1Z5" /></div>
+                
+                {customFields.map(cf => (
+                  <div key={cf.name} className="fg">
+                    <label>{cf.name} {cf.required ? '*' : ''}</label>
+                    <input 
+                      type={cf.type === 'Number' ? 'number' : 'text'} 
+                      value={newCustForm.custom?.[cf.name] || ''} 
+                      onChange={nccf(cf.name)} 
+                      placeholder={cf.name} 
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mo-foot">
+              <button className="btn btn-secondary btn-sm" onClick={() => setCustModal(false)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={createCustomer}>Create Customer</button>
+            </div>
           </div>
         </div>
       )}

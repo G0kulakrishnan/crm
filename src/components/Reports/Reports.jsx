@@ -53,14 +53,28 @@ export default function Reports({ user, perms, ownerId }) {
   const tasks = data?.tasks || [];
   const team = data?.teamMembers || [];
 
+  const isTeam = perms && !perms.isOwner;
+  const canSeeAll = perms?.isAdmin || perms?.isManager || !isTeam;
+
+  const filteredInvoicesAtSource = invoices.filter(i => canSeeAll || i.actorId === user.id);
+  const filteredExpensesAtSource = expenses.filter(e => canSeeAll || e.actorId === user.id);
+  const filteredLeadsAtSource = leads.filter(l => {
+    if (canSeeAll) return true;
+    const assignKey = (l.assign || '').toLowerCase().trim();
+    const userName = (perms.name || '').toLowerCase().trim();
+    const userEmail = (user.email || '').toLowerCase().trim();
+    return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail) || l.actorId === user.id;
+  });
+  const filteredTasksAtSource = tasks.filter(t => canSeeAll || t.actorId === user.id || t.assignTo === user.email || t.assignTo === perms.name);
+
   const inRange = (dateStr) => {
     if (!dateStr) return false;
     const d = new Date(dateStr);
     return d >= new Date(fromDate) && d <= new Date(toDate + 'T23:59:59');
   };
 
-  const filteredInv = invoices.filter(inv => inRange(inv.date) && inv.status !== 'Draft');
-  const filteredExp = expenses.filter(e => inRange(e.date));
+  const filteredInv = filteredInvoicesAtSource.filter(inv => inRange(inv.date) && inv.status !== 'Draft');
+  const filteredExp = filteredExpensesAtSource.filter(e => inRange(e.date));
 
   const getInvTax = (inv) => {
     if (typeof inv.taxAmt === 'number') return inv.taxAmt;
@@ -86,31 +100,31 @@ export default function Reports({ user, perms, ownerId }) {
 
   // Lead pipeline
   const STAGES = ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
-  const stageCount = STAGES.map(s => ({ stage: s, count: leads.filter(l => l.stage === s).length }));
+  const stageCount = STAGES.map(s => ({ stage: s, count: filteredLeadsAtSource.filter(l => l.stage === s).length }));
   const maxCount = Math.max(...stageCount.map(s => s.count), 1);
   const CHART_COLORS = ['#60a5fa', '#6ee7b7', '#fde68a', '#c4b5fd', '#86efac', '#fca5a5'];
 
   // Team performance
   const teamPerf = team.map(m => ({
     name: m.name,
-    leads: leads.filter(l => l.assign === m.name).length,
-    done: tasks.filter(t => t.assignTo === m.name && t.status === 'Done').length,
-    tasks: tasks.filter(t => t.assignTo === m.name).length,
+    leads: filteredLeadsAtSource.filter(l => l.assign === m.name).length,
+    done: filteredTasksAtSource.filter(t => t.assignTo === m.name && t.status === 'Done').length,
+    tasks: filteredTasksAtSource.filter(t => t.assignTo === m.name).length,
   }));
 
   // Lead Funnel
   const funnel = useMemo(() => {
-    const total = leads.length;
-    const contacted = leads.filter(l => l.stage !== 'New Enquiry').length;
-    const negotiation = leads.filter(l => ['Budget Negotiation', 'Advance Paid', 'Won'].includes(l.stage)).length;
-    const won = leads.filter(l => l.stage === 'Won').length;
+    const total = filteredLeadsAtSource.length;
+    const contacted = filteredLeadsAtSource.filter(l => l.stage !== 'New Enquiry').length;
+    const negotiation = filteredLeadsAtSource.filter(l => ['Budget Negotiation', 'Advance Paid', 'Won'].includes(l.stage)).length;
+    const won = filteredLeadsAtSource.filter(l => l.stage === 'Won').length;
     return [
       { name: 'Total Leads', count: total, pct: 100, color: '#60a5fa' },
       { name: 'Contacted', count: contacted, pct: total ? Math.round((contacted/total)*100) : 0, color: '#6ee7b7' },
       { name: 'Negotiation', count: negotiation, pct: total ? Math.round((negotiation/total)*100) : 0, color: '#fde68a' },
       { name: 'Won (Success)', count: won, pct: total ? Math.round((won/total)*100) : 0, color: '#86efac' },
     ];
-  }, [leads]);
+  }, [filteredLeadsAtSource]);
 
   // Revenue by Source
   const revBySource = useMemo(() => {
@@ -119,12 +133,12 @@ export default function Reports({ user, perms, ownerId }) {
       // Find the lead associated with this client to get the source
       // This is a bit of a placeholder since we'd need a robust relation, 
       // but we'll try to match by client name for now or fallback to 'Other'
-      const lead = leads.find(l => l.name === inv.client);
+      const lead = filteredLeadsAtSource.find(l => l.name === inv.client);
       const src = lead?.source || 'Direct/Existing';
       srcMap[src] = (srcMap[src] || 0) + (inv.total || 0);
     });
     return Object.entries(srcMap).sort((a, b) => b[1] - a[1]);
-  }, [filteredInv, leads]);
+  }, [filteredInv, filteredLeadsAtSource]);
   const maxSrcRev = Math.max(...revBySource.map(([, v]) => v), 1);
 
   // Monthly GST Breakdown

@@ -5,7 +5,7 @@ import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS, INDIAN_STATES, COUNTRIES } fro
 import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
 
-const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', template: 'Classic', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], shipTo: '', addShipping: false };
+const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', template: 'Classic', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], shipTo: '', addShipping: false, assign: '' };
 const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 
 function calcTotals(items, disc, tdsRate, adj) {
@@ -40,8 +40,17 @@ export default function Quotations({ user, perms, ownerId }) {
     userProfiles: { $: { where: { userId: ownerId } } },
   });
   const quotes = useMemo(() => {
-    return data?.quotes || [];
-  }, [data?.quotes]);
+    const raw = data?.quotes || [];
+    const isTeam = perms && !perms.isOwner;
+    if (!isTeam) return raw;
+    return raw.filter(q => {
+      if (q.actorId === user.id || perms.isAdmin || perms.isManager) return true;
+      const assignKey = (q.assign || '').toLowerCase().trim();
+      const userName = (perms.name || '').toLowerCase().trim();
+      const userEmail = (user.email || '').toLowerCase().trim();
+      return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
+    });
+  }, [data?.quotes, perms, user]);
 
   const products = data?.products || [];
   const customers = data?.customers || [];
@@ -56,7 +65,7 @@ export default function Quotations({ user, perms, ownerId }) {
   const clientOptions = useMemo(() => {
     return [
       ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
-      ...leads.map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+      ...leads.filter(l => l.stage !== 'Won').map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
     ];
   }, [customers, leads]);
 
@@ -80,7 +89,11 @@ export default function Quotations({ user, perms, ownerId }) {
   };
   const openEdit = (q) => {
     setEditData(q);
-    setForm({ no: q.no || '', client: q.client, validUntil: q.validUntil || '', status: q.status, template: q.template || 'Classic', notes: q.notes || '', terms: q.terms || '', disc: q.disc || 0, adj: q.adj || 0, tdsRate: q.tdsRate || 0, items: q.items?.length ? q.items : EMPTY.items, shipTo: q.shipTo || '', addShipping: !!q.shipTo });
+    setForm({ 
+      no: q.no || '', client: q.client, validUntil: q.validUntil || '', status: q.status, template: q.template || 'Classic', 
+      notes: q.notes || '', terms: q.terms || '', disc: q.disc || 0, adj: q.adj || 0, tdsRate: q.tdsRate || 0, 
+      items: q.items?.length ? q.items : EMPTY.items, shipTo: q.shipTo || '', addShipping: !!q.shipTo, assign: q.assign || '' 
+    });
     setModal(true);
   };
 
@@ -410,6 +423,13 @@ export default function Quotations({ user, perms, ownerId }) {
                 <div className="fg"><label>Template</label>
                   <select value={form.template} onChange={e => setForm(p => ({ ...p, template: e.target.value }))}>
                     {['Classic', 'Modern', 'Minimal'].map(t => <option key={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="fg">
+                  <label>Assign To</label>
+                  <select value={form.assign} onChange={e => setForm(p => ({ ...p, assign: e.target.value }))}>
+                    <option value="">Unassigned</option>
+                    {team.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                   </select>
                 </div>
               </div>

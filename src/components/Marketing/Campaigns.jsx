@@ -68,8 +68,21 @@ export default function Campaigns({ user, perms, ownerId }) {
     campaignTemplates: { $: { where: { userId: ownerId } } }
   });
 
-  const leads = data?.leads || [];
-  const customers = data?.customers || [];
+  const isTeam = perms && !perms.isOwner;
+  const canSeeAll = perms?.isAdmin || perms?.isManager || !isTeam;
+
+  const leads = (data?.leads || []).filter(l => {
+    if (canSeeAll) return true;
+    if (l.actorId === user.id) return true;
+    const assignKey = (l.assign || '').toLowerCase().trim();
+    const userName = (perms.name || '').toLowerCase().trim();
+    const userEmail = (user.email || '').toLowerCase().trim();
+    return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
+  });
+  const customers = (data?.customers || []).filter(c => {
+    if (canSeeAll) return true;
+    return c.actorId === user.id;
+  });
   const invoices = data?.invoices || [];
   const amcList = data?.amc || [];
   const products = data?.products || [];

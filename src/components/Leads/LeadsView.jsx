@@ -9,6 +9,18 @@ const SOURCES = ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsA
 
 const EMPTY_LEAD = { name: '', email: '', phone: '', source: 'FB Ads', stage: 'New Enquiry', assign: '', followup: '', label: 'Hot', notes: '', remWA: false, remEmail: true, remSMS: false, custom: {} };
 
+const DEFAULT_IMPORT_MAPPING = {
+  name: { type: 'column', value: '' },
+  email: { type: 'column', value: '' },
+  phone: { type: 'column', value: '' },
+  source: { type: 'fixed', value: 'Bulk Import' },
+  stage: { type: 'fixed', value: 'New Enquiry' },
+  label: { type: 'fixed', value: 'Hot' },
+  assign: { type: 'fixed', value: '' },
+  notes: { type: 'fixed', value: '' },
+  followup: { type: 'fixed', value: '' }
+};
+
 export default function LeadsView({ user, perms, ownerId }) {
   const canCreate = perms?.can('Leads', 'create') !== false;
   const canEdit = perms?.can('Leads', 'edit') !== false;
@@ -29,6 +41,11 @@ export default function LeadsView({ user, perms, ownerId }) {
   const [viewLead, setViewLead] = useState(null);
   const [noteText, setNoteText] = useState('');
   const [dragOverStage, setDragOverStage] = useState(null);
+  const [importMappingModal, setImportMappingModal] = useState(false);
+  const [importMapping, setImportMapping] = useState(DEFAULT_IMPORT_MAPPING);
+  const [importHeaders, setImportHeaders] = useState([]);
+  const [importData, setImportData] = useState([]); // Raw rows from CSV
+  const [importSample, setImportSample] = useState(null); // First data row for preview
   const dragLeadId = useRef(null);
   const toast = useToast();
 
@@ -52,7 +69,7 @@ export default function LeadsView({ user, perms, ownerId }) {
     if (!isTeam) return rawLeads;
     
     return rawLeads.filter(l => {
-      if (l.actorId === user.id) return true;
+      if (l.actorId === user.id || perms.isAdmin || perms.isManager) return true;
       const assignKey = (l.assign || '').toLowerCase().trim();
       const userName = (perms.name || '').toLowerCase().trim();
       const userEmail = (user.email || '').toLowerCase().trim();
@@ -200,63 +217,87 @@ export default function LeadsView({ user, perms, ownerId }) {
         return row.map(v => v.trim().replace(/^"|"$/g, ''));
       };
 
-      const headers = parseLine(lines[0]).map(h => h.toLowerCase());
-      const nameKey = headers.find(h => h.includes('name'));
-      const emailKey = headers.find(h => h.includes('email') || h.includes('mail'));
-      const phoneKey = headers.find(h => h.includes('phone') || h.includes('mobile'));
-      const sourceKey = headers.find(h => h.includes('source'));
-      
-      if (!nameKey) return toast('CSV must have a "Name" column', 'error');
+      const headers = parseLine(lines[0]);
+      setImportHeaders(headers);
+      setImportData(lines.slice(1).map(parseLine));
+      setImportSample(parseLine(lines[1]));
 
-      const toAdd = [];
-      let skipped = 0;
-
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue;
-        const vals = parseLine(lines[i]);
-        const row = headers.reduce((acc, h, idx) => ({ ...acc, [h]: vals[idx] || '' }), {});
-        
-        const n = row[nameKey];
-        const em = emailKey ? row[emailKey] : '';
-        const ph = phoneKey ? row[phoneKey] : '';
-        const src = sourceKey && row[sourceKey] ? row[sourceKey] : 'Other';
-
-        if (!n) continue;
-        
-        const exists = leads.find(l => 
-          (em && l.email === em) || (ph && l.phone === ph)
-        );
-        if (exists) { skipped++; continue; }
-
-        toAdd.push({
-          name: n,
-          email: em,
-          phone: ph,
-          source: src,
-          stage: 'New Enquiry',
-          label: 'Pending',
-          userId: ownerId,
-          actorId: user.id,
-          createdAt: Date.now()
+      // Auto-mapping
+      const newMapping = JSON.parse(JSON.stringify(DEFAULT_IMPORT_MAPPING));
+      headers.forEach(h => {
+        const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
+        Object.keys(newMapping).forEach(field => {
+          const cleanF = field.toLowerCase();
+          if (cleanH === cleanF || cleanH.includes(cleanF) || cleanF.includes(cleanH)) {
+            if (newMapping[field].type === 'column' && !newMapping[field].value) {
+              newMapping[field].value = h;
+            }
+          }
         });
-      }
-
-      if (toAdd.length === 0) return toast(`No new leads imported. Skipped ${skipped} duplicates.`, 'warning');
-
-      try {
-        const batchSize = 50;
-        for (let i = 0; i < toAdd.length; i += batchSize) {
-          const batch = toAdd.slice(i, i + batchSize);
-          await db.transact(batch.map(ld => db.tx.leads[id()].update(ld)));
-        }
-        toast(`Imported ${toAdd.length} leads. ${skipped > 0 ? `Skipped ${skipped} duplicates.` : ''}`, 'success');
-      } catch (err) {
-        console.error(err);
-        toast('Error importing leads', 'error');
-      }
+      });
+      setImportMapping(newMapping);
+      setImportMappingModal(true);
     };
     reader.readAsText(file);
     e.target.value = '';
+  };
+
+  const performImport = async () => {
+    if (!importMapping.name.value && importMapping.name.type === 'column') return toast('Please map the Name field', 'error');
+    
+    const toAdd = [];
+    let skipped = 0;
+
+    importData.forEach(vals => {
+      const lead = {
+        userId: ownerId,
+        actorId: user.id,
+        createdAt: Date.now(),
+        custom: {}
+      };
+
+      Object.entries(importMapping).forEach(([field, m]) => {
+        let val = '';
+        if (m.type === 'column') {
+          const idx = importHeaders.indexOf(m.value);
+          if (idx !== -1) val = vals[idx] || '';
+        } else {
+          val = m.value;
+        }
+
+        if (['name', 'email', 'phone', 'source', 'stage', 'label', 'notes', 'followup', 'assign'].includes(field)) {
+          lead[field] = val;
+        } else {
+          lead.custom[field] = val;
+        }
+      });
+
+      if (!lead.name) return;
+
+      const exists = leads.find(l => 
+        (lead.email && l.email === lead.email) || (lead.phone && l.phone === lead.phone)
+      );
+      if (exists) { skipped++; return; }
+
+      toAdd.push(lead);
+    });
+
+    if (toAdd.length === 0) {
+      setImportMappingModal(false);
+      return toast(`No new leads imported. Skipped ${skipped} duplicates.`, 'warning');
+    }
+
+    try {
+      const batchSize = 50;
+      for (let i = 0; i < toAdd.length; i += batchSize) {
+        const batch = toAdd.slice(i, i + batchSize);
+        await db.transact(batch.map(ld => db.tx.leads[id()].update(ld)));
+      }
+      toast(`Imported ${toAdd.length} leads. ${skipped > 0 ? `Skipped ${skipped} duplicates.` : ''}`, 'success');
+      setImportMappingModal(false);
+    } catch (err) {
+      toast('Error importing leads', 'error');
+    }
   };
 
   const bulkDelete = async () => {
@@ -783,7 +824,114 @@ export default function LeadsView({ user, perms, ownerId }) {
         </div>
       )}
 
-      {/* CONFIGURE VIEW MODAL */}
+      {/* BULK IMPORT MAPPING MODAL */}
+      {importMappingModal && (
+        <div className="mo open">
+          <div className="mo-box" style={{ width: 680 }}>
+            <div className="mo-head">
+              <h3>Bulk Import Column Mapping</h3>
+              <button className="btn-icon" onClick={() => setImportMappingModal(false)}>✕</button>
+            </div>
+            <div className="mo-body" style={{ maxHeight: '70vh', overflowY: 'auto', padding: '0 25px' }}>
+              <div style={{ padding: '15px 0', borderBottom: '1px solid var(--border)', display: 'flex', gap: 15, alignItems: 'center' }}>
+                <div style={{ background: '#ecfdf5', color: '#065f46', padding: '8px 12px', borderRadius: 8, fontSize: 12, flex: 1 }}>
+                  <strong>{importData.length} leads detected.</strong> Select which CSV column matches each CRM field below.
+                </div>
+              </div>
+
+              {[
+                { label: 'Name', icon: '👤', field: 'name' },
+                { label: 'Email', icon: '📧', field: 'email' },
+                { label: 'Phone', icon: '📱', field: 'phone' },
+                { label: 'Source', icon: '🔗', field: 'source', options: SOURCES },
+                { label: 'Stage', icon: '📋', field: 'stage', options: allStages },
+                { label: 'Label', icon: '🏷️', field: 'label', options: ['Hot', 'Warm', 'Cold', 'VIP', 'Pending'] },
+                { label: 'Assigned To', icon: '👤', field: 'assign', options: team.map(t => t.name) },
+                { label: 'Notes', icon: '📝', field: 'notes' },
+                { label: 'Follow-up Date', icon: '📅', field: 'followup', type: 'datetime-local' }
+              ].map(row => {
+                const m = importMapping[row.field];
+                const setM = (val) => setImportMapping({ ...importMapping, [row.field]: { ...m, ...val } });
+                
+                return (
+                  <div key={row.field} style={{ display: 'flex', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--bg-soft)', gap: 20 }}>
+                    <div style={{ width: 140, display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <span style={{ fontSize: 16 }}>{row.icon}</span>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 12 }}>{row.label}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{row.field === 'name' ? 'Required' : 'Optional'}</div>
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: 'flex', background: 'var(--bg-soft)', borderRadius: 6, padding: 2 }}>
+                       <button className={`btn-toggle ${m.type === 'column' ? 'active' : ''}`} onClick={() => setM({ type: 'column' })}>Column</button>
+                       <button className={`btn-toggle ${m.type === 'fixed' ? 'active' : ''}`} onClick={() => setM({ type: 'fixed' })}>Fixed</button>
+                    </div>
+
+                    {m.type === 'column' ? (
+                      <select style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)' }} value={m.value} onChange={e => setM({ value: e.target.value })}>
+                        <option value="">(Select Column)</option>
+                        {importHeaders.map((h, idx) => (
+                           <option key={idx} value={h}>{h} {importSample?.[idx] ? `(e.g. ${importSample[idx]})` : ''}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      row.options ? (
+                        <select style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)' }} value={m.value} onChange={e => setM({ value: e.target.value })}>
+                          <option value="">(None)</option>
+                          {row.options.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : (
+                        <input type={row.type || 'text'} style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)' }} value={m.value} onChange={e => setM({ value: e.target.value })} placeholder="Fixed value..." />
+                      )
+                    )}
+                  </div>
+                );
+              })}
+
+              {/* Custom Fields Mapping */}
+              {customFields.length > 0 && (
+                <div style={{ marginTop: 15, borderTop: '2px solid var(--bg-soft)', paddingTop: 15 }}>
+                  <h4 style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10, textTransform: 'uppercase' }}>Custom Fields</h4>
+                  {customFields.map(cf => {
+                    const m = importMapping[cf.name] || { type: 'column', value: '' };
+                    const setM = (val) => setImportMapping({ ...importMapping, [cf.name]: { ...m, ...val } });
+
+                    return (
+                      <div key={cf.name} style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--bg-soft)', gap: 20 }}>
+                        <div style={{ width: 140, fontWeight: 600, fontSize: 12 }}>{cf.name}</div>
+                        
+                        <div style={{ display: 'flex', background: 'var(--bg-soft)', borderRadius: 6, padding: 2 }}>
+                           <button className={`btn-toggle ${m.type === 'column' ? 'active' : ''}`} onClick={() => setM({ type: 'column' })}>Column</button>
+                           <button className={`btn-toggle ${m.type === 'fixed' ? 'active' : ''}`} onClick={() => setM({ type: 'fixed' })}>Fixed</button>
+                        </div>
+
+                        {m.type === 'column' ? (
+                          <select style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)' }} value={m.value} onChange={e => setM({ value: e.target.value })}>
+                            <option value="">(Select Column)</option>
+                            {importHeaders.map((h, idx) => <option key={idx} value={h}>{h}</option>)}
+                          </select>
+                        ) : (
+                          <input type="text" style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)' }} value={m.value} onChange={e => setM({ value: e.target.value })} placeholder="Fixed value..." />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="mo-foot">
+              <button className="btn btn-secondary btn-sm" onClick={() => setImportMappingModal(false)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={performImport}>Complete Import</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        .btn-toggle { border: none; background: transparent; padding: 4px 10px; font-size: 10px; font-weight: 700; cursor: pointer; border-radius: 4px; color: var(--muted); }
+        .btn-toggle.active { background: #fff; color: var(--accent); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+      `}</style>
       {colModal && (
         <div className="mo open">
           <div className="mo-box" style={{ width: 480 }}>

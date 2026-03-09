@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { sendEmail, sendEmailMock, renderTemplate } from '../../utils/messaging';
 import SearchableSelect from '../UI/SearchableSelect';
 
-const EMPTY = { client: '', email: '', phone: '', contractNo: '', cycle: 'Yearly', startDate: '', endDate: '', amount: '', taxRate: 0, plan: '', status: 'Active', notes: '' };
+const EMPTY = { client: '', email: '', phone: '', contractNo: '', cycle: 'Yearly', startDate: '', endDate: '', amount: '', taxRate: 0, plan: '', status: 'Active', notes: '', assign: '' };
 
 export default function AMC({ user, perms, ownerId }) {
   const canCreate = perms?.can('AMC', 'create') !== false;
@@ -21,7 +21,27 @@ export default function AMC({ user, perms, ownerId }) {
   const [viewAMC, setViewAMC] = useState(null);
   const [renewModal, setRenewModal] = useState(null); // holds the AMC being renewed
   const [renewForm, setRenewForm] = useState({ paidOn: '', amount: '', cycle: 'Yearly', genInvoice: true, taxRate: 0, plan: '' });
+  
+  const [custModal, setCustModal] = useState(false);
+  const [newCustForm, setNewCustForm] = useState({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+  
   const toast = useToast();
+  
+  
+  const ncf = (k) => (e) => setNewCustForm(p => ({ ...p, [k]: e.target.value }));
+  const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
+
+  const createCustomer = async () => {
+    if (!newCustForm.name.trim()) return toast('Name required', 'error');
+    if (!newCustForm.email.trim()) return toast('Email is mandatory for clients', 'error');
+    const newId = id();
+    const custPayload = { ...newCustForm, name: newCustForm.name.trim(), userId: ownerId, actorId: user.id, createdAt: Date.now() };
+    await db.transact(db.tx.customers[newId].update(custPayload));
+    setForm(p => ({ ...p, client: custPayload.name, email: custPayload.email, phone: custPayload.phone }));
+    setCustModal(false);
+    setNewCustForm({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+    toast('Customer created!', 'success');
+  };
 
   const { data } = db.useQuery({
     amc: { $: { where: { userId: ownerId } } },
@@ -30,13 +50,24 @@ export default function AMC({ user, perms, ownerId }) {
     products: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } }
   });
+
+  const profile = data?.userProfiles?.[0] || {};
+  const customFields = profile.customFields || [];
   const amcList = useMemo(() => {
-    return data?.amc || [];
-  }, [data?.amc]);
+    const raw = data?.amc || [];
+    const isTeam = perms && !perms.isOwner;
+    if (!isTeam) return raw;
+    return raw.filter(a => {
+      if (a.actorId === user.id || perms.isAdmin || perms.isManager) return true;
+      const assignKey = (a.assign || '').toLowerCase().trim();
+      const userName = (perms.name || '').toLowerCase().trim();
+      const userEmail = (user.email || '').toLowerCase().trim();
+      return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
+    });
+  }, [data?.amc, perms, user]);
 
   const customers = data?.customers || [];
   const products = data?.products || [];
-  const profile = data?.userProfiles?.[0] || {};
   const taxRates = profile.taxRates || [{ label: 'None (0%)', rate: 0 }, { label: 'GST @ 5%', rate: 5 }, { label: 'GST @ 12%', rate: 12 }, { label: 'GST @ 18%', rate: 18 }, { label: 'GST @ 28%', rate: 28 }];
 
   // Keep viewAMC in sync with live data
@@ -406,7 +437,12 @@ export default function AMC({ user, perms, ownerId }) {
                 <div className="fgrid">
                   <div className="fg" style={{ zIndex: 10 }}>
                     <label>Client *</label>
-                    <SearchableSelect options={customers} displayKey="name" returnKey="name" value={form.client} onChange={handleClientSelect} placeholder="Search client..." />
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <div style={{ flex: 1 }}>
+                        <SearchableSelect options={customers} displayKey="name" returnKey="name" value={form.client} onChange={handleClientSelect} placeholder="Search client..." />
+                      </div>
+                      <button className="btn btn-secondary" style={{ padding: '0 10px' }} onClick={() => setCustModal(true)} title="Add New Customer">+</button>
+                    </div>
                   </div>
                   <div className="fg"><label>Contract No.</label><input value={form.contractNo} onChange={f('contractNo')} placeholder="AMC/2025/001" /></div>
                   <div className="fg"><label>Email</label><input type="email" value={form.email} onChange={f('email')} /></div>
@@ -423,6 +459,13 @@ export default function AMC({ user, perms, ownerId }) {
                   </div>
                   <div className="fg"><label>Amount (₹)</label><input type="number" value={form.amount} onChange={f('amount')} /></div>
                   <div className="fg"><label>Status</label><select value={form.status} onChange={f('status')}>{['Active', 'Expired'].map(s => <option key={s}>{s}</option>)}</select></div>
+                  <div className="fg">
+                    <label>Assign To</label>
+                    <select value={form.assign} onChange={f('assign')}>
+                      <option value="">Unassigned</option>
+                      {data?.teamMembers?.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                    </select>
+                  </div>
                   <div className="fg span2"><label>Notes</label><textarea value={form.notes} onChange={f('notes')} /></div>
                 </div>
               </div>
@@ -519,7 +562,12 @@ export default function AMC({ user, perms, ownerId }) {
               <div className="fgrid">
                 <div className="fg" style={{ zIndex: 10 }}>
                   <label>Client *</label>
-                  <SearchableSelect options={customers} displayKey="name" returnKey="name" value={form.client} onChange={handleClientSelect} placeholder="Search client..." />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ flex: 1 }}>
+                      <SearchableSelect options={customers} displayKey="name" returnKey="name" value={form.client} onChange={handleClientSelect} placeholder="Search client..." />
+                    </div>
+                    <button className="btn btn-secondary" style={{ padding: '0 10px' }} onClick={() => setCustModal(true)} title="Add New Customer">+</button>
+                  </div>
                 </div>
                 <div className="fg"><label>Contract No.</label><input value={form.contractNo} onChange={f('contractNo')} placeholder="AMC/2025/001" /></div>
                 <div className="fg"><label>Email</label><input type="email" value={form.email} onChange={f('email')} /></div>
@@ -665,6 +713,46 @@ export default function AMC({ user, perms, ownerId }) {
             <div className="mo-foot">
               <button className="btn btn-secondary btn-sm" onClick={() => setRenewModal(null)}>Cancel</button>
               <button className="btn btn-primary btn-sm" onClick={handleRenewAMC}>✓ Confirm Renewal</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Quick Add Customer Modal */}
+      {custModal && (
+        <div className="mo open" style={{ zIndex: 2000 }}>
+          <div className="mo-box">
+            <div className="mo-head"><h3>Quick Add Customer</h3><button className="btn-icon" onClick={() => setCustModal(false)}>✕</button></div>
+            <div className="mo-body">
+              <div className="fgrid">
+                <div className="fg span2"><label>Full Name *</label><input value={newCustForm.name} onChange={ncf('name')} placeholder="e.g. John Doe" /></div>
+                <div className="fg"><label>Email *</label><input value={newCustForm.email} onChange={ncf('email')} placeholder="john@example.com" /></div>
+                <div className="fg"><label>Phone</label><input value={newCustForm.phone} onChange={ncf('phone')} placeholder="+91..." /></div>
+                <div className="fg span2"><label>Address</label><textarea value={newCustForm.address} onChange={ncf('address')} placeholder="Full address..." /></div>
+                <div className="fg"><label>Country</label>
+                  <select value={newCustForm.country} onChange={ncf('country')}>
+                    {['India', 'USA', 'UK', 'UAE', 'Australia', 'Other'].map(c => <option key={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>State</label><input value={newCustForm.state} onChange={ncf('state')} placeholder="e.g. Tamil Nadu" /></div>
+                <div className="fg"><label>Pincode</label><input value={newCustForm.pincode} onChange={ncf('pincode')} placeholder="600XXX" /></div>
+                <div className="fg"><label>GSTIN</label><input value={newCustForm.gstin} onChange={ncf('gstin')} placeholder="22AAAAA0000A1Z5" /></div>
+                
+                {customFields.map(cf => (
+                  <div key={cf.name} className="fg">
+                    <label>{cf.name} {cf.required ? '*' : ''}</label>
+                    <input 
+                      type={cf.type === 'Number' ? 'number' : 'text'} 
+                      value={newCustForm.custom?.[cf.name] || ''} 
+                      onChange={nccf(cf.name)} 
+                      placeholder={cf.name} 
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mo-foot">
+              <button className="btn btn-secondary btn-sm" onClick={() => setCustModal(false)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={createCustomer}>Create Customer</button>
             </div>
           </div>
         </div>

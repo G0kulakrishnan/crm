@@ -28,11 +28,24 @@ export default function Dashboard({ user, ownerId, perms }) {
     const isTeam = perms && !perms.isOwner;
     if (!isTeam) return { leads: leadsRaw, quotes: quotesRaw, invoices: invoicesRaw, projects: projectsRaw, amc: amcRaw };
 
-    const filteredLeads = leadsRaw.filter(l => l.assign === user.email || l.assign === perms.name || l.actorId === user.id);
-    const filteredInvoices = invoicesRaw.filter(i => i.actorId === user.id);
-    const filteredQuotes = quotesRaw.filter(q => q.actorId === user.id);
-    const filteredAmc = amcRaw.filter(a => a.actorId === user.id);
-    const filteredProjects = projectsRaw.filter(p => p.actorId === user.id || tasksRaw.some(t => t.projectId === p.id && (t.assignTo === user.email || t.assignTo === perms.name)));
+    const filteredLeads = leadsRaw.filter(l => {
+      if (perms.isAdmin || perms.isManager) return true;
+      const assignKey = (l.assign || '').toLowerCase().trim();
+      const userName = (perms.name || '').toLowerCase().trim();
+      const userEmail = (user.email || '').toLowerCase().trim();
+      return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail) || l.actorId === user.id;
+    });
+    const filteredInvoices = invoicesRaw.filter(i => i.actorId === user.id || perms.isAdmin || perms.isManager);
+    const filteredQuotes = quotesRaw.filter(q => q.actorId === user.id || perms.isAdmin || perms.isManager);
+    const filteredAmc = amcRaw.filter(a => a.actorId === user.id || perms.isAdmin || perms.isManager);
+    const filteredProjects = projectsRaw.filter(p => {
+      if (perms.isAdmin || perms.isManager) return true;
+      const assignKey = (p.assignTo || '').toLowerCase().trim();
+      const userName = (perms.name || '').toLowerCase().trim();
+      const userEmail = (user.email || '').toLowerCase().trim();
+      const isAssigned = (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
+      return p.actorId === user.id || isAssigned || tasksRaw.some(t => t.projectId === p.id && (t.assignTo === user.email || t.assignTo === perms.name));
+    });
 
     return { leads: filteredLeads, quotes: filteredQuotes, invoices: filteredInvoices, projects: filteredProjects, amc: filteredAmc };
   }, [leadsRaw, quotesRaw, invoicesRaw, projectsRaw, amcRaw, tasksRaw, perms, user]);
@@ -136,135 +149,159 @@ export default function Dashboard({ user, ownerId, perms }) {
 
       {/* Stats */}
       <div className="stat-grid">
-        <div className="stat-card sc-green"><div className="lbl">Total Leads</div><div className="val">{leads.length}</div></div>
-        <div className="stat-card sc-blue"><div className="lbl">Active</div><div className="val">{stats.active}</div></div>
-        <div className="stat-card sc-red"><div className="lbl">Overdue Follow</div><div className="val">{stats.overdue}</div></div>
-        <div className="stat-card sc-yellow"><div className="lbl">Quotations</div><div className="val">{quotes.length}</div></div>
-        <div className="stat-card sc-purple"><div className="lbl">Invoices</div><div className="val">{invoices.length}</div></div>
-        <div className="stat-card sc-teal"><div className="lbl">Projects</div><div className="val">{stats.inProgress}</div></div>
-        <div className="stat-card sc-red"><div className="lbl">AMC Expiring</div><div className="val">{stats.amcExp}</div></div>
+        {perms.can('Leads', 'list') !== false && (
+          <>
+            <div className="stat-card sc-green"><div className="lbl">Total Leads</div><div className="val">{leads.length}</div></div>
+            <div className="stat-card sc-blue"><div className="lbl">Active</div><div className="val">{stats.active}</div></div>
+            <div className="stat-card sc-red"><div className="lbl">Overdue Follow</div><div className="val">{stats.overdue}</div></div>
+          </>
+        )}
+        {perms.can('Quotations', 'list') !== false && (
+          <div className="stat-card sc-yellow"><div className="lbl">Quotations</div><div className="val">{quotes.length}</div></div>
+        )}
+        {perms.can('Invoices', 'list') !== false && (
+          <div className="stat-card sc-purple"><div className="lbl">Invoices</div><div className="val">{invoices.length}</div></div>
+        )}
+        {perms.can('Projects', 'list') !== false && (
+          <div className="stat-card sc-teal"><div className="lbl">Projects</div><div className="val">{stats.inProgress}</div></div>
+        )}
+        {perms.can('AMC', 'list') !== false && (
+          <div className="stat-card sc-red"><div className="lbl">AMC Expiring</div><div className="val">{stats.amcExp}</div></div>
+        )}
       </div>
 
       {/* Charts Row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 18 }}>
         {/* Source Chart */}
-        <div className="tw">
-          <div className="tw-head"><h3>Leads by Source</h3></div>
-          <div style={{ padding: '14px 16px' }}>
-            {srcData.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 24, color: 'var(--muted)', fontSize: 12 }}>No leads yet</div>
-            ) : srcData.map(([k, v], i) => (
-              <div key={k} className="chart-row">
-                <div className="chart-label">{k}</div>
-                <div className="chart-bar-wrap"><div className="chart-bar" style={{ width: `${(v / maxSrc) * 100}%`, background: CHART_COLORS[i % 6] }} /></div>
-                <div className="chart-val">{v}</div>
-              </div>
-            ))}
+        {perms.can('Leads', 'list') !== false && (
+          <div className="tw">
+            <div className="tw-head"><h3>Leads by Source</h3></div>
+            <div style={{ padding: '14px 16px' }}>
+              {srcData.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 24, color: 'var(--muted)', fontSize: 12 }}>No leads yet</div>
+              ) : srcData.map(([k, v], i) => (
+                <div key={k} className="chart-row">
+                  <div className="chart-label">{k}</div>
+                  <div className="chart-bar-wrap"><div className="chart-bar" style={{ width: `${(v / maxSrc) * 100}%`, background: CHART_COLORS[i % 6] }} /></div>
+                  <div className="chart-val">{v}</div>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Reminders */}
-        <div className="tw">
-          <div className="tw-head"><h3>⏰ Upcoming Reminders</h3></div>
-          <div style={{ padding: '6px 0' }}>
-            {reminders.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 28, color: 'var(--muted)', fontSize: 12 }}>✓ No pending reminders</div>
-            ) : reminders.map((r, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'start', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: '.15s', ':hover': { background: 'var(--bg)' } }} onClick={() => handleReminderClick(r.actionInfo)} className="rem-item-hover">
-                <span style={{ fontSize: 16, flexShrink: 0 }}>{r.icon}</span>
-                <div style={{ flex: 1, fontSize: 12, lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: r.text }} />
-              </div>
-            ))}
+        {(perms.can('Leads', 'list') !== false || perms.can('AMC', 'list') !== false) && (
+          <div className="tw">
+            <div className="tw-head"><h3>⏰ Upcoming Reminders</h3></div>
+            <div style={{ padding: '6px 0' }}>
+              {reminders.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 28, color: 'var(--muted)', fontSize: 12 }}>✓ No pending reminders</div>
+              ) : reminders.map((r, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'start', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: '.15s', ':hover': { background: 'var(--bg)' } }} onClick={() => handleReminderClick(r.actionInfo)} className="rem-item-hover">
+                  <span style={{ fontSize: 16, flexShrink: 0 }}>{r.icon}</span>
+                  <div style={{ flex: 1, fontSize: 12, lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: r.text }} />
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Recent Leads + Calendar */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-        <div className="tw">
-          <div className="tw-head"><h3>Recent Leads</h3></div>
-          <table>
-            <thead><tr><th>Name</th><th>Stage</th><th>Source</th></tr></thead>
-            <tbody>
-              {leads.slice(-5).reverse().map(l => (
-                <tr key={l.id}>
-                  <td><strong>{l.name}</strong></td>
-                  <td><span className={`badge ${stageBadgeClass(l.stage)}`}>{l.stage}</span></td>
-                  <td style={{ color: 'var(--muted)' }}>{l.source}</td>
-                </tr>
-              ))}
-              {leads.length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>No leads yet</td></tr>}
-            </tbody>
-          </table>
-        </div>
+        {perms.can('Leads', 'list') !== false && (
+          <>
+            <div className="tw">
+              <div className="tw-head"><h3>Recent Leads</h3></div>
+              <table>
+                <thead><tr><th>Name</th><th>Stage</th><th>Source</th></tr></thead>
+                <tbody>
+                  {leads.slice(-5).reverse().map(l => (
+                    <tr key={l.id}>
+                      <td><strong>{l.name}</strong></td>
+                      <td><span className={`badge ${stageBadgeClass(l.stage)}`}>{l.stage}</span></td>
+                      <td style={{ color: 'var(--muted)' }}>{l.source}</td>
+                    </tr>
+                  ))}
+                  {leads.length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>No leads yet</td></tr>}
+                </tbody>
+              </table>
+            </div>
 
-        {/* Hot Leads */}
-        <div className="tw">
-          <div className="tw-head"><h3>🔥 Hot Leads (Top Priority)</h3></div>
-          <div style={{ padding: '0' }}>
-            {hotLeads.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 28, color: 'var(--muted)', fontSize: 12 }}>Check your active leads</div>
-            ) : hotLeads.map(l => (
-              <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 700 }}>{l.name}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{l.source} • {l.phone}</div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <span className={`badge ${stageBadgeClass(l.stage)}`} style={{ fontSize: 10 }}>{l.stage}</span>
-                  <div style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 700, marginTop: 4 }}>
-                    {l.followup ? `Next: ${fmtD(l.followup)}` : 'Hot Label'}
+            {/* Hot Leads */}
+            <div className="tw">
+              <div className="tw-head"><h3>🔥 Hot Leads (Top Priority)</h3></div>
+              <div style={{ padding: '0' }}>
+                {hotLeads.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 28, color: 'var(--muted)', fontSize: 12 }}>Check your active leads</div>
+                ) : hotLeads.map(l => (
+                  <div key={l.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700 }}>{l.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{l.source} • {l.phone}</div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span className={`badge ${stageBadgeClass(l.stage)}`} style={{ fontSize: 10 }}>{l.stage}</span>
+                      <div style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 700, marginTop: 4 }}>
+                        {l.followup ? `Next: ${fmtD(l.followup)}` : 'Hot Label'}
+                      </div>
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+          </>
+        )}
 
         {/* Revenue Trend */}
-        <div className="tw">
-          <div className="tw-head"><h3>📈 Monthly Revenue Trend</h3></div>
-          <div style={{ padding: '24px 20px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, height: 160 }}>
-            {revenueTrend.map(m => {
-              const h = (m.total / maxRev) * 100;
-              return (
-                <div key={m.name} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>{m.total > 0 ? `₹${Math.round(m.total/1000)}k` : ''}</div>
-                  <div style={{ width: '100%', maxWidth: 30, height: `${Math.max(h, 5)}%`, background: 'var(--accent)', borderRadius: '4px 4px 0 0', minHeight: 4 }} />
-                  <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', marginTop: 8 }}>{m.name}</div>
-                </div>
-              );
-            })}
+        {perms.can('Invoices', 'list') !== false && (
+          <div className="tw">
+            <div className="tw-head"><h3>📈 Monthly Revenue Trend</h3></div>
+            <div style={{ padding: '24px 20px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, height: 160 }}>
+              {revenueTrend.map(m => {
+                const h = (m.total / maxRev) * 100;
+                return (
+                  <div key={m.name} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>{m.total > 0 ? `₹${Math.round(m.total/1000)}k` : ''}</div>
+                    <div style={{ width: '100%', maxWidth: 30, height: `${Math.max(h, 5)}%`, background: 'var(--accent)', borderRadius: '4px 4px 0 0', minHeight: 4 }} />
+                    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', marginTop: 8 }}>{m.name}</div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Calendar */}
-        <div className="tw">
-          <div className="tw-head">
-            <h3>Follow-Up Calendar</h3>
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <button className="btn-icon btn-sm" onClick={() => setCalDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))}>‹</button>
-              <span style={{ fontSize: 12, fontWeight: 700, minWidth: 100, textAlign: 'center' }}>
-                {calDate.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
-              </span>
-              <button className="btn-icon btn-sm" onClick={() => setCalDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))}>›</button>
+        {perms.can('Leads', 'list') !== false && (
+          <div className="tw">
+            <div className="tw-head">
+              <h3>Follow-Up Calendar</h3>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <button className="btn-icon btn-sm" onClick={() => setCalDate(d => new Date(d.getFullYear(), d.getMonth() - 1, 1))}>‹</button>
+                <span style={{ fontSize: 12, fontWeight: 700, minWidth: 100, textAlign: 'center' }}>
+                  {calDate.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}
+                </span>
+                <button className="btn-icon btn-sm" onClick={() => setCalDate(d => new Date(d.getFullYear(), d.getMonth() + 1, 1))}>›</button>
+              </div>
+            </div>
+            <div style={{ padding: '10px 14px' }}>
+              <div className="cal-grid">
+                {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
+                  <div key={d} style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', padding: '3px 0', textAlign: 'center' }}>{d}</div>
+                ))}
+                {calDays.map((item, i) => (
+                  item.empty
+                    ? <div key={i} />
+                    : <div key={i} className={`cal-day${item.isToday ? ' today' : item.hasEvent ? ' has-event' : ''}`}>
+                      {item.d}{item.hasEvent && !item.isToday ? '•' : ''}
+                    </div>
+                ))}
+              </div>
             </div>
           </div>
-          <div style={{ padding: '10px 14px' }}>
-            <div className="cal-grid">
-              {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map(d => (
-                <div key={d} style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', padding: '3px 0', textAlign: 'center' }}>{d}</div>
-              ))}
-              {calDays.map((item, i) => (
-                item.empty
-                  ? <div key={i} />
-                  : <div key={i} className={`cal-day${item.isToday ? ' today' : item.hasEvent ? ' has-event' : ''}`}>
-                    {item.d}{item.hasEvent && !item.isToday ? '•' : ''}
-                  </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
