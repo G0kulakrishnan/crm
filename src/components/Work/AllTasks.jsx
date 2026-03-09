@@ -24,7 +24,8 @@ export default function AllTasks({ user, perms, ownerId }) {
     projects: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    customers: { $: { where: { userId: ownerId } } }
+    customers: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId } } }
   });
   const tasks = useMemo(() => {
     const rawTasks = data?.tasks || [];

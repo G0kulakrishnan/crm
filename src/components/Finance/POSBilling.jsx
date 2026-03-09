@@ -25,10 +25,6 @@ export default function POSBilling({ user, ownerId, perms }) {
   const [newCustForm, setNewCustForm] = useState({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
   const toast = useToast();
   
-  const customFields = profile.customFields || [];
-  const ncf = (k) => (e) => setNewCustForm(p => ({ ...p, [k]: e.target.value }));
-  const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
-  
   const createCustomer = async () => {
     if (!newCustForm.name.trim()) return toast('Name required', 'error');
     if (!newCustForm.email.trim()) return toast('Email is mandatory for clients', 'error');
@@ -53,6 +49,10 @@ export default function POSBilling({ user, ownerId, perms }) {
   const products = data?.products || [];
   const customers = data?.customers || [];
   const profile = data?.userProfiles?.[0] || {};
+  
+  const customFields = profile.customFields || [];
+  const ncf = (k) => (e) => setNewCustForm(p => ({ ...p, [k]: e.target.value }));
+  const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
 
   const categories = useMemo(() => {
     const cats = profile.productCats || ['Electronics', 'Home Appliances', 'Services', 'Furniture', 'General'];
