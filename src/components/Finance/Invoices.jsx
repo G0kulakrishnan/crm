@@ -58,6 +58,7 @@ export default function Invoices({ user, perms, ownerId }) {
   const products = data?.products || [];
   const customers = data?.customers || [];
   const leads = data?.leads || [];
+  const team = data?.teamMembers || [];
   const profile = data?.userProfiles?.[0] || {};
   const taxRates = profile.taxRates || TAX_OPTIONS;
   const customFields = profile.customFields || [];

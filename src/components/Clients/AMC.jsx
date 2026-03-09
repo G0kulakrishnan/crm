@@ -54,6 +54,7 @@ export default function AMC({ user, perms, ownerId }) {
 
   const profile = data?.userProfiles?.[0] || {};
   const customFields = profile.customFields || [];
+  const team = data?.teamMembers || [];
   const amcList = useMemo(() => {
     const raw = data?.amc || [];
     const isTeam = perms && !perms.isOwner;
