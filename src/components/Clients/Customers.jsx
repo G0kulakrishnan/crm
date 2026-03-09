@@ -5,7 +5,7 @@ import { fmtD } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import { INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
 
-const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', custom: {} };
+const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 
 export default function Customers({ user, perms, ownerId }) {
   const canCreate = perms?.can('Customers', 'create') !== false;
@@ -30,11 +30,8 @@ export default function Customers({ user, perms, ownerId }) {
     amc: { $: { where: { userId: ownerId } } },
   });
   const customers = useMemo(() => {
-    const rawCustomers = data?.customers || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return rawCustomers;
-    return rawCustomers.filter(c => c.actorId === user.id);
-  }, [data?.customers, perms, user]);
+    return data?.customers || [];
+  }, [data?.customers]);
 
   const customFields = data?.userProfiles?.[0]?.customFields || [];
   const projects = data?.projects || [];
@@ -55,7 +52,7 @@ export default function Customers({ user, perms, ownerId }) {
   }, [customers, search]);
 
   const openCreate = () => { setEditData(null); setForm(EMPTY_CUSTOMER); setModal(true); };
-  const openEdit = (c) => { setEditData(c); setForm({ name: c.name, email: c.email || '', phone: c.phone || '', address: c.address || '', state: c.state || '', country: c.country || 'India', pincode: c.pincode || '', custom: c.custom || {} }); setModal(true); };
+  const openEdit = (c) => { setEditData(c); setForm({ name: c.name, email: c.email || '', phone: c.phone || '', address: c.address || '', state: c.state || '', country: c.country || 'India', pincode: c.pincode || '', gstin: c.gstin || '', custom: c.custom || {} }); setModal(true); };
 
   const logActivity = async (customerId, text) => {
     await db.transact(db.tx.activityLogs[id()].update({
@@ -75,7 +72,7 @@ export default function Customers({ user, perms, ownerId }) {
     try {
       if (editData) {
         const changes = [];
-        const fields = { name: 'Name', phone: 'Phone', email: 'Email', address: 'Address', state: 'State', country: 'Country', pincode: 'Pincode' };
+        const fields = { name: 'Name', phone: 'Phone', email: 'Email', address: 'Address', state: 'State', country: 'Country', pincode: 'Pincode', gstin: 'GSTIN' };
         Object.entries(fields).forEach(([k, label]) => {
           if (editData[k] !== form[k]) {
             const oldVal = editData[k] || 'None';
@@ -162,7 +159,8 @@ export default function Customers({ user, perms, ownerId }) {
               <h2 style={{ fontSize: 24, margin: 0 }}>{c.name}</h2>
               <div className="sub" style={{ fontSize: 13, marginTop: 4 }}>
                 {c.email && <span style={{ marginRight: 15 }}>✉ {c.email}</span>}
-                {c.phone && <span>☏ {c.phone}</span>}
+                {c.phone && <span style={{ marginRight: 15 }}>☏ {c.phone}</span>}
+                {c.gstin && <span>GSTIN: {c.gstin}</span>}
               </div>
             </div>
           </div>
@@ -349,6 +347,7 @@ export default function Customers({ user, perms, ownerId }) {
                     </select>
                   </div>
                   <div className="fg"><label>Pincode</label><input value={form.pincode} onChange={f('pincode')} placeholder="Postal code" /></div>
+                  <div className="fg"><label>GSTIN</label><input value={form.gstin} onChange={f('gstin')} placeholder="GST Number" /></div>
                   {customFields.length > 0 && <div className="fg span2" style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>
                     <h4 style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>Custom Fields (Optional)</h4>
                     <div className="fgrid">
@@ -492,6 +491,7 @@ export default function Customers({ user, perms, ownerId }) {
                   </select>
                 </div>
                 <div className="fg"><label>Pincode</label><input value={form.pincode} onChange={f('pincode')} placeholder="Postal code" /></div>
+                <div className="fg"><label>GSTIN</label><input value={form.gstin} onChange={f('gstin')} placeholder="GST Number" /></div>
                 
                 {/* Dynamic Custom Fields */}
                 {customFields.length > 0 && <div className="fg span2" style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>

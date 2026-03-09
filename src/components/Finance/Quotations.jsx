@@ -1,10 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
-import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS } from '../../utils/helpers';
+import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS, INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
+import SearchableSelect from '../UI/SearchableSelect';
 
 const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', template: 'Classic', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], shipTo: '', addShipping: false };
+const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 
 function calcTotals(items, disc, tdsRate, adj) {
   const sub = items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
@@ -26,25 +28,37 @@ export default function Quotations({ user, perms, ownerId }) {
   const [editData, setEditData] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [printing, setPrinting] = useState(null);
+  const [custModal, setCustModal] = useState(false);
+  const [newCustForm, setNewCustForm] = useState(EMPTY_CUSTOMER);
   const toast = useToast();
 
   const { data, isLoading } = db.useQuery({
     quotes: { $: { where: { userId: ownerId } } },
     products: { $: { where: { userId: ownerId } } },
     customers: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
   });
   const quotes = useMemo(() => {
-    const rawQuotes = data?.quotes || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return rawQuotes;
-    return rawQuotes.filter(q => q.actorId === user.id);
-  }, [data?.quotes, perms, user]);
+    return data?.quotes || [];
+  }, [data?.quotes]);
 
   const products = data?.products || [];
   const customers = data?.customers || [];
+  const leads = data?.leads || [];
   const profile = data?.userProfiles?.[0] || {};
   const taxRates = profile.taxRates || TAX_OPTIONS;
+  const customFields = profile.customFields || [];
+  
+  const ncf = (k) => (e) => setNewCustForm(p => ({ ...p, [k]: e.target.value }));
+  const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
+  
+  const clientOptions = useMemo(() => {
+    return [
+      ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
+      ...leads.map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+    ];
+  }, [customers, leads]);
 
   const filtered = useMemo(() => {
     return quotes.filter(q => tab === 'all' || q.status === tab)
@@ -60,7 +74,8 @@ export default function Quotations({ user, perms, ownerId }) {
   const openCreate = () => { 
     setEditData(null); 
     const nextNo = `QUOTE/${new Date().getFullYear()}/${String(quotes.length + 1).padStart(3, '0')}`;
-    setForm({ ...EMPTY, no: nextNo }); 
+    const defTax = profile?.defaultTaxRate || 0;
+    setForm({ ...EMPTY, no: nextNo, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: defTax }] }); 
     setModal(true); 
   };
   const openEdit = (q) => {
@@ -85,14 +100,31 @@ export default function Quotations({ user, perms, ownerId }) {
       payload.no = editData ? editData.no : `QUOTE/${new Date().getFullYear()}/${String(quotes.length + 1).padStart(3, '0')}`;
     }
 
-    try {
-      if (editData) {
-        await db.transact(db.tx.quotes[editData.id].update(payload));
-        toast('Quotation updated', 'success');
-      } else {
-        await db.transact(db.tx.quotes[id()].update({ ...payload }));
-        toast('Quotation created', 'success');
+    const txs = [];
+    let isNewCustomer = false;
+
+    if (editData) {
+      txs.push(db.tx.quotes[editData.id].update(payload));
+    } else {
+      txs.push(db.tx.quotes[id()].update({ ...payload }));
+    }
+
+    const cMatch = customers.find(c => c.name === form.client);
+    if (!cMatch) {
+      const lMatch = leads.find(l => l.name === form.client);
+      if (lMatch) {
+         txs.push(db.tx.customers[id()].update({
+            name: lMatch.name, email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
+         }));
+         txs.push(db.tx.leads[lMatch.id].update({ stage: 'Won' }));
+         isNewCustomer = true;
       }
+    }
+
+    try {
+      await db.transact(txs);
+      if (isNewCustomer) toast('Converted Lead to Customer & saved Quote', 'success');
+      else toast('Quotation saved', 'success');
       setModal(false);
     } catch { toast('Error saving quotation', 'error'); }
   };
@@ -112,7 +144,7 @@ export default function Quotations({ user, perms, ownerId }) {
     const items = form.items.map((it, idx) => idx === i ? newIt : it);
     setForm(p => ({ ...p, items }));
   };
-  const addItem = () => setForm(p => ({ ...p, items: [...p.items, { name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }] }));
+  const addItem = () => setForm(p => ({ ...p, items: [...p.items, { name: '', desc: '', qty: 1, rate: 0, taxRate: profile?.defaultTaxRate || 0 }] }));
   const removeItem = (i) => setForm(p => ({ ...p, items: p.items.filter((_, idx) => idx !== i) }));
 
   const convertToInvoice = async (q) => {
@@ -354,9 +386,20 @@ export default function Quotations({ user, perms, ownerId }) {
                   <input value={form.no} onChange={e => setForm(p => ({ ...p, no: e.target.value }))} placeholder="QUOTE/..." />
                 </div>
                 <div className="fg">
-                  <label>Client *</label>
-                  <input list="custList" value={form.client} onChange={e => setForm(p => ({ ...p, client: e.target.value }))} placeholder="Search or enter client..." />
-                  <datalist id="custList">{customers.map(c => <option key={c.id} value={c.name} />)}</datalist>
+                  <label>Client / Lead *</label>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ flex: 1 }}>
+                      <SearchableSelect 
+                        options={clientOptions} 
+                        displayKey="displayName" 
+                        returnKey="name"
+                        value={form.client} 
+                        onChange={val => setForm(p => ({ ...p, client: val }))} 
+                        placeholder="Search client or lead..." 
+                      />
+                    </div>
+                    <button className="btn btn-secondary" style={{ padding: '0 10px' }} onClick={() => setCustModal(true)} title="Add New Customer">+</button>
+                  </div>
                 </div>
                 <div className="fg"><label>Valid Until</label><input type="date" value={form.validUntil} onChange={e => setForm(p => ({ ...p, validUntil: e.target.value }))} /></div>
                 <div className="fg"><label>Status</label>
@@ -472,6 +515,68 @@ export default function Quotations({ user, perms, ownerId }) {
             <div className="mo-foot">
               <button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>Cancel</button>
               <button className="btn btn-primary btn-sm" onClick={save}>Save Quotation</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE CUSTOMER MODAL */}
+      {custModal && (
+        <div className="mo open">
+          <div className="mo-box">
+            <div className="mo-head"><h3>Quick Add Customer</h3><button className="btn-icon" onClick={() => setCustModal(false)}>✕</button></div>
+            <div className="mo-body">
+              <div className="fgrid">
+                <div className="fg span2"><label>Name *</label><input value={newCustForm.name} onChange={ncf('name')} placeholder="Full name" /></div>
+                <div className="fg"><label>Email *</label><input type="email" value={newCustForm.email} onChange={ncf('email')} /></div>
+                <div className="fg"><label>Phone</label><input value={newCustForm.phone} onChange={ncf('phone')} placeholder="+91..." /></div>
+                <div className="fg span2"><label>Address</label><textarea value={newCustForm.address} onChange={ncf('address')} placeholder="Full address" style={{ minHeight: 60 }} /></div>
+                <div className="fg"><label>Country</label>
+                  <select value={newCustForm.country} onChange={ncf('country')}>
+                    {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>State</label>
+                  <select value={newCustForm.state} onChange={ncf('state')}>
+                    <option value="">Select State...</option>
+                    {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>Pincode</label><input value={newCustForm.pincode} onChange={ncf('pincode')} placeholder="Postal code" /></div>
+                <div className="fg"><label>GSTIN</label><input value={newCustForm.gstin} onChange={ncf('gstin')} placeholder="GST Number" /></div>
+                
+                {customFields.length > 0 && <div className="fg span2" style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>
+                  <h4 style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>Custom Fields (Optional)</h4>
+                  <div className="fgrid">
+                    {customFields.map(field => (
+                      <div key={field.name} className="fg">
+                        <label>{field.name}</label>
+                        {field.type === 'dropdown' ? (
+                          <select value={newCustForm.custom[field.name] || ''} onChange={nccf(field.name)}>
+                            <option value="">Select...</option>
+                            {field.options.split(',').map(o => <option key={o.trim()}>{o.trim()}</option>)}
+                          </select>
+                        ) : (
+                          <input type={field.type === 'number' ? 'number' : 'text'} value={newCustForm.custom[field.name] || ''} onChange={nccf(field.name)} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>}
+              </div>
+            </div>
+            <div className="mo-foot">
+              <button className="btn btn-secondary btn-sm" onClick={() => setCustModal(false)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={async () => {
+                if (!newCustForm.name.trim()) return toast('Name required', 'error');
+                if (!newCustForm.email.trim()) return toast('Email is mandatory for clients', 'error');
+                const newId = id();
+                await db.transact(db.tx.customers[newId].update({ ...newCustForm, name: newCustForm.name.trim(), userId: ownerId, actorId: user.id, createdAt: Date.now() }));
+                setForm(p => ({ ...p, client: newCustForm.name.trim() }));
+                setCustModal(false);
+                setNewCustForm(EMPTY_CUSTOMER);
+                toast('Customer created!', 'success');
+              }}>Save</button>
             </div>
           </div>
         </div>

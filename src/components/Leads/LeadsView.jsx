@@ -50,9 +50,14 @@ export default function LeadsView({ user, perms, ownerId }) {
     const rawLeads = data?.leads || [];
     const isTeam = perms && !perms.isOwner;
     if (!isTeam) return rawLeads;
-    const filtered = rawLeads.filter(l => l.assign === user.email || l.assign === perms.name || l.actorId === user.id);
-    console.log("🎯 [LeadsView] Filtered leads count:", filtered.length);
-    return filtered;
+    
+    return rawLeads.filter(l => {
+      if (l.actorId === user.id) return true;
+      const assignKey = (l.assign || '').toLowerCase().trim();
+      const userName = (perms.name || '').toLowerCase().trim();
+      const userEmail = (user.email || '').toLowerCase().trim();
+      return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
+    });
   }, [data?.leads, perms, user]);
   
   useEffect(() => {
@@ -78,13 +83,14 @@ export default function LeadsView({ user, perms, ownerId }) {
   const filtered = useMemo(() => {
     const now = new Date();
     return leads.filter(l => {
-      if (tab === 'today') { const d = new Date(l.followup); return d.toDateString() === now.toDateString(); }
-      if (tab === 'tomorrow') { const t = new Date(now); t.setDate(t.getDate() + 1); const d = new Date(l.followup); return d.toDateString() === t.toDateString(); }
+      if (tab === 'today') { if (!l.followup) return false; const d = new Date(l.followup); return d.toDateString() === now.toDateString(); }
+      if (tab === 'tomorrow') { if (!l.followup) return false; const t = new Date(now); t.setDate(t.getDate() + 1); const d = new Date(l.followup); return d.toDateString() === t.toDateString(); }
       if (tab === 'next7days') {
         if (!l.followup) return false;
-        const d = new Date(l.followup);
-        const diffDays = Math.ceil((d - now) / (1000 * 60 * 60 * 24));
-        return diffDays > 0 && diffDays <= 7;
+        const d = new Date(l.followup); d.setHours(0,0,0,0);
+        const n = new Date(now); n.setHours(0,0,0,0);
+        const diffDays = Math.round((d - n) / (1000 * 60 * 60 * 24));
+        return diffDays >= 0 && diffDays <= 7;
       }
       if (tab === 'overdue') return l.followup && new Date(l.followup) < now;
       return true;
@@ -102,8 +108,10 @@ export default function LeadsView({ user, perms, ownerId }) {
   const overdueCount = leads.filter(l => l.followup && new Date(l.followup) < new Date()).length;
   const next7Count = leads.filter(l => {
     if (!l.followup) return false;
-    const diff = Math.ceil((new Date(l.followup) - new Date()) / (1000 * 60 * 60 * 24));
-    return diff > 0 && diff <= 7;
+    const d = new Date(l.followup); d.setHours(0,0,0,0);
+    const n = new Date(); n.setHours(0,0,0,0);
+    const diff = Math.round((d - n) / (1000 * 60 * 60 * 24));
+    return diff >= 0 && diff <= 7;
   }).length;
 
   const openCreate = () => { setEditData(null); setForm(EMPTY_LEAD); setModal(true); };
@@ -169,6 +177,86 @@ export default function LeadsView({ user, perms, ownerId }) {
     if (!confirm('Delete this lead?')) return;
     await db.transact(db.tx.leads[leadId].delete());
     toast('Lead deleted', 'error');
+  };
+
+  const handleBulkImport = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      const text = evt.target.result;
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      if (lines.length < 2) return toast('CSV is empty or missing data', 'error');
+      
+      const parseLine = (line) => {
+        const row = [];
+        let cur = '', inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          if (line[i] === '"') inQuotes = !inQuotes;
+          else if (line[i] === ',' && !inQuotes) { row.push(cur); cur = ''; }
+          else cur += line[i];
+        }
+        row.push(cur);
+        return row.map(v => v.trim().replace(/^"|"$/g, ''));
+      };
+
+      const headers = parseLine(lines[0]).map(h => h.toLowerCase());
+      const nameKey = headers.find(h => h.includes('name'));
+      const emailKey = headers.find(h => h.includes('email') || h.includes('mail'));
+      const phoneKey = headers.find(h => h.includes('phone') || h.includes('mobile'));
+      const sourceKey = headers.find(h => h.includes('source'));
+      
+      if (!nameKey) return toast('CSV must have a "Name" column', 'error');
+
+      const toAdd = [];
+      let skipped = 0;
+
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const vals = parseLine(lines[i]);
+        const row = headers.reduce((acc, h, idx) => ({ ...acc, [h]: vals[idx] || '' }), {});
+        
+        const n = row[nameKey];
+        const em = emailKey ? row[emailKey] : '';
+        const ph = phoneKey ? row[phoneKey] : '';
+        const src = sourceKey && row[sourceKey] ? row[sourceKey] : 'Other';
+
+        if (!n) continue;
+        
+        const exists = leads.find(l => 
+          (em && l.email === em) || (ph && l.phone === ph)
+        );
+        if (exists) { skipped++; continue; }
+
+        toAdd.push({
+          name: n,
+          email: em,
+          phone: ph,
+          source: src,
+          stage: 'New Enquiry',
+          label: 'Pending',
+          userId: ownerId,
+          actorId: user.id,
+          createdAt: Date.now()
+        });
+      }
+
+      if (toAdd.length === 0) return toast(`No new leads imported. Skipped ${skipped} duplicates.`, 'warning');
+
+      try {
+        const batchSize = 50;
+        for (let i = 0; i < toAdd.length; i += batchSize) {
+          const batch = toAdd.slice(i, i + batchSize);
+          await db.transact(batch.map(ld => db.tx.leads[id()].update(ld)));
+        }
+        toast(`Imported ${toAdd.length} leads. ${skipped > 0 ? `Skipped ${skipped} duplicates.` : ''}`, 'success');
+      } catch (err) {
+        console.error(err);
+        toast('Error importing leads', 'error');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   const bulkDelete = async () => {
@@ -405,6 +493,12 @@ export default function LeadsView({ user, perms, ownerId }) {
         <div style={{ display: 'flex', gap: 8 }}>
           <button className={`btn btn-sm ${view === 'list' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setView('list')}>☰ List</button>
           <button className={`btn btn-sm ${view === 'kanban' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setView('kanban')}>⊞ Kanban</button>
+          {canCreate && (
+            <>
+              <button className="btn btn-secondary btn-sm" onClick={() => document.getElementById('bulk-import').click()}>⇪ Bulk Import</button>
+              <input type="file" id="bulk-import" accept=".csv" style={{ display: 'none' }} onChange={handleBulkImport} />
+            </>
+          )}
           {canCreate && <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Create Lead</button>}
         </div>
       </div>
@@ -455,7 +549,7 @@ export default function LeadsView({ user, perms, ownerId }) {
                 <button className="btn btn-secondary btn-sm" onClick={() => { setTempCols(activeCols); setTempStages(activeStages); setColModal(true); }}>⚙ Configure View</button>
               </div>
             </div>
-            <div style={{ overflowX: 'auto', paddingBottom: 60 /* space for dropdowns */ }}>
+            <div className="tw-scroll">
               <table style={{ minWidth: 800 }}>
                 <thead>
                   <tr>

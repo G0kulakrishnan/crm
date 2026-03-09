@@ -37,7 +37,7 @@ const DEFAULT_PLANS = [
 ];
 
 export default function MainApp({ user, settings }) {
-  const { activeView, notifOpen, setActiveView } = useApp();
+  const { activeView, notifOpen, setActiveView, settingsTab } = useApp();
   
   // 1. Initial State for Team Info
   const [teamInfo, setTeamInfo] = useState(() => {
@@ -228,7 +228,7 @@ export default function MainApp({ user, settings }) {
     integrations: { component: <Integrations user={user} ownerId={targetUserId} />, label: 'Settings' },
     'messaging-logs': { component: <MessagingLogs user={user} ownerId={targetUserId} />, label: 'Settings' },
     reports: { component: <Reports user={user} perms={perms} ownerId={targetUserId} />, label: 'Reports' },
-    settings: { component: <Settings user={user} profile={profile} isExpired={isExpired} ownerId={targetUserId} />, label: 'Settings' },
+    settings: { component: <Settings user={user} profile={profile} isExpired={isExpired} ownerId={targetUserId} initialTab={settingsTab} />, label: 'Settings' },
     admin: { component: isSuperadmin ? <AdminPanel user={user} /> : null, label: 'Admin' },
   };
 

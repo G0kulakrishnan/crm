@@ -30,7 +30,13 @@ export default function AllTasks({ user, perms, ownerId }) {
     const rawTasks = data?.tasks || [];
     const isTeam = perms && !perms.isOwner;
     if (!isTeam) return rawTasks;
-    return rawTasks.filter(t => t.assignTo === user.email || t.assignTo === perms.name || t.actorId === user.id);
+    return rawTasks.filter(t => {
+      if (t.actorId === user.id) return true;
+      const assign = (t.assignTo || '').toLowerCase().trim();
+      const userName = (perms.name || '').toLowerCase().trim();
+      const userEmail = (user.email || '').toLowerCase().trim();
+      return (assign && userName && assign === userName) || (assign && userEmail && assign === userEmail);
+    });
   }, [data?.tasks, perms, user]);
 
   const projects = data?.projects || [];

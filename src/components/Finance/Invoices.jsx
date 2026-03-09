@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
-import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS } from '../../utils/helpers';
+import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS, INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
 
@@ -13,7 +13,8 @@ function calcTotals(items, disc, discType, adj) {
   return { sub, taxTotal, discAmt, total };
 }
 
-const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', template: 'Classic', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false };
+const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', template: 'Classic', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [] };
+const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 export default function Invoices({ user, perms, ownerId }) {
   const canCreate = perms?.can('Invoices', 'create') !== false;
   const canEdit = perms?.can('Invoices', 'edit') !== false;
@@ -25,6 +26,12 @@ export default function Invoices({ user, perms, ownerId }) {
   const [editData, setEditData] = useState(null);
   const [form, setForm] = useState(EMPTY);
   const [printing, setPrinting] = useState(null);
+  const [payModal, setPayModal] = useState(null);
+  const [payAmt, setPayAmt] = useState('');
+  const [colModal, setColModal] = useState(false);
+  const [tempCols, setTempCols] = useState([]);
+  const [custModal, setCustModal] = useState(false);
+  const [newCustForm, setNewCustForm] = useState(EMPTY_CUSTOMER);
   const toast = useToast();
 
   const { data, isLoading } = db.useQuery({
@@ -34,16 +41,22 @@ export default function Invoices({ user, perms, ownerId }) {
     userProfiles: { $: { where: { userId: ownerId } } },
   });
   const invoices = useMemo(() => {
-    const rawInvoices = data?.invoices || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return rawInvoices;
-    return rawInvoices.filter(i => i.actorId === user.id);
-  }, [data?.invoices, perms, user]);
+    return data?.invoices || [];
+  }, [data?.invoices]);
 
   const products = data?.products || [];
   const customers = data?.customers || [];
   const profile = data?.userProfiles?.[0] || {};
   const taxRates = profile.taxRates || TAX_OPTIONS;
+  const customFields = profile.customFields || [];
+  
+  const ncf = (k) => (e) => setNewCustForm(p => ({ ...p, [k]: e.target.value }));
+  const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
+  
+  const allPossibleCols = ['Date', 'Due Date', 'Status', 'Paid Amount', 'Balance Due'];
+  const savedCols = profile?.invoiceCols;
+  const activeCols = savedCols || allPossibleCols;
+
   const filtered = React.useMemo(() => {
     return invoices.filter(inv => tab === 'all' || inv.status === tab)
       .filter(inv => {
@@ -58,7 +71,8 @@ export default function Invoices({ user, perms, ownerId }) {
   const openCreate = () => { 
     setEditData(null); 
     const nextNo = `INV/${new Date().getFullYear()}/${String(invoices.length + 1).padStart(3, '0')}`;
-    setForm({ ...EMPTY, no: nextNo }); 
+    const defTax = profile?.defaultTaxRate || 0;
+    setForm({ ...EMPTY, no: nextNo, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: defTax }] }); 
     setModal(true); 
   };
   const openEdit = (inv) => {
@@ -67,8 +81,8 @@ export default function Invoices({ user, perms, ownerId }) {
       no: inv.no || '', client: inv.client, dueDate: inv.dueDate || '', status: inv.status || 'Draft', template: inv.template || 'Classic', 
       notes: inv.notes || '', terms: inv.terms || '', disc: inv.disc || 0, discType: inv.discType || '%', adj: inv.adj || 0, 
       items: inv.items?.length ? inv.items : EMPTY.items,
-      isAmc: false, amcCycle: inv.amcCycle || 'Yearly', amcStart: inv.amcStart || '', amcEnd: inv.amcEnd || '', amcPlan: '', amcAmount: '', amcTaxRate: 0,
-      shipTo: inv.shipTo || '', addShipping: !!inv.shipTo
+      isAmc: !!inv.amcStart, amcCycle: inv.amcCycle || 'Yearly', amcStart: inv.amcStart || '', amcEnd: inv.amcEnd || '', amcPlan: '', amcAmount: '', amcTaxRate: 0,
+      shipTo: inv.shipTo || '', addShipping: !!inv.shipTo, payments: inv.payments || []
     });
     setModal(true);
   };
@@ -132,7 +146,7 @@ export default function Invoices({ user, perms, ownerId }) {
     const txs = [invAction];
 
     // Auto-create AMC contract if ticked
-    if (isAmc && amcStart && amcEnd) {
+    if (isAmc && amcStart && amcEnd && (!editData || !editData.amcStart)) {
       const custMatch = customers.find(c => c.name === form.client);
       const amcId = id();
       txs.push(db.tx.amc[amcId].update({
@@ -232,6 +246,7 @@ export default function Invoices({ user, perms, ownerId }) {
               <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Billed To</div>
               <div style={{ fontSize: t === 'Modern' ? 20 : 16, fontWeight: 700, marginTop: 4 }}>{printing.client}</div>
               {clientMatch?.address && <div style={{ fontSize: 12, color: '#666', marginTop: 10, whiteSpace: 'pre-wrap' }}>{clientMatch.address}</div>}
+              {clientMatch?.gstin && <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>GSTIN: {clientMatch.gstin}</div>}
             </div>
             {printing.shipTo && (
               <div>
@@ -333,6 +348,35 @@ export default function Invoices({ user, perms, ownerId }) {
 
   if (isLoading) return <div className="p-xl">Loading...</div>;
 
+  const savePayment = async () => {
+    if (!payAmt || payAmt <= 0) return toast('Invalid amount', 'error');
+    const existing = payModal.payments || [];
+    const nw = [...existing, { date: Date.now(), amount: parseFloat(payAmt) }];
+    const totalPaid = nw.reduce((s, p) => s + p.amount, 0);
+    const stat = totalPaid >= payModal.total ? 'Paid' : 'Partially Paid';
+    await db.transact(db.tx.invoices[payModal.id].update({ payments: nw, status: stat }));
+    toast('Payment added', 'success');
+    setPayModal(null);
+    setPayAmt('');
+  };
+
+  const createCustomer = async () => {
+    if (!newCustForm.name.trim()) return toast('Name required', 'error');
+    if (!newCustForm.email.trim()) return toast('Email is mandatory for clients', 'error');
+    const newId = id();
+    await db.transact(db.tx.customers[newId].update({ ...newCustForm, name: newCustForm.name.trim(), userId: ownerId, actorId: user.id, createdAt: Date.now() }));
+    setForm(p => ({ ...p, client: newCustForm.name.trim() }));
+    setCustModal(false);
+    setNewCustForm(EMPTY_CUSTOMER);
+    toast('Customer created!', 'success');
+  };
+
+  const saveViewConfig = async (cols) => {
+    if (profile?.id) await db.transact(db.tx.userProfiles[profile.id].update({ invoiceCols: cols }));
+    setColModal(false);
+    toast('View saved', 'success');
+  };
+
   return (
     <div>
       <div className="sh">
@@ -340,52 +384,75 @@ export default function Invoices({ user, perms, ownerId }) {
         {canCreate && <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Create</button>}
       </div>
       <div className="tabs">
-        {['all', 'Draft', 'Sent', 'Paid', 'Overdue'].map(t => (
+        {['all', 'Draft', 'Sent', 'Partially Paid', 'Paid', 'Overdue'].map(t => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{t === 'all' ? 'All' : t}</div>
         ))}
       </div>
       <div className="tw">
         <div className="tw-head">
           <h3>Invoices ({filtered.length})</h3>
-          <div className="sw">
-            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-            <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div className="sw">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+              <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={() => { setTempCols(activeCols); setColModal(true); }}>⚙ View</button>
           </div>
         </div>
         <div className="tw-scroll">
           <table>
-            <thead><tr><th>#</th><th>Invoice No.</th><th>Client</th><th>Status</th><th>Date</th><th>Due Date</th><th>Amount</th><th>Actions</th></tr></thead>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Invoice No.</th>
+                <th>Client</th>
+                {activeCols.includes('Status') && <th>Status</th>}
+                {activeCols.includes('Date') && <th>Date</th>}
+                {activeCols.includes('Due Date') && <th>Due Date</th>}
+                <th>Amount</th>
+                {activeCols.includes('Paid Amount') && <th>Paid</th>}
+                {activeCols.includes('Balance Due') && <th>Balance</th>}
+                <th>Actions</th>
+              </tr>
+            </thead>
             <tbody>
               {filtered.length === 0
-                ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No invoices yet</td></tr>
-                : filtered.map((inv, i) => (
-                  <tr key={inv.id}>
-                    <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
-                    <td>
-                      <strong style={{ fontSize: 12 }}>{inv.no}</strong>
-                      {inv.fromAmc && <span style={{ marginLeft: 6, fontSize: 10, background: '#e0e7ff', color: '#4338ca', padding: '2px 4px', borderRadius: 4, fontWeight: 600 }}>AMC</span>}
-                    </td>
-                    <td>{inv.client}</td>
-                    <td><span className={`badge ${stageBadgeClass(inv.status)}`}>{inv.status}</span></td>
-                    <td style={{ fontSize: 12 }}>{fmtD(inv.date)}</td>
-                    <td style={{ fontSize: 12 }}>{fmtD(inv.dueDate)}</td>
-                    <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>
-                     <td>
-                       <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
-                         {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => openEdit(inv)}>Edit</button>}
-                         <button className="btn-icon" onClick={(e) => {
-                          const dm = e.currentTarget.nextElementSibling;
-                          document.querySelectorAll('.dd-menu').forEach(el => el !== dm && (el.style.display = 'none'));
-                          dm.style.display = dm.style.display === 'block' ? 'none' : 'block';
-                         }}>⋮</button>
-                         <div className="dd-menu" style={{ display: 'none', position: 'absolute', right: 0, top: 28, background: '#fff', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, width: 100, overflow: 'hidden' }}>
-                           <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { setPrinting(inv); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>📄 Print</div>
-                           {canDelete && <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', color: '#dc2626' }} onClick={() => { del(inv.id); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>🗑 Delete</div>}
-                         </div>
-                       </div>
-                     </td>
-                  </tr>
-                ))}
+                ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No invoices yet</td></tr>
+                : filtered.map((inv, i) => {
+                    const paidAmt = (inv.payments || []).reduce((s, p) => s + p.amount, 0);
+                    const balAmt = inv.total - paidAmt;
+                    return (
+                      <tr key={inv.id}>
+                        <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
+                        <td>
+                          <strong style={{ fontSize: 12 }}>{inv.no}</strong>
+                          {inv.fromAmc && <span style={{ marginLeft: 6, fontSize: 10, background: '#e0e7ff', color: '#4338ca', padding: '2px 4px', borderRadius: 4, fontWeight: 600 }}>AMC</span>}
+                        </td>
+                        <td>{inv.client}</td>
+                        {activeCols.includes('Status') && <td><span className={`badge ${stageBadgeClass(inv.status)}`}>{inv.status}</span></td>}
+                        {activeCols.includes('Date') && <td style={{ fontSize: 12 }}>{fmtD(inv.date)}</td>}
+                        {activeCols.includes('Due Date') && <td style={{ fontSize: 12 }}>{fmtD(inv.dueDate)}</td>}
+                        <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>
+                        {activeCols.includes('Paid Amount') && <td style={{ color: '#16a34a', fontWeight: 600 }}>{fmt(paidAmt)}</td>}
+                        {activeCols.includes('Balance Due') && <td style={{ color: '#dc2626', fontWeight: 600 }}>{fmt(balAmt < 0 ? 0 : balAmt)}</td>}
+                         <td>
+                           <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
+                             {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => openEdit(inv)}>Edit</button>}
+                             <button className="btn-icon" onClick={(e) => {
+                              const dm = e.currentTarget.nextElementSibling;
+                              document.querySelectorAll('.dd-menu').forEach(el => el !== dm && (el.style.display = 'none'));
+                              dm.style.display = dm.style.display === 'block' ? 'none' : 'block';
+                             }}>⋮</button>
+                             <div className="dd-menu" style={{ display: 'none', position: 'absolute', right: 0, top: 28, background: '#fff', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, width: 140, overflow: 'hidden' }}>
+                               <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { setPrinting(inv); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>📄 Print</div>
+                               {canEdit && <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { setPayModal(inv); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>💵 Add Payment</div>}
+                               {canDelete && <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', color: '#dc2626' }} onClick={() => { del(inv.id); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>🗑 Delete</div>}
+                             </div>
+                           </div>
+                         </td>
+                      </tr>
+                    );
+                })}
             </tbody>
           </table>
         </div>
@@ -403,14 +470,19 @@ export default function Invoices({ user, perms, ownerId }) {
                 </div>
                 <div className="fg">
                   <label>Client *</label>
-                  <SearchableSelect 
-                    options={customers} 
-                    displayKey="name" 
-                    returnKey="name"
-                    value={form.client} 
-                    onChange={val => setForm(p => ({ ...p, client: val }))} 
-                    placeholder="Search client..." 
-                  />
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ flex: 1 }}>
+                      <SearchableSelect 
+                        options={customers} 
+                        displayKey="name" 
+                        returnKey="name"
+                        value={form.client} 
+                        onChange={val => setForm(p => ({ ...p, client: val }))} 
+                        placeholder="Search client..." 
+                      />
+                    </div>
+                    <button className="btn btn-secondary" style={{ padding: '0 10px' }} onClick={() => setCustModal(true)} title="Add New Customer">+</button>
+                  </div>
                 </div>
                 <div className="fg"><label>Due Date</label><input type="date" value={form.dueDate} onChange={e => setForm(p => ({ ...p, dueDate: e.target.value }))} /></div>
                 <div className="fg"><label>Status</label>
@@ -493,7 +565,7 @@ export default function Invoices({ user, perms, ownerId }) {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Line Items</label>
-                <button className="btn btn-secondary btn-sm" onClick={() => setForm(p => ({ ...p, items: [...p.items, { name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }] }))}>+ Add Row</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => setForm(p => ({ ...p, items: [...p.items, { name: '', desc: '', qty: 1, rate: 0, taxRate: profile?.defaultTaxRate || 0 }] }))}>+ Add Row</button>
               </div>
               <table className="li-table">
                 <thead><tr><th>Item</th><th style={{ width: 60 }}>Qty</th><th style={{ width: 90 }}>Rate</th><th style={{ width: 160 }}>Tax</th><th style={{ width: 80 }}>Amount</th><th></th></tr></thead>
@@ -569,6 +641,113 @@ export default function Invoices({ user, perms, ownerId }) {
           </div>
         </div>
       )}
+
+      {/* PAY MODAL */}
+      {payModal && (
+        <div className="mo open">
+          <div className="mo-box" style={{ width: 400 }}>
+            <div className="mo-head"><h3>Record Payment</h3><button className="btn-icon" onClick={() => setPayModal(null)}>✕</button></div>
+            <div className="mo-body" style={{ padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 15, fontSize: 13, background: '#f8fafc', padding: 10, borderRadius: 8 }}>
+                <span>Total: <strong>{fmt(payModal.total)}</strong></span>
+                <span>Paid: <strong style={{ color: '#16a34a' }}>{fmt((payModal.payments || []).reduce((s,p) => s + p.amount, 0))}</strong></span>
+              </div>
+              <div className="fg">
+                <label>Amount (₹)</label>
+                <input type="number" value={payAmt} onChange={e => setPayAmt(e.target.value)} placeholder="0.00" />
+              </div>
+            </div>
+            <div className="mo-foot">
+              <button className="btn btn-secondary btn-sm" onClick={() => setPayModal(null)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={savePayment}>Save Payment</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE CUSTOMER MODAL */}
+      {custModal && (
+        <div className="mo open">
+          <div className="mo-box">
+            <div className="mo-head"><h3>Quick Add Customer</h3><button className="btn-icon" onClick={() => setCustModal(false)}>✕</button></div>
+            <div className="mo-body">
+              <div className="fgrid">
+                <div className="fg span2"><label>Name *</label><input value={newCustForm.name} onChange={ncf('name')} placeholder="Full name" /></div>
+                <div className="fg"><label>Email *</label><input type="email" value={newCustForm.email} onChange={ncf('email')} /></div>
+                <div className="fg"><label>Phone</label><input value={newCustForm.phone} onChange={ncf('phone')} placeholder="+91..." /></div>
+                <div className="fg span2"><label>Address</label><textarea value={newCustForm.address} onChange={ncf('address')} placeholder="Full address" style={{ minHeight: 60 }} /></div>
+                <div className="fg"><label>Country</label>
+                  <select value={newCustForm.country} onChange={ncf('country')}>
+                    {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>State</label>
+                  <select value={newCustForm.state} onChange={ncf('state')}>
+                    <option value="">Select State...</option>
+                    {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>Pincode</label><input value={newCustForm.pincode} onChange={ncf('pincode')} placeholder="Postal code" /></div>
+                <div className="fg"><label>GSTIN</label><input value={newCustForm.gstin} onChange={ncf('gstin')} placeholder="GST Number" /></div>
+                
+                {customFields.length > 0 && <div className="fg span2" style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>
+                  <h4 style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>Custom Fields (Optional)</h4>
+                  <div className="fgrid">
+                    {customFields.map(field => (
+                      <div key={field.name} className="fg">
+                        <label>{field.name}</label>
+                        {field.type === 'dropdown' ? (
+                          <select value={newCustForm.custom[field.name] || ''} onChange={nccf(field.name)}>
+                            <option value="">Select...</option>
+                            {field.options.split(',').map(o => <option key={o.trim()}>{o.trim()}</option>)}
+                          </select>
+                        ) : (
+                          <input type={field.type === 'number' ? 'number' : 'text'} value={newCustForm.custom[field.name] || ''} onChange={nccf(field.name)} />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>}
+              </div>
+            </div>
+            <div className="mo-foot">
+              <button className="btn btn-secondary btn-sm" onClick={() => setCustModal(false)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={createCustomer}>Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* COLUMNS MODAL */}
+      {colModal && (
+        <div className="mo open">
+          <div className="mo-box" style={{ width: 400 }}>
+            <div className="mo-head"><h3>Configure View</h3><button className="btn-icon" onClick={() => setColModal(false)}>✕</button></div>
+            <div className="mo-body" style={{ padding: 20 }}>
+              <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Visible Columns</strong>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                {allPossibleCols.map(c => (
+                  <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                    <input type="checkbox" checked={tempCols.includes(c)} onChange={e => {
+                      if (e.target.checked) setTempCols([...tempCols, c]);
+                      else setTempCols(tempCols.filter(x => x !== c));
+                    }} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
+                    {c}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="mo-foot" style={{ justifyContent: 'space-between' }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => saveViewConfig(allPossibleCols)}>Reset</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => setColModal(false)}>Cancel</button>
+                <button className="btn btn-primary btn-sm" onClick={() => saveViewConfig(tempCols)}>Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

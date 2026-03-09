@@ -31,11 +31,8 @@ export default function AMC({ user, perms, ownerId }) {
     userProfiles: { $: { where: { userId: ownerId } } }
   });
   const amcList = useMemo(() => {
-    const rawAmc = data?.amc || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return rawAmc;
-    return rawAmc.filter(a => a.actorId === user.id);
-  }, [data?.amc, perms, user]);
+    return data?.amc || [];
+  }, [data?.amc]);
 
   const customers = data?.customers || [];
   const products = data?.products || [];

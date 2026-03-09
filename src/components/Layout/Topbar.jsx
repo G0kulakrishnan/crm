@@ -12,7 +12,7 @@ const VIEW_TITLES = {
 };
 
 export default function Topbar({ user, notifCount, isExpired, teamInfo, teamMembers }) {
-  const { activeView, setActiveView, setSidebarExpanded, mobileSidebarOpen, setMobileSidebarOpen, setNotifOpen } = useApp();
+  const { activeView, setActiveView, setSidebarExpanded, mobileSidebarOpen, setMobileSidebarOpen, setNotifOpen, setSettingsTab } = useApp();
 
   // Find team member role if applicable
   const roleName = useMemo(() => {
@@ -64,7 +64,14 @@ export default function Topbar({ user, notifCount, isExpired, teamInfo, teamMemb
               ⚠️ PLAN EXPIRED
             </div>
           )}
-          <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', background: 'var(--bg-soft)', padding: '4px 10px', borderRadius: 6 }}>
+          <div 
+            style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)', background: 'var(--bg-soft)', padding: '4px 10px', borderRadius: 6, cursor: 'pointer' }}
+            onClick={() => {
+              if (setSettingsTab) setSettingsTab('Billing');
+              setActiveView('settings');
+            }}
+            title="Go to Billing Settings"
+          >
             {user?.profile?.plan || 'Free'}
           </div>
         </div>

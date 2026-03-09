@@ -24,6 +24,11 @@ const DEFAULT_TAX_OPTIONS = [
 
 export default function Settings({ user, profile, isExpired, initialTab, ownerId }) {
   const [active, setActive] = useState(initialTab || 'My Profile');
+  
+  React.useEffect(() => {
+     if (initialTab) setActive(initialTab);
+  }, [initialTab]);
+
   const [userProfile, setUserProfile] = useState({
     fullName: profile?.fullName || '',
     email: profile?.email || '',
@@ -51,6 +56,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     iTerms: profile?.iTerms || '1. Please pay within 7 days.\n2. Interest @ 18% for late payment.',
     iNotes: profile?.iNotes || 'Thank you for choosing us!',
     reqShipping: profile?.reqShipping || 'Optional',
+    defaultTaxRate: profile?.defaultTaxRate || 0,
     bankName: profile?.bankName || '',
     accountNo: profile?.accountNo || '',
     ifsc: profile?.ifsc || '',
@@ -447,6 +453,12 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                         <option value="Optional">Toggle (Optional addition per-document)</option>
                         <option value="Hidden">Hidden (Do not feature Ship To address)</option>
                         <option value="Mandatory">Mandatory (Always require Ship To address)</option>
+                      </select>
+                    </div>
+                    <div className="fg">
+                      <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Default Tax Rate (%)</label>
+                      <select value={fin.defaultTaxRate} onChange={e => setFin(f => ({ ...f, defaultTaxRate: parseFloat(e.target.value) || 0 }))}>
+                        {taxRates.map(t => <option key={t.label} value={t.rate}>{t.label} ({t.rate}%)</option>)}
                       </select>
                     </div>
                   </div>

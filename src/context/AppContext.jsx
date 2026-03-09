@@ -16,6 +16,7 @@ export function AppProvider({ children, user }) {
     if (hash) return hash;
     return localStorage.getItem('tc_activeView') || 'dashboard';
   });
+  const [settingsTab, setSettingsTab] = useState('My Profile');
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -44,6 +45,7 @@ export function AppProvider({ children, user }) {
     <AppContext.Provider value={{
       user,
       activeView, setActiveView,
+      settingsTab, setSettingsTab,
       sidebarExpanded, setSidebarExpanded,
       mobileSidebarOpen, setMobileSidebarOpen,
       notifOpen, setNotifOpen,

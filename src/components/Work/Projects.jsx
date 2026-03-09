@@ -43,11 +43,8 @@ export default function Projects({ user, perms, ownerId }) {
   const [noteText, setNoteText] = useState('');
   
   const projects = useMemo(() => {
-    const rawProjects = data?.projects || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return rawProjects;
-    return rawProjects.filter(p => p.actorId === user.id || tasks.some(t => t.projectId === p.id && (t.assignTo === user.email || t.assignTo === perms.name)));
-  }, [data?.projects, tasks, perms, user]);
+    return data?.projects || [];
+  }, [data?.projects]);
 
   const filteredProjects = projects.filter(p => {
     if (!search) return true;
