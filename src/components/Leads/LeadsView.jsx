@@ -72,6 +72,7 @@ export default function LeadsView({ user, perms, ownerId }) {
 
   const allStages = data?.userProfiles?.[0]?.stages || STAGES;  // ordered full list from Settings
   const savedLeadStages = data?.userProfiles?.[0]?.leadStages;   // visible subset saved from Leads colModal
+  const activeStages = savedLeadStages?.length > 0 ? savedLeadStages : allStages;
 
   // Filtering
   const filtered = useMemo(() => {
