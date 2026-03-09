@@ -99,9 +99,20 @@ export default function LeadsView({ user, perms, ownerId }) {
   // Filtering
   const filtered = useMemo(() => {
     const now = new Date();
+    const todayStr = now.toDateString();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toDateString();
+
     return leads.filter(l => {
-      if (tab === 'today') { if (!l.followup) return false; const d = new Date(l.followup); return d.toDateString() === now.toDateString(); }
-      if (tab === 'tomorrow') { if (!l.followup) return false; const t = new Date(now); t.setDate(t.getDate() + 1); const d = new Date(l.followup); return d.toDateString() === t.toDateString(); }
+      if (tab === 'today') {
+        if (!l.followup) return false;
+        return new Date(l.followup).toDateString() === todayStr;
+      }
+      if (tab === 'tomorrow') {
+        if (!l.followup) return false;
+        return new Date(l.followup).toDateString() === tomorrowStr;
+      }
       if (tab === 'next7days') {
         if (!l.followup) return false;
         const d = new Date(l.followup); d.setHours(0,0,0,0);
@@ -123,6 +134,13 @@ export default function LeadsView({ user, perms, ownerId }) {
   }, [leads, tab, srcFilter, stgFilter, search]);
 
   const overdueCount = leads.filter(l => l.followup && new Date(l.followup) < new Date()).length;
+  const todayCount = leads.filter(l => l.followup && new Date(l.followup).toDateString() === new Date().toDateString()).length;
+  const tomorrowCount = leads.filter(l => {
+    if (!l.followup) return false;
+    const t = new Date();
+    t.setDate(t.getDate() + 1);
+    return new Date(l.followup).toDateString() === t.toDateString();
+  }).length;
   const next7Count = leads.filter(l => {
     if (!l.followup) return false;
     const d = new Date(l.followup); d.setHours(0,0,0,0);
@@ -544,9 +562,14 @@ export default function LeadsView({ user, perms, ownerId }) {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="tabs">
-        {[['all', `All ${leads.length}`], ['today', 'Today'], ['tomorrow', 'Tomorrow'], ['next7days', `Next 7 Days (${next7Count})`], ['overdue', `Overdue${overdueCount ? ` (${overdueCount})` : ''}`]].map(([t, label]) => (
+        {[
+          ['all', `All (${leads.length})`],
+          ['today', `Today (${todayCount})`],
+          ['tomorrow', `Tomorrow (${tomorrowCount})`],
+          ['next7days', `Next 7 Days (${next7Count})`],
+          ['overdue', `Overdue${overdueCount ? ` (${overdueCount})` : ''}`]
+        ].map(([t, label]) => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{label}</div>
         ))}
       </div>
