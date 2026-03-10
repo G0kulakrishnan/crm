@@ -87,3 +87,42 @@ export const COUNTRIES = [
   "India", "United States", "United Kingdom", "Canada", "Australia", 
   "United Arab Emirates", "Singapore", "Malaysia", "Saudi Arabia", "Other"
 ];
+export const numberToWords = (num) => {
+  if (num === 0) return 'Zero';
+  const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+  const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+  
+  const format = (n) => {
+    if (n < 20) return a[n];
+    if (n < 100) return b[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + a[n % 10] : '');
+    if (n < 1000) return a[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' and ' + format(n % 100) : '');
+    return '';
+  };
+
+  const convert = (n) => {
+    let res = '';
+    if (n >= 10000000) {
+      res += convert(Math.floor(n / 10000000)) + ' Crore ';
+      n %= 10000000;
+    }
+    if (n >= 100000) {
+      res += convert(Math.floor(n / 100000)) + ' Lakh ';
+      n %= 100000;
+    }
+    if (n >= 1000) {
+      res += convert(Math.floor(n / 1000)) + ' Thousand ';
+      n %= 1000;
+    }
+    if (n > 0) {
+      res += format(n);
+    }
+    return res.trim();
+  };
+
+  const [integer, decimal] = String(num).split('.');
+  let result = 'Indian Rupee ' + convert(parseInt(integer)) + ' Only';
+  if (decimal && parseInt(decimal) > 0) {
+    result = 'Indian Rupee ' + convert(parseInt(integer)) + ' and ' + convert(parseInt(decimal)) + ' Paise Only';
+  }
+  return result;
+};

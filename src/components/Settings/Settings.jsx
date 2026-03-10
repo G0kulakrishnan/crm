@@ -5,7 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import { renderTemplate, sendEmailMock, sendEmail, sendWhatsApp } from '../../utils/messaging';
 import { fmtD, INDIAN_STATES, COUNTRIES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, SYSTEM_STAGES } from '../../utils/helpers';
 
-const SETTING_NAV = ['My Profile', 'Business', 'Finance', 'Billing', 'Taxes', 'Custom Fields', 'Sources', 'Stages', 'Labels', 'Product Categories', 'Expense Categories', 'Task Statuses', 'SMTP', 'WhatsApp', 'Reminders'];
+const SETTING_NAV = ['My Profile', 'Business', 'Finance', 'Templates', 'Billing', 'Taxes', 'Custom Fields', 'Sources', 'Stages', 'Labels', 'Product Categories', 'Expense Categories', 'Task Statuses', 'SMTP', 'WhatsApp', 'Reminders'];
 
 // Centralized defaults are imported from helpers.js
 const DEFAULT_CFIELDS = []; // { name: 'Requirement', type: 'text'|'number'|'dropdown', options: 'A,B' }
@@ -60,6 +60,8 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     ifsc: profile?.ifsc || '',
     accHolder: profile?.accHolder || '',
     qrCode: profile?.qrCode || null,
+    invoiceTemplate: profile?.invoiceTemplate || 'Classic',
+    quotationTemplate: profile?.quotationTemplate || 'Classic',
   });
   const [smtpHost, setSmtpHost] = useState(profile?.smtpHost || '');
   const [smtpPort, setSmtpPort] = useState(profile?.smtpPort || '587');
@@ -76,6 +78,59 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   const [newLabel, setNewLabel] = useState('');
   const [newExpCat, setNewExpCat] = useState('');
   const [newProdCat, setNewProdCat] = useState('');
+
+  // Sync state with profile prop when it loads
+  useEffect(() => {
+    if (profile) {
+      setUserProfile({
+        fullName: profile.fullName || '',
+        email: profile.email || '',
+        phone: profile.phone || '',
+      });
+      setBiz({
+        bizName: profile.bizName || '',
+        bizEmail: profile.bizEmail || '',
+        bizPhone: profile.bizPhone || '',
+        address: profile.address || '',
+        bizState: profile.bizState || '',
+        country: profile.country || 'India',
+        pincode: profile.pincode || '',
+        gstin: profile.gstin || '',
+        pan: profile.pan || '',
+        website: profile.website || '',
+        logo: profile.logo || null,
+      });
+      setFin({
+        qPrefix: profile.qPrefix || 'QUO-',
+        qNextNum: profile.qNextNum || 1,
+        qTerms: profile.qTerms || '1. Valid for 30 days.\n2. 50% advance to start work.',
+        qNotes: profile.qNotes || 'Thank you for your business!',
+        iPrefix: profile.iPrefix || 'INV-',
+        iNextNum: profile.iNextNum || 1,
+        iTerms: profile.iTerms || '1. Please pay within 7 days.\n2. Interest @ 18% for late payment.',
+        iNotes: profile.iNotes || 'Thank you for choosing us!',
+        reqShipping: profile.reqShipping || 'Optional',
+        defaultTaxRate: profile.defaultTaxRate || 0,
+        bankName: profile.bankName || '',
+        accountNo: profile.accountNo || '',
+        ifsc: profile.ifsc || '',
+        accHolder: profile.accHolder || '',
+        qrCode: profile.qrCode || null,
+        invoiceTemplate: profile.invoiceTemplate || 'Classic',
+        quotationTemplate: profile.quotationTemplate || 'Classic',
+      });
+      setSmtpHost(profile.smtpHost || '');
+      setSmtpPort(profile.smtpPort || '587');
+      setSmtpUser(profile.smtpUser || '');
+      setSmtpPass(profile.smtpPass || '');
+      setWaToken(profile.waToken || '');
+      setWaPhoneNumberId(profile.waPhoneNumberId || '');
+      setReminders(profile.reminders || {
+        amc: { days: 30, msg: 'Hello {client}, your AMC contract is expiring on {date}. Please contact us for renewal.' },
+        followup: { days: 1, msg: 'Reminder: Follow-up with {client} is scheduled for {date}.' }
+      });
+    }
+  }, [profile]);
   const [newTaskStatus, setNewTaskStatus] = useState('');
   const [newTax, setNewTax] = useState({ label: '', rate: '' });
   const [newCF, setNewCF] = useState({ name: '', type: 'text', options: '' });
@@ -1038,6 +1093,64 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
 
                 <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12, fontSize: 12, marginTop: 12, color: '#1e40af' }}>
                   💡 <strong>Note:</strong> Free tier allows sending to <strong>verified test numbers only</strong>. To message anyone, your WhatsApp Business account must be approved by Meta.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {active === 'Templates' && (
+            <div className="tw">
+              <div className="tw-head"><h3>Document Templates</h3><button className="btn btn-primary btn-sm" onClick={saveFin}>Save Defaults</button></div>
+              <div style={{ padding: '20px' }}>
+                <div className="sub" style={{ marginBottom: 25 }}>Select the default look and feel for your Invoices and Quotations.</div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 }}>
+                   {/* Invoice Template Selection */}
+                   <div>
+                      <h4 style={{ marginBottom: 15 }}>Default Invoice Template</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }}>
+                         {[
+                           { id: 'Classic', name: 'Classic', img: 'https://cdn-icons-png.flaticon.com/512/3135/3135679.png' }, // Placeholder for now or I can use the generated ones if I knew they'd work
+                           { id: 'Modern', name: 'Modern', img: 'https://cdn-icons-png.flaticon.com/512/3135/3135679.png' },
+                           { id: 'Minimal', name: 'Minimal', img: 'https://cdn-icons-png.flaticon.com/512/3135/3135679.png' },
+                           { id: 'Spreadsheet', name: 'Tax Invoice (GST)', img: 'https://cdn-icons-png.flaticon.com/512/3135/3135679.png' },
+                         ].map(t => (
+                           <div key={t.id} onClick={() => setFin(f => ({ ...f, invoiceTemplate: t.id }))} style={{ border: fin.invoiceTemplate === t.id ? '2px solid var(--accent)' : '1px solid var(--border)', borderRadius: 10, padding: 10, cursor: 'pointer', textAlign: 'center', backgroundColor: fin.invoiceTemplate === t.id ? 'rgba(var(--accent-rgb), 0.05)' : 'transparent' }}>
+                              <div style={{ height: 120, background: '#f8fafc', borderRadius: 6, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                                 <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{t.name} Preview</span>
+                              </div>
+                              <div style={{ fontSize: 12, fontWeight: 700 }}>{t.name}</div>
+                           </div>
+                         ))}
+                      </div>
+                   </div>
+
+                   {/* Quotation Template Selection */}
+                   <div>
+                      <h4 style={{ marginBottom: 15 }}>Default Quotation Template</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }}>
+                         {[
+                           { id: 'Classic', name: 'Classic' },
+                           { id: 'Modern', name: 'Modern' },
+                           { id: 'Minimal', name: 'Minimal' },
+                           { id: 'Spreadsheet', name: 'Spreadsheet' },
+                         ].map(t => (
+                           <div key={t.id} onClick={() => setFin(f => ({ ...f, quotationTemplate: t.id }))} style={{ border: fin.quotationTemplate === t.id ? '2px solid var(--accent)' : '1px solid var(--border)', borderRadius: 10, padding: 10, cursor: 'pointer', textAlign: 'center', backgroundColor: fin.quotationTemplate === t.id ? 'rgba(var(--accent-rgb), 0.05)' : 'transparent' }}>
+                              <div style={{ height: 120, background: '#f8fafc', borderRadius: 6, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                 <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{t.name} Preview</span>
+                              </div>
+                              <div style={{ fontSize: 12, fontWeight: 700 }}>{t.name}</div>
+                           </div>
+                         ))}
+                      </div>
+                   </div>
+                </div>
+
+                <div style={{ marginTop: 40, padding: 20, bgcolor: '#f8fafc', borderRadius: 12, border: '1px solid var(--border)' }}>
+                   <div style={{ fontWeight: 700, marginBottom: 10 }}>💡 Pro Tip</div>
+                   <div style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>
+                      The <strong>Tax Invoice (GST)</strong> template is optimized for Indian GST compliance and A4 printing. It automatically splits IGST into CGST/SGST based on your business and client states.
+                   </div>
                 </div>
               </div>
             </div>
