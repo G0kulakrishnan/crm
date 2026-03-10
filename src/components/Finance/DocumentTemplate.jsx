@@ -2,7 +2,8 @@ import React from 'react';
 import { fmt, fmtD, numberToWords } from '../../utils/helpers';
 
 export default function DocumentTemplate({ data, profile, type = 'Invoice', preview = false }) {
-  const t = data.template || 'Classic';
+  const profileTemplate = type === 'Invoice' ? profile?.invoiceTemplate : profile?.quotationTemplate;
+  const t = profileTemplate || data.template || 'Classic';
   const ptots = (() => {
     const sub = (data.items || []).reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
     const taxTotal = (data.items || []).reduce((s, it) => s + (it.qty || 0) * (it.rate || 0) * (it.taxRate || 0) / 100, 0);

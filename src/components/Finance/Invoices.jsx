@@ -14,7 +14,7 @@ function calcTotals(items, disc, discType, adj) {
   return { sub, taxTotal, discAmt, total };
 }
 
-const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', template: 'Classic', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [], assign: '' };
+const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [], assign: '' };
 const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 export default function Invoices({ user, perms, ownerId }) {
   const canCreate = perms?.can('Invoices', 'create') !== false;
@@ -94,15 +94,13 @@ export default function Invoices({ user, perms, ownerId }) {
     setEditData(null); 
     const nextNo = `INV/${new Date().getFullYear()}/${String(invoices.length + 1).padStart(3, '0')}`;
     const defTax = profile?.defaultTaxRate || 0;
-    const defTemplate = profile?.invoiceTemplate || 'Classic';
-    setForm({ ...EMPTY, no: nextNo, template: defTemplate, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: defTax }] }); 
+    setForm({ ...EMPTY, no: nextNo, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: defTax }] }); 
     setModal(true); 
   };
   const openEdit = (inv) => {
     setEditData(inv);
-    const defTemplate = profile?.invoiceTemplate || 'Classic';
     setForm({ 
-      no: inv.no || '', client: inv.client, dueDate: inv.dueDate || '', status: inv.status || 'Draft', template: inv.template || defTemplate, 
+      no: inv.no || '', client: inv.client, dueDate: inv.dueDate || '', status: inv.status || 'Draft', 
       notes: inv.notes || '', terms: inv.terms || '', disc: inv.disc || 0, discType: inv.discType || '%', adj: inv.adj || 0, 
       items: inv.items?.length ? inv.items : EMPTY.items,
       isAmc: !!inv.amcStart || !!inv.isAmc, 
@@ -474,13 +472,6 @@ export default function Invoices({ user, perms, ownerId }) {
                 <div className="fg"><label>Status</label>
                   <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
                     {['Draft', 'Sent', 'Paid', 'Overdue'].map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div className="fg"><label>Template</label>
-                  <select value={form.template} onChange={e => setForm(p => ({ ...p, template: e.target.value }))}>
-                    {['Classic', 'Modern', 'Minimal', 'Spreadsheet'].map(t => (
-                      <option key={t} value={t}>{t === 'Spreadsheet' ? 'Tax Invoice (GST)' : t}</option>
-                    ))}
                   </select>
                 </div>
                 <div className="fg">

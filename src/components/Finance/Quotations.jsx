@@ -6,7 +6,7 @@ import DocumentTemplate from './DocumentTemplate';
 import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
 
-const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', template: 'Classic', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], shipTo: '', addShipping: false, assign: '' };
+const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], shipTo: '', addShipping: false, assign: '' };
 const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 
 function calcTotals(items, disc, tdsRate, adj) {
@@ -88,15 +88,13 @@ export default function Quotations({ user, perms, ownerId }) {
     setEditData(null); 
     const nextNo = `QUOTE/${new Date().getFullYear()}/${String(quotes.length + 1).padStart(3, '0')}`;
     const defTax = profile?.defaultTaxRate || 0;
-    const defTemplate = profile?.quotationTemplate || 'Classic';
-    setForm({ ...EMPTY, no: nextNo, template: defTemplate, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: defTax }] }); 
+    setForm({ ...EMPTY, no: nextNo, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: defTax }] }); 
     setModal(true); 
   };
   const openEdit = (q) => {
     setEditData(q);
-    const defTemplate = profile?.quotationTemplate || 'Classic';
     setForm({ 
-      no: q.no || '', client: q.client, validUntil: q.validUntil || '', status: q.status, template: q.template || defTemplate, 
+      no: q.no || '', client: q.client, validUntil: q.validUntil || '', status: q.status, 
       notes: q.notes || '', terms: q.terms || '', disc: q.disc || 0, adj: q.adj || 0, tdsRate: q.tdsRate || 0, 
       items: q.items?.length ? q.items : EMPTY.items, shipTo: q.shipTo || '', addShipping: !!q.shipTo, assign: q.assign || '' 
     });
@@ -346,13 +344,6 @@ export default function Quotations({ user, perms, ownerId }) {
                 <div className="fg"><label>Status</label>
                   <select value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
                     {['Created', 'Sent', 'Completed', 'Cancelled'].map(s => <option key={s}>{s}</option>)}
-                  </select>
-                </div>
-                <div className="fg"><label>Template</label>
-                  <select value={form.template} onChange={e => setForm(p => ({ ...p, template: e.target.value }))}>
-                    {['Classic', 'Modern', 'Minimal', 'Spreadsheet'].map(t => (
-                      <option key={t} value={t}>{t === 'Spreadsheet' ? 'Spreadsheet (GST)' : t}</option>
-                    ))}
                   </select>
                 </div>
                 <div className="fg">
