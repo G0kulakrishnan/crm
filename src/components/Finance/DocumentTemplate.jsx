@@ -36,70 +36,75 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
   };
 
   const renderContent = () => {
-    // ... (logic remains same inside renderContent)
     if (t === 'Spreadsheet') {
       return (
-        <div className="spreadsheet-template" style={{ fontSize: '11px', lineHeight: '1.4' }}>
+        <div className="spreadsheet-template" style={{ fontSize: '11px', lineHeight: '1.4', fontFamily: 'sans-serif' }}>
           <style>{`
             @media print {
               body { margin: 0; padding: 0; background: #fff; }
-              .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; }
+              .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 0 !important; }
               .no-print { display: none !important; }
+            }
+            .spreadsheet-template table td, .spreadsheet-template table th {
+              border: 1px solid #000;
+              padding: 6px 8px;
             }
           `}</style>
           
-          <div style={{ border: '1px solid #000', padding: '12px' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '10px' }}>
-              <div style={{ display: 'flex', gap: '15px' }}>
-                {profile.logo && <img src={profile.logo} alt="Logo" style={{ height: '70px', width: '70px', objectFit: 'contain' }} />}
+          <div style={{ border: '2px solid #000', padding: '20px', minHeight: '275mm', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+            {/* Top Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '25px' }}>
+              <div style={{ display: 'flex', gap: '20px' }}>
+                {profile.logo && <img src={profile.logo} alt="Logo" style={{ height: '90px', width: '90px', objectFit: 'contain' }} />}
                 <div>
-                  <h2 style={{ margin: '0', fontSize: '18px', fontWeight: '800', textTransform: 'uppercase' }}>{profile.bizName}</h2>
-                  <div style={{ whiteSpace: 'pre-wrap', fontSize: '10px' }}>{profile.address}</div>
-                  {profile.gstin && <div style={{ fontWeight: '700', marginTop: '4px' }}>GSTIN: {profile.gstin}</div>}
+                  <h1 style={{ margin: '0', fontSize: '22px', fontWeight: '900', textTransform: 'uppercase' }}>{profile.bizName}</h1>
+                  <div style={{ whiteSpace: 'pre-wrap', fontSize: '11px', marginTop: '6px', maxWidth: '350px', fontWeight: '500' }}>{profile.address}</div>
+                  {profile.gstin && <div style={{ fontWeight: '700', marginTop: '6px' }}>GSTIN: {profile.gstin}</div>}
                 </div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <h1 style={{ margin: '0', fontSize: '24px', fontWeight: '900', letterSpacing: '1px' }}>TAX INVOICE</h1>
+                <h1 style={{ margin: '0', fontSize: '32px', fontWeight: '500', letterSpacing: '0.5px' }}>TAX INVOICE</h1>
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 1fr) 1.5fr', border: '1px solid #000', borderBottom: 'none' }}>
-              <div style={{ borderRight: '1px solid #000', padding: '6px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '90px 10px 1fr', gap: '2px', fontSize: '10px' }}>
+            {/* Info Box */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', border: '1px solid #000', borderBottom: 'none' }}>
+              <div style={{ borderRight: '1px solid #000', padding: '10px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '100px 10px 1fr', gap: '4px', fontSize: '11px' }}>
                   <span style={{ fontWeight: '700' }}>#</span><span>:</span><strong>{data.no}</strong>
                   <span style={{ fontWeight: '700' }}>Invoice Date</span><span>:</span>{fmtD(data.date)}
                   <span style={{ fontWeight: '700' }}>Terms</span><span>:</span>{data.terms || 'Due on Receipt'}
-                  <span style={{ fontWeight: '700' }}>Due Date</span><span>:</span>{fmtD(data.dueDate)}
+                  <span style={{ fontWeight: '700' }}>Due Date</span><span>:</span>{fmtD(data.dueDate) || '-'}
                 </div>
               </div>
-              <div style={{ padding: '6px' }}></div>
+              <div style={{ padding: '10px' }}></div>
             </div>
 
-            <div style={{ border: '1px solid #000', backgroundColor: '#f3f4f6', padding: '4px 8px', fontWeight: '700', fontSize: '9px', textTransform: 'uppercase' }}>Bill To</div>
-            <div style={{ border: '1px solid #000', borderTop: 'none', padding: '8px', marginBottom: '0' }}>
-              <div style={{ fontWeight: '800', fontSize: '12px', textTransform: 'uppercase' }}>{data.client}</div>
-              {clientMatch.gstin && <div style={{ fontWeight: '700', marginTop: '2px' }}>GSTIN: {clientMatch.gstin}</div>}
-              {clientMatch.address && <div style={{ marginTop: '4px', opacity: '0.9', fontSize: '10px' }}>{clientMatch.address}</div>}
+            {/* Bill To */}
+            <div style={{ border: '1px solid #000', backgroundColor: '#f9fafb', padding: '5px 10px', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase' }}>Bill To</div>
+            <div style={{ border: '1px solid #000', borderTop: 'none', padding: '12px 10px', marginBottom: '15px' }}>
+              <div style={{ fontWeight: '900', fontSize: '14px', textTransform: 'uppercase' }}>{data.client}</div>
+              {clientMatch.gstin && <div style={{ fontWeight: '700', marginTop: '5px' }}>GSTIN: {clientMatch.gstin}</div>}
+              {clientMatch.address && <div style={{ marginTop: '8px', opacity: '0.9', fontSize: '11px', whiteSpace: 'pre-wrap' }}>{clientMatch.address}</div>}
             </div>
 
-            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '-1px' }}>
+            {/* Items Table */}
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #000' }}>
               <thead>
-                <tr style={{ textAlign: 'center', backgroundColor: '#f3f4f6', fontSize: '10px' }}>
-                  <th style={{ border: '1px solid #000', padding: '4px', width: '30px' }}>#</th>
-                  <th style={{ border: '1px solid #000', padding: '4px', textAlign: 'left' }}>Item & Description</th>
-                  <th style={{ border: '1px solid #000', padding: '4px', width: '50px' }}>Qty</th>
-                  <th style={{ border: '1px solid #000', padding: '4px', width: '80px', textAlign: 'right' }}>Rate</th>
-                  <th style={{ border: '1px solid #000', padding: '4px', width: '120px' }} colSpan="2">CGST</th>
-                  <th style={{ border: '1px solid #000', padding: '4px', width: '120px' }} colSpan="2">SGST</th>
-                  <th style={{ border: '1px solid #000', padding: '4px', width: '90px', textAlign: 'right' }}>Amount</th>
+                <tr style={{ textAlign: 'center', backgroundColor: '#f9fafb', fontSize: '11px' }}>
+                  <th style={{ width: '40px' }} rowSpan="2">#</th>
+                  <th style={{ textAlign: 'left' }} rowSpan="2">ITEM & DESCRIPTION</th>
+                  <th style={{ width: '60px' }} rowSpan="2">QTY</th>
+                  <th style={{ width: '90px', textAlign: 'right' }} rowSpan="2">RATE</th>
+                  <th style={{ width: '120px' }} colSpan="2">CGST</th>
+                  <th style={{ width: '120px' }} colSpan="2">SGST</th>
+                  <th style={{ width: '100px', textAlign: 'right' }} rowSpan="2">AMOUNT</th>
                 </tr>
-                <tr style={{ textAlign: 'center', backgroundColor: '#f3f4f6', fontSize: '9px' }}>
-                  <th style={{ border: '1px solid #000', borderTop: 'none' }} colSpan="4"></th>
-                  <th style={{ border: '1px solid #000', padding: '2px' }}>%</th>
-                  <th style={{ border: '1px solid #000', padding: '2px' }}>Amt</th>
-                  <th style={{ border: '1px solid #000', padding: '2px' }}>%</th>
-                  <th style={{ border: '1px solid #000', padding: '2px' }}>Amt</th>
-                  <th style={{ border: '1px solid #000', borderTop: 'none' }}></th>
+                <tr style={{ textAlign: 'center', backgroundColor: '#f9fafb', fontSize: '10px' }}>
+                  <th style={{ padding: '4px' }}>%</th>
+                  <th style={{ padding: '4px' }}>AMT</th>
+                  <th style={{ padding: '4px' }}>%</th>
+                  <th style={{ padding: '4px' }}>AMT</th>
                 </tr>
               </thead>
               <tbody>
@@ -108,82 +113,90 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                   const taxRate = it.taxRate || 0;
                   const taxAmt = itemTotal * taxRate / 100;
                   return (
-                    <tr key={i} style={{ minHeight: '40px' }}>
-                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{i + 1}</td>
-                      <td style={{ border: '1px solid #000', padding: '6px' }}>
+                    <tr key={i}>
+                      <td style={{ textAlign: 'center' }}>{i + 1}</td>
+                      <td>
                         <div style={{ fontWeight: '700' }}>{it.name}</div>
-                        {it.desc && <div style={{ fontSize: '9px', color: '#444', whiteSpace: 'pre-wrap', marginTop: '2px' }}>{it.desc}</div>}
+                        {it.desc && <div style={{ fontSize: '10px', color: '#444', whiteSpace: 'pre-wrap', marginTop: '4px' }}>{it.desc}</div>}
                       </td>
-                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{it.qty.toFixed(2)}</td>
-                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{fmt(it.rate).replace('₹', '')}</td>
-                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{isInterState ? 0 : (taxRate / 2)}%</td>
-                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{isInterState ? '-' : fmt(taxAmt / 2).replace('₹', '')}</td>
-                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'center' }}>{isInterState ? 0 : (taxRate / 2)}%</td>
-                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right' }}>{isInterState ? '-' : fmt(taxAmt / 2).replace('₹', '')}</td>
-                      <td style={{ border: '1px solid #000', padding: '6px', textAlign: 'right', fontWeight: '700' }}>{fmt(itemTotal).replace('₹', '')}</td>
+                      <td style={{ textAlign: 'center' }}>{it.qty.toFixed(2)}</td>
+                      <td style={{ textAlign: 'right' }}>{fmt(it.rate).replace('₹', '')}</td>
+                      <td style={{ textAlign: 'center' }}>{isInterState ? 0 : (taxRate / 2)}%</td>
+                      <td style={{ textAlign: 'right' }}>{isInterState ? '-' : fmt(taxAmt / 2).replace('₹', '')}</td>
+                      <td style={{ textAlign: 'center' }}>{isInterState ? 0 : (taxRate / 2)}%</td>
+                      <td style={{ textAlign: 'right' }}>{isInterState ? '-' : fmt(taxAmt / 2).replace('₹', '')}</td>
+                      <td style={{ textAlign: 'right', fontWeight: '700' }}>{fmt(itemTotal).replace('₹', '')}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', marginTop: '-1px' }}>
-              <div style={{ border: '1px solid #000', padding: '8px' }}>
-                <div style={{ marginBottom: '12px' }}>
-                  <div style={{ fontWeight: '700', fontSize: '9px', color: '#666', textTransform: 'uppercase' }}>Total In Words</div>
-                  <div style={{ fontWeight: '700', fontStyle: 'italic', fontSize: '10px' }}>{numberToWords(ptots.total)}</div>
+            {/* Spacer */}
+            <div style={{ flex: 1 }}></div>
+
+            {/* Footer Box */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', border: '1px solid #000', marginTop: '20px' }}>
+              <div style={{ borderRight: '1px solid #000', padding: '15px' }}>
+                <div style={{ marginBottom: '15px' }}>
+                  <div style={{ fontWeight: '500', fontSize: '11px', color: '#333', marginBottom: '4px' }}>Total In Words</div>
+                  <div style={{ fontWeight: '800', fontStyle: 'italic', fontSize: '11px' }}>{numberToWords(ptots.total)}</div>
                 </div>
-                <div style={{ marginBottom: '12px' }}>
-                  <div style={{ fontWeight: '700', fontSize: '9px', color: '#666', textTransform: 'uppercase' }}>Notes</div>
-                  <div style={{ opacity: '0.8', fontSize: '10px' }}>{data.notes || 'Thanks for choosing us. Looking forward for your business.'}</div>
+                
+                <div style={{ marginBottom: '20px' }}>
+                  <div style={{ fontWeight: '500', fontSize: '11px', color: '#333', marginBottom: '4px' }}>Notes</div>
+                  <div style={{ opacity: '0.9', fontSize: '10px' }}>{data.notes || `Thanks for choosing ${profile.bizName}. Looking forward for your business.`}</div>
                 </div>
+
                 <div style={{ marginTop: '10px' }}>
-                   <div style={{ fontWeight: '800', textTransform: 'uppercase', marginBottom: '4px', fontSize: '9px' }}>Bank Details</div>
-                   <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', gap: '2px', fontSize: '10px' }}>
-                     <span>ACCOUNT NAME</span><span>:</span><strong>{profile.accHolder || profile.bizName}</strong>
-                     <span>ACCOUNT NO</span><span>:</span><strong>{profile.accountNo}</strong>
-                     <span>BANK NAME</span><span>:</span><strong>{profile.bankName}</strong>
-                     <span>IFSC CODE</span><span>:</span><strong>{profile.ifsc}</strong>
+                   <div style={{ fontWeight: '800', textTransform: 'uppercase', marginBottom: '10px', fontSize: '11px', textDecoration: 'underline' }}>Bank Details</div>
+                   <div style={{ display: 'grid', gridTemplateColumns: '130px 10px 1fr', gap: '6px', fontSize: '11px', lineHeight: '1.6' }}>
+                     <span style={{ fontWeight: '700' }}>ACCOUNT NAME</span><span>:</span><strong>{profile.accHolder || profile.bizName}</strong>
+                     <span style={{ fontWeight: '700' }}>ACCOUNT NO</span><span>:</span><strong>{profile.accountNo}</strong>
+                     <span style={{ fontWeight: '700' }}>CURRENT ACCOUNT</span><span>:</span><strong>{profile.accType || 'CURRENT ACCOUNT'}</strong>
+                     {profile.bankName && <><span style={{ fontWeight: '700' }}>BANK NAME</span><span>:</span><strong>{profile.bankName}</strong></>}
+                     {profile.branchName && <><span style={{ fontWeight: '700' }}>BRANCH NAME</span><span>:</span><strong>{profile.branchName}</strong></>}
+                     {profile.ifsc && <><span style={{ fontWeight: '700' }}>IFSC CODE</span><span>:</span><strong>{profile.ifsc}</strong></>}
                    </div>
                 </div>
               </div>
-              <div style={{ border: '1px solid #000', borderLeft: 'none', padding: '0' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 130px', fontSize: '11px' }}>
-                   <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', textAlign: 'right' }}>Sub Total</div>
-                   <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right' }}>{fmt(ptots.sub).replace('₹', '')}</div>
+              
+              <div style={{ padding: '0' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', fontSize: '12px' }}>
+                   <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>Sub Total</div>
+                   <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right' }}>{fmt(ptots.sub).replace('₹', '')}</div>
                    
-                   {ptots.discAmt > 0 && (
-                     <>
-                       <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', textAlign: 'right' }}>Discount {data.discType === '%' ? `(${data.disc}%)` : ''}</div>
-                       <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right' }}>(-) {fmt(ptots.discAmt).replace('₹', '')}</div>
-                     </>
-                   )}
-
                    {!isInterState ? (
                      <>
-                       <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', textAlign: 'right' }}>CGST</div>
-                       <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right' }}>{fmt(ptots.taxTotal/2).replace('₹', '')}</div>
-                       <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', textAlign: 'right' }}>SGST</div>
-                       <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right' }}>{fmt(ptots.taxTotal/2).replace('₹', '')}</div>
+                       <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>CGST ({data.items[0]?.taxRate / 2}%)</div>
+                       <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right' }}>{fmt(ptots.taxTotal/2).replace('₹', '')}</div>
+                       <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>SGST ({data.items[0]?.taxRate / 2}%)</div>
+                       <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right' }}>{fmt(ptots.taxTotal/2).replace('₹', '')}</div>
                      </>
                    ) : (
                      <>
-                       <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', textAlign: 'right' }}>IGST</div>
-                       <div style={{ padding: '6px 10px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right' }}>{fmt(ptots.taxTotal).replace('₹', '')}</div>
+                       <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>IGST ({data.items[0]?.taxRate}%)</div>
+                       <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right' }}>{fmt(ptots.taxTotal).replace('₹', '')}</div>
                      </>
                    )}
 
-                   <div style={{ padding: '8px 10px', fontWeight: '900', fontSize: '13px', textAlign: 'right', backgroundColor: '#f9fafb' }}>Total</div>
-                   <div style={{ padding: '8px 10px', fontWeight: '900', fontSize: '13px', borderLeft: '1px solid #000', textAlign: 'right', backgroundColor: '#f9fafb' }}>{fmt(ptots.total)}</div>
+                   <div style={{ padding: '12px 15px', fontWeight: '900', fontSize: '15px', textAlign: 'right', borderBottom: '1px solid #000' }}>Total</div>
+                   <div style={{ padding: '12px 15px', fontWeight: '900', fontSize: '15px', borderLeft: '1px solid #000', textAlign: 'right', borderBottom: '1px solid #000' }}>{fmt(ptots.total)}</div>
                    
-                   <div style={{ padding: '6px 10px', borderTop: '2px solid #000', textAlign: 'right' }}>Balance Due</div>
-                   <div style={{ padding: '6px 10px', borderTop: '2px solid #000', borderLeft: '1px solid #000', textAlign: 'right', fontWeight: '900' }}>{fmt(ptots.total)}</div>
-                </div>
-                <div style={{ padding: '20px 10px 10px 10px', textAlign: 'center', fontSize: '8px', opacity: 0.5 }}>
-                   This is a computer generated document.
+                   <div style={{ padding: '12px 15px', textAlign: 'right', fontWeight: '900' }}>Balance Due</div>
+                   <div style={{ padding: '12px 15px', borderLeft: '1px solid #000', textAlign: 'right', fontWeight: '900', fontSize: '15px' }}>{fmt(ptots.total)}</div>
                 </div>
               </div>
             </div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px', fontSize: '8px', opacity: 0.5 }}>
+              This is a computer generated document.
+            </div>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '10px', fontWeight: '600', color: '#666', padding: '0 5px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              POWERED BY <img src="https://instantdb.com/favicon.ico" style={{ height: '12px' }} alt="logo" />
+            </div>
+            <div>1</div>
           </div>
         </div>
       );
