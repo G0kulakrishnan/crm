@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
-import { fmtD, stageBadgeClass, uid } from '../../utils/helpers';
+import { fmtD, stageBadgeClass, uid, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
 const EMPTY_LEAD = { name: '', email: '', phone: '', source: '', stage: '', assign: '', followup: '', label: '', notes: '', remWA: false, remEmail: true, remSMS: false, custom: {} };
@@ -58,9 +58,9 @@ export default function LeadsView({ user, perms, ownerId }) {
   const disabledStages = data?.userProfiles?.[0]?.disabledStages || [];
   const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
   const profileId = data?.userProfiles?.[0]?.id;
-  const activeSources = data?.userProfiles?.[0]?.sources || ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
-  const activeLabels = data?.userProfiles?.[0]?.labels || ['Hot', 'Warm', 'Cold', 'VIP', 'Pending'];
-  const allStages = data?.userProfiles?.[0]?.stages || ['New Enquiry', 'Enquiry Contacted', 'Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
+  const activeSources = data?.userProfiles?.[0]?.sources || DEFAULT_SOURCES;
+  const activeLabels = data?.userProfiles?.[0]?.labels || DEFAULT_LABELS;
+  const allStages = data?.userProfiles?.[0]?.stages || DEFAULT_STAGES;
   
   console.log("🔍 [LeadsView] Props - ownerId:", ownerId, "perms:", perms?.isOwner ? "Owner" : "Team");
   console.log("📊 [LeadsView] Data - leadsRaw count:", data?.leads?.length || 0);
@@ -95,7 +95,15 @@ export default function LeadsView({ user, perms, ownerId }) {
   const activeCols = savedCols || allPossibleCols;
 
   const savedLeadStages = data?.userProfiles?.[0]?.leadStages;   // visible subset saved from Leads colModal
-  const activeStages = (savedLeadStages?.length > 0 ? savedLeadStages : allStages).filter(s => !disabledStages.includes(s));
+  // activeStages is for visual components (Kanban/List), should exclude deleted & disabled
+  const activeStages = (savedLeadStages?.length > 0 
+    ? allStages.filter(s => savedLeadStages.includes(s)) 
+    : allStages
+  ).filter(s => !disabledStages.includes(s));
+  
+  // allEnabledStages is for Dropdowns (Create/Edit Form), should include ALL current settings stages except disabled
+  const allEnabledStages = allStages.filter(s => !disabledStages.includes(s));
+  
   const isWon = (s) => s === wonStage;
 
   // Initialize EMPTY_LEAD values if empty
@@ -163,7 +171,7 @@ export default function LeadsView({ user, perms, ownerId }) {
     setForm({ 
       ...EMPTY_LEAD, 
       source: activeSources[0] || '', 
-      stage: activeStages[0] || '', 
+      stage: allEnabledStages[0] || '', 
       label: activeLabels[0] || '' 
     }); 
     setModal(true); 
@@ -820,7 +828,7 @@ export default function LeadsView({ user, perms, ownerId }) {
                 </div>
                 <div className="fg"><label>Stage</label>
                   <select value={form.stage} onChange={f('stage')}>
-                    {activeStages.map(s => <option key={s}>{s}</option>)}
+                    {allEnabledStages.map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
                 <div className="fg"><label>Assign To</label>

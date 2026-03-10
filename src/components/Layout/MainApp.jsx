@@ -4,6 +4,7 @@ import { id } from '@instantdb/react';
 import { useApp } from '../../context/AppContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useToast } from '../../context/ToastContext';
+import { DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS } from '../../utils/helpers';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import NotifPanel from './NotifPanel';
@@ -127,6 +128,9 @@ export default function MainApp({ user, settings }) {
         role: role,
         plan: regData.selectedPlan || 'Trial',
         planExpiry: Date.now() + (TRIAL_DAYS * 24 * 60 * 60 * 1000),
+        stages: DEFAULT_STAGES,
+        sources: DEFAULT_SOURCES,
+        labels: DEFAULT_LABELS,
         createdAt: Date.now()
       })).then(() => {
         console.log("✅ [MainApp] Profile created successfully:", profileId);

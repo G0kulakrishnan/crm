@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
+import { DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS } from '../../utils/helpers';
 
 export default function SheetIntegration({ user, ownerId, onBack, existingConfig, editIndex }) {
   const [configName, setConfigName] = useState(existingConfig?.configName || '');
@@ -29,9 +30,9 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
     globalSettings: {}
   });
   const profile = profileData?.userProfiles?.[0] || {};
-  const labels = profile.labels || ['Hot', 'Warm', 'Cold'];
-  const stages = profile.stages || ['New Enquiry', 'Enquiry Contacted', 'Won', 'Lost'];
-  const activeSources = profile.sources || ['Google Sheets', 'FB Ads', 'Direct'];
+  const labels = profile.labels || DEFAULT_LABELS;
+  const stages = profile.stages || DEFAULT_STAGES;
+  const activeSources = profile.sources || DEFAULT_SOURCES;
   const globalCustomFields = profile.customFields || [];
   const crmDomain = profileData?.globalSettings?.[0]?.crmDomain || window.location.origin;
 

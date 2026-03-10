@@ -3,14 +3,11 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { renderTemplate, sendEmailMock, sendEmail, sendWhatsApp } from '../../utils/messaging';
-import { INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
+import { fmtD, INDIAN_STATES, COUNTRIES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, SYSTEM_STAGES } from '../../utils/helpers';
 
 const SETTING_NAV = ['My Profile', 'Business', 'Finance', 'Billing', 'Taxes', 'Custom Fields', 'Sources', 'Stages', 'Labels', 'Product Categories', 'Expense Categories', 'Task Statuses', 'SMTP', 'WhatsApp', 'Reminders'];
 
-const DEFAULT_SOURCES = ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
-const DEFAULT_STAGES = ['New Enquiry', 'Enquiry Contacted', 'Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
-const SYSTEM_STAGES = ['Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Won'];
-const DEFAULT_LABELS = ['Hot', 'Warm', 'Cold', 'VIP', 'Pending'];
+// Centralized defaults are imported from helpers.js
 const DEFAULT_CFIELDS = []; // { name: 'Requirement', type: 'text'|'number'|'dropdown', options: 'A,B' }
 const DEFAULT_PROD_CATS = ['Electronics', 'Home Appliances', 'Services', 'Furniture', 'General'];
 const DEFAULT_EXP_CATS = ['Software', 'Hardware', 'Travel', 'Office', 'Marketing', 'Utilities', 'Salaries', 'Misc'];
@@ -184,6 +181,10 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     const txs = [];
     let count = 0;
     let stageCount = 0;
+
+    const activeStages = profile?.stages || DEFAULT_STAGES;
+    const activeSources = profile?.sources || DEFAULT_SOURCES;
+    const activeLabels = profile?.labels || DEFAULT_LABELS;
 
     const STAGE_ORDER = ['New Enquiry', 'Enquiry Contacted', 'Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Won'];
 

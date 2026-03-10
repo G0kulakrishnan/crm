@@ -1,3 +1,9 @@
+// Default lists for synchronization
+export const DEFAULT_SOURCES = ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
+export const DEFAULT_STAGES = ['New Enquiry', 'Enquiry Contacted', 'Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
+export const DEFAULT_LABELS = ['Hot', 'Warm', 'Cold', 'VIP', 'Pending'];
+export const SYSTEM_STAGES = ['Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Won'];
+
 // Format currency in INR
 export const fmt = (n) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', minimumFractionDigits: 2 }).format(n || 0);

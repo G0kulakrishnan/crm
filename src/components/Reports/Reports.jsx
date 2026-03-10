@@ -1,8 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import db from '../../instant';
-import { fmt, fmtD } from '../../utils/helpers';
+import { fmt, fmtD, INDIAN_STATES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS } from '../../utils/helpers';
 
-export default function Reports({ user, perms, ownerId }) {
+export default function Reports({ user, perms, ownerId, profile }) {
   const canExport = (perms?.can('Reports', 'create') !== false) || (perms?.can('Reports', 'edit') !== false);
 
   const [tab, setTab] = useState('pl');
@@ -101,10 +101,10 @@ export default function Reports({ user, perms, ownerId }) {
   const profit = revenue - totalExp;
 
   // Lead pipeline
-  const STAGELIST = profile?.stages || ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
-  const wonStage = profile?.wonStage || 'Won';
-  const lostStage = profile?.lostStage || 'Lost';
-  const stageCount = STAGELIST.map(s => ({ stage: s, count: filteredLeadsAtSource.filter(l => l.stage === s).length }));
+  const STAGE_ORDER = profile?.stages || DEFAULT_STAGES;
+  const wonStage = profile?.wonStage || STAGE_ORDER[STAGE_ORDER.length - 1];
+  const lostStage = profile?.lostStage || 'Lost'; // Assuming 'Lost' is a distinct stage not necessarily in STAGE_ORDER
+  const stageCount = STAGE_ORDER.map(s => ({ stage: s, count: filteredLeadsAtSource.filter(l => l.stage === s).length }));
   const maxCount = Math.max(...stageCount.map(s => s.count), 1);
   const CHART_COLORS = ['#60a5fa', '#6ee7b7', '#fde68a', '#c4b5fd', '#86efac', '#fca5a5'];
 
@@ -120,13 +120,13 @@ export default function Reports({ user, perms, ownerId }) {
   const funnel = useMemo(() => {
     const total = filteredLeadsAtSource.length;
     // Contacted: any stage that isn't the first one
-    const contacted = filteredLeadsAtSource.filter(l => l.stage !== STAGELIST[0]).length;
+    const contacted = filteredLeadsAtSource.filter(l => l.stage !== STAGE_ORDER[0]).length;
     // Won: matches wonStage
     const wonCount = filteredLeadsAtSource.filter(l => l.stage === wonStage).length;
     // Negotiation: typically stages near the end but before Won (heuristically)
     const negotiation = filteredLeadsAtSource.filter(l => {
-       const idx = STAGELIST.indexOf(l.stage);
-       return idx >= Math.floor(STAGELIST.length / 2) && l.stage !== lostStage;
+       const idx = STAGE_ORDER.indexOf(l.stage);
+       return idx >= Math.floor(STAGE_ORDER.length / 2) && l.stage !== lostStage;
     }).length;
     
     return [
@@ -135,7 +135,7 @@ export default function Reports({ user, perms, ownerId }) {
       { name: 'Negotiation', count: negotiation, pct: total ? Math.round((negotiation/total)*100) : 0, color: '#fde68a' },
       { name: 'Won (Success)', count: wonCount, pct: total ? Math.round((wonCount/total)*100) : 0, color: '#86efac' },
     ];
-  }, [filteredLeadsAtSource, STAGELIST, wonStage, lostStage]);
+  }, [filteredLeadsAtSource, STAGE_ORDER, wonStage, lostStage]);
 
   // Revenue by Source
   const revBySource = useMemo(() => {

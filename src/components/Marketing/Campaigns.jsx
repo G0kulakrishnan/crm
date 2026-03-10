@@ -3,7 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { sendEmail, sendWhatsApp, sendWhatsAppMock } from '../../utils/messaging';
-import { fmtD, INDIAN_STATES } from '../../utils/helpers';
+import { fmtD, INDIAN_STATES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS } from '../../utils/helpers';
 
 const TEMPLATES = [
   { id: 'blank', name: 'Blank Template', subject: '', body: '' },
@@ -85,9 +85,11 @@ export default function Campaigns({ user, perms, ownerId }) {
   const campaigns = (data?.campaigns || []).sort((a,b) => b.createdAt - a.createdAt);
   const userTemplates = data?.campaignTemplates || [];
   const profile = data?.userProfiles?.[0];
-  const activeStages = profile?.stages || ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
-  const activeSources = profile?.sources || ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
-  const activeLabels = profile?.labels || ['Hot', 'Warm', 'Cold', 'VIP', 'Pending'];
+  const activeStages = profile?.stages || DEFAULT_STAGES;
+  const activeSources = profile?.sources || DEFAULT_SOURCES;
+  const activeLabels = profile?.labels || DEFAULT_LABELS;
+
+    const STAGE_ORDER = ['New Enquiry', 'Enquiry Contacted', 'Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Won'];
 
   // Base candidates list with unified payload structure
   const allCandidates = useMemo(() => {
