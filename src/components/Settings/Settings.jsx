@@ -98,6 +98,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   });
   const profileId = data?.userProfiles?.[0]?.id;
   const sources = data?.userProfiles?.[0]?.sources || DEFAULT_SOURCES;
+  const stages = data?.userProfiles?.[0]?.stages || DEFAULT_STAGES;
   const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
   const lostStage = data?.userProfiles?.[0]?.lostStage || 'Lost';
   const disabledStages = data?.userProfiles?.[0]?.disabledStages || [];
