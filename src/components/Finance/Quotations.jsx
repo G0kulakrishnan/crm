@@ -94,8 +94,9 @@ export default function Quotations({ user, perms, ownerId }) {
   };
   const openEdit = (q) => {
     setEditData(q);
+    const defTemplate = profile?.quotationTemplate || 'Classic';
     setForm({ 
-      no: q.no || '', client: q.client, validUntil: q.validUntil || '', status: q.status, template: q.template || 'Classic', 
+      no: q.no || '', client: q.client, validUntil: q.validUntil || '', status: q.status, template: q.template || defTemplate, 
       notes: q.notes || '', terms: q.terms || '', disc: q.disc || 0, adj: q.adj || 0, tdsRate: q.tdsRate || 0, 
       items: q.items?.length ? q.items : EMPTY.items, shipTo: q.shipTo || '', addShipping: !!q.shipTo, assign: q.assign || '' 
     });
@@ -349,7 +350,9 @@ export default function Quotations({ user, perms, ownerId }) {
                 </div>
                 <div className="fg"><label>Template</label>
                   <select value={form.template} onChange={e => setForm(p => ({ ...p, template: e.target.value }))}>
-                    {['Classic', 'Modern', 'Minimal'].map(t => <option key={t}>{t}</option>)}
+                    {['Classic', 'Modern', 'Minimal', 'Spreadsheet'].map(t => (
+                      <option key={t} value={t}>{t === 'Spreadsheet' ? 'Spreadsheet (GST)' : t}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="fg">

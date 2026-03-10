@@ -100,8 +100,9 @@ export default function Invoices({ user, perms, ownerId }) {
   };
   const openEdit = (inv) => {
     setEditData(inv);
+    const defTemplate = profile?.invoiceTemplate || 'Classic';
     setForm({ 
-      no: inv.no || '', client: inv.client, dueDate: inv.dueDate || '', status: inv.status || 'Draft', template: inv.template || 'Classic', 
+      no: inv.no || '', client: inv.client, dueDate: inv.dueDate || '', status: inv.status || 'Draft', template: inv.template || defTemplate, 
       notes: inv.notes || '', terms: inv.terms || '', disc: inv.disc || 0, discType: inv.discType || '%', adj: inv.adj || 0, 
       items: inv.items?.length ? inv.items : EMPTY.items,
       isAmc: !!inv.amcStart || !!inv.isAmc, 
@@ -477,7 +478,9 @@ export default function Invoices({ user, perms, ownerId }) {
                 </div>
                 <div className="fg"><label>Template</label>
                   <select value={form.template} onChange={e => setForm(p => ({ ...p, template: e.target.value }))}>
-                    {['Classic', 'Modern', 'Minimal'].map(t => <option key={t}>{t}</option>)}
+                    {['Classic', 'Modern', 'Minimal', 'Spreadsheet'].map(t => (
+                      <option key={t} value={t}>{t === 'Spreadsheet' ? 'Tax Invoice (GST)' : t}</option>
+                    ))}
                   </select>
                 </div>
                 <div className="fg">
