@@ -101,8 +101,9 @@ export default function Reports({ user, perms, ownerId }) {
   const profit = revenue - totalExp;
 
   // Lead pipeline
-  const profile = data?.userProfiles?.[0];
   const STAGELIST = profile?.stages || ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
+  const wonStage = profile?.wonStage || 'Won';
+  const lostStage = profile?.lostStage || 'Lost';
   const stageCount = STAGELIST.map(s => ({ stage: s, count: filteredLeadsAtSource.filter(l => l.stage === s).length }));
   const maxCount = Math.max(...stageCount.map(s => s.count), 1);
   const CHART_COLORS = ['#60a5fa', '#6ee7b7', '#fde68a', '#c4b5fd', '#86efac', '#fca5a5'];
@@ -118,16 +119,23 @@ export default function Reports({ user, perms, ownerId }) {
   // Lead Funnel
   const funnel = useMemo(() => {
     const total = filteredLeadsAtSource.length;
-    const contacted = filteredLeadsAtSource.filter(l => l.stage !== 'New Enquiry').length;
-    const negotiation = filteredLeadsAtSource.filter(l => ['Budget Negotiation', 'Advance Paid', 'Won'].includes(l.stage)).length;
-    const won = filteredLeadsAtSource.filter(l => l.stage === 'Won').length;
+    // Contacted: any stage that isn't the first one
+    const contacted = filteredLeadsAtSource.filter(l => l.stage !== STAGELIST[0]).length;
+    // Won: matches wonStage
+    const wonCount = filteredLeadsAtSource.filter(l => l.stage === wonStage).length;
+    // Negotiation: typically stages near the end but before Won (heuristically)
+    const negotiation = filteredLeadsAtSource.filter(l => {
+       const idx = STAGELIST.indexOf(l.stage);
+       return idx >= Math.floor(STAGELIST.length / 2) && l.stage !== lostStage;
+    }).length;
+    
     return [
       { name: 'Total Leads', count: total, pct: 100, color: '#60a5fa' },
       { name: 'Contacted', count: contacted, pct: total ? Math.round((contacted/total)*100) : 0, color: '#6ee7b7' },
       { name: 'Negotiation', count: negotiation, pct: total ? Math.round((negotiation/total)*100) : 0, color: '#fde68a' },
-      { name: 'Won (Success)', count: won, pct: total ? Math.round((won/total)*100) : 0, color: '#86efac' },
+      { name: 'Won (Success)', count: wonCount, pct: total ? Math.round((wonCount/total)*100) : 0, color: '#86efac' },
     ];
-  }, [filteredLeadsAtSource]);
+  }, [filteredLeadsAtSource, STAGELIST, wonStage, lostStage]);
 
   // Revenue by Source
   const revBySource = useMemo(() => {
@@ -367,8 +375,8 @@ export default function Reports({ user, perms, ownerId }) {
           <div style={{ padding: '16px 20px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
               <div className="stat-card"><div className="lbl">Total Leads</div><div className="val">{leads.length}</div></div>
-              <div className="stat-card sc-green"><div className="lbl">Won</div><div className="val">{leads.filter(l => l.stage === 'Won').length}</div></div>
-              <div className="stat-card sc-red"><div className="lbl">Lost</div><div className="val">{leads.filter(l => l.stage === 'Lost').length}</div></div>
+              <div className="stat-card sc-green"><div className="lbl">Won</div><div className="val">{leads.filter(l => l.stage === wonStage).length}</div></div>
+              <div className="stat-card sc-red"><div className="lbl">Lost</div><div className="val">{leads.filter(l => l.stage === lostStage).length}</div></div>
             </div>
             {stageCount.map(({ stage, count }, i) => (
               <div key={stage} className="chart-row">

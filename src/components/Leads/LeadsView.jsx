@@ -4,19 +4,15 @@ import { id } from '@instantdb/react';
 import { fmtD, stageBadgeClass, uid } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
-const STAGES = ['New Enquiry', 'Enquiry Contacted', 'Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
-const SOURCES = ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
-const LABELS = ['Hot', 'Warm', 'Cold', 'VIP', 'Pending'];
-
 const EMPTY_LEAD = { name: '', email: '', phone: '', source: '', stage: '', assign: '', followup: '', label: '', notes: '', remWA: false, remEmail: true, remSMS: false, custom: {} };
 
 const DEFAULT_IMPORT_MAPPING = {
   name: { type: 'column', value: '' },
   email: { type: 'column', value: '' },
   phone: { type: 'column', value: '' },
-  source: { type: 'fixed', value: 'Bulk Import' },
-  stage: { type: 'fixed', value: 'New Enquiry' },
-  label: { type: 'fixed', value: 'Hot' },
+  source: { type: 'fixed', value: '' },
+  stage: { type: 'fixed', value: '' },
+  label: { type: 'fixed', value: '' },
   assign: { type: 'fixed', value: '' },
   notes: { type: 'fixed', value: '' },
   followup: { type: 'fixed', value: '' }
@@ -62,9 +58,9 @@ export default function LeadsView({ user, perms, ownerId }) {
   const disabledStages = data?.userProfiles?.[0]?.disabledStages || [];
   const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
   const profileId = data?.userProfiles?.[0]?.id;
-  const activeSources = data?.userProfiles?.[0]?.sources || SOURCES;
-  const activeLabels = data?.userProfiles?.[0]?.labels || LABELS;
-  const allStages = data?.userProfiles?.[0]?.stages || STAGES;
+  const activeSources = data?.userProfiles?.[0]?.sources || ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
+  const activeLabels = data?.userProfiles?.[0]?.labels || ['Hot', 'Warm', 'Cold', 'VIP', 'Pending'];
+  const allStages = data?.userProfiles?.[0]?.stages || ['New Enquiry', 'Enquiry Contacted', 'Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
   
   console.log("🔍 [LeadsView] Props - ownerId:", ownerId, "perms:", perms?.isOwner ? "Owner" : "Team");
   console.log("📊 [LeadsView] Data - leadsRaw count:", data?.leads?.length || 0);

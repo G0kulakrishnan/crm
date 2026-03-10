@@ -18,6 +18,7 @@ export default function Dashboard({ user, ownerId, perms }) {
 
   const profile = data?.userProfiles?.[0] || {};
   const wonStage = profile.wonStage || 'Won';
+  const lostStage = profile.lostStage || 'Lost';
   const leadsRaw = data?.leads || [];
   const quotesRaw = data?.quotes || [];
   const invoicesRaw = data?.invoices || [];
@@ -57,7 +58,7 @@ export default function Dashboard({ user, ownerId, perms }) {
 
   const stats = useMemo(() => {
     const overdue = leads.filter(l => l.followup && new Date(l.followup) < now).length;
-    const active = leads.filter(l => l.stage !== wonStage && l.stage !== 'Lost').length;
+    const active = leads.filter(l => l.stage !== wonStage && l.stage !== lostStage).length;
     const amcExp = amc.filter(a => { const d = daysLeft(a.endDate); return d <= 30 && d >= 0; }).length;
     const inProgress = projects.filter(p => p.status === 'In Progress').length;
     return { overdue, active, amcExp, inProgress };

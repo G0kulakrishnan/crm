@@ -5,10 +5,6 @@ import { useToast } from '../../context/ToastContext';
 import { sendEmail, sendWhatsApp, sendWhatsAppMock } from '../../utils/messaging';
 import { fmtD, INDIAN_STATES } from '../../utils/helpers';
 
-const STAGES = ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
-const SOURCES = ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
-const LABELS = ['Hot', 'Warm', 'Cold', 'VIP', 'Pending'];
-
 const TEMPLATES = [
   { id: 'blank', name: 'Blank Template', subject: '', body: '' },
   { id: 'festival', name: '🎉 Festival Offer', subject: 'Special Festival Greetings & Offer for {{name}}!', body: 'Hi {{name}},\n\nWishing you a wonderful festive season! As a special thanks for being in touch with us, we are offering an exclusive discount on our services this week.\n\nReply to this email to claim your offer!\n\nBest regards,\nThe Team' },
@@ -89,9 +85,9 @@ export default function Campaigns({ user, perms, ownerId }) {
   const campaigns = (data?.campaigns || []).sort((a,b) => b.createdAt - a.createdAt);
   const userTemplates = data?.campaignTemplates || [];
   const profile = data?.userProfiles?.[0];
-  const activeStages = profile?.stages || STAGES;
-  const activeSources = profile?.sources || SOURCES;
-  const activeLabels = profile?.labels || LABELS;
+  const activeStages = profile?.stages || ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
+  const activeSources = profile?.sources || ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
+  const activeLabels = profile?.labels || ['Hot', 'Warm', 'Cold', 'VIP', 'Pending'];
 
   // Base candidates list with unified payload structure
   const allCandidates = useMemo(() => {

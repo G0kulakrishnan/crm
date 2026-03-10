@@ -56,11 +56,12 @@ export default function AllTasks({ user, perms, ownerId }) {
   const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
 
   const clientOptions = useMemo(() => {
+    const wonStage = profile.wonStage || 'Won';
     return [
       ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
-      ...leads.filter(l => l.stage !== 'Won').map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+      ...leads.filter(l => l.stage !== wonStage).map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
     ];
-  }, [customers, leads]);
+  }, [customers, leads, profile.wonStage]);
 
   const projName = (pid) => projects.find(p => p.id === pid)?.name || '-';
 

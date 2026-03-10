@@ -98,8 +98,8 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   });
   const profileId = data?.userProfiles?.[0]?.id;
   const sources = data?.userProfiles?.[0]?.sources || DEFAULT_SOURCES;
-  const stages = data?.userProfiles?.[0]?.stages || DEFAULT_STAGES;
   const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
+  const lostStage = data?.userProfiles?.[0]?.lostStage || 'Lost';
   const disabledStages = data?.userProfiles?.[0]?.disabledStages || [];
   const labels = data?.userProfiles?.[0]?.labels || DEFAULT_LABELS;
   const customFields = data?.userProfiles?.[0]?.customFields || DEFAULT_CFIELDS;
@@ -208,6 +208,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       let targetStage = l.stage;
       const getRank = (s) => {
          if (s === wonStage) return STAGE_ORDER.indexOf('Won');
+         if (s === lostStage) return STAGE_ORDER.indexOf('Lost');
          const r = STAGE_ORDER.indexOf(s);
          return r === -1 ? -1 : r;
       };
@@ -764,6 +765,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                                   nl[i] = newVal;
                                   const extra = {};
                                   if (s === wonStage) extra.wonStage = newVal;
+                                  if (s === lostStage) extra.lostStage = newVal;
                                   
                                   const txs = [db.tx.userProfiles[profileId].update({ stages: nl, ...extra })];
                                   // Update leads
