@@ -124,11 +124,6 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                     </tr>
                   );
                 })}
-                {[...Array(Math.max(0, 8 - data.items.length))].map((_, i) => (
-                  <tr key={'empty-' + i} style={{ height: '30px' }}>
-                     {[...Array(9)].map((__, j) => <td key={j} style={{ border: '1px solid #000' }}></td>)}
-                  </tr>
-                ))}
               </tbody>
             </table>
 
