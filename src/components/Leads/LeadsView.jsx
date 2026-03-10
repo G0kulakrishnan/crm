@@ -6,8 +6,9 @@ import { useToast } from '../../context/ToastContext';
 
 const STAGES = ['New Enquiry', 'Enquiry Contacted', 'Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
 const SOURCES = ['FB Ads', 'Direct', 'Broker', 'Google Ads', 'Referral', 'WhatsApp', 'Website', 'Other'];
+const LABELS = ['Hot', 'Warm', 'Cold', 'VIP', 'Pending'];
 
-const EMPTY_LEAD = { name: '', email: '', phone: '', source: 'FB Ads', stage: 'New Enquiry', assign: '', followup: '', label: 'Hot', notes: '', remWA: false, remEmail: true, remSMS: false, custom: {} };
+const EMPTY_LEAD = { name: '', email: '', phone: '', source: '', stage: '', assign: '', followup: '', label: '', notes: '', remWA: false, remEmail: true, remSMS: false, custom: {} };
 
 const DEFAULT_IMPORT_MAPPING = {
   name: { type: 'column', value: '' },
@@ -61,6 +62,9 @@ export default function LeadsView({ user, perms, ownerId }) {
   const disabledStages = data?.userProfiles?.[0]?.disabledStages || [];
   const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
   const profileId = data?.userProfiles?.[0]?.id;
+  const activeSources = data?.userProfiles?.[0]?.sources || SOURCES;
+  const activeLabels = data?.userProfiles?.[0]?.labels || LABELS;
+  const allStages = data?.userProfiles?.[0]?.stages || STAGES;
   
   console.log("🔍 [LeadsView] Props - ownerId:", ownerId, "perms:", perms?.isOwner ? "Owner" : "Team");
   console.log("📊 [LeadsView] Data - leadsRaw count:", data?.leads?.length || 0);
@@ -94,10 +98,16 @@ export default function LeadsView({ user, perms, ownerId }) {
   const allPossibleCols = ['Created', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Label', 'Reminder', ...customFields.map(c => c.name)];
   const activeCols = savedCols || allPossibleCols;
 
-  const allStages = data?.userProfiles?.[0]?.stages || STAGES;  // ordered full list from Settings
   const savedLeadStages = data?.userProfiles?.[0]?.leadStages;   // visible subset saved from Leads colModal
   const activeStages = (savedLeadStages?.length > 0 ? savedLeadStages : allStages).filter(s => !disabledStages.includes(s));
   const isWon = (s) => s === wonStage;
+
+  // Initialize EMPTY_LEAD values if empty
+  useEffect(() => {
+    if (form.source === '' && activeSources.length > 0) {
+      setForm(prev => ({ ...prev, source: activeSources[0], stage: activeStages[0], label: activeLabels[0] }));
+    }
+  }, [activeSources, activeStages, activeLabels, form.source]);
 
   // Filtering
   const filtered = useMemo(() => {
@@ -155,7 +165,7 @@ export default function LeadsView({ user, perms, ownerId }) {
   const openCreate = () => { setEditData(null); setForm(EMPTY_LEAD); setModal(true); };
   const openEdit = (l) => { 
     setEditData(l); 
-    setForm({ name: l.name, email: l.email || '', phone: l.phone || '', source: l.source || 'FB Ads', stage: l.stage || 'New Enquiry', assign: l.assign || '', followup: l.followup || '', label: l.label || 'Hot', notes: l.notes || '', remWA: l.remWA || false, remEmail: l.remEmail !== false, remSMS: l.remSMS || false, custom: l.custom || {} }); 
+    setForm({ name: l.name, email: l.email || '', phone: l.phone || '', source: l.source || activeSources[0], stage: l.stage || activeStages[0], assign: l.assign || '', followup: l.followup || '', label: l.label || activeLabels[0], notes: l.notes || '', remWA: l.remWA || false, remEmail: l.remEmail !== false, remSMS: l.remSMS || false, custom: l.custom || {} }); 
     setModal(true); 
   };
 
@@ -523,7 +533,7 @@ export default function LeadsView({ user, perms, ownerId }) {
                   <div className="fg"><label>Email</label><input type="email" value={form.email} onChange={f('email')} /></div>
                   <div className="fg"><label>Source</label>
                     <select value={form.source} onChange={f('source')}>
-                      {SOURCES.map(s => <option key={s}>{s}</option>)}
+                      {activeSources.map(s => <option key={s}>{s}</option>)}
                     </select>
                   </div>
                   <div className="fg"><label>Stage</label>
@@ -540,7 +550,7 @@ export default function LeadsView({ user, perms, ownerId }) {
                   <div className="fg"><label>Follow Up</label><input type="datetime-local" value={form.followup} onChange={f('followup')} /></div>
                   <div className="fg"><label>Label</label>
                     <select value={form.label} onChange={f('label')}>
-                      {['Hot', 'Warm', 'Cold', 'VIP', 'Pending'].map(l => <option key={l}>{l}</option>)}
+                      {activeLabels.map(l => <option key={l}>{l}</option>)}
                     </select>
                   </div>
                   <div className="fg span2"><label>Notes</label><textarea value={form.notes} onChange={f('notes')} /></div>
@@ -617,7 +627,7 @@ export default function LeadsView({ user, perms, ownerId }) {
                 </div>
                 <select className="si" style={{ width: 130 }} value={srcFilter} onChange={e => setSrcFilter(e.target.value)}>
                   <option value="">All Sources</option>
-                  {SOURCES.map(s => <option key={s}>{s}</option>)}
+                  {activeSources.map(s => <option key={s}>{s}</option>)}
                 </select>
                 <select className="si" style={{ width: 130 }} value={stgFilter} onChange={e => setStgFilter(e.target.value)}>
                   <option value="">All Stages</option>
@@ -817,7 +827,7 @@ export default function LeadsView({ user, perms, ownerId }) {
                 <div className="fg"><label>Follow Up</label><input type="datetime-local" value={form.followup} onChange={f('followup')} /></div>
                 <div className="fg"><label>Label</label>
                   <select value={form.label} onChange={f('label')}>
-                    {['Hot', 'Warm', 'Cold', 'VIP', 'Pending'].map(l => <option key={l}>{l}</option>)}
+                    {activeLabels.map(l => <option key={l}>{l}</option>)}
                   </select>
                 </div>
                 <div className="fg span2"><label>Notes</label><textarea value={form.notes} onChange={f('notes')} /></div>
@@ -879,9 +889,9 @@ export default function LeadsView({ user, perms, ownerId }) {
                 { label: 'Name', icon: '👤', field: 'name' },
                 { label: 'Email', icon: '📧', field: 'email' },
                 { label: 'Phone', icon: '📱', field: 'phone' },
-                { label: 'Source', icon: '🔗', field: 'source', options: SOURCES },
+                { label: 'Source', icon: '🔗', field: 'source', options: activeSources },
                 { label: 'Stage', icon: '📋', field: 'stage', options: allStages },
-                { label: 'Label', icon: '🏷️', field: 'label', options: ['Hot', 'Warm', 'Cold', 'VIP', 'Pending'] },
+                { label: 'Label', icon: '🏷️', field: 'label', options: activeLabels },
                 { label: 'Assigned To', icon: '👤', field: 'assign', options: team.map(t => t.name) },
                 { label: 'Notes', icon: '📝', field: 'notes' },
                 { label: 'Follow-up Date', icon: '📅', field: 'followup', type: 'datetime-local' }

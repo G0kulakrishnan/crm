@@ -89,6 +89,9 @@ export default function Campaigns({ user, perms, ownerId }) {
   const campaigns = (data?.campaigns || []).sort((a,b) => b.createdAt - a.createdAt);
   const userTemplates = data?.campaignTemplates || [];
   const profile = data?.userProfiles?.[0];
+  const activeStages = profile?.stages || STAGES;
+  const activeSources = profile?.sources || SOURCES;
+  const activeLabels = profile?.labels || LABELS;
 
   // Base candidates list with unified payload structure
   const allCandidates = useMemo(() => {
@@ -424,7 +427,7 @@ export default function Campaigns({ user, perms, ownerId }) {
                 <div style={{ marginBottom: 20 }}>
                   <strong style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Filter by Stage {selStages.size > 0 && <span style={{ color: 'var(--accent)' }}>({selStages.size})</span>}</strong>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto' }}>
-                    {STAGES.map(s => (
+                    {activeStages.map(s => (
                       <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
                         <input type="checkbox" checked={selStages.has(s)} onChange={() => toggleSet(selStages, setSelStages, s)} style={{ accentColor: 'var(--accent)' }}/> {s}
                       </label>
@@ -435,7 +438,7 @@ export default function Campaigns({ user, perms, ownerId }) {
                 <div style={{ marginBottom: 20 }}>
                   <strong style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Filter by Source {selSources.size > 0 && <span style={{ color: 'var(--accent)' }}>({selSources.size})</span>}</strong>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto' }}>
-                    {SOURCES.map(s => (
+                    {activeSources.map(s => (
                       <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
                         <input type="checkbox" checked={selSources.has(s)} onChange={() => toggleSet(selSources, setSelSources, s)} style={{ accentColor: 'var(--accent)' }}/> {s}
                       </label>
@@ -446,7 +449,7 @@ export default function Campaigns({ user, perms, ownerId }) {
                 <div>
                   <strong style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Filter by Label {selLabels.size > 0 && <span style={{ color: 'var(--accent)' }}>({selLabels.size})</span>}</strong>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto' }}>
-                    {LABELS.map(s => (
+                    {activeLabels.map(s => (
                       <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
                         <input type="checkbox" checked={selLabels.has(s)} onChange={() => toggleSet(selLabels, setSelLabels, s)} style={{ accentColor: 'var(--accent)' }}/> {s}
                       </label>
