@@ -211,7 +211,15 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   };
 
   const saveBiz = async () => {
-    const payload = { ...biz, userId: ownerId };
+    const payload = { 
+      ...biz, 
+      accHolder: fin.accHolder,
+      bankName: fin.bankName,
+      accountNo: fin.accountNo,
+      ifsc: fin.ifsc,
+      qrCode: fin.qrCode,
+      userId: ownerId 
+    };
     if (profileId) await db.transact(db.tx.userProfiles[profileId].update(payload));
     toast('Business details saved!', 'success');
   };
@@ -596,14 +604,50 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                 </div>
 
                 <div style={{ marginTop: 30, paddingTop: 20, borderTop: '2px dashed var(--border)' }}>
-                  <h4 style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 2v6h-6M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6m12-4a9 9 0 01-15 6.7L3 16" /></svg>
-                    Data Maintenance
+                  <h4 style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
+                    Payment & Bank Details
                   </h4>
-                  <div className="sub" style={{ marginBottom: 15 }}>Sync existing lead contact details (Phone/Email) with their matching customer records.</div>
-                  <button className="btn btn-secondary" onClick={syncExistingData}>
-                    🔄 Sync Existing Lead & Customer Data
-                  </button>
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 30 }}>
+                    <div className="fgrid">
+                      <div className="fg span2"><label>Account Holder Name</label><input value={fin.accHolder} onChange={e => setFin(f => ({ ...f, accHolder: e.target.value }))} /></div>
+                      <div className="fg"><label>Bank Name</label><input value={fin.bankName} onChange={e => setFin(f => ({ ...f, bankName: e.target.value }))} /></div>
+                      <div className="fg"><label>Account Number</label><input value={fin.accountNo} onChange={e => setFin(f => ({ ...f, accountNo: e.target.value }))} /></div>
+                      <div className="fg"><label>IFSC Code</label><input value={fin.ifsc} onChange={e => setFin(f => ({ ...f, ifsc: e.target.value }))} /></div>
+                    </div>
+                    <div>
+                      <label style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, display: 'block' }}>Payment QR Code</label>
+                      <div style={{ border: '2px dashed var(--border)', borderRadius: 12, padding: 15, textAlign: 'center', background: 'var(--bg-soft)' }}>
+                        {fin.qrCode ? (
+                          <div style={{ position: 'relative' }}>
+                            <img src={fin.qrCode} alt="QR" style={{ width: '100%', maxWidth: 150, borderRadius: 8 }} />
+                            <button className="btn btn-sm" style={{ position: 'absolute', top: -10, right: -10, background: '#fee2e2', color: '#991b1b', padding: '2px 6px' }} onClick={() => setFin(f => ({ ...f, qrCode: null }))}>✕</button>
+                          </div>
+                        ) : (
+                          <div style={{ padding: '10px 0' }}>
+                            <div style={{ fontSize: 24, marginBottom: 8 }}>📱</div>
+                            <input type="file" accept="image/*" onChange={e => handleFile(e, (res) => setFin(f => ({ ...f, qrCode: res })))} style={{ fontSize: 11, width: '100%' }} />
+                            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 8 }}>Upload UPI/Payment QR</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 30, paddingTop: 20, borderTop: '2px dashed var(--border)' }}>
+                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div>
+                        <h4 style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 2v6h-6M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6m12-4a9 9 0 01-15 6.7L3 16" /></svg>
+                          Data Maintenance
+                        </h4>
+                        <div className="sub" style={{ marginBottom: 15 }}>Sync existing lead contact details (Phone/Email) with their matching customer records.</div>
+                      </div>
+                      <button className="btn btn-secondary" onClick={syncExistingData}>
+                        🔄 Sync Data
+                      </button>
+                   </div>
                 </div>
               </div>
             </div>
@@ -656,37 +700,6 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                   </div>
                 </div>
 
-                <div style={{ marginTop: 30, paddingTop: 20, borderTop: '2px dashed var(--border)' }}>
-                  <h4 style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2" /><line x1="3" y1="10" x2="21" y2="10" /></svg>
-                    Payment & Bank Details
-                  </h4>
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 30 }}>
-                    <div className="fgrid">
-                      <div className="fg span2"><label>Account Holder Name</label><input value={fin.accHolder} onChange={e => setFin(f => ({ ...f, accHolder: e.target.value }))} /></div>
-                      <div className="fg"><label>Bank Name</label><input value={fin.bankName} onChange={e => setFin(f => ({ ...f, bankName: e.target.value }))} /></div>
-                      <div className="fg"><label>Account Number</label><input value={fin.accountNo} onChange={e => setFin(f => ({ ...f, accountNo: e.target.value }))} /></div>
-                      <div className="fg"><label>IFSC Code</label><input value={fin.ifsc} onChange={e => setFin(f => ({ ...f, ifsc: e.target.value }))} /></div>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, display: 'block' }}>Payment QR Code</label>
-                      <div style={{ border: '2px dashed var(--border)', borderRadius: 12, padding: 15, textAlign: 'center', background: 'var(--bg-soft)' }}>
-                        {fin.qrCode ? (
-                          <div style={{ position: 'relative' }}>
-                            <img src={fin.qrCode} alt="QR" style={{ width: '100%', maxWidth: 150, borderRadius: 8 }} />
-                            <button className="btn btn-sm" style={{ position: 'absolute', top: -10, right: -10, background: '#fee2e2', color: '#991b1b', padding: '2px 6px' }} onClick={() => setFin(f => ({ ...f, qrCode: null }))}>✕</button>
-                          </div>
-                        ) : (
-                          <div style={{ padding: '10px 0' }}>
-                            <div style={{ fontSize: 24, marginBottom: 8 }}>📱</div>
-                            <input type="file" accept="image/*" onChange={e => handleFile(e, (res) => setFin(f => ({ ...f, qrCode: res })))} style={{ fontSize: 11, width: '100%' }} />
-                            <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 8 }}>Upload UPI/Payment QR</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           )}
