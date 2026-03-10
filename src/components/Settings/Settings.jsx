@@ -4,6 +4,7 @@ import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { renderTemplate, sendEmailMock, sendEmail, sendWhatsApp } from '../../utils/messaging';
 import { fmtD, INDIAN_STATES, COUNTRIES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, SYSTEM_STAGES } from '../../utils/helpers';
+import DocumentTemplate from '../Finance/DocumentTemplate';
 
 const SETTING_NAV = ['My Profile', 'Business', 'Finance', 'Templates', 'Billing', 'Taxes', 'Custom Fields', 'Sources', 'Stages', 'Labels', 'Product Categories', 'Expense Categories', 'Task Statuses', 'SMTP', 'WhatsApp', 'Reminders'];
 
@@ -430,6 +431,11 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       bizName: biz.bizName || 'My Business'
     });
     alert(`📢 Template Preview:\n\n${msg}\n\n(This is how your automated message will look)`);
+  };
+  const sampleInv = {
+    no: 'INV/2026/001', date: new Date().toISOString().split('T')[0], dueDate: new Date(Date.now() + 86400000*7).toISOString().split('T')[0],
+    client: 'John Doe Corp', items: [{ name: 'Premium Service', qty: 1, rate: 2500, taxRate: 18 }, { name: 'Consulting', qty: 2, rate: 500, taxRate: 0 }],
+    disc: 10, discType: '%', notes: 'Sample invoice preview', terms: 'Due in 7 days'
   };
 
   return (
@@ -1104,47 +1110,51 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
               <div style={{ padding: '20px' }}>
                 <div className="sub" style={{ marginBottom: 25 }}>Select the default look and feel for your Invoices and Quotations.</div>
                 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 }}>
-                   {/* Invoice Template Selection */}
-                   <div>
-                      <h4 style={{ marginBottom: 15 }}>Default Invoice Template</h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }}>
-                         {[
-                           { id: 'Classic', name: 'Classic', img: 'https://cdn-icons-png.flaticon.com/512/3135/3135679.png' }, // Placeholder for now or I can use the generated ones if I knew they'd work
-                           { id: 'Modern', name: 'Modern', img: 'https://cdn-icons-png.flaticon.com/512/3135/3135679.png' },
-                           { id: 'Minimal', name: 'Minimal', img: 'https://cdn-icons-png.flaticon.com/512/3135/3135679.png' },
-                           { id: 'Spreadsheet', name: 'Tax Invoice (GST)', img: 'https://cdn-icons-png.flaticon.com/512/3135/3135679.png' },
-                         ].map(t => (
-                           <div key={t.id} onClick={() => setFin(f => ({ ...f, invoiceTemplate: t.id }))} style={{ border: fin.invoiceTemplate === t.id ? '2px solid var(--accent)' : '1px solid var(--border)', borderRadius: 10, padding: 10, cursor: 'pointer', textAlign: 'center', backgroundColor: fin.invoiceTemplate === t.id ? 'rgba(var(--accent-rgb), 0.05)' : 'transparent' }}>
-                              <div style={{ height: 120, background: '#f8fafc', borderRadius: 6, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                                 <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{t.name} Preview</span>
-                              </div>
-                              <div style={{ fontSize: 12, fontWeight: 700 }}>{t.name}</div>
-                           </div>
-                         ))}
-                      </div>
-                   </div>
+                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 }}>
+                    {/* Invoice Template Selection */}
+                    <div>
+                       <h4 style={{ marginBottom: 15 }}>Default Invoice Template</h4>
+                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }}>
+                          {[
+                            { id: 'Classic', name: 'Classic' },
+                            { id: 'Modern', name: 'Modern' },
+                            { id: 'Minimal', name: 'Minimal' },
+                            { id: 'Spreadsheet', name: 'Tax Invoice (GST)' },
+                          ].map(t => (
+                            <div key={t.id} onClick={() => setFin(f => ({ ...f, invoiceTemplate: t.id }))} style={{ border: fin.invoiceTemplate === t.id ? '2px solid var(--accent)' : '1px solid var(--border)', borderRadius: 10, padding: 10, cursor: 'pointer', textAlign: 'center', backgroundColor: fin.invoiceTemplate === t.id ? 'rgba(var(--accent-rgb), 0.05)' : 'transparent', transition: '0.2s' }}>
+                               <div style={{ height: 160, background: '#f8fafc', borderRadius: 6, marginBottom: 8, overflow: 'hidden', border: '1px solid var(--border)', position: 'relative' }}>
+                                  <div style={{ transform: 'scale(0.20)', transformOrigin: 'top left', pointerEvents: 'none' }}>
+                                     <DocumentTemplate data={{ ...sampleInv, template: t.id }} profile={biz} preview={true} type="Invoice" />
+                                  </div>
+                               </div>
+                               <div style={{ fontSize: 12, fontWeight: 700 }}>{t.name}</div>
+                            </div>
+                          ))}
+                       </div>
+                    </div>
 
-                   {/* Quotation Template Selection */}
-                   <div>
-                      <h4 style={{ marginBottom: 15 }}>Default Quotation Template</h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }}>
-                         {[
-                           { id: 'Classic', name: 'Classic' },
-                           { id: 'Modern', name: 'Modern' },
-                           { id: 'Minimal', name: 'Minimal' },
-                           { id: 'Spreadsheet', name: 'Spreadsheet' },
-                         ].map(t => (
-                           <div key={t.id} onClick={() => setFin(f => ({ ...f, quotationTemplate: t.id }))} style={{ border: fin.quotationTemplate === t.id ? '2px solid var(--accent)' : '1px solid var(--border)', borderRadius: 10, padding: 10, cursor: 'pointer', textAlign: 'center', backgroundColor: fin.quotationTemplate === t.id ? 'rgba(var(--accent-rgb), 0.05)' : 'transparent' }}>
-                              <div style={{ height: 120, background: '#f8fafc', borderRadius: 6, marginBottom: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                 <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 600 }}>{t.name} Preview</span>
-                              </div>
-                              <div style={{ fontSize: 12, fontWeight: 700 }}>{t.name}</div>
-                           </div>
-                         ))}
-                      </div>
-                   </div>
-                </div>
+                    {/* Quotation Template Selection */}
+                    <div>
+                       <h4 style={{ marginBottom: 15 }}>Default Quotation Template</h4>
+                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15 }}>
+                          {[
+                            { id: 'Classic', name: 'Classic' },
+                            { id: 'Modern', name: 'Modern' },
+                            { id: 'Minimal', name: 'Minimal' },
+                            { id: 'Spreadsheet', name: 'Spreadsheet' },
+                          ].map(t => (
+                            <div key={t.id} onClick={() => setFin(f => ({ ...f, quotationTemplate: t.id }))} style={{ border: fin.quotationTemplate === t.id ? '2px solid var(--accent)' : '1px solid var(--border)', borderRadius: 10, padding: 10, cursor: 'pointer', textAlign: 'center', backgroundColor: fin.quotationTemplate === t.id ? 'rgba(var(--accent-rgb), 0.05)' : 'transparent', transition: '0.2s' }}>
+                               <div style={{ height: 160, background: '#f8fafc', borderRadius: 6, marginBottom: 8, overflow: 'hidden', border: '1px solid var(--border)', position: 'relative' }}>
+                                  <div style={{ transform: 'scale(0.20)', transformOrigin: 'top left', pointerEvents: 'none' }}>
+                                     <DocumentTemplate data={{ ...sampleInv, template: t.id }} profile={biz} preview={true} type="Quotation" />
+                                  </div>
+                               </div>
+                               <div style={{ fontSize: 12, fontWeight: 700 }}>{t.name}</div>
+                            </div>
+                          ))}
+                       </div>
+                    </div>
+                 </div>
 
                 <div style={{ marginTop: 40, padding: 20, bgcolor: '#f8fafc', borderRadius: 12, border: '1px solid var(--border)' }}>
                    <div style={{ fontWeight: 700, marginBottom: 10 }}>💡 Pro Tip</div>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { fmt, fmtD, numberToWords } from '../../utils/helpers';
 
-export default function DocumentTemplate({ data, profile, type = 'Invoice' }) {
+export default function DocumentTemplate({ data, profile, type = 'Invoice', preview = false }) {
   const t = data.template || 'Classic';
   const ptots = (() => {
     const sub = (data.items || []).reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
@@ -14,7 +14,15 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice' }) {
   const clientMatch = data.clientDetails || {}; 
   const isInterState = profile?.bizState && clientMatch?.state && profile.bizState !== clientMatch.state;
 
-  const A4_STYLE = {
+  const A4_STYLE = preview ? {
+    width: '210mm',
+    minHeight: '297mm',
+    padding: '15mm',
+    background: '#fff',
+    position: 'relative',
+    boxSizing: 'border-box',
+    color: '#000',
+  } : {
     width: '210mm',
     minHeight: '297mm',
     padding: '15mm',
@@ -27,6 +35,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice' }) {
   };
 
   const renderContent = () => {
+    // ... (logic remains same inside renderContent)
     if (t === 'Spreadsheet') {
       return (
         <div className="spreadsheet-template" style={{ fontSize: '11px', lineHeight: '1.4' }}>
