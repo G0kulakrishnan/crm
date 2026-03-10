@@ -11,7 +11,7 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
   const [loading, setLoading] = useState(false);
   const [columns, setColumns] = useState(existingConfig?.columns || []);
   const [sampleData, setSampleData] = useState(existingConfig?.sampleData || null);
-  const [mapping, setMapping] = useState(existingConfig?.mapping || {
+  const DEFAULT_MAPPING = {
     name: { type: 'column', value: '' },
     email: { type: 'column', value: '' },
     phone: { type: 'column', value: '' },
@@ -21,6 +21,16 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
     assign: { type: 'fixed', value: '' },
     notes: { type: 'fixed', value: '' },
     followup: { type: 'fixed', value: '' }
+  };
+  const [mapping, setMapping] = useState(() => {
+    let m = existingConfig?.mapping ? { ...existingConfig.mapping } : { ...DEFAULT_MAPPING };
+    // Migration: assignedTo -> assign
+    if (m.assignedTo && !m.assign) {
+      m.assign = m.assignedTo;
+      delete m.assignedTo;
+    }
+    // Ensure all default keys are present
+    return { ...DEFAULT_MAPPING, ...m };
   });
   const [customMappings, setCustomMappings] = useState(existingConfig?.customMappings || []); // [{ field: '', type: 'column', value: '' }]
   const toast = useToast();
