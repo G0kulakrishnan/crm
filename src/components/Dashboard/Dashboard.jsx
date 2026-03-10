@@ -57,7 +57,7 @@ export default function Dashboard({ user, ownerId, perms }) {
 
   const stats = useMemo(() => {
     const overdue = leads.filter(l => l.followup && new Date(l.followup) < now).length;
-    const active = leads.filter(l => !['Won', 'Lost'].includes(l.stage)).length;
+    const active = leads.filter(l => l.stage !== wonStage && l.stage !== 'Lost').length;
     const amcExp = amc.filter(a => { const d = daysLeft(a.endDate); return d <= 30 && d >= 0; }).length;
     const inProgress = projects.filter(p => p.status === 'In Progress').length;
     return { overdue, active, amcExp, inProgress };

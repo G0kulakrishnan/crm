@@ -162,7 +162,16 @@ export default function LeadsView({ user, perms, ownerId }) {
     return diff >= 0 && diff <= 7;
   }).length;
 
-  const openCreate = () => { setEditData(null); setForm(EMPTY_LEAD); setModal(true); };
+  const openCreate = () => { 
+    setEditData(null); 
+    setForm({ 
+      ...EMPTY_LEAD, 
+      source: activeSources[0] || '', 
+      stage: activeStages[0] || '', 
+      label: activeLabels[0] || '' 
+    }); 
+    setModal(true); 
+  };
   const openEdit = (l) => { 
     setEditData(l); 
     setForm({ name: l.name, email: l.email || '', phone: l.phone || '', source: l.source || activeSources[0], stage: l.stage || activeStages[0], assign: l.assign || '', followup: l.followup || '', label: l.label || activeLabels[0], notes: l.notes || '', remWA: l.remWA || false, remEmail: l.remEmail !== false, remSMS: l.remSMS || false, custom: l.custom || {} }); 
@@ -810,7 +819,7 @@ export default function LeadsView({ user, perms, ownerId }) {
                 <div className="fg"><label>Email</label><input type="email" value={form.email} onChange={f('email')} /></div>
                 <div className="fg"><label>Source</label>
                   <select value={form.source} onChange={f('source')}>
-                    {SOURCES.map(s => <option key={s}>{s}</option>)}
+                    {activeSources.map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
                 <div className="fg"><label>Stage</label>

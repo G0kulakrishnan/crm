@@ -45,6 +45,8 @@ export default function Reports({ user, perms, ownerId }) {
     leads: { $: { where: { userId: ownerId } } },
     tasks: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
+    activityLogs: { $: { where: { userId: ownerId } } },
   });
 
   const invoices = data?.invoices || [];
@@ -99,8 +101,9 @@ export default function Reports({ user, perms, ownerId }) {
   const profit = revenue - totalExp;
 
   // Lead pipeline
-  const STAGES = ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
-  const stageCount = STAGES.map(s => ({ stage: s, count: filteredLeadsAtSource.filter(l => l.stage === s).length }));
+  const profile = data?.userProfiles?.[0];
+  const STAGELIST = profile?.stages || ['New Enquiry', 'Enquiry Contacted', 'Budget Negotiation', 'Advance Paid', 'Won', 'Lost'];
+  const stageCount = STAGELIST.map(s => ({ stage: s, count: filteredLeadsAtSource.filter(l => l.stage === s).length }));
   const maxCount = Math.max(...stageCount.map(s => s.count), 1);
   const CHART_COLORS = ['#60a5fa', '#6ee7b7', '#fde68a', '#c4b5fd', '#86efac', '#fca5a5'];
 

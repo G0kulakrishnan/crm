@@ -31,7 +31,7 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
   const profile = profileData?.userProfiles?.[0] || {};
   const labels = profile.labels || ['Hot', 'Warm', 'Cold'];
   const stages = profile.stages || ['New Enquiry', 'Enquiry Contacted', 'Won', 'Lost'];
-  const sources = profile.sources || ['Google Sheets', 'FB Ads', 'Direct'];
+  const activeSources = profile.sources || ['Google Sheets', 'FB Ads', 'Direct'];
   const globalCustomFields = profile.customFields || [];
   const crmDomain = profileData?.globalSettings?.[0]?.crmDomain || window.location.origin;
 
@@ -255,10 +255,10 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
               {columns.map((c, i) => <option key={i} value={c}>{i}. {c}</option>)}
             </select>
           ) : (
-            options ? (
+            activeSources ? (
                <select value={m.value} onChange={e => updateVal({ value: e.target.value })}>
                  <option value="">(None)</option>
-                 {options.map(o => <option key={o} value={o}>{o}</option>)}
+                    {activeSources.map(s => <option key={s} value={s}>{s}</option>)}
                </select>
             ) : (
                <input type={type} value={m.value} onChange={e => updateVal({ value: e.target.value })} placeholder="Fixed value..." />
@@ -399,7 +399,7 @@ function pushAllRows() {
             {renderMappingRow('Phone / Mobile', '📱', 'phone')}
             {renderMappingRow('Lead Label', '🏷️', 'label', labels)}
             {renderMappingRow('Lead Stage', '📋', 'stage', stages)}
-            {renderMappingRow('Source', '🔗', 'source', sources)}
+            {renderMappingRow('Source', '🔗', 'source', activeSources)}
             {renderMappingRow('Notes', '📝', 'notes')}
             {renderMappingRow('Follow-up Date', '📅', 'followup', null, 'date')}
 
