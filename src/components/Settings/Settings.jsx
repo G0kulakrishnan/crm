@@ -271,6 +271,11 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     setNewCF(customFields[idx]);
   };
 
+  const cancelEditCF = () => {
+    setEditingCFIndex(null);
+    setNewCF({ name: '', type: 'text', options: '' });
+  };
+
   const removeItem = (key, list, idx) => saveList(key, list.filter((_, i) => i !== idx));
 
   const editItem = (key, list, idx, currentVal) => {
