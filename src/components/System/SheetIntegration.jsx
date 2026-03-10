@@ -15,10 +15,10 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
     name: { type: 'column', value: '' },
     email: { type: 'column', value: '' },
     phone: { type: 'column', value: '' },
-    label: { type: 'fixed', value: 'Hot' },
-    stage: { type: 'fixed', value: 'New Enquiry' },
+    label: { type: 'fixed', value: DEFAULT_LABELS[0] },
+    stage: { type: 'fixed', value: DEFAULT_STAGES[0] },
     source: { type: 'fixed', value: 'Google Sheets' },
-    assignedTo: { type: 'fixed', value: '' },
+    assign: { type: 'fixed', value: '' },
     notes: { type: 'fixed', value: '' },
     followup: { type: 'fixed', value: '' }
   });
@@ -27,9 +27,11 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
 
   const { data: profileData } = db.useQuery({ 
     userProfiles: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
     globalSettings: {}
   });
   const profile = profileData?.userProfiles?.[0] || {};
+  const team = profileData?.teamMembers || [];
   const labels = profile.labels || DEFAULT_LABELS;
   const stages = profile.stages || DEFAULT_STAGES;
   const activeSources = profile.sources || DEFAULT_SOURCES;
@@ -164,7 +166,7 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
           val = (hasPlus ? '+' : '') + digits;
         }
 
-        if (['name', 'email', 'phone', 'source', 'stage', 'label', 'notes', 'followup'].includes(field)) {
+        if (['name', 'email', 'phone', 'source', 'stage', 'label', 'notes', 'followup', 'assign'].includes(field)) {
           lead[field] = val;
         } else {
           lead.custom[field] = val;
@@ -256,10 +258,10 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
               {columns.map((c, i) => <option key={i} value={c}>{i}. {c}</option>)}
             </select>
           ) : (
-            activeSources ? (
+            options ? (
                <select value={m.value} onChange={e => updateVal({ value: e.target.value })}>
                  <option value="">(None)</option>
-                    {activeSources.map(s => <option key={s} value={s}>{s}</option>)}
+                    {options.map(s => <option key={s} value={s}>{s}</option>)}
                </select>
             ) : (
                <input type={type} value={m.value} onChange={e => updateVal({ value: e.target.value })} placeholder="Fixed value..." />
@@ -401,6 +403,7 @@ function pushAllRows() {
             {renderMappingRow('Lead Label', '🏷️', 'label', labels)}
             {renderMappingRow('Lead Stage', '📋', 'stage', stages)}
             {renderMappingRow('Source', '🔗', 'source', activeSources)}
+            {renderMappingRow('Assigned To', '👤', 'assign', team.map(t => t.name))}
             {renderMappingRow('Notes', '📝', 'notes')}
             {renderMappingRow('Follow-up Date', '📅', 'followup', null, 'date')}
 
