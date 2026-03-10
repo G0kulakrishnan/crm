@@ -1121,9 +1121,9 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                             { id: 'Minimal', name: 'Minimal' },
                             { id: 'Spreadsheet', name: 'Tax Invoice (GST)' },
                           ].map(t => (
-                            <div key={t.id} onClick={() => setFin(f => ({ ...f, invoiceTemplate: t.id }))} style={{ border: fin.invoiceTemplate === t.id ? '2px solid var(--accent)' : '1px solid var(--border)', borderRadius: 10, padding: 10, cursor: 'pointer', textAlign: 'center', backgroundColor: fin.invoiceTemplate === t.id ? 'rgba(var(--accent-rgb), 0.05)' : 'transparent', transition: '0.2s' }}>
-                               <div style={{ height: 160, background: '#f8fafc', borderRadius: 6, marginBottom: 8, overflow: 'hidden', border: '1px solid var(--border)', position: 'relative' }}>
-                                  <div style={{ transform: 'scale(0.20)', transformOrigin: 'top left', pointerEvents: 'none' }}>
+                            <div key={t.id} onClick={() => setFin(f => ({ ...f, invoiceTemplate: t.id }))} style={{ border: fin.invoiceTemplate === t.id ? '2px solid var(--accent)' : '1px solid var(--border)', borderRadius: 10, padding: 10, cursor: 'pointer', textAlign: 'center', backgroundColor: fin.invoiceTemplate === t.id ? 'rgba(var(--accent-rgb), 0.05)' : 'transparent', transition: '0.2s', minWidth: 0 }}>
+                               <div style={{ height: 160, background: '#f8fafc', borderRadius: 6, marginBottom: 8, overflow: 'hidden', border: '1px solid var(--border)', position: 'relative', display: 'flex', justifyContent: 'center' }}>
+                                  <div style={{ transform: 'scale(0.18)', transformOrigin: 'top center', pointerEvents: 'none', width: '210mm', height: '297mm', flexShrink: 0 }}>
                                      <DocumentTemplate data={{ ...sampleInv, template: t.id }} profile={biz} preview={true} type="Invoice" />
                                   </div>
                                </div>
@@ -1143,9 +1143,9 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                             { id: 'Minimal', name: 'Minimal' },
                             { id: 'Spreadsheet', name: 'Spreadsheet' },
                           ].map(t => (
-                            <div key={t.id} onClick={() => setFin(f => ({ ...f, quotationTemplate: t.id }))} style={{ border: fin.quotationTemplate === t.id ? '2px solid var(--accent)' : '1px solid var(--border)', borderRadius: 10, padding: 10, cursor: 'pointer', textAlign: 'center', backgroundColor: fin.quotationTemplate === t.id ? 'rgba(var(--accent-rgb), 0.05)' : 'transparent', transition: '0.2s' }}>
-                               <div style={{ height: 160, background: '#f8fafc', borderRadius: 6, marginBottom: 8, overflow: 'hidden', border: '1px solid var(--border)', position: 'relative' }}>
-                                  <div style={{ transform: 'scale(0.20)', transformOrigin: 'top left', pointerEvents: 'none' }}>
+                            <div key={t.id} onClick={() => setFin(f => ({ ...f, quotationTemplate: t.id }))} style={{ border: fin.quotationTemplate === t.id ? '2px solid var(--accent)' : '1px solid var(--border)', borderRadius: 10, padding: 10, cursor: 'pointer', textAlign: 'center', backgroundColor: fin.quotationTemplate === t.id ? 'rgba(var(--accent-rgb), 0.05)' : 'transparent', transition: '0.2s', minWidth: 0 }}>
+                               <div style={{ height: 160, background: '#f8fafc', borderRadius: 6, marginBottom: 8, overflow: 'hidden', border: '1px solid var(--border)', position: 'relative', display: 'flex', justifyContent: 'center' }}>
+                                  <div style={{ transform: 'scale(0.18)', transformOrigin: 'top center', pointerEvents: 'none', width: '210mm', height: '297mm', flexShrink: 0 }}>
                                      <DocumentTemplate data={{ ...sampleInv, template: t.id }} profile={biz} preview={true} type="Quotation" />
                                   </div>
                                </div>
