@@ -9,9 +9,9 @@ import SearchableSelect from '../UI/SearchableSelect';
 const EMPTY = { client: '', email: '', phone: '', contractNo: '', cycle: 'Yearly', startDate: '', endDate: '', amount: '', taxRate: 0, plan: '', status: 'Active', notes: '', assign: '' };
 
 export default function AMC({ user, perms, ownerId }) {
-  const canCreate = perms?.can('AMC', 'create') !== false;
-  const canEdit = perms?.can('AMC', 'edit') !== false;
-  const canDelete = perms?.can('AMC', 'delete') !== false;
+  const canCreate = perms?.can('AMC', 'create') === true;
+  const canEdit = perms?.can('AMC', 'edit') === true;
+  const canDelete = perms?.can('AMC', 'delete') === true;
 
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
@@ -133,6 +133,8 @@ export default function AMC({ user, perms, ownerId }) {
   };
 
   const save = async () => {
+    if (editData && !canEdit) { toast('Permission denied: cannot edit AMC', 'error'); return; }
+    if (!editData && !canCreate) { toast('Permission denied: cannot create AMC', 'error'); return; }
     if (!form.client.trim()) { toast('Client required', 'error'); return; }
     const payload = { ...form, amount: parseFloat(form.amount) || 0, taxRate: parseFloat(form.taxRate) || 0, userId: ownerId, actorId: user.id };
     if (editData) { await db.transact(db.tx.amc[editData.id].update(payload)); toast('AMC updated', 'success'); }
@@ -158,6 +160,7 @@ export default function AMC({ user, perms, ownerId }) {
   };
 
   const del = async (aid) => {
+    if (!canDelete) { toast('Permission denied: cannot delete AMC', 'error'); return; }
     if (!confirm('Delete?')) return;
     const a = amcList.find(x => x.id === aid);
     const txs = [db.tx.amc[aid].delete()];
@@ -189,6 +192,7 @@ export default function AMC({ user, perms, ownerId }) {
   };
 
   const handleRenewAMC = async () => {
+    if (!canEdit) { toast('Permission denied: cannot renew AMC', 'error'); return; }
     if (!renewForm.paidOn) { toast('Payment date required', 'error'); return; }
     const a = renewModal;
 
@@ -288,11 +292,13 @@ export default function AMC({ user, perms, ownerId }) {
   };
 
   const toggleFollowUp = async (a) => {
+    if (!canEdit) { toast('Permission denied', 'error'); return; }
     await db.transact(db.tx.amc[a.id].update({ needsFollowUp: !a.needsFollowUp }));
     toast(a.needsFollowUp ? 'Follow-up removed' : 'Marked for follow-up', 'success');
   };
 
   const handleSendReminder = async (a) => {
+    if (!canEdit) { toast('Permission denied: cannot send reminders', 'error'); return; }
     if (!a.email) return toast('Client has no email address', 'error');
     if (!confirm(`Send reminder email to ${a.client} (${a.email})?`)) return;
 
@@ -315,6 +321,7 @@ export default function AMC({ user, perms, ownerId }) {
   };
 
   const handleGenerateInvoice = async (a) => {
+    if (!perms?.can('Invoices', 'create')) { toast('Permission denied: cannot create invoices', 'error'); return; }
     if (!confirm(`Generate Draft Invoice for ${a.client} (₹${a.amount})?`)) return;
     
     const invoiceCount = (data?.invoices || []).length;

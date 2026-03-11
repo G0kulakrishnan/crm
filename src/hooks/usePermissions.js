@@ -38,7 +38,8 @@ export function usePermissions(user, profile, teamMembers = []) {
     // Normalise perms (handling both old string[] and new object formats)
     let perms = roleMatch.perms || {};
     if (Array.isArray(perms)) {
-      perms = Object.fromEntries(perms.map(module => [module, ['view', 'list', 'create', 'edit', 'delete']]));
+      // old format: ["Leads"] -> only grant 'view' and 'list' by default for safety
+      perms = Object.fromEntries(perms.map(module => [module, ['view', 'list']]));
     }
 
     /**
@@ -48,7 +49,14 @@ export function usePermissions(user, profile, teamMembers = []) {
      */
     const isAdmin = false;    // Hard-revoked
     const isManager = false;  // Hard-revoked
-    const BLOCKED_MODULES = ['Automation', 'Reports', 'Admin', 'Settings'];
+    const BLOCKED_MODULES = ['Admin', 'Settings', 'Teams']; // Strictly block Teams for members
+
+    // 4. Trace Permissions (Diagnostic)
+    const trace = (module, action, result, reason) => {
+        if (typeof window !== 'undefined' && window.DEBUG_PERMS) {
+            console.log(`[Perms] ${module}:${action} -> ${result} (${reason})`);
+        }
+    };
 
     return {
       isOwner: false,
@@ -59,15 +67,33 @@ export function usePermissions(user, profile, teamMembers = []) {
       modules: perms,
       /**
        * Check if user can perform an action on a module.
+       * Strictly returns true or false.
        */
       can: (module, action = 'list') => {
         // Hard-block sensitive modules for ALL team members
-        if (BLOCKED_MODULES.includes(module)) return false;
+        if (BLOCKED_MODULES.includes(module)) {
+            trace(module, action, false, 'Hard-blocked module');
+            return false;
+        }
 
         const modPerms = perms[module];
-        if (!modPerms) return false;
-        if (action === 'view') return modPerms.length > 0;
-        return modPerms.includes(action);
+        
+        // If no permissions defined for this module, deny all
+        if (!modPerms || !Array.isArray(modPerms)) {
+            trace(module, action, false, 'No permissions defined');
+            return false;
+        }
+
+        // 'view' is true if they have any permission for the module
+        if (action === 'view') {
+            const hasAny = modPerms.length > 0;
+            trace(module, action, hasAny, hasAny ? 'Has granular perms' : 'Empty perms array');
+            return hasAny;
+        }
+
+        const hasAction = modPerms.includes(action);
+        trace(module, action, hasAction, hasAction ? 'Action found in array' : 'Action missing from array');
+        return hasAction;
       }
     };
   }, [user, profile, teamMembers]);

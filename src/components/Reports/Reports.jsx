@@ -3,7 +3,7 @@ import db from '../../instant';
 import { fmt, fmtD, INDIAN_STATES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS } from '../../utils/helpers';
 
 export default function Reports({ user, perms, ownerId, profile }) {
-  const canExport = (perms?.can('Reports', 'create') !== false) || (perms?.can('Reports', 'edit') !== false);
+  const canExport = (perms?.can('Reports', 'create') === true) || (perms?.can('Reports', 'edit') === true);
 
   const [tab, setTab] = useState('pl');
   const [dateFilter, setDateFilter] = useState('This Month');

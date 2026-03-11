@@ -19,9 +19,9 @@ const DEFAULT_IMPORT_MAPPING = {
 };
 
 export default function LeadsView({ user, perms, ownerId }) {
-  const canCreate = perms?.can('Leads', 'create') !== false;
-  const canEdit = perms?.can('Leads', 'edit') !== false;
-  const canDelete = perms?.can('Leads', 'delete') !== false;
+  const canCreate = perms?.can('Leads', 'create') === true;
+  const canEdit = perms?.can('Leads', 'edit') === true;
+  const canDelete = perms?.can('Leads', 'delete') === true;
 
   const [view, setView] = useState('list'); // 'list' | 'kanban'
   const [tab, setTab] = useState('all');
@@ -213,6 +213,8 @@ export default function LeadsView({ user, perms, ownerId }) {
   };
 
   const saveLead = async () => {
+    if (editData && !canEdit) { toast('Permission denied: cannot edit leads', 'error'); return; }
+    if (!editData && !canCreate) { toast('Permission denied: cannot create leads', 'error'); return; }
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
     try {
       if (editData) {
@@ -253,6 +255,7 @@ export default function LeadsView({ user, perms, ownerId }) {
   };
 
   const deleteLead = async (leadId) => {
+    if (!canDelete) { toast('Permission denied: cannot delete leads', 'error'); return; }
     if (!confirm('Delete this lead?')) return;
     await db.transact(db.tx.leads[leadId].delete());
     toast('Lead deleted', 'error');
@@ -436,6 +439,7 @@ export default function LeadsView({ user, perms, ownerId }) {
   };
 
   const convertToCustomer = async (l) => {
+    if (!canEdit) { toast('Permission denied: cannot convert leads', 'error'); return; }
     if (!confirm(`Convert ${l.name} to a Customer?`)) return;
     try {
       const payload = {
@@ -466,6 +470,7 @@ export default function LeadsView({ user, perms, ownerId }) {
   };
 
   const saveViewConfig = async (colsToSave, stagesVisible, defaultSize) => {
+    if (!perms?.isOwner) { toast('Only the business owner can change view configurations', 'error'); return; }
     if (profileId) {
       await db.transact(db.tx.userProfiles[profileId].update({ 
         leadCols: colsToSave, 

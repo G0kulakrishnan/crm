@@ -19,9 +19,9 @@ function calcTotals(items, disc, tdsRate, adj) {
 }
 
 export default function Quotations({ user, perms, ownerId, settings }) {
-  const canCreate = perms?.can('Quotations', 'create') !== false;
-  const canEdit = perms?.can('Quotations', 'edit') !== false;
-  const canDelete = perms?.can('Quotations', 'delete') !== false;
+  const canCreate = perms?.can('Quotations', 'create') === true;
+  const canEdit = perms?.can('Quotations', 'edit') === true;
+  const canDelete = perms?.can('Quotations', 'delete') === true;
 
   const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
@@ -131,7 +131,9 @@ export default function Quotations({ user, perms, ownerId, settings }) {
   };
 
   const save = async () => {
-    if (!form.client.trim()) { toast('Client name required', 'error'); return; }
+    if (editData && !canEdit) { toast('Permission denied: cannot edit quotations', 'error'); return; }
+    if (!editData && !canCreate) { toast('Permission denied: cannot create quotations', 'error'); return; }
+    if (!form.client) { toast('Client required', 'error'); return; }
     if (profile.reqShipping === 'Mandatory' && !form.shipTo?.trim()) { toast('Shipping Address is required', 'error'); return; }
     
     const { addShipping, ...qPayload } = form;
@@ -221,21 +223,11 @@ export default function Quotations({ user, perms, ownerId, settings }) {
     } catch { toast('Error saving quotation', 'error'); }
   };
 
-  const del = async (qid) => {
-    if (!confirm('Delete this quotation?')) return;
-    const q = quotes.find(x => x.id === qid);
-    const txs = [db.tx.quotes[qid].delete()];
-    if (q) {
-      const lMatch = leads.find(l => l.name === q.client);
-      if (lMatch) {
-        txs.push(db.tx.activityLogs[id()].update({
-          entityId: lMatch.id, entityType: 'lead', text: `Quotation ${q.no} was deleted.`,
-          userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
-        }));
-      }
-    }
-    await db.transact(txs);
-    toast('Deleted', 'error');
+  const del = async (qid) => { 
+    if (!canDelete) { toast('Permission denied: cannot delete quotations', 'error'); return; }
+    if (!confirm('Delete?')) return; 
+    await db.transact(db.tx.quotes[qid].delete()); 
+    toast('Deleted', 'error'); 
   };
 
   const updateItem = (i, k, v) => {
@@ -251,7 +243,8 @@ export default function Quotations({ user, perms, ownerId, settings }) {
   const removeItem = (i) => setForm(p => ({ ...p, items: p.items.filter((_, idx) => idx !== i) }));
 
   const convertToInvoice = async (q) => {
-    if (!confirm(`Convert Quotation ${q.no} to Invoice?`)) return;
+    if (!canEdit) { toast('Permission denied: cannot convert quotations', 'error'); return; }
+    if (!confirm('Convert to Invoice?')) return;
     try {
       const invNo = `INV/${new Date().getFullYear()}/${String(Math.floor(Math.random()*1000)).padStart(3, '0')}`;
       const payload = { ...q, no: invNo, status: 'Draft', createdAt: Date.now() };

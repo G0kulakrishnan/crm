@@ -9,13 +9,13 @@ const PROJ_EMPTY = { name: '', client: '', status: 'Planning', startDate: '', en
 const DEFAULT_TASK_STATUSES = ['Pending', 'In Progress', 'Completed'];
 
 export default function Projects({ user, perms, ownerId }) {
-  const canCreateProj = perms?.can('Projects', 'create') !== false;
-  const canEditProj = perms?.can('Projects', 'edit') !== false;
-  const canDeleteProj = perms?.can('Projects', 'delete') !== false;
-
-  const canCreateTask = perms?.can('Tasks', 'create') !== false;
-  const canEditTask = perms?.can('Tasks', 'edit') !== false;
-  const canDeleteTask = perms?.can('Tasks', 'delete') !== false;
+  const canCreateProj = perms?.can('Projects', 'create') === true;
+  const canEditProj = perms?.can('Projects', 'edit') === true;
+  const canDeleteProj = perms?.can('Projects', 'delete') === true;
+  
+  const canCreateTask = perms?.can('Tasks', 'create') === true;
+  const canEditTask = perms?.can('Tasks', 'edit') === true;
+  const canDeleteTask = perms?.can('Tasks', 'delete') === true;
 
   const [projModal, setProjModal] = useState(false);
   const [editProj, setEditProj] = useState(null);
@@ -92,6 +92,8 @@ export default function Projects({ user, perms, ownerId }) {
   };
 
   const saveProj = async () => {
+    if (editProj && !canEditProj) { toast('Permission denied: cannot edit projects', 'error'); return; }
+    if (!editProj && !canCreateProj) { toast('Permission denied: cannot create projects', 'error'); return; }
     if (!projForm.name.trim()) { toast('Project name required', 'error'); return; }
     const payload = { ...projForm, userId: ownerId, actorId: user.id };
     if (editProj) {
@@ -134,8 +136,9 @@ export default function Projects({ user, perms, ownerId }) {
     setProjModal(false);
   };
 
-  const delProj = async (pid, pName, client) => {
-    if (!confirm('Delete project and all its tasks?')) return;
+  const delProj = async (pid, pName, pClient) => {
+    if (!canDeleteProj) { toast('Permission denied: cannot delete projects', 'error'); return; }
+    if (!confirm(`Delete project "${pName}"? All tasks will be lost.`)) return;
     const projTasks = tasks.filter(t => t.projectId === pid);
     const txs = [
       db.tx.projects[pid].delete(),
@@ -146,7 +149,7 @@ export default function Projects({ user, perms, ownerId }) {
       })
     ];
 
-    const lMatch = leads.find(l => l.name === client);
+    const lMatch = leads.find(l => l.name === pClient);
     if (lMatch) {
       txs.push(db.tx.activityLogs[id()].update({
         entityId: lMatch.id, entityType: 'lead', text: `Project "${pName}" was deleted.`,
@@ -160,6 +163,8 @@ export default function Projects({ user, perms, ownerId }) {
   };
 
   const saveTask = async () => {
+    if (editTask && !canEditTask) { toast('Permission denied: cannot edit tasks', 'error'); return; }
+    if (!editTask && !canCreateTask) { toast('Permission denied: cannot create tasks', 'error'); return; }
     if (!taskForm.title.trim()) { toast('Task title required', 'error'); return; }
     const payload = { ...taskForm, projectId: selectedProj.id, userId: ownerId, actorId: user.id };
     if (editTask) {
@@ -182,11 +187,15 @@ export default function Projects({ user, perms, ownerId }) {
   };
 
   const delTask = async (tid, tTitle) => { 
+    if (!canDeleteTask) { toast('Permission denied: cannot delete tasks', 'error'); return; }
     await db.transact(db.tx.tasks[tid].delete()); 
     await logActivity(tid, 'task', `Task "${tTitle}" deleted`, selectedProj.id);
     toast('Task deleted', 'error'); 
   };
   const cycleStatus = async (t) => {
+    if (!canEditTask) { toast('Permission denied', 'error'); return; }
+    const idx = taskStatuses.indexOf(t.status);
+    const nextStatus = taskStatuses[(idx + 1) % taskStatuses.length];
     await db.transact(db.tx.tasks[t.id].update({ status: nextStatus }));
     await logActivity(t.id, 'task', `Status changed from ${t.status} to ${nextStatus}`, selectedProj.id);
   };

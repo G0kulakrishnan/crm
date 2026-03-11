@@ -8,9 +8,9 @@ import { INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
 const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 
 export default function Customers({ user, perms, ownerId }) {
-  const canCreate = perms?.can('Customers', 'create') !== false;
-  const canEdit = perms?.can('Customers', 'edit') !== false;
-  const canDelete = perms?.can('Customers', 'delete') !== false;
+  const canCreate = perms?.can('Customers', 'create') === true;
+  const canEdit = perms?.can('Customers', 'edit') === true;
+  const canDelete = perms?.can('Customers', 'delete') === true;
 
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState(false);
@@ -69,6 +69,8 @@ export default function Customers({ user, perms, ownerId }) {
   };
 
   const saveCustomer = async () => {
+    if (editData && !canEdit) { toast('Permission denied: cannot edit customers', 'error'); return; }
+    if (!editData && !canCreate) { toast('Permission denied: cannot create customers', 'error'); return; }
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
     if (!form.email.trim()) { toast('Email is mandatory for clients', 'error'); return; }
     try {
@@ -127,7 +129,8 @@ export default function Customers({ user, perms, ownerId }) {
   };
 
   const deleteCustomer = async (cId) => {
-    if (!confirm('Delete this customer?')) return;
+    if (!canDelete) { toast('Permission denied: cannot delete customers', 'error'); return; }
+    if (!confirm('Delete customer?')) return;
     await db.transact(db.tx.customers[cId].delete());
     toast('Customer deleted', 'error');
   };
@@ -157,7 +160,8 @@ export default function Customers({ user, perms, ownerId }) {
     const cLogs = activityLogs.filter(l => l.entityId === c.id).sort((a,b) => b.createdAt - a.createdAt);
 
     const addNote = async () => {
-      if (!noteText.trim()) return;
+    if (!canEdit) { toast('Permission denied: cannot add notes', 'error'); return; }
+    if (!noteText.trim()) return;
       await db.transact(db.tx.activityLogs[id()].update({
         entityId: c.id,
         entityType: 'customer',

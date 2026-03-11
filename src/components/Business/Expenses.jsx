@@ -8,9 +8,9 @@ const DEFAULT_CATS = ['Software', 'Hardware', 'Travel', 'Office', 'Marketing', '
 const EMPTY = { desc: '', amount: '', taxRate: 0, taxAmt: 0, category: 'Office', date: '', status: 'Pending', notes: '' };
 
 export default function Expenses({ user, perms, ownerId }) {
-  const canCreate = perms?.can('Expenses', 'create') !== false;
-  const canEdit = perms?.can('Expenses', 'edit') !== false;
-  const canDelete = perms?.can('Expenses', 'delete') !== false;
+  const canCreate = perms?.can('Expenses', 'create') === true;
+  const canEdit = perms?.can('Expenses', 'edit') === true;
+  const canDelete = perms?.can('Expenses', 'delete') === true;
 
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
@@ -36,6 +36,8 @@ export default function Expenses({ user, perms, ownerId }) {
   const pending = useMemo(() => expenses.filter(e => e.status === 'Pending').reduce((s, e) => s + (e.amount || 0), 0), [expenses]);
 
   const save = async () => {
+    if (editData && !canEdit) { toast('Permission denied: cannot edit expenses', 'error'); return; }
+    if (!editData && !canCreate) { toast('Permission denied: cannot add expenses', 'error'); return; }
     if (!form.desc.trim()) { toast('Description required', 'error'); return; }
     const payload = { 
       ...form, 
@@ -50,8 +52,17 @@ export default function Expenses({ user, perms, ownerId }) {
     setModal(false);
   };
 
-  const del = async (eid) => { if (!confirm('Delete?')) return; await db.transact(db.tx.expenses[eid].delete()); toast('Deleted', 'error'); };
-  const changeStatus = async (eid, s) => { await db.transact(db.tx.expenses[eid].update({ status: s })); toast(`Expense ${s.toLowerCase()}`, 'success'); };
+  const del = async (eid) => { 
+    if (!canDelete) { toast('Permission denied: cannot delete expenses', 'error'); return; }
+    if (!confirm('Delete?')) return; 
+    await db.transact(db.tx.expenses[eid].delete()); 
+    toast('Deleted', 'error'); 
+  };
+  const changeStatus = async (eid, s) => { 
+    if (!canEdit) { toast('Permission denied: cannot change status', 'error'); return; }
+    await db.transact(db.tx.expenses[eid].update({ status: s })); 
+    toast(`Expense ${s.toLowerCase()}`, 'success'); 
+  };
 
   return (
     <div>

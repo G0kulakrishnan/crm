@@ -132,23 +132,23 @@ export default function Dashboard({ user, ownerId, perms }) {
 
       {/* Stats */}
       <div className="stat-grid">
-        {perms.can('Leads', 'list') !== false && (
+        {perms.can('Leads', 'list') === true && (
           <>
             <div className="stat-card sc-green"><div className="lbl">Total Leads</div><div className="val">{leads.length}</div></div>
             <div className="stat-card sc-blue"><div className="lbl">Active</div><div className="val">{stats.active}</div></div>
             <div className="stat-card sc-red"><div className="lbl">Overdue Follow</div><div className="val">{stats.overdue}</div></div>
           </>
         )}
-        {perms.can('Quotations', 'list') !== false && (
+        {perms.can('Quotations', 'list') === true && (
           <div className="stat-card sc-yellow"><div className="lbl">Quotations</div><div className="val">{quotes.length}</div></div>
         )}
-        {perms.can('Invoices', 'list') !== false && (
+        {perms.can('Invoices', 'list') === true && (
           <div className="stat-card sc-purple"><div className="lbl">Invoices</div><div className="val">{invoices.length}</div></div>
         )}
-        {perms.can('Projects', 'list') !== false && (
+        {perms.can('Projects', 'list') === true && (
           <div className="stat-card sc-teal"><div className="lbl">Projects</div><div className="val">{stats.inProgress}</div></div>
         )}
-        {perms.can('AMC', 'list') !== false && (
+        {perms.can('AMC', 'list') === true && (
           <div className="stat-card sc-red"><div className="lbl">AMC Expiring</div><div className="val">{stats.amcExp}</div></div>
         )}
       </div>
@@ -156,7 +156,7 @@ export default function Dashboard({ user, ownerId, perms }) {
       {/* Charts Row */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 18 }}>
         {/* Source Chart */}
-        {perms.can('Leads', 'list') !== false && (
+        {perms.can('Leads', 'list') === true && (
           <div className="tw">
             <div className="tw-head"><h3>Leads by Source</h3></div>
             <div style={{ padding: '14px 16px' }}>
@@ -174,7 +174,7 @@ export default function Dashboard({ user, ownerId, perms }) {
         )}
 
         {/* Reminders */}
-        {(perms.can('Leads', 'list') !== false || perms.can('AMC', 'list') !== false) && (
+        {(perms.can('Leads', 'list') === true || perms.can('AMC', 'list') === true) && (
           <div className="tw">
             <div className="tw-head"><h3>⏰ Upcoming Reminders</h3></div>
             <div style={{ padding: '6px 0' }}>
@@ -193,7 +193,7 @@ export default function Dashboard({ user, ownerId, perms }) {
 
       {/* Recent Leads + Calendar */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
-        {perms.can('Leads', 'list') !== false && (
+        {perms.can('Leads', 'list') === true && (
           <>
             <div className="tw">
               <div className="tw-head"><h3>Recent Leads</h3></div>
@@ -238,7 +238,7 @@ export default function Dashboard({ user, ownerId, perms }) {
         )}
 
         {/* Revenue Trend */}
-        {perms.can('Invoices', 'list') !== false && (
+        {perms.can('Invoices', 'list') === true && (
           <div className="tw">
             <div className="tw-head"><h3>📈 Monthly Revenue Trend</h3></div>
             <div style={{ padding: '24px 20px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, height: 160 }}>
@@ -257,7 +257,7 @@ export default function Dashboard({ user, ownerId, perms }) {
         )}
 
         {/* Calendar */}
-        {perms.can('Leads', 'list') !== false && (
+        {perms.can('Leads', 'list') === true && (
           <div className="tw">
             <div className="tw-head">
               <h3>Follow-Up Calendar</h3>

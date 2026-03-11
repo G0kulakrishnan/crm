@@ -7,9 +7,9 @@ import { useToast } from '../../context/ToastContext';
 const EMPTY = { name: '', code: '', type: 'Product', category: 'General', unit: 'Nos', rate: '', tax: 18, desc: '' };
 
 export default function Products({ user, perms, ownerId }) {
-  const canCreate = perms?.can('Products', 'create') !== false;
-  const canEdit = perms?.can('Products', 'edit') !== false;
-  const canDelete = perms?.can('Products', 'delete') !== false;
+  const canCreate = perms?.can('Products', 'create') === true;
+  const canEdit = perms?.can('Products', 'edit') === true;
+  const canDelete = perms?.can('Products', 'delete') === true;
 
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
@@ -35,6 +35,8 @@ export default function Products({ user, perms, ownerId }) {
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
 
   const save = async () => {
+    if (editData && !canEdit) { toast('Permission denied: cannot edit products', 'error'); return; }
+    if (!editData && !canCreate) { toast('Permission denied: cannot create products', 'error'); return; }
     if (!form.name.trim()) { toast('Name required', 'error'); return; }
     const payload = { ...form, rate: parseFloat(form.rate) || 0, tax: parseFloat(form.tax) || 0, userId: ownerId };
     if (editData) { await db.transact(db.tx.products[editData.id].update(payload)); toast('Updated', 'success'); }
@@ -42,7 +44,12 @@ export default function Products({ user, perms, ownerId }) {
     setModal(false);
   };
 
-  const del = async (pid) => { if (!confirm('Delete?')) return; await db.transact(db.tx.products[pid].delete()); toast('Deleted', 'error'); };
+  const del = async (pid) => { 
+    if (!canDelete) { toast('Permission denied: cannot delete products', 'error'); return; }
+    if (!confirm('Delete?')) return; 
+    await db.transact(db.tx.products[pid].delete()); 
+    toast('Deleted', 'error'); 
+  };
 
   return (
     <div>

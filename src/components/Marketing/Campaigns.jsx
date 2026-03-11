@@ -13,9 +13,9 @@ const TEMPLATES = [
 ];
 
 export default function Campaigns({ user, perms, ownerId }) {
-  const canCreate = perms?.can('Campaigns', 'create') !== false;
-  const canEdit = perms?.can('Campaigns', 'edit') !== false;
-  const canDelete = perms?.can('Campaigns', 'delete') !== false;
+  const canCreate = perms?.can('Campaigns', 'create') === true;
+  const canEdit = perms?.can('Campaigns', 'edit') === true;
+  const canDelete = perms?.can('Campaigns', 'delete') === true;
 
   const [tab, setTab] = useState('compose'); // 'compose' | 'history'
   
@@ -212,6 +212,7 @@ export default function Campaigns({ user, perms, ownerId }) {
   };
 
   const handleSaveTemplate = async () => {
+    if (!canEdit) { toast('Permission denied: cannot save templates', 'error'); return; }
     if (!subject.trim() || !body.trim()) return toast('Please enter a subject and body before saving a template', 'error');
     
     // Check if the currently selected template is a custom user template
@@ -241,6 +242,7 @@ export default function Campaigns({ user, perms, ownerId }) {
   };
 
   const handleDeleteTemplate = async () => {
+    if (!canDelete) { toast('Permission denied: cannot delete templates', 'error'); return; }
     if (!confirm('Are you sure you want to delete this custom template?')) return;
     await db.transact(db.tx.campaignTemplates[selectedTemplate].delete());
     setSelectedTemplate('blank');
@@ -250,6 +252,7 @@ export default function Campaigns({ user, perms, ownerId }) {
   };
 
   const handleSend = async () => {
+    if (!canCreate) { toast('Permission denied: cannot send campaigns', 'error'); return; }
     if (!campaignName.trim()) return toast('Please enter a Campaign Name', 'error');
     if (channel === 'email' && !profile?.smtpHost) return toast('Please configure your SMTP settings in the Settings page first', 'error');
     if (channel === 'whatsapp' && !profile?.waPhoneNumberId) return toast('Please configure your WhatsApp API credentials in Settings > WhatsApp first', 'error');
@@ -841,6 +844,7 @@ export default function Campaigns({ user, perms, ownerId }) {
                     <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                       <button className="btn btn-secondary btn-sm" onClick={() => { loadTemplate(t.id); setTab('compose'); }}>Edit / Use</button>
                       <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={async () => {
+                        if (!canDelete) { toast('Permission denied', 'error'); return; }
                         if (confirm('Delete this template?')) await db.transact(db.tx.campaignTemplates[t.id].delete());
                       }}>Delete</button>
                     </div>

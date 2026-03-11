@@ -45,7 +45,10 @@ function normalisePerms(perms) {
 const EMPTY = { name: '', email: '', phone: '', role: 'Sales', active: true };
 const EMPTY_ROLE = { name: '', perms: {} };
 
-export default function Teams({ user, ownerId }) {
+export default function Teams({ user, ownerId, perms }) {
+  const canCreate = perms?.can('Teams', 'create') === true;
+  const canEdit = perms?.can('Teams', 'edit') === true;
+  const canDelete = perms?.can('Teams', 'delete') === true;
   const [tab, setTab] = useState('members');
   const [modal, setModal] = useState(false);
   const [roleModal, setRoleModal] = useState(false);
@@ -71,6 +74,8 @@ export default function Teams({ user, ownerId }) {
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
 
   const save = async () => {
+    if (editData && !canEdit) { toast('Permission denied: cannot edit members', 'error'); return; }
+    if (!editData && !canCreate) { toast('Permission denied: cannot add members', 'error'); return; }
     if (!form.name.trim() || !form.email.trim()) { toast('Name and email required', 'error'); return; }
     const normalizedEmail = form.email.trim().toLowerCase();
     const payload = { ...form, email: normalizedEmail, userId: ownerId };
@@ -79,10 +84,19 @@ export default function Teams({ user, ownerId }) {
     setModal(false);
   };
 
-  const del = async (tid) => { if (!confirm('Remove this team member?')) return; await db.transact(db.tx.teamMembers[tid].delete()); toast('Removed', 'error'); };
-  const toggleActive = async (m) => { await db.transact(db.tx.teamMembers[m.id].update({ active: !m.active })); };
+  const del = async (tid) => { 
+    if (!canDelete) { toast('Permission denied: cannot remove members', 'error'); return; }
+    if (!confirm('Remove this team member?')) return; 
+    await db.transact(db.tx.teamMembers[tid].delete()); 
+    toast('Removed', 'error'); 
+  };
+  const toggleActive = async (m) => { 
+    if (!canEdit) { toast('Permission denied', 'error'); return; }
+    await db.transact(db.tx.teamMembers[m.id].update({ active: !m.active })); 
+  };
 
   const saveRole = async () => {
+    if (!canEdit) { toast('Permission denied: cannot modify roles', 'error'); return; }
     if (!roleForm.name.trim()) { toast('Role name required', 'error'); return; }
     let newRoles = [...roles];
     if (editRole) {
@@ -107,6 +121,7 @@ export default function Teams({ user, ownerId }) {
   };
 
   const delRole = async (rName) => {
+    if (!canDelete) { toast('Permission denied: cannot delete roles', 'error'); return; }
     if (!confirm('Delete this role?')) return;
     const newRoles = roles.filter(r => r.name !== rName);
     if (profileId) await db.transact(db.tx.userProfiles[profileId].update({ roles: newRoles }));

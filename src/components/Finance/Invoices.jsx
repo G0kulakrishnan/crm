@@ -17,9 +17,9 @@ function calcTotals(items, disc, discType, adj) {
 const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [], assign: '' };
 const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 export default function Invoices({ user, perms, ownerId, settings }) {
-  const canCreate = perms?.can('Invoices', 'create') !== false;
-  const canEdit = perms?.can('Invoices', 'edit') !== false;
-  const canDelete = perms?.can('Invoices', 'delete') !== false;
+  const canCreate = perms?.can('Invoices', 'create') === true;
+  const canEdit = perms?.can('Invoices', 'edit') === true;
+  const canDelete = perms?.can('Invoices', 'delete') === true;
 
   const [tab, setTab] = useState('all');
   const [search, setSearch] = useState('');
@@ -138,6 +138,8 @@ export default function Invoices({ user, perms, ownerId, settings }) {
   };
 
   const save = async () => {
+    if (editData && !canEdit) { toast('Permission denied: cannot edit invoices', 'error'); return; }
+    if (!editData && !canCreate) { toast('Permission denied: cannot create invoices', 'error'); return; }
     if (!form.client.trim()) { toast('Client required', 'error'); return; }
     if (profile.reqShipping === 'Mandatory' && !form.shipTo?.trim()) { toast('Shipping Address is required', 'error'); return; }
     
@@ -247,6 +249,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
   };
 
   const del = async (iid) => {
+    if (!canDelete) { toast('Permission denied: cannot delete invoices', 'error'); return; }
     if (!confirm('Delete?')) return;
     const inv = invoices.find(x => x.id === iid);
     const txs = [db.tx.invoices[iid].delete()];
@@ -308,7 +311,9 @@ export default function Invoices({ user, perms, ownerId, settings }) {
   if (isLoading) return <div className="p-xl">Loading...</div>;
 
   const savePayment = async () => {
-    if (!payAmt || payAmt <= 0) return toast('Invalid amount', 'error');
+    if (!canEdit) { toast('Permission denied: cannot record payments', 'error'); return; }
+    if (!payAmt || parseFloat(payAmt) <= 0) return;
+ toast('Invalid amount', 'error');
     const existing = payModal.payments || [];
     const nw = [...existing, { date: Date.now(), amount: parseFloat(payAmt) }];
     const totalPaid = nw.reduce((s, p) => s + p.amount, 0);
@@ -354,6 +359,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
   };
 
   const saveViewConfig = async (cols) => {
+    if (!perms?.isOwner) { toast('Only the business owner can change view configurations', 'error'); return; }
     if (profile?.id) await db.transact(db.tx.userProfiles[profile.id].update({ invoiceCols: cols }));
     setColModal(false);
     toast('View saved', 'success');

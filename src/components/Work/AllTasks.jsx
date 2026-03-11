@@ -8,9 +8,9 @@ import SearchableSelect from '../UI/SearchableSelect';
 const DEFAULT_TASK_STATUSES = ['Pending', 'In Progress', 'Completed'];
 
 export default function AllTasks({ user, perms, ownerId }) {
-  const canCreate = perms?.can('Tasks', 'create') !== false;
-  const canEdit = perms?.can('Tasks', 'edit') !== false;
-  const canDelete = perms?.can('Tasks', 'delete') !== false;
+  const canCreate = perms?.can('Tasks', 'create') === true;
+  const canEdit = perms?.can('Tasks', 'edit') === true;
+  const canDelete = perms?.can('Tasks', 'delete') === true;
 
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
