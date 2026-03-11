@@ -49,7 +49,7 @@ export function usePermissions(user, profile, teamMembers = []) {
      */
     const isAdmin = false;    // Hard-revoked
     const isManager = false;  // Hard-revoked
-    const BLOCKED_MODULES = ['Admin', 'Settings', 'Teams']; // Strictly block Teams for members
+    const BLOCKED_MODULES = ['Admin', 'Settings']; // Strictly block Admin & Settings for members
 
     // 4. Trace Permissions (Diagnostic)
     const trace = (module, action, result, reason) => {
