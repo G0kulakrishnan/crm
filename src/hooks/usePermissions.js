@@ -36,13 +36,17 @@ export function usePermissions(user, profile, teamMembers = []) {
     // Normalise perms (handling both old string[] and new object formats)
     let perms = roleMatch.perms || {};
     if (Array.isArray(perms)) {
-      // Convert old format to new format on the fly for consistency
       perms = Object.fromEntries(perms.map(module => [module, ['view', 'list', 'create', 'edit', 'delete']]));
     }
 
-    const roleName = (member.role || '').toLowerCase();
-    const isAdmin = roleName === 'admin' || roleName === 'superadmin';
-    const isManager = roleName.includes('manager');
+    /**
+     * [HARDCODED SECURITY OVERRIDE]
+     * For Team Members: We strictly revoke Admin/Manager status and block sensitive modules.
+     * This overrides any role-based configurations in the database.
+     */
+    const isAdmin = false;    // Hard-revoked
+    const isManager = false;  // Hard-revoked
+    const BLOCKED_MODULES = ['Expenses', 'Products', 'Settings', 'Automation', 'Reports', 'Admin'];
 
     return {
       isOwner: false,
@@ -53,13 +57,13 @@ export function usePermissions(user, profile, teamMembers = []) {
       modules: perms,
       /**
        * Check if user can perform an action on a module.
-       * @param {string} module - Module key (e.g., 'Leads', 'AMC')
-       * @param {string} action - Action key (e.g., 'list', 'create', 'edit', 'delete', 'view')
        */
       can: (module, action = 'list') => {
+        // Hard-block sensitive modules for ALL team members
+        if (BLOCKED_MODULES.includes(module)) return false;
+
         const modPerms = perms[module];
         if (!modPerms) return false;
-        // 'view' is often an alias for 'list' or a general access check
         if (action === 'view') return modPerms.length > 0;
         return modPerms.includes(action);
       }
