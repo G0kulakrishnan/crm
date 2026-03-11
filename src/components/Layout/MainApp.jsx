@@ -105,9 +105,13 @@ export default function MainApp({ user, settings }) {
   const syncRef = useRef(false);
 
   useEffect(() => {
-    // Only owners can trigger profile creation/sync
-    // Also wait for discovery to finish if it's running
-    if (discoveryLoading || mainLoading || !data || teamInfo?.isTeamMember) return;
+    // 1. Critical Guards: Wait for everything to settle
+    if (discoveryLoading || mainLoading || !data) return;
+    
+    // 2. Strong Team Member Protection: 
+    // Do NOT create a profile if they are marked as a team member in state OR in the latest query results
+    const isTeamDiscovered = discovery?.teamMembers?.length > 0;
+    if (teamInfo?.isTeamMember || isTeamDiscovered) return;
 
     const rawReg = localStorage.getItem('tc_reg_data');
     const regData = rawReg ? JSON.parse(rawReg) : {};
