@@ -115,6 +115,12 @@ export default function LeadsView({ user, perms, ownerId }) {
     }
   }, [activeSources, activeStages, activeLabels, form.source]);
 
+  // Stage visibility filter (used for both tabs and list)
+  const visibleLeads = useMemo(() => {
+    if (!savedLeadStages || savedLeadStages.length === 0) return leads;
+    return leads.filter(l => savedLeadStages.includes(l.stage));
+  }, [leads, savedLeadStages]);
+
   // Filtering
   const filtered = useMemo(() => {
     const now = new Date();
@@ -123,7 +129,7 @@ export default function LeadsView({ user, perms, ownerId }) {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toDateString();
 
-    return leads.filter(l => {
+    return visibleLeads.filter(l => {
       if (tab === 'today') {
         if (!l.followup) return false;
         return new Date(l.followup).toDateString() === todayStr;
@@ -142,7 +148,6 @@ export default function LeadsView({ user, perms, ownerId }) {
       if (tab === 'overdue') return l.followup && new Date(l.followup) < now;
       return true;
     })
-      .filter(l => !savedLeadStages || savedLeadStages.length === 0 || savedLeadStages.includes(l.stage))
       .filter(l => !srcFilter || l.source === srcFilter)
       .filter(l => !stgFilter || l.stage === stgFilter)
       .filter(l => {
@@ -150,7 +155,7 @@ export default function LeadsView({ user, perms, ownerId }) {
         const q = search.toLowerCase();
         return [l.name, l.email, l.phone, l.source, l.stage, l.assign, l.label, l.notes].some(v => (v || '').toLowerCase().includes(q));
       });
-  }, [leads, tab, srcFilter, stgFilter, search]);
+  }, [visibleLeads, tab, srcFilter, stgFilter, search]);
 
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
   const paginated = useMemo(() => {
@@ -161,15 +166,15 @@ export default function LeadsView({ user, perms, ownerId }) {
 
   useEffect(() => { setCurrentPage(1); }, [tab, search, srcFilter, stgFilter, pageSize]);
 
-  const overdueCount = leads.filter(l => l.followup && new Date(l.followup) < new Date()).length;
-  const todayCount = leads.filter(l => l.followup && new Date(l.followup).toDateString() === new Date().toDateString()).length;
-  const tomorrowCount = leads.filter(l => {
+  const overdueCount = visibleLeads.filter(l => l.followup && new Date(l.followup) < new Date()).length;
+  const todayCount = visibleLeads.filter(l => l.followup && new Date(l.followup).toDateString() === new Date().toDateString()).length;
+  const tomorrowCount = visibleLeads.filter(l => {
     if (!l.followup) return false;
     const t = new Date();
     t.setDate(t.getDate() + 1);
     return new Date(l.followup).toDateString() === t.toDateString();
   }).length;
-  const next7Count = leads.filter(l => {
+  const next7Count = visibleLeads.filter(l => {
     if (!l.followup) return false;
     const d = new Date(l.followup); d.setHours(0,0,0,0);
     const n = new Date(); n.setHours(0,0,0,0);
@@ -658,7 +663,7 @@ export default function LeadsView({ user, perms, ownerId }) {
 
       <div className="tabs">
         {[
-          ['all', `All (${leads.length})`],
+          ['all', `All (${visibleLeads.length})`],
           ['today', `Today (${todayCount})`],
           ['tomorrow', `Tomorrow (${tomorrowCount})`],
           ['next7days', `Next 7 Days (${next7Count})`],
@@ -744,7 +749,7 @@ export default function LeadsView({ user, perms, ownerId }) {
                 </thead>
               <tbody>
                 {paginated.length === 0 ? (
-                  <tr><td colSpan={activeCols.length + 3} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No leads found</td></tr>
+                  <tr><td colSpan={activeCols.length + 4} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No leads found</td></tr>
                 ) : paginated.map((l, i) => (
                   <tr key={l.id}>
                     <td><input type="checkbox" checked={selectedIds.has(l.id)} onChange={e => { const s = new Set(selectedIds); e.target.checked ? s.add(l.id) : s.delete(l.id); setSelectedIds(s); }} style={{ width: 14, height: 14, accentColor: 'var(--accent)' }} /></td>
@@ -812,32 +817,44 @@ export default function LeadsView({ user, perms, ownerId }) {
             </div>
 
             {pageSize !== 'all' && totalPages > 1 && (
-              <div style={{ padding: '15px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', background: 'var(--bg-soft)' }}>
+              <div style={{ padding: '15px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', background: 'var(--bg-soft)', flexWrap: 'wrap', gap: 15 }}>
                 <div style={{ fontSize: 13, color: 'var(--muted)' }}>
                   Showing <strong>{(currentPage - 1) * pageSize + 1}</strong> to <strong>{Math.min(currentPage * pageSize, filtered.length)}</strong> of <strong>{filtered.length}</strong> leads
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
                   <button 
                     className="btn btn-secondary btn-sm" 
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage(prev => prev - 1)}
+                    style={{ padding: '4px 10px' }}
                   >
-                    Previous
+                    Prev
                   </button>
-                  {[...Array(totalPages)].map((_, i) => (
-                    <button 
-                      key={i} 
-                      className={`btn btn-sm ${currentPage === i + 1 ? 'btn-primary' : 'btn-secondary'}`}
-                      style={{ minWidth: 32, padding: 0 }}
-                      onClick={() => setCurrentPage(i + 1)}
-                    >
-                      {i + 1}
-                    </button>
-                  ))}
+                  {[...Array(totalPages)].map((_, i) => {
+                    const page = i + 1;
+                    const isNear = Math.abs(currentPage - page) <= 2;
+                    const isEdge = page === 1 || page === totalPages;
+                    if (!isNear && !isEdge) return null;
+                    
+                    return (
+                      <React.Fragment key={page}>
+                        {isEdge && page === totalPages && Math.abs(currentPage - page) > 3 && <span style={{ color: 'var(--muted)', alignSelf: 'center' }}>...</span>}
+                        <button 
+                          className={`btn btn-sm ${currentPage === page ? 'btn-primary' : 'btn-secondary'}`}
+                          style={{ minWidth: 32, padding: 0 }}
+                          onClick={() => setCurrentPage(page)}
+                        >
+                          {page}
+                        </button>
+                        {isEdge && page === 1 && Math.abs(currentPage - page) > 3 && <span style={{ color: 'var(--muted)', alignSelf: 'center' }}>...</span>}
+                      </React.Fragment>
+                    );
+                  })}
                   <button 
                     className="btn btn-secondary btn-sm" 
                     disabled={currentPage === totalPages}
                     onClick={() => setCurrentPage(prev => prev + 1)}
+                    style={{ padding: '4px 10px' }}
                   >
                     Next
                   </button>
