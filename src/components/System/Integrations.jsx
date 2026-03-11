@@ -53,14 +53,16 @@ export default function Integrations({ user, ownerId }) {
       name: 'Facebook Ads',
       desc: 'Sync lead data from your Facebook Lead Forms in real-time.',
       icon: '🔵',
-      connected: false
+      connected: !!profile?.fbAds?.connected,
+      disabled: !!profile?.fbAds?.disabled
     },
     {
       id: 'gads',
       name: 'Google Ads',
       desc: 'Automatically capture leads from Google Search and Display ads.',
       icon: '🟡',
-      connected: false
+      connected: !!profile?.googleAds?.connected,
+      disabled: !!profile?.googleAds?.disabled
     }
   ];
 
@@ -69,6 +71,9 @@ export default function Integrations({ user, ownerId }) {
       return toast(`Please wait ${cooldownMinutes} min before syncing again.`, 'warning');
     }
     const config = gsheets[configIndex];
+    if (config?.disabled || profile?.gsheetsDisabled) {
+      return toast('Integration is disabled. Please enable it first.', 'warning');
+    }
     if (!config?.sheetId || !config?.mapping || !config?.columns) {
       return toast('Integration is not fully configured. Please edit and fetch columns first.', 'error');
     }
@@ -189,16 +194,56 @@ export default function Integrations({ user, ownerId }) {
     }
   };
 
-  const handleSync = (id) => {
-    if (id === 'gsheets' && gsheets.length > 0) {
+  const handleDeleteSheet = async (index) => {
+    if (!confirm('Are you sure you want to delete this sheet integration?')) return;
+    const updated = gsheets.filter((_, i) => i !== index);
+    await db.transact(db.tx.userProfiles[profile.id].update({ gsheets: updated }));
+    toast('Integration deleted', 'error');
+  };
+
+  const handleToggleSheet = async (index) => {
+    const updated = gsheets.map((gs, i) => i === index ? { ...gs, disabled: !gs.disabled } : gs);
+    await db.transact(db.tx.userProfiles[profile.id].update({ gsheets: updated }));
+    toast(updated[index].disabled ? 'Integration disabled' : 'Integration enabled', 'info');
+  };
+
+  const handlePlatformAction = async (id, action) => {
+    if (!profileId) return;
+    const field = id === 'fbads' ? 'fbAds' : 'googleAds';
+    const current = profile[field] || { connected: false, disabled: false };
+    
+    if (action === 'delete') {
+      if (!confirm(`Are you sure you want to disconnect ${id}?`)) return;
+      if (id === 'gsheets') {
+        await db.transact(db.tx.userProfiles[profileId].update({ gsheets: [], gsheetsDisabled: false }));
+      } else {
+        await db.transact(db.tx.userProfiles[profileId].update({ [field]: { connected: false, disabled: false } }));
+      }
+      toast('Disconnected', 'error');
+    } else if (action === 'toggle') {
+      if (id === 'gsheets') {
+        await db.transact(db.tx.userProfiles[profileId].update({ gsheetsDisabled: !profile.gsheetsDisabled }));
+        toast(profile.gsheetsDisabled ? 'Enabled' : 'Disabled', 'info');
+      } else {
+        await db.transact(db.tx.userProfiles[profileId].update({ [field]: { ...current, disabled: !current.disabled } }));
+        toast(current.disabled ? 'Enabled' : 'Disabled', 'info');
+      }
+    } else if (action === 'connect') {
+      setSyncing(id);
+      setTimeout(async () => {
+        await db.transact(db.tx.userProfiles[profileId].update({ [field]: { connected: true, disabled: false } }));
+        setSyncing(null);
+        toast(`Connected!`, 'success');
+      }, 1500);
+    }
+  };
+
+  const handleSync = (item) => {
+    if (item.id === 'gsheets' && gsheets.length > 0) {
       syncGoogleSheet(0);
       return;
     }
-    setSyncing(id);
-    setTimeout(() => {
-      setSyncing(null);
-      toast(`Successfully connected to ${id === 'gsheets' ? 'Google Sheets' : id === 'fbads' ? 'Facebook Ads' : 'Google Ads'}`, 'success');
-    }, 2000);
+    handlePlatformAction(item.id, 'connect');
   };
 
   if (showConfig?.type === 'gsheets') {
@@ -241,14 +286,27 @@ export default function Integrations({ user, ownerId }) {
               <div style={{ marginTop: -10, marginBottom: 15 }}>
                 {gsheets.map((gs, idx) => (
                   <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg)', borderRadius: 8, marginBottom: 6, fontSize: 12 }}>
-                    <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 140 }}>
-                      📄 {gs.configName || gs.sheetId.substring(0, 8) + '...'}
+                    <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120, opacity: (gs.disabled || profile?.gsheetsDisabled) ? 0.5 : 1 }}>
+                      {(gs.disabled || profile?.gsheetsDisabled) ? '⏸ ' : '📄 '}{gs.configName || gs.sheetId.substring(0, 8) + '...'}
                     </span>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="btn btn-primary btn-sm" style={{ padding: '2px 10px', fontSize: 10 }} onClick={() => syncGoogleSheet(idx)} disabled={syncing !== null || isCoolingDown}>
-                        {syncing === 'gsheets' ? '⟳ Syncing...' : isCoolingDown ? `⏳ ${cooldownMinutes}m` : '⟳ Sync Now'}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <button 
+                        className={`btn ${gs.disabled ? 'btn-secondary' : 'btn-primary'} btn-sm`} 
+                        style={{ padding: '2px 8px', fontSize: 10 }} 
+                        onClick={() => handleToggleSheet(idx)}
+                      >
+                        {gs.disabled ? 'Enable' : 'Disable'}
+                      </button>
+                      <button 
+                        className="btn btn-primary btn-sm" 
+                        style={{ padding: '2px 10px', fontSize: 10 }} 
+                        onClick={() => syncGoogleSheet(idx)} 
+                        disabled={syncing !== null || isCoolingDown || gs.disabled || profile?.gsheetsDisabled}
+                      >
+                        {syncing === 'gsheets' ? '⟳ Syncing...' : isCoolingDown ? `⏳ ${cooldownMinutes}m` : '⟳ Sync'}
                       </button>
                       <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: 10 }} onClick={() => setShowConfig({ type: 'gsheets', index: idx })}>Edit</button>
+                      <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: 10, color: '#ef4444' }} onClick={() => handleDeleteSheet(idx)}>Disconnect</button>
                     </div>
                   </div>
                 ))}
@@ -262,14 +320,39 @@ export default function Integrations({ user, ownerId }) {
                 )}
               </div>
             )}
-            <button 
-              className={`btn ${syncing === item.id ? 'btn-secondary' : 'btn-primary'} btn-sm`} 
-              style={{ width: '100%' }}
-              onClick={() => item.id === 'gsheets' ? setShowConfig({ type: 'gsheets', index: null }) : handleSync(item.id)}
-              disabled={syncing !== null}
-            >
-              {syncing === item.id ? 'Connecting...' : item.id === 'gsheets' && gsheets.length > 0 ? '+ Add Another Sheet' : 'Connect Now'}
-            </button>
+            {item.id === 'gsheets' && gsheets.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => setShowConfig({ type: 'gsheets', index: null })}>
+                  + Add Another Sheet
+                </button>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => handlePlatformAction('gsheets', 'toggle')}>
+                    {profile?.gsheetsDisabled ? 'Enable Sync' : 'Disable Sync'}
+                  </button>
+                  <button className="btn btn-secondary btn-sm" style={{ padding: '0 12px', color: '#ef4444' }} onClick={() => handlePlatformAction('gsheets', 'delete')}>
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+            ) : item.connected ? (
+              <div style={{ display: 'flex', gap: 10 }}>
+                 <button className={`btn btn-secondary btn-sm`} style={{ flex: 1 }} onClick={() => handlePlatformAction(item.id, 'toggle')}>
+                  {item.disabled ? 'Enable Sync' : 'Disable Sync'}
+                </button>
+                <button className={`btn btn-secondary btn-sm`} style={{ padding: '0 12px', color: '#ef4444' }} onClick={() => handlePlatformAction(item.id, 'delete')}>
+                  Disconnect
+                </button>
+              </div>
+            ) : (
+              <button 
+                className={`btn ${syncing === item.id ? 'btn-secondary' : 'btn-primary'} btn-sm`} 
+                style={{ width: '100%' }}
+                onClick={() => item.id === 'gsheets' ? setShowConfig({ type: 'gsheets', index: null }) : handleSync(item)}
+                disabled={syncing !== null}
+              >
+                {syncing === item.id ? 'Connecting...' : 'Connect Now'}
+              </button>
+            )}
           </div>
         ))}
       </div>

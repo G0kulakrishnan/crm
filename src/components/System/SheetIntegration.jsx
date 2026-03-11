@@ -11,6 +11,7 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
   const [loading, setLoading] = useState(false);
   const [columns, setColumns] = useState(existingConfig?.columns || []);
   const [sampleData, setSampleData] = useState(existingConfig?.sampleData || null);
+  const [disabled, setDisabled] = useState(existingConfig?.disabled || false);
   const DEFAULT_MAPPING = {
     name: { type: 'column', value: '' },
     email: { type: 'column', value: '' },
@@ -125,7 +126,7 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
 
   const handleSave = async () => {
     if (!configName) return toast('Please enter a name for this integration', 'error');
-    const config = { configName, sheetId, mapping, customMappings, columns, sampleData, updatedAt: Date.now() };
+    const config = { configName, sheetId, mapping, customMappings, columns, sampleData, disabled, updatedAt: Date.now() };
     const current = profile.gsheets || [];
     let updated = [];
     if (editIndex !== null && editIndex !== undefined) {
@@ -372,6 +373,17 @@ function pushAllRows() {
             placeholder="e.g. Website Leads 2024" 
             style={{ width: '100%', marginBottom: 15 }}
           />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20, padding: '10px 15px', background: 'var(--bg-soft)', borderRadius: 8 }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 13 }}>Enable Integration</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)' }}>Turn off to temporarily stop syncing leads from this sheet.</div>
+            </div>
+            <div className="toggle-group">
+               <button className={!disabled ? 'active' : ''} onClick={() => setDisabled(false)}>Enabled</button>
+               <button className={disabled ? 'active' : ''} onClick={() => setDisabled(true)} style={{ color: disabled ? '#ef4444' : '' }}>Disabled</button>
+            </div>
+          </div>
 
           <label>Spreadsheet URL or ID</label>
           <div style={{ display: 'flex', gap: 10 }}>
