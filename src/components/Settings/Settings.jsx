@@ -103,11 +103,6 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   // Sync state with profile prop when it loads
   useEffect(() => {
     if (profile) {
-      setUserProfile({
-        fullName: profile.fullName || '',
-        email: profile.email || '',
-        phone: profile.phone || '',
-      });
       setBiz({
         bizName: profile.bizName || '',
         bizEmail: profile.bizEmail || '',
@@ -455,36 +450,6 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     }
   };
 
-  const saveUserProfile = async () => {
-    if (isTeamMember) {
-      if (memberProfile?.id) {
-        await db.transact(db.tx.memberProfiles[memberProfile.id].update({
-          name: userProfile.fullName,
-          phone: userProfile.phone
-        }));
-      } else {
-        // Fallback for just created profiles or if discovery is still in progress
-        const memberId = id();
-        await db.transact(db.tx.memberProfiles[memberId].update({
-          userId: user.id,
-          ownerUserId: ownerId,
-          email: user.email,
-          name: userProfile.fullName,
-          phone: userProfile.phone,
-          createdAt: Date.now()
-        }));
-      }
-      toast('Your personal profile updated! ✨', 'success');
-      return;
-    }
-
-    const payload = { 
-      fullName: userProfile.fullName,
-      phone: userProfile.phone
-    };
-    if (profileId) { await db.transact(db.tx.userProfiles[profileId].update(payload)); }
-    toast('Profile updated! ✨', 'success');
-  };
 
   const saveReminders = async () => {
     const payload = { reminders, userId: ownerId };

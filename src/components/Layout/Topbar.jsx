@@ -77,7 +77,7 @@ export default function Topbar({ user, notifCount, isExpired, teamInfo, teamMemb
         </div>
 
         {/* Avatar */}
-        <div className="av" onClick={() => setActiveView('settings')}>
+        <div className="av" onClick={() => setActiveView('userprofile')}>
           {(user?.email || 'U').charAt(0).toUpperCase()}
         </div>
 
