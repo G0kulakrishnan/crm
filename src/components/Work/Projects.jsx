@@ -298,12 +298,13 @@ export default function Projects({ user, perms, ownerId }) {
                     <th>Due Date</th>
                     <th>Priority</th>
                     <th>Status</th>
+                    <th>Notes</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {projTasks.length === 0 ? (
-                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No tasks in this project yet.</td></tr>
+                    <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No tasks in this project yet.</td></tr>
                   ) : projTasks.map((t, i) => (
                     <tr key={t.id}>
                       <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
@@ -312,8 +313,8 @@ export default function Projects({ user, perms, ownerId }) {
                       <td style={{ fontSize: 12 }}>{fmtD(t.dueDate)}</td>
                       <td><span className={`badge ${prioBadgeClass(t.priority)}`}>{t.priority}</span></td>
                       <td><span className={`badge ${stageBadgeClass(t.status)}`}>{t.status}</span></td>
+                      <td style={{ fontSize: 11, color: 'var(--muted)', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={t.notes}>{t.notes || '-'}</td>
                       <td>
-                        {canEditTask && <button className="btn btn-secondary btn-sm" onClick={() => cycleStatus(t)}>Status</button>}{' '}
                         {canEditTask && <button className="btn btn-secondary btn-sm" onClick={() => { setEditTask(t); setTaskForm({ title: t.title, assignTo: t.assignTo || '', dueDate: t.dueDate || '', priority: t.priority, status: t.status, notes: t.notes || '', client: t.client || '' }); setTaskModal(true); }}>Edit</button>}{' '}
                         {canDeleteTask && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => delTask(t.id, t.title)}>Del</button>}
                       </td>
