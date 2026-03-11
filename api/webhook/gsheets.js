@@ -53,13 +53,25 @@ export default async function handler(req, res) {
 
     // 2. Find the active Google Sheets integration mapping
     const gsheetsConfig = profile.gsheets;
+    const gsheetsDisabled = profile.gsheetsDisabled === true;
+
+    if (gsheetsDisabled) {
+      console.log(`Sync skipped for user ${userId}: Global gsheetsDisabled flag is set.`);
+      return res.status(200).json({ success: true, message: 'Sync skipped: Integration is globally disabled' });
+    }
+
     if (!gsheetsConfig || gsheetsConfig.length === 0) {
       return res.status(400).json({ success: false, message: 'No active Google Sheets mapping found for this user' });
     }
 
     // Use the first active mapping (or could be enhanced to match a specific sheetId passes in payload)
     const activeConfig = gsheetsConfig[0];
-    const { mapping, customMappings, columns } = activeConfig;
+    const { mapping, customMappings, columns, disabled } = activeConfig;
+
+    if (disabled === true) {
+      console.log(`Sync skipped for user ${userId}: Individual integration is disabled.`);
+      return res.status(200).json({ success: true, message: 'Sync skipped: This specific integration is disabled' });
+    }
 
     if (!mapping || !columns) {
       return res.status(400).json({ success: false, message: 'Incomplete integration configuration' });
