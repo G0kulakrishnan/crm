@@ -15,6 +15,7 @@ const MODULES = [
   { key: 'Campaigns', actions: ['list', 'create', 'edit'] },
   { key: 'Projects', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'Tasks', actions: ['list', 'create', 'edit', 'delete'] },
+  { key: 'Teams', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'Reports', actions: ['view'] },
   { key: 'Settings', actions: ['view'] },
 ];
@@ -71,7 +72,8 @@ export default function Teams({ user, ownerId }) {
 
   const save = async () => {
     if (!form.name.trim() || !form.email.trim()) { toast('Name and email required', 'error'); return; }
-    const payload = { ...form, userId: ownerId };
+    const normalizedEmail = form.email.trim().toLowerCase();
+    const payload = { ...form, email: normalizedEmail, userId: ownerId };
     if (editData) { await db.transact(db.tx.teamMembers[editData.id].update(payload)); toast('Member updated', 'success'); }
     else { await db.transact(db.tx.teamMembers[id()].update(payload)); toast('Member added', 'success'); }
     setModal(false);
@@ -140,11 +142,12 @@ export default function Teams({ user, ownerId }) {
     if (pwdForm.password !== pwdForm.confirm) { toast('Passwords do not match', 'error'); return; }
     setPwdLoading(true);
     try {
+      const normalizedEmail = pwdModal.email.trim().toLowerCase();
       const res = await fetch('/api/auth/set-team-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: pwdModal.email,
+          email: normalizedEmail,
           password: pwdForm.password,
           ownerUserId: ownerId,
           teamMemberId: pwdModal.id

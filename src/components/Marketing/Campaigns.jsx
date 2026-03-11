@@ -64,21 +64,8 @@ export default function Campaigns({ user, perms, ownerId }) {
     campaignTemplates: { $: { where: { userId: ownerId } } }
   });
 
-  const isTeam = perms && !perms.isOwner;
-  const canSeeAll = perms?.isAdmin || perms?.isManager || !isTeam;
-
-  const leads = (data?.leads || []).filter(l => {
-    if (canSeeAll) return true;
-    if (l.actorId === user.id) return true;
-    const assignKey = (l.assign || '').toLowerCase().trim();
-    const userName = (perms.name || '').toLowerCase().trim();
-    const userEmail = (user.email || '').toLowerCase().trim();
-    return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
-  });
-  const customers = (data?.customers || []).filter(c => {
-    if (canSeeAll) return true;
-    return c.actorId === user.id;
-  });
+  const leads = useMemo(() => data?.leads || [], [data?.leads]);
+  const customers = useMemo(() => data?.customers || [], [data?.customers]);
   const invoices = data?.invoices || [];
   const amcList = data?.amc || [];
   const products = data?.products || [];
@@ -333,11 +320,11 @@ export default function Campaigns({ user, perms, ownerId }) {
           : `Received WhatsApp campaign: "${campaignName}"`;
 
         if (channel === 'email') {
-          await sendEmail(effEmail, pSubj, pBody, profile);
+          await sendEmail(effEmail, pSubj, pBody, ownerId, profile?.bizName, ownerId);
         } else {
-          // Use real WhatsApp API if credentials are configured, otherwise log to outbox
-          if (profile?.waToken && profile?.waPhoneNumberId) {
-            await sendWhatsApp(effPhone, pBody, { waToken: profile.waToken, waPhoneNumberId: profile.waPhoneNumberId }, ownerId);
+          // Use real WhatsApp API if configured
+          if (profile?.isWaEnabled || (profile?.waToken && profile?.waPhoneNumberId)) {
+            await sendWhatsApp(effPhone, pBody, ownerId, ownerId);
           } else {
             await sendWhatsAppMock(ownerId, effPhone, pBody, { entityId: recipient.entityId, entityType: recipient.type.toLowerCase() });
           }

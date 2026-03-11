@@ -63,19 +63,9 @@ export default function Projects({ user, perms, ownerId }) {
   
   const projects = useMemo(() => {
     const raw = data?.projects || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return raw;
-    return raw.filter(p => {
-      if (perms.isAdmin || perms.isManager || p.actorId === user.id) return true;
-      const assignKey = (p.assignTo || '').toLowerCase().trim();
-      const userName = (perms.name || '').toLowerCase().trim();
-      const userEmail = (user.email || '').toLowerCase().trim();
-      const isAssigned = (assignKey && (assignKey === userName || assignKey === userEmail));
-      if (isAssigned) return true;
-      // Also show if assigned to any task in this project
-      return tasks.some(t => t.projectId === p.id && (t.assignTo === user.email || (perms.name && t.assignTo === perms.name)));
-    });
-  }, [data?.projects, tasks, perms, user]);
+    // If user has module access, show all projects for the business
+    return raw;
+  }, [data?.projects]);
 
   const filteredProjects = projects.filter(p => {
     if (!search) return true;

@@ -15,15 +15,12 @@ const NAV_ITEMS = [
   { group: 'Work' },
   { id: 'projects', label: 'Projects', icon: 'M3 3h18v18H3V3z M3 9h18 M9 21V9', permKey: 'Projects' },
   { id: 'alltasks', label: 'All Tasks', icon: 'M9 11l3 3L22 4 M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11', permKey: 'Tasks' },
-  { id: 'teams', label: 'Teams', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M23 21v-2a4 4 0 0 0-3-3.87 M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', permKey: 'Settings' },
+  { id: 'teams', label: 'Teams', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M23 21v-2a4 4 0 0 0-3-3.87 M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', permKey: 'Teams' },
   { group: 'Marketing' },
   { id: 'campaigns', label: 'Campaigns', icon: 'M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z', permKey: 'Campaigns' },
   { group: 'System' },
-  { id: 'automation', label: 'Automation', icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z', permKey: 'Settings' },
-  { id: 'messaging-logs', label: 'Messaging Logs', icon: 'M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z M22 6l-10 7L2 6', permKey: 'Settings' },
-  { id: 'integrations', label: 'Integrations', icon: 'M4 17l6-6-6-6 M12 19h8 M12 5h8 M12 12h8', permKey: 'Settings' },
-  { id: 'reports', label: 'Reports', icon: 'M18 20V10 M12 20V4 M6 20v-6', permKey: 'Reports' },
-  { id: 'settings', label: 'Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z', permKey: 'Settings' },
+  { id: 'userprofile', label: 'My Profile', icon: 'M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z', permKey: 'Public' },
+  { id: 'settings', label: 'Business Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z', permKey: 'Settings' },
 ];
 
 export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, perms, settings }) {
@@ -33,6 +30,7 @@ export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, 
   const filteredItems = NAV_ITEMS.filter(item => {
     if (item.group) return true;
     if (perms?.isOwner) return true;
+    if (item.id === 'userprofile') return true; // Everyone can see their profile
     if (item.id === 'dashboard') return perms?.can('Dashboard', 'view');
     return perms?.can(item.permKey, 'list');
   });

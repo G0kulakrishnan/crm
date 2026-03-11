@@ -66,20 +66,9 @@ export default function LeadsView({ user, perms, ownerId }) {
   
   console.log("🔍 [LeadsView] Props - ownerId:", ownerId, "perms:", perms?.isOwner ? "Owner" : "Team");
   console.log("📊 [LeadsView] Data - leadsRaw count:", data?.leads?.length || 0);
-
   const leads = useMemo(() => {
-    const rawLeads = data?.leads || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return rawLeads;
-    
-    return rawLeads.filter(l => {
-      if (l.actorId === user.id || perms.isAdmin || perms.isManager) return true;
-      const assignKey = (l.assign || '').toLowerCase().trim();
-      const userName = (perms.name || '').toLowerCase().trim();
-      const userEmail = (user.email || '').toLowerCase().trim();
-      return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
-    });
-  }, [data?.leads, perms, user]);
+    return data?.leads || [];
+  }, [data?.leads]);
   
   useEffect(() => {
     const openId = localStorage.getItem('tc_open_lead');

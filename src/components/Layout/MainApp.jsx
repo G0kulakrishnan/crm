@@ -28,6 +28,7 @@ import Settings from '../Settings/Settings';
 import MessagingLogs from '../System/MessagingLogs';
 import AdminPanel from '../Admin/AdminPanel';
 import Integrations from '../System/Integrations';
+import UserProfile from '../Settings/UserProfile';
 
 const TRIAL_DAYS = 7;
 const SUPERADMIN_KEY = 'santhanam.gokul@gmail.com';
@@ -74,9 +75,11 @@ export default function MainApp({ user, settings }) {
 
   // 3. Main Data Fetch (target the owner's data)
   const targetUserId = teamInfo?.isTeamMember ? teamInfo.ownerUserId : user.id;
+  const isTeamMember = !!teamInfo?.isTeamMember;
 
   const { isLoading: mainLoading, data, error } = db.useQuery({
     userProfiles: { $: { where: { userId: targetUserId } } },
+    memberProfiles: user.id ? { $: { where: { userId: user.id }, limit: 1 } } : null,
     teamMembers: { $: { where: { userId: targetUserId } } },
     amc: { $: { where: { userId: targetUserId } } },
     leads: { $: { where: { userId: targetUserId } } },
@@ -90,7 +93,20 @@ export default function MainApp({ user, settings }) {
   const amc = data?.amc || [];
   const subs = data?.subs || [];
   const teamMembers = data?.teamMembers || [];
-  const profile = data?.userProfiles?.[0];
+  let profile = data?.userProfiles?.[0];
+  const memberProfile = data?.memberProfiles?.[0];
+
+  // Security: Cleanse profile for team members (remove tokens/passwords)
+  if (isTeamMember && profile) {
+    const { 
+      waToken, waPhoneNumberId, 
+      smtpHost, smtpPort, smtpUser, smtpPass,
+      ...safeProfile 
+    } = profile;
+    safeProfile.isWaEnabled = !!waToken && !!waPhoneNumberId;
+    safeProfile.isSmtpEnabled = !!smtpHost && !!smtpUser && !!smtpPass;
+    profile = safeProfile;
+  }
   
   // Permissions hook
   const perms = usePermissions(user, profile, teamMembers);
@@ -109,9 +125,27 @@ export default function MainApp({ user, settings }) {
     if (discoveryLoading || mainLoading || !data) return;
     
     // 2. Strong Team Member Protection: 
-    // Do NOT create a profile if they are marked as a team member in state OR in the latest query results
-    const isTeamDiscovered = discovery?.teamMembers?.length > 0;
-    if (teamInfo?.isTeamMember || isTeamDiscovered) return;
+    // Always prioritize team discovery over accidental local profiles
+    const discoveredMember = discovery?.teamMembers?.[0];
+    const isActuallyAMember = isTeamMember || !!discoveredMember;
+
+    if (isActuallyAMember) {
+      // Create member profile if it doesn't exist
+      if (!memberProfile && !syncRef.current && user.id) {
+         syncRef.current = true;
+         const memberId = id();
+         const teamRec = discoveredMember || teamMembers.find(m => m.id === teamInfo?.teamMemberId);
+         db.transact(db.tx.memberProfiles[memberId].update({
+            userId: user.id,
+            ownerUserId: targetUserId,
+            email: user.email,
+            name: teamRec?.name || '',
+            phone: teamRec?.phone || '',
+            createdAt: Date.now()
+         })).then(() => syncRef.current = false).catch(() => syncRef.current = false);
+      }
+      return;
+    }
 
     const rawReg = localStorage.getItem('tc_reg_data');
     const regData = rawReg ? JSON.parse(rawReg) : {};
@@ -240,7 +274,8 @@ export default function MainApp({ user, settings }) {
     integrations: { component: <Integrations user={user} ownerId={targetUserId} />, label: 'Settings' },
     'messaging-logs': { component: <MessagingLogs user={user} ownerId={targetUserId} />, label: 'Settings' },
     reports: { component: <Reports user={user} perms={perms} ownerId={targetUserId} />, label: 'Reports' },
-    settings: { component: <Settings user={user} profile={profile} isExpired={isExpired} ownerId={targetUserId} initialTab={settingsTab} />, label: 'Settings' },
+    userprofile: { component: <UserProfile user={user} profile={profile} perms={perms} memberProfile={memberProfile} ownerId={targetUserId} />, label: 'Public' },
+    settings: { component: <Settings user={user} profile={profile} isExpired={isExpired} ownerId={targetUserId} initialTab={settingsTab} perms={perms} teamInfo={teamMembers.find(m => m.id === teamInfo?.teamMemberId)} memberProfile={memberProfile} />, label: 'Settings' },
     admin: { component: isSuperadmin ? <AdminPanel user={user} /> : null, label: 'Admin' },
   };
 
@@ -251,14 +286,19 @@ export default function MainApp({ user, settings }) {
     // Check if the current view is allowed
     const viewConfig = views[activeView];
     const permKey = viewConfig?.label || '';
-    const canSeeCurrent = activeView === 'dashboard' ? perms.can('Dashboard', 'view') : perms.can(permKey, 'list');
+    const canSeeCurrent = activeView === 'dashboard' ? perms.can('Dashboard', 'view') : 
+                        activeView === 'userprofile' ? true :
+                        activeView === 'settings' ? false : // Strict block for members
+                        perms.can(permKey, 'list');
 
     if (!canSeeCurrent) {
       // Find the first module they DO have access to
       const firstAvailableKey = Object.keys(views).find(key => {
         const conf = views[key];
         if (!conf || !conf.label) return false;
+        if (key === 'userprofile') return true;
         if (key === 'dashboard') return perms.can('Dashboard', 'view');
+        if (key === 'settings') return false; // Strict block for members
         return perms.can(conf.label, 'list');
       });
 

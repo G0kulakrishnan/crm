@@ -9,7 +9,7 @@ import DocumentTemplate from '../Finance/DocumentTemplate';
 const SETTINGS_GROUPS = [
   {
     title: 'General',
-    items: ['My Profile', 'Business', 'Billing']
+    items: ['Business', 'Billing']
   },
   {
     title: 'Lead Settings',
@@ -42,18 +42,16 @@ const DEFAULT_TAX_OPTIONS = [
   { label: 'GST @ 28%', rate: 28 }
 ];
 
-export default function Settings({ user, profile, isExpired, initialTab, ownerId }) {
-  const [active, setActive] = useState(initialTab || 'My Profile');
+export default function Settings({ user, profile, isExpired, initialTab, ownerId, perms, teamInfo, memberProfile }) {
+  const groups = SETTINGS_GROUPS;
+
+  const [active, setActive] = useState(initialTab || 'Business');
   
   React.useEffect(() => {
      if (initialTab) setActive(initialTab);
   }, [initialTab]);
 
-  const [userProfile, setUserProfile] = useState({
-    fullName: profile?.fullName || '',
-    email: profile?.email || '',
-    phone: profile?.phone || '',
-  });
+  // Removed userProfile state (now in UserProfile.jsx)
   const [biz, setBiz] = useState({
     bizName: profile?.bizName || '', 
     bizEmail: profile?.bizEmail || '',
@@ -239,12 +237,6 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     reader.readAsDataURL(file);
   };
 
-  const saveUserProfile = async () => {
-    if (!userProfile.email.includes('@')) return toast('Valid email required', 'error');
-    const payload = { ...userProfile, userId: ownerId };
-    if (profileId) await db.transact(db.tx.userProfiles[profileId].update(payload));
-    toast('Profile updated!', 'success');
-  };
 
   const saveBiz = async () => {
     const payload = { 
@@ -414,7 +406,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     try {
       toast('Sending test email via SMTP...', 'info');
       const smtpConfig = { smtpHost, smtpPort, smtpUser, smtpPass, bizName: biz.bizName };
-      const result = await sendEmail(testEmail, testSubject, testBody, smtpConfig, ownerId);
+      const result = await sendEmail(testEmail, testSubject, testBody, ownerId, biz.bizName, user.id);
       
       if (result === 'OK') {
         toast('Test email sent successfully! 🚀', 'success');
@@ -442,7 +434,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     const testMsg = `Hello! This is a test message from your TechCRM account. WhatsApp integration is working correctly! 🚀\n\nBusiness: ${biz.bizName || 'Your Business'}`;
     try {
       toast('Sending test WhatsApp message...', 'info');
-      const result = await sendWhatsApp(testTo, testMsg, { waToken, waPhoneNumberId }, ownerId);
+      const result = await sendWhatsApp(testTo, testMsg, ownerId, user.id);
       if (result === 'OK') {
         toast('✅ Test WhatsApp message sent successfully!', 'success');
       } else {
@@ -461,6 +453,37 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       }
       toast(`Failed: ${msg}`, 'error');
     }
+  };
+
+  const saveUserProfile = async () => {
+    if (isTeamMember) {
+      if (memberProfile?.id) {
+        await db.transact(db.tx.memberProfiles[memberProfile.id].update({
+          name: userProfile.fullName,
+          phone: userProfile.phone
+        }));
+      } else {
+        // Fallback for just created profiles or if discovery is still in progress
+        const memberId = id();
+        await db.transact(db.tx.memberProfiles[memberId].update({
+          userId: user.id,
+          ownerUserId: ownerId,
+          email: user.email,
+          name: userProfile.fullName,
+          phone: userProfile.phone,
+          createdAt: Date.now()
+        }));
+      }
+      toast('Your personal profile updated! ✨', 'success');
+      return;
+    }
+
+    const payload = { 
+      fullName: userProfile.fullName,
+      phone: userProfile.phone
+    };
+    if (profileId) { await db.transact(db.tx.userProfiles[profileId].update(payload)); }
+    toast('Profile updated! ✨', 'success');
   };
 
   const saveReminders = async () => {
@@ -489,7 +512,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       <div className="sg">
         {/* Sidebar */}
         <div className="sn">
-          {SETTINGS_GROUPS.map(group => (
+          {groups.map(group => (
             <div key={group.title} className="sng">
               <div className="snh">{group.title}</div>
               {group.items.map(s => (
@@ -550,60 +573,6 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
             </div>
           )}
 
-          {active === 'My Profile' && (
-            <div className="tw">
-              <div className="tw-head"><h3>My Profile</h3><button className="btn btn-primary btn-sm" onClick={saveUserProfile}>Save Profile</button></div>
-              <div style={{ padding: '20px' }}>
-                <div className="sub" style={{ marginBottom: 20 }}>Your personal contact information used for login and account management.</div>
-                <div className="fgrid">
-                  <div className="fg span2"><label>Full Name</label><input value={userProfile.fullName} onChange={e => setUserProfile(p => ({ ...p, fullName: e.target.value }))} /></div>
-                  <div className="fg"><label>Personal Email</label><input type="email" value={userProfile.email} onChange={e => setUserProfile(p => ({ ...p, email: e.target.value }))} disabled style={{ background: '#f8fafc', color: '#94a3b8' }} title="Email cannot be changed directly" /></div>
-                  <div className="fg"><label>Personal Phone</label><input value={userProfile.phone} onChange={e => setUserProfile(p => ({ ...p, phone: e.target.value }))} /></div>
-                </div>
-
-                <div style={{ marginTop: 30, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
-                  <h4 style={{ marginBottom: 15 }}>Security</h4>
-                  <div className="fgrid">
-                     <div className="fg">
-                        <label>Set New Password</label>
-                        <input 
-                           type="password" 
-                           id="new-password-input"
-                           placeholder="Enter new password" 
-                        />
-                     </div>
-                     <div className="fg" style={{ display: 'flex', alignItems: 'flex-end' }}>
-                        <button className="btn btn-secondary" onClick={async () => {
-                           const pwdInput = document.getElementById('new-password-input');
-                           const newPass = pwdInput.value;
-                           if (!newPass || newPass.length < 6) return toast('Password must be at least 6 characters', 'error');
-                           
-                           try {
-                              const res = await fetch('/api/auth/change-password', {
-                                 method: 'POST',
-                                 headers: { 'Content-Type': 'application/json' },
-                                 body: JSON.stringify({ email: userProfile.email, newPassword: newPass, userId: ownerId })
-                              });
-                              const data = await res.json();
-                              if (!res.ok) throw new Error(data.error);
-                              
-                              toast('Password updated successfully! 🔐', 'success');
-                              pwdInput.value = '';
-                           } catch (err) {
-                              toast(err.message, 'error');
-                           }
-                        }}>
-                           Update Password
-                        </button>
-                     </div>
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8 }}>
-                     You can set a new password here directly without needing to enter your current one.
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
 
           {active === 'Business' && (
             <div className="tw">

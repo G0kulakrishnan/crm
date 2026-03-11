@@ -42,17 +42,8 @@ export default function Quotations({ user, perms, ownerId, settings }) {
     teamMembers: { $: { where: { userId: ownerId } } },
   });
   const quotes = useMemo(() => {
-    const raw = data?.quotes || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return raw;
-    return raw.filter(q => {
-      if (q.actorId === user.id || perms.isAdmin || perms.isManager) return true;
-      const assignKey = (q.assign || '').toLowerCase().trim();
-      const userName = (perms.name || '').toLowerCase().trim();
-      const userEmail = (user.email || '').toLowerCase().trim();
-      return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
-    });
-  }, [data?.quotes, perms, user]);
+    return data?.quotes || [];
+  }, [data?.quotes]);
 
   const products = data?.products || [];
   const customers = data?.customers || [];

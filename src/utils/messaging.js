@@ -45,20 +45,18 @@ const logToOutbox = async (userId, type, recipient, content, metadata = {}) => {
 
 /**
  * Sends an email via the Nodemailer serverless function at /api/send-email.
- * Config object should have: { smtpHost, smtpPort, smtpUser, smtpPass, bizName }
+ * Signature updated to use ownerId for server-side token fetching.
  */
-export const sendEmail = async (to, subject, body, config, userId) => {
-  const { smtpHost, smtpPort, smtpUser, smtpPass, bizName } = config;
-
-  if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
-    throw new Error("SMTP configuration is incomplete. Please fill in all SMTP fields in Settings.");
+export const sendEmail = async (to, subject, body, ownerId, bizName, userId) => {
+  if (!ownerId) {
+    throw new Error("Missing ownerId for email sending.");
   }
 
   try {
     const resp = await fetch('/api/send-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, subject, body, smtpHost, smtpPort, smtpUser, smtpPass, fromName: bizName || '' })
+      body: JSON.stringify({ to, subject, body, ownerId, fromName: bizName || '' })
     });
 
     const data = await resp.json();
@@ -82,20 +80,18 @@ export const sendEmailMock = async (userId, to, subject, body, metadata = {}) =>
 
 /**
  * Sends a WhatsApp message via Meta Cloud API through /api/send-whatsapp.
- * Config object should have: { waToken, waPhoneNumberId, bizName }
+ * Signature updated to use ownerId for server-side token fetching.
  */
-export const sendWhatsApp = async (to, message, config, userId) => {
-  const { waToken, waPhoneNumberId } = config;
-
-  if (!waToken || !waPhoneNumberId) {
-    throw new Error("WhatsApp configuration is incomplete. Please fill in the Access Token and Phone Number ID in Settings.");
+export const sendWhatsApp = async (to, message, ownerId, userId) => {
+  if (!ownerId) {
+    throw new Error("Missing ownerId for WhatsApp message.");
   }
 
   try {
     const resp = await fetch('/api/send-whatsapp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, message, waToken, waPhoneNumberId })
+      body: JSON.stringify({ to, message, ownerId })
     });
 
     const data = await resp.json();

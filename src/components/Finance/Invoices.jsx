@@ -44,17 +44,8 @@ export default function Invoices({ user, perms, ownerId, settings }) {
     teamMembers: { $: { where: { userId: ownerId } } },
   });
   const invoices = useMemo(() => {
-    const raw = data?.invoices || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return raw;
-    return raw.filter(inv => {
-      if (inv.actorId === user.id || perms.isAdmin || perms.isManager) return true;
-      const assignKey = (inv.assign || '').toLowerCase().trim();
-      const userName = (perms.name || '').toLowerCase().trim();
-      const userEmail = (user.email || '').toLowerCase().trim();
-      return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
-    });
-  }, [data?.invoices, perms, user]);
+    return data?.invoices || [];
+  }, [data?.invoices]);
 
   const products = data?.products || [];
   const customers = data?.customers || [];

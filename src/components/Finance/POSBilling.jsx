@@ -42,14 +42,8 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
   }, [profile.productCats]);
 
   const filteredInvoices = useMemo(() => {
-    const rawInvoices = data?.invoices || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return rawInvoices;
-    return rawInvoices.filter(i => {
-      if (i.actorId === user.id || perms.isAdmin || perms.isManager) return true;
-      return false;
-    });
-  }, [data?.invoices, perms, user]);
+    return data?.invoices || [];
+  }, [data?.invoices]);
 
   const filteredProducts = useMemo(() => {
     let f = products;

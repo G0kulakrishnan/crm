@@ -12,13 +12,32 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { to, subject, body, smtpHost, smtpPort, smtpUser, smtpPass, fromName } = req.body || {};
+    const env = req.env || process.env;
+    const APP_ID = env.VITE_INSTANT_APP_ID;
+    const ADMIN_TOKEN = env.INSTANT_ADMIN_TOKEN;
 
-    if (!to || !subject || !body) {
-      return res.status(400).json({ error: 'Missing required fields: to, subject, body' });
+    const { to, subject, body, ownerId, fromName } = req.body || {};
+
+    if (!to || !subject || !body || !ownerId) {
+      return res.status(400).json({ error: 'Missing required fields: to, subject, body, ownerId' });
     }
+
+    const { init } = require('@instantdb/admin');
+    const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
+
+    // Fetch owner profile for SMTP
+    const { userProfiles } = await db.query({
+      userProfiles: { $: { where: { userId: ownerId }, limit: 1 } }
+    });
+
+    const profile = userProfiles?.[0];
+    const smtpHost = profile?.smtpHost;
+    const smtpPort = profile?.smtpPort;
+    const smtpUser = profile?.smtpUser;
+    const smtpPass = profile?.smtpPass;
+
     if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
-      return res.status(400).json({ error: 'Missing SMTP configuration (host, port, user, pass)' });
+      return res.status(400).json({ error: 'SMTP configuration not found for this business' });
     }
 
     const port = parseInt(smtpPort);

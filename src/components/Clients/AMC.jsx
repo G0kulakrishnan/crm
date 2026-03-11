@@ -57,17 +57,8 @@ export default function AMC({ user, perms, ownerId }) {
   const customFields = profile.customFields || [];
   const team = data?.teamMembers || [];
   const amcList = useMemo(() => {
-    const raw = data?.amc || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return raw;
-    return raw.filter(a => {
-      if (a.actorId === user.id || perms.isAdmin || perms.isManager) return true;
-      const assignKey = (a.assign || '').toLowerCase().trim();
-      const userName = (perms.name || '').toLowerCase().trim();
-      const userEmail = (user.email || '').toLowerCase().trim();
-      return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
-    });
-  }, [data?.amc, perms, user]);
+    return data?.amc || [];
+  }, [data?.amc]);
 
   const customers = data?.customers || [];
   const products = data?.products || [];
@@ -313,7 +304,7 @@ export default function AMC({ user, perms, ownerId }) {
     try {
       toast('Sending email...', 'info');
       if (emailConfig.smtpHost && emailConfig.smtpUser && emailConfig.smtpPass) {
-        const res = await sendEmail(a.email, subject, body, emailConfig, ownerId);
+        const res = await sendEmail(a.email, subject, body, ownerId, profile?.bizName, ownerId);
         if (res === 'OK') toast('Reminder sent!', 'success');
         else toast('Failed to send', 'error');
       } else {

@@ -31,14 +31,8 @@ export default function Customers({ user, perms, ownerId }) {
     leads: { $: { where: { userId: ownerId } } },
   });
   const customers = useMemo(() => {
-    const raw = data?.customers || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return raw;
-    return raw.filter(c => {
-      if (c.actorId === user.id || perms.isAdmin || perms.isManager) return true;
-      return false;
-    });
-  }, [data?.customers, perms, user]);
+    return data?.customers || [];
+  }, [data?.customers]);
 
   const customFields = data?.userProfiles?.[0]?.customFields || [];
   const projects = data?.projects || [];

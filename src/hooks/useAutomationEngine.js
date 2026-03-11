@@ -128,10 +128,14 @@ export default function useAutomationEngine(user, ownerId) {
             if (isEmail) {
               const pSubj = camp.subject.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
               const pBody = camp.body.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
-              await sendEmail(lead.email, pSubj, pBody, profile, ownerId);
+              await sendEmail(lead.email, pSubj, pBody, ownerId, profile?.bizName, ownerId);
             } else {
               const pBody = camp.body.replace(/{{name}}/g, lead.name || 'Friend').replace(/{{email}}/g, lead.email || '');
-              await sendWhatsAppMock(ownerId, lead.phone, pBody, { entityId: lead.id, entityType: 'lead' });
+              if (profile?.isWaEnabled || (profile?.waToken && profile?.waPhoneNumberId)) {
+                await sendWhatsApp(lead.phone, pBody, ownerId, ownerId);
+              } else {
+                await sendWhatsAppMock(ownerId, lead.phone, pBody, { entityId: lead.id, entityType: 'lead' });
+              }
             }
             
             await db.transact(db.tx.activityLogs[id()].update({

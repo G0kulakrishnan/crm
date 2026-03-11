@@ -7,13 +7,30 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    const { to, message, waToken, waPhoneNumberId } = req.body || {};
+    const env = req.env || process.env;
+    const APP_ID = env.VITE_INSTANT_APP_ID;
+    const ADMIN_TOKEN = env.INSTANT_ADMIN_TOKEN;
 
-    if (!to || !message) {
-      return res.status(400).json({ error: 'Missing required fields: to, message' });
+    const { to, message, ownerId } = req.body || {};
+
+    if (!to || !message || !ownerId) {
+      return res.status(400).json({ error: 'Missing required fields: to, message, ownerId' });
     }
+
+    const { init } = require('@instantdb/admin');
+    const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
+
+    // Fetch owner profile for tokens
+    const { userProfiles } = await db.query({
+      userProfiles: { $: { where: { userId: ownerId }, limit: 1 } }
+    });
+
+    const profile = userProfiles?.[0];
+    const waToken = profile?.waToken;
+    const waPhoneNumberId = profile?.waPhoneNumberId;
+
     if (!waToken || !waPhoneNumberId) {
-      return res.status(400).json({ error: 'Missing WhatsApp configuration (waToken, waPhoneNumberId)' });
+      return res.status(400).json({ error: 'WhatsApp configuration not found for this business' });
     }
 
     // Sanitize Token: trim and remove duplicate "Bearer " if present

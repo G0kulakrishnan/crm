@@ -30,30 +30,8 @@ export default function Dashboard({ user, ownerId, perms }) {
   console.log("📊 [Dashboard] Data - leadsRaw count:", leadsRaw.length);
 
   const { leads, quotes, invoices, projects, amc } = useMemo(() => {
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return { leads: leadsRaw, quotes: quotesRaw, invoices: invoicesRaw, projects: projectsRaw, amc: amcRaw };
-
-    const filteredLeads = leadsRaw.filter(l => {
-      if (perms.isAdmin || perms.isManager) return true;
-      const assignKey = (l.assign || '').toLowerCase().trim();
-      const userName = (perms.name || '').toLowerCase().trim();
-      const userEmail = (user.email || '').toLowerCase().trim();
-      return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail) || l.actorId === user.id;
-    });
-    const filteredInvoices = invoicesRaw.filter(i => i.actorId === user.id || perms.isAdmin || perms.isManager);
-    const filteredQuotes = quotesRaw.filter(q => q.actorId === user.id || perms.isAdmin || perms.isManager);
-    const filteredAmc = amcRaw.filter(a => a.actorId === user.id || perms.isAdmin || perms.isManager);
-    const filteredProjects = projectsRaw.filter(p => {
-      if (perms.isAdmin || perms.isManager) return true;
-      const assignKey = (p.assignTo || '').toLowerCase().trim();
-      const userName = (perms.name || '').toLowerCase().trim();
-      const userEmail = (user.email || '').toLowerCase().trim();
-      const isAssigned = (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail);
-      return p.actorId === user.id || isAssigned || tasksRaw.some(t => t.projectId === p.id && (t.assignTo === user.email || t.assignTo === perms.name));
-    });
-
-    return { leads: filteredLeads, quotes: filteredQuotes, invoices: filteredInvoices, projects: filteredProjects, amc: filteredAmc };
-  }, [leadsRaw, quotesRaw, invoicesRaw, projectsRaw, amcRaw, tasksRaw, perms, user]);
+    return { leads: leadsRaw, quotes: quotesRaw, invoices: invoicesRaw, projects: projectsRaw, amc: amcRaw };
+  }, [leadsRaw, quotesRaw, invoicesRaw, projectsRaw, amcRaw]);
   const now = new Date();
 
   const stats = useMemo(() => {

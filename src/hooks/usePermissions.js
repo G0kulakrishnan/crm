@@ -11,16 +11,18 @@ export function usePermissions(user, profile, teamMembers = []) {
   const permissions = useMemo(() => {
     if (!user || !profile) return null;
 
-    // 1. Check if user is the Owner
-    const isOwner = user.id === profile.userId || 
-                    (user.email && profile.email && user.email.toLowerCase() === profile.email.toLowerCase());
+    // 1. Check if user is a Team Member (Priority)
+    const member = teamMembers.find(m => m.email.toLowerCase() === user.email?.toLowerCase());
+
+    // 2. Check if user is the Owner
+    const isOwnerByEmail = user.email && profile.email && user.email.toLowerCase() === profile.email.toLowerCase();
+    const isOwnerById = user.id === profile.userId;
+    const isOwner = (isOwnerByEmail || isOwnerById) && !member; // Only owner if NOT a member
     
     if (isOwner) {
       return { isOwner: true, can: () => true, modules: null, name: profile.fullName };
     }
 
-    // 2. Check if user is a Team Member
-    const member = teamMembers.find(m => m.email.toLowerCase() === user.email?.toLowerCase());
     if (!member || member.active === false) {
       return { isOwner: false, can: () => false, modules: {} };
     }
@@ -46,7 +48,7 @@ export function usePermissions(user, profile, teamMembers = []) {
      */
     const isAdmin = false;    // Hard-revoked
     const isManager = false;  // Hard-revoked
-    const BLOCKED_MODULES = ['Expenses', 'Products', 'Settings', 'Automation', 'Reports', 'Admin'];
+    const BLOCKED_MODULES = ['Automation', 'Reports', 'Admin', 'Settings'];
 
     return {
       isOwner: false,
