@@ -277,39 +277,51 @@ export default function Projects({ user, perms, ownerId }) {
           </div>
         </div>
       ) : (
-        /* TASKS KANBAN */
+        /* TASKS LIST VIEW */
         <div>
-          <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <strong style={{ fontSize: 15 }}>{selectedProj.name}</strong>
+          <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <strong style={{ fontSize: 16 }}>{selectedProj.name}</strong>
             <span className={`badge ${stageBadgeClass(selectedProj.status)}`}>{selectedProj.status}</span>
           </div>
-          <div className="kanban">
-            {taskStatuses.map(stage => {
-              const stageTasks = projTasks.filter(t => t.status === stage);
-              return (
-                <div key={stage} className="kb-col">
-                  <div className="kb-col-head">{stage} <span>{stageTasks.length}</span></div>
-                  {stageTasks.map(t => (
-                    <div key={t.id} className="kb-card">
-                      <div className="nm">{t.title}</div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-                        <span className={`badge ${prioBadgeClass(t.priority)}`} style={{ fontSize: 10 }}>{t.priority}</span>
-                        {t.dueDate && <span style={{ fontSize: 10, color: 'var(--muted)' }}>{fmtD(t.dueDate)}</span>}
-                      </div>
-                      <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
-                        {t.assignTo && <span>→ {t.assignTo}</span>}
-                        {t.client && <span style={{ marginLeft: 8 }}>👤 {t.client}</span>}
-                      </div>
-                      <div style={{ display: 'flex', gap: 4, marginTop: 7 }}>
-                        {canEditTask && <button className="btn btn-secondary btn-sm" style={{ fontSize: 11, padding: '3px 7px' }} onClick={() => cycleStatus(t)}>▶ {taskStatuses.indexOf(t.status) === taskStatuses.length - 1 ? 'Reset' : 'Next'}</button>}
-                        {canEditTask && <button className="btn btn-secondary btn-sm" style={{ fontSize: 11, padding: '3px 7px' }} onClick={() => { setEditTask(t); setTaskForm({ title: t.title, assignTo: t.assignTo || '', dueDate: t.dueDate || '', priority: t.priority, status: t.status, notes: t.notes || '', client: t.client || '' }); setTaskModal(true); }}>Edit</button>}
-                        {canDeleteTask && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', fontSize: 11, padding: '3px 7px' }} onClick={() => delTask(t.id, t.title)}>Del</button>}
-                      </div>
-                    </div>
+
+          <div className="tw">
+            <div className="tw-head">
+              <h3>Project Tasks ({projTasks.length})</h3>
+            </div>
+            <div className="tw-scroll">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Task Title</th>
+                    <th>Assignee</th>
+                    <th>Due Date</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projTasks.length === 0 ? (
+                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No tasks in this project yet.</td></tr>
+                  ) : projTasks.map((t, i) => (
+                    <tr key={t.id}>
+                      <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
+                      <td><strong>{t.title}</strong></td>
+                      <td style={{ fontSize: 12 }}>{t.assignTo || '-'}</td>
+                      <td style={{ fontSize: 12 }}>{fmtD(t.dueDate)}</td>
+                      <td><span className={`badge ${prioBadgeClass(t.priority)}`}>{t.priority}</span></td>
+                      <td><span className={`badge ${stageBadgeClass(t.status)}`}>{t.status}</span></td>
+                      <td>
+                        {canEditTask && <button className="btn btn-secondary btn-sm" onClick={() => cycleStatus(t)}>Status</button>}{' '}
+                        {canEditTask && <button className="btn btn-secondary btn-sm" onClick={() => { setEditTask(t); setTaskForm({ title: t.title, assignTo: t.assignTo || '', dueDate: t.dueDate || '', priority: t.priority, status: t.status, notes: t.notes || '', client: t.client || '' }); setTaskModal(true); }}>Edit</button>}{' '}
+                        {canDeleteTask && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => delTask(t.id, t.title)}>Del</button>}
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              );
-            })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <div className="tw" style={{ marginTop: 24, padding: 20 }}>

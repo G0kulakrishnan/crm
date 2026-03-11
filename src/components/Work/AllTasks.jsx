@@ -191,6 +191,12 @@ export default function AllTasks({ user, perms, ownerId }) {
             </div>
             <div className="mo-foot">
               <button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>{viewData ? 'Close' : 'Cancel'}</button>
+              {viewData && canEdit && (
+                <button className="btn btn-primary btn-sm" onClick={() => {
+                  setEditData(viewData);
+                  setViewData(null);
+                }}>Edit Task</button>
+              )}
               {!viewData && <button className="btn btn-primary btn-sm" onClick={save}>Save</button>}
             </div>
           </div>
