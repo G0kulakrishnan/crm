@@ -17,10 +17,11 @@ export default function AdminPanel({ user }) {
   const [tab, setTab] = useState('users');
   const [couponModal, setCouponModal] = useState(false);
   const [couponForm, setCouponForm] = useState({ code: '', discount: 20, type: 'Percentage', maxUses: 100 });
-  const [settingsForm, setSettingsForm] = useState({ brandName: '', brandShort: '', title: '', favicon: '', crmDomain: '' });
+  const [settingsForm, setSettingsForm] = useState({ brandName: '', brandShort: '', brandLogo: '', title: '', favicon: '', crmDomain: '', showBranding: true });
   const [planModal, setPlanModal] = useState(false);
   const [planForm, setPlanForm] = useState(EMPTY_PLAN);
   const [editPlanIdx, setEditPlanIdx] = useState(null);
+  const hasSettingsLoaded = React.useRef(false); // Robust flag to prevent overwriting user typing
   const toast = useToast();
 
   const { data, error } = db.useQuery({
@@ -36,20 +37,26 @@ export default function AdminPanel({ user }) {
   const coupons = data?.coupons || [];
   const transactions = data?.transactions || [];
   const globalSettings = data?.globalSettings?.[0] || {};
-  const settingsId = data?.globalSettings?.[0]?.id || 'app-settings';
+  // SINGLETON ID: Always use a valid UUID to ensure we update a single record
+  const settingsId = globalSettings.id || '73f6063d-4c3d-4d51-9f93-111111111111';
   const plans = globalSettings.plans ? JSON.parse(globalSettings.plans) : FALLBACK_PLANS;
 
   React.useEffect(() => {
-    if (tab === 'settings') {
-      setSettingsForm({
-        brandName: globalSettings.brandName || '',
-        brandShort: globalSettings.brandShort || '',
-        title: globalSettings.title || '',
-        favicon: globalSettings.favicon || '',
-        crmDomain: globalSettings.crmDomain || '',
-      });
+    // Only initialize the form ONCE when the query returns data
+    if (data?.globalSettings?.[0] && !hasSettingsLoaded.current) {
+        hasSettingsLoaded.current = true;
+        const s = data.globalSettings[0];
+        setSettingsForm({
+          brandName: s.brandName || '',
+          brandShort: s.brandShort || '',
+          brandLogo: s.brandLogo || '',
+          title: s.title || '',
+          favicon: s.favicon || '',
+          crmDomain: s.crmDomain || '',
+          showBranding: s.showBranding !== false
+        });
     }
-  }, [tab, globalSettings.brandName, globalSettings.brandShort, globalSettings.title, globalSettings.favicon, globalSettings.crmDomain]);
+  }, [data]);
 
   /* ──────────── COUPON ──────────── */
   const saveCoupon = async () => {
@@ -121,14 +128,22 @@ export default function AdminPanel({ user }) {
 
   /* ──────────── SETTINGS ──────────── */
   const saveSettings = async () => {
-    await db.transact(db.tx.globalSettings[settingsId].update({
-      brandName: settingsForm.brandName || 'TechCRM',
-      brandShort: settingsForm.brandShort || 'TC',
-      title: settingsForm.title || 'TechCRM | CRM',
-      favicon: settingsForm.favicon || '',
-      crmDomain: settingsForm.crmDomain || '',
-    }));
-    toast('Platform Settings Updated', 'success');
+    try {
+      console.log("💾 [AdminPanel] Saving settings to:", settingsId, settingsForm);
+      await db.transact(db.tx.globalSettings[settingsId].update({
+        brandName: settingsForm.brandName || '',
+        brandShort: settingsForm.brandShort || '',
+        brandLogo: settingsForm.brandLogo || '',
+        title: settingsForm.title || '',
+        favicon: settingsForm.favicon || '',
+        crmDomain: settingsForm.crmDomain || '',
+        showBranding: settingsForm.showBranding !== false,
+      }));
+      toast('Platform Settings Updated', 'success');
+    } catch (err) {
+      console.error("❌ [AdminPanel] Save failed:", err);
+      toast(`Save Failed: ${err.message || 'Unknown Error'}`, 'error');
+    }
   };
 
   const totalRevenue = transactions.filter(t => t.status === 'Success').reduce((s, t) => s + (t.amount || 0), 0);
@@ -303,10 +318,17 @@ export default function AdminPanel({ user }) {
               <input value={settingsForm.brandName} onChange={e => setSettingsForm({ ...settingsForm, brandName: e.target.value })} placeholder="e.g. T2G CRM" />
               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Shown on login screen and sidebar logo.</div>
             </div>
-            <div className="form-group" style={{ marginBottom: 14 }}>
-              <label>Brand Initials (Short Logo)</label>
-              <input value={settingsForm.brandShort} onChange={e => setSettingsForm({ ...settingsForm, brandShort: e.target.value })} placeholder="e.g. T2G" maxLength={4} />
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>2-4 character abbreviation shown in collapsed sidebar.</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label>Brand Initials (Short Logo)</label>
+                <input value={settingsForm.brandShort} onChange={e => setSettingsForm({ ...settingsForm, brandShort: e.target.value })} placeholder="e.g. T2G" maxLength={4} />
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>2-4 initials shown if logo is missing.</div>
+              </div>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label>Brand Logo URL</label>
+                <input value={settingsForm.brandLogo} onChange={e => setSettingsForm({ ...settingsForm, brandLogo: e.target.value })} placeholder="https://example.com/logo.png" />
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Logo used in sidebar and docs.</div>
+              </div>
             </div>
             <div className="form-group" style={{ marginBottom: 14 }}>
               <label>Website Document Title</label>
@@ -321,8 +343,21 @@ export default function AdminPanel({ user }) {
             <div className="form-group" style={{ marginBottom: 18, borderTop: '1px solid var(--border)', paddingTop: 18 }}>
               <label>CRM Domain URL</label>
               <input value={settingsForm.crmDomain} onChange={e => setSettingsForm({ ...settingsForm, crmDomain: e.target.value })} placeholder="https://mycrm.t2gcrm.in" />
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Your deployed CRM domain. Used in the Google Sheets Apps Script webhook URL and anywhere else the domain is referenced. If you change your domain, update this field and re-copy the Apps Script.</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Your deployed CRM domain.</div>
             </div>
+            
+            <div className="form-group" style={{ marginBottom: 20 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={settingsForm.showBranding} 
+                  onChange={e => setSettingsForm({ ...settingsForm, showBranding: e.target.checked })}
+                  style={{ width: 18, height: 18 }} 
+                />
+                <span style={{ fontWeight: 600 }}>Show "Powered By" branding in Documents (Invoices/Quotes)</span>
+              </label>
+            </div>
+            
             <button className="btn btn-primary" onClick={saveSettings}>Save Branding Settings</button>
           </div>
         </div>

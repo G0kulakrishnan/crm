@@ -257,13 +257,12 @@ export default function AMC({ user, perms, ownerId }) {
         disc: 0, adj: 0, tdsRate: 0,
         items: [{
           name: a.plan || 'AMC Renewal',
-          desc: `${fmtD(newStartStr)} to ${fmtD(newEndStr)} (${getCycleDuration(renewForm.cycle)})`,
           qty: 1,
           rate: paidAmount,
           taxRate: parseFloat(renewForm.taxRate) || 0
         }],
         fromAmc: true,
-        notes: `Auto-generated from AMC Renewal #${existingRenewals.length + 1}`
+        notes: ''
       };
 
       txs.push(db.tx.invoices[id()].update(invoicePayload));
@@ -337,8 +336,8 @@ export default function AMC({ user, perms, ownerId }) {
       status: 'Draft', template: 'Classic', 
       total: Math.round(a.amount * (1 + (a.taxRate || 0) / 100)), 
       disc: 0, adj: 0, tdsRate: 0,
-      notes: a.contractNo || '', fromAmc: true,
-      items: [{ name: a.plan || 'AMC Plan', desc: `${fmtD(a.startDate)} to ${fmtD(a.endDate)}`, qty: 1, rate: a.amount, taxRate: a.taxRate || 0 }]
+      notes: '', fromAmc: true,
+      items: [{ name: a.plan || 'AMC Plan', qty: 1, rate: a.amount, taxRate: a.taxRate || 0 }]
     };
 
     await db.transact(db.tx.invoices[id()].update(invoicePayload));

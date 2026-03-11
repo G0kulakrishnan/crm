@@ -131,6 +131,8 @@ export default function MainApp({ user, settings }) {
         stages: DEFAULT_STAGES,
         sources: DEFAULT_SOURCES,
         labels: DEFAULT_LABELS,
+        invoiceTemplate: 'Spreadsheet',
+        quotationTemplate: 'Spreadsheet',
         createdAt: Date.now()
       })).then(() => {
         console.log("✅ [MainApp] Profile created successfully:", profileId);
@@ -219,9 +221,9 @@ export default function MainApp({ user, settings }) {
   const views = {
     dashboard: { component: <Dashboard user={user} ownerId={targetUserId} perms={perms} />, label: 'Dashboard' },
     leads: { component: <LeadsView user={user} perms={perms} ownerId={targetUserId} />, label: 'Leads' },
-    quotations: { component: <Quotations user={user} perms={perms} ownerId={targetUserId} />, label: 'Quotations' },
-    invoices: { component: <Invoices user={user} perms={perms} ownerId={targetUserId} />, label: 'Invoices' },
-    pos: { component: <POSBilling user={user} perms={perms} ownerId={targetUserId} />, label: 'Invoices' }, 
+    quotations: { component: <Quotations user={user} perms={perms} ownerId={targetUserId} settings={settings} />, label: 'Quotations' },
+    invoices: { component: <Invoices user={user} perms={perms} ownerId={targetUserId} settings={settings} />, label: 'Invoices' },
+    pos: { component: <POSBilling user={user} perms={perms} ownerId={targetUserId} settings={settings} />, label: 'Invoices' }, 
     customers: { component: <Customers user={user} perms={perms} ownerId={targetUserId} />, label: 'Customers' },
     amc: { component: <AMC user={user} perms={perms} ownerId={targetUserId} />, label: 'AMC' },
     expenses: { component: <Expenses user={user} perms={perms} ownerId={targetUserId} />, label: 'Expenses' },
@@ -267,9 +269,9 @@ export default function MainApp({ user, settings }) {
   if (isDiscovering || mainLoading || !perms) {
     return (
       <div className="loading-screen">
-        <div className="logo">{settings?.brandShort || 'TC'}</div>
+        <div className="logo">{settings?.brandShort || ''}</div>
         <div className="spinner" />
-        <p>{isDiscovering ? 'Discovering Workspace...' : `Configuring ${settings?.brandName || 'TechCRM'}...`}</p>
+        <p>{isDiscovering ? 'Discovering Workspace...' : `Configuring ${settings?.brandName || ''}...`}</p>
       </div>
     );
   }

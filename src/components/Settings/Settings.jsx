@@ -6,7 +6,28 @@ import { renderTemplate, sendEmailMock, sendEmail, sendWhatsApp } from '../../ut
 import { fmtD, INDIAN_STATES, COUNTRIES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, SYSTEM_STAGES } from '../../utils/helpers';
 import DocumentTemplate from '../Finance/DocumentTemplate';
 
-const SETTING_NAV = ['My Profile', 'Business', 'Finance', 'Templates', 'Billing', 'Taxes', 'Custom Fields', 'Sources', 'Stages', 'Labels', 'Product Categories', 'Expense Categories', 'Task Statuses', 'SMTP', 'WhatsApp', 'Reminders'];
+const SETTINGS_GROUPS = [
+  {
+    title: 'General',
+    items: ['My Profile', 'Business', 'Billing']
+  },
+  {
+    title: 'Lead Settings',
+    items: ['Sources', 'Stages', 'Labels', 'Custom Fields']
+  },
+  {
+    title: 'Finance & Products',
+    items: ['Finance', 'Templates', 'Taxes', 'Product Categories', 'Expense Categories']
+  },
+  {
+    title: 'Operations',
+    items: ['Task Statuses']
+  },
+  {
+    title: 'Comms & Alerts',
+    items: ['SMTP', 'WhatsApp', 'Reminders']
+  }
+];
 
 // Centralized defaults are imported from helpers.js
 const DEFAULT_CFIELDS = []; // { name: 'Requirement', type: 'text'|'number'|'dropdown', options: 'A,B' }
@@ -60,9 +81,10 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     accountNo: profile?.accountNo || '',
     ifsc: profile?.ifsc || '',
     accHolder: profile?.accHolder || '',
+    bankExtra: profile?.bankExtra || '',
     qrCode: profile?.qrCode || null,
-    invoiceTemplate: profile?.invoiceTemplate || 'Classic',
-    quotationTemplate: profile?.quotationTemplate || 'Classic',
+    invoiceTemplate: profile?.invoiceTemplate || 'Spreadsheet',
+    quotationTemplate: profile?.quotationTemplate || 'Spreadsheet',
   });
   const [smtpHost, setSmtpHost] = useState(profile?.smtpHost || '');
   const [smtpPort, setSmtpPort] = useState(profile?.smtpPort || '587');
@@ -116,6 +138,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
         accountNo: profile.accountNo || '',
         ifsc: profile.ifsc || '',
         accHolder: profile.accHolder || '',
+        bankExtra: profile.bankExtra || '',
         qrCode: profile.qrCode || null,
         invoiceTemplate: profile.invoiceTemplate || 'Classic',
         quotationTemplate: profile.quotationTemplate || 'Classic',
@@ -194,12 +217,25 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     }
   }, [profileId, stages, data?.leads]);
 
-  const handleFile = (e, callback) => {
+  const handleFile = (e, callback, fieldName = null) => {
     const file = e.target.files[0];
     if (!file) return;
     if (file.size > 500000) return toast('File too large (max 500KB)', 'error');
     const reader = new FileReader();
-    reader.onloadend = () => callback(reader.result);
+    reader.onloadend = async () => {
+      const result = reader.result;
+      callback(result);
+      
+      // Auto-save if fieldName is provided
+      if (fieldName && profileId) {
+        try {
+          await db.transact(db.tx.userProfiles[profileId].update({ [fieldName]: result }));
+          toast(`${fieldName === 'logo' ? 'Logo' : 'QR Code'} auto-saved!`, 'success');
+        } catch (err) {
+          console.error(`Auto-save failed for ${fieldName}:`, err);
+        }
+      }
+    };
     reader.readAsDataURL(file);
   };
 
@@ -217,6 +253,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       bankName: fin.bankName,
       accountNo: fin.accountNo,
       ifsc: fin.ifsc,
+      bankExtra: fin.bankExtra,
       qrCode: fin.qrCode,
       userId: ownerId 
     };
@@ -452,8 +489,13 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       <div className="sg">
         {/* Sidebar */}
         <div className="sn">
-          {SETTING_NAV.map(s => (
-            <div key={s} className={`sni${active === s ? ' active' : ''}`} onClick={() => setActive(s)}>{s}</div>
+          {SETTINGS_GROUPS.map(group => (
+            <div key={group.title} className="sng">
+              <div className="snh">{group.title}</div>
+              {group.items.map(s => (
+                <div key={s} className={`sni${active === s ? ' active' : ''}`} onClick={() => setActive(s)}>{s}</div>
+              ))}
+            </div>
           ))}
         </div>
 
@@ -595,10 +637,13 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                     <div style={{ display: 'flex', alignItems: 'center', gap: 15, marginTop: 5 }}>
                       {biz.logo && <img src={biz.logo} alt="Logo" style={{ height: 60, width: 60, objectFit: 'contain', border: '1px solid var(--border)', borderRadius: 8 }} />}
                       <div style={{ flex: 1 }}>
-                        <input type="file" accept="image/*" onChange={e => handleFile(e, (res) => setBiz(b => ({ ...b, logo: res })))} style={{ fontSize: 12 }} />
+                        <input type="file" accept="image/*" onChange={e => handleFile(e, (res) => setBiz(b => ({ ...b, logo: res })), 'logo')} style={{ fontSize: 12 }} />
                         <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>Recommended: Square PNG/JPG, Max 500KB.</div>
                       </div>
-                      {biz.logo && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => setBiz(b => ({ ...b, logo: null }))}>Remove</button>}
+                      {biz.logo && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={async () => {
+                        setBiz(b => ({ ...b, logo: null }));
+                        if (profileId) await db.transact(db.tx.userProfiles[profileId].update({ logo: null }));
+                      }}>Remove</button>}
                     </div>
                   </div>
                 </div>
@@ -614,6 +659,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                       <div className="fg"><label>Bank Name</label><input value={fin.bankName} onChange={e => setFin(f => ({ ...f, bankName: e.target.value }))} /></div>
                       <div className="fg"><label>Account Number</label><input value={fin.accountNo} onChange={e => setFin(f => ({ ...f, accountNo: e.target.value }))} /></div>
                       <div className="fg"><label>IFSC Code</label><input value={fin.ifsc} onChange={e => setFin(f => ({ ...f, ifsc: e.target.value }))} /></div>
+                      <div className="fg span2"><label>Additional Payment Details (Optional)</label><textarea value={fin.bankExtra} onChange={e => setFin(f => ({ ...f, bankExtra: e.target.value }))} placeholder="e.g. UPI ID: name@upi or Swift Code: ..." style={{ minHeight: 60 }} /></div>
                     </div>
                     <div>
                       <label style={{ fontSize: 12, fontWeight: 600, marginBottom: 8, display: 'block' }}>Payment QR Code</label>
@@ -626,7 +672,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                         ) : (
                           <div style={{ padding: '10px 0' }}>
                             <div style={{ fontSize: 24, marginBottom: 8 }}>📱</div>
-                            <input type="file" accept="image/*" onChange={e => handleFile(e, (res) => setFin(f => ({ ...f, qrCode: res })))} style={{ fontSize: 11, width: '100%' }} />
+                            <input type="file" accept="image/*" onChange={e => handleFile(e, (res) => setFin(f => ({ ...f, qrCode: res })), 'qrCode')} style={{ fontSize: 11, width: '100%' }} />
                             <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 8 }}>Upload UPI/Payment QR</div>
                           </div>
                         )}

@@ -310,6 +310,12 @@ tr:hover td { background: #f8faf9; }
 .sg { display: grid; grid-template-columns: 190px 1fr; gap: 18px; }
 .sn .sni { padding: 9px 12px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; color: var(--muted); transition: .15s; }
 .sn .sni:hover, .sn .sni.active { background: rgba(34,197,94,.1); color: var(--accent2); font-weight: 700; }
+.snh { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text); margin: 20px 0 8px 12px; opacity: 1; }
+.sng:first-child .snh { margin-top: 5px; }
+@media (max-width: 992px) {
+  .snh { display: none; }
+  .sng { display: contents; }
+}
 
 /* REMINDER BADGE */
 .rem-badge { display: inline-flex; align-items: center; gap: 5px; background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; border-radius: 20px; padding: 3px 10px; font-size: 11px; font-weight: 600; }

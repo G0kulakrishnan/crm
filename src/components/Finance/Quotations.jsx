@@ -6,7 +6,7 @@ import DocumentTemplate from './DocumentTemplate';
 import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
 
-const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], shipTo: '', addShipping: false, assign: '' };
+const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, assign: '' };
 const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 
 function calcTotals(items, disc, tdsRate, adj) {
@@ -18,7 +18,7 @@ function calcTotals(items, disc, tdsRate, adj) {
   return { sub, taxTotal, discAmt, tdsAmt, total };
 }
 
-export default function Quotations({ user, perms, ownerId }) {
+export default function Quotations({ user, perms, ownerId, settings }) {
   const canCreate = perms?.can('Quotations', 'create') !== false;
   const canEdit = perms?.can('Quotations', 'edit') !== false;
   const canDelete = perms?.can('Quotations', 'delete') !== false;
@@ -88,7 +88,13 @@ export default function Quotations({ user, perms, ownerId }) {
     setEditData(null); 
     const nextNo = `QUOTE/${new Date().getFullYear()}/${String(quotes.length + 1).padStart(3, '0')}`;
     const defTax = profile?.defaultTaxRate || 0;
-    setForm({ ...EMPTY, no: nextNo, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: defTax }] }); 
+    
+    // Default 14-day validity
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    const defDue = d.toISOString().split('T')[0];
+    
+    setForm({ ...EMPTY, no: nextNo, validUntil: defDue, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: defTax }] }); 
     setModal(true); 
   };
   const openEdit = (q) => {
@@ -96,9 +102,41 @@ export default function Quotations({ user, perms, ownerId }) {
     setForm({ 
       no: q.no || '', client: q.client, validUntil: q.validUntil || '', status: q.status, 
       notes: q.notes || '', terms: q.terms || '', disc: q.disc || 0, adj: q.adj || 0, tdsRate: q.tdsRate || 0, 
-      items: q.items?.length ? q.items : EMPTY.items, shipTo: q.shipTo || '', addShipping: !!q.shipTo, assign: q.assign || '' 
+      items: q.items?.length ? q.items : EMPTY.items, 
+      isAmc: !!q.amcStart || !!q.isAmc, 
+      amcCycle: q.amcCycle || 'Yearly', 
+      amcStart: q.amcStart || '', 
+      amcEnd: q.amcEnd || '', 
+      amcPlan: q.amcPlan || '', 
+      amcAmount: q.amcAmount || '', 
+      amcTaxRate: q.amcTaxRate || 0,
+      shipTo: q.shipTo || '', addShipping: !!q.shipTo, assign: q.assign || '' 
     });
     setModal(true);
+  };
+
+  const handleAmcStartChange = (val) => {
+    let endDate = form.amcEnd;
+    if (val && form.amcCycle !== 'Custom') {
+      const d = new Date(val);
+      if (form.amcCycle === 'Monthly') d.setMonth(d.getMonth() + 1);
+      else if (form.amcCycle === 'Yearly') d.setFullYear(d.getFullYear() + 1);
+      d.setDate(d.getDate() - 1);
+      endDate = d.toISOString().split('T')[0];
+    }
+    setForm(p => ({ ...p, amcStart: val, amcEnd: endDate }));
+  };
+  
+  const handleAmcCycleChange = (val) => {
+    let endDate = form.amcEnd;
+    if (form.amcStart && val !== 'Custom') {
+      const d = new Date(form.amcStart);
+      if (val === 'Monthly') d.setMonth(d.getMonth() + 1);
+      else if (val === 'Yearly') d.setFullYear(d.getFullYear() + 1);
+      d.setDate(d.getDate() - 1);
+      endDate = d.toISOString().split('T')[0];
+    }
+    setForm(p => ({ ...p, amcCycle: val, amcEnd: endDate }));
   };
 
   const save = async () => {
@@ -110,20 +148,54 @@ export default function Quotations({ user, perms, ownerId }) {
       qPayload.shipTo = '';
     }
 
-    const payload = { ...qPayload, userId: ownerId, actorId: user.id, date: editData ? editData.date : new Date().toISOString().split('T')[0], total: tots.total, sub: tots.sub, taxAmt: tots.taxTotal };
+    const payload = { 
+      ...qPayload, 
+      userId: ownerId, 
+      actorId: user.id, 
+      date: editData ? editData.date : new Date().toISOString().split('T')[0], 
+      total: tots.total, 
+      sub: tots.sub, 
+      taxAmt: tots.taxTotal 
+    };
     
-    // Ensure no is present. If user cleared it, generate one
+    // AMC handling
+    if (form.isAmc && form.amcStart && form.amcEnd) {
+      payload.amcStart = form.amcStart;
+      payload.amcEnd = form.amcEnd;
+      payload.amcCycle = form.amcCycle;
+      payload.amcPlan = form.amcPlan;
+      payload.amcDetails = form.amcPlan; // For spreadsheet template
+      payload.amcAmount = form.amcAmount;
+      payload.amcTaxRate = form.amcTaxRate;
+    }
+
     if (!payload.no) {
       payload.no = editData ? editData.no : `QUOTE/${new Date().getFullYear()}/${String(quotes.length + 1).padStart(3, '0')}`;
     }
 
     const txs = [];
-    let isNewCustomer = false;
+    const qId = editData ? editData.id : id();
+    txs.push(db.tx.quotes[qId].update(payload));
 
-    if (editData) {
-      txs.push(db.tx.quotes[editData.id].update(payload));
-    } else {
-      txs.push(db.tx.quotes[id()].update({ ...payload }));
+    // Handle AMC contract creation
+    if (form.isAmc && form.amcStart && form.amcEnd) {
+      const amcId = id();
+      txs.push(db.tx.amcs[amcId].update({
+        id: amcId,
+        userId: ownerId,
+        actorId: user.id,
+        client: payload.client,
+        plan: form.amcPlan,
+        amount: parseFloat(form.amcAmount) || 0,
+        taxRate: parseFloat(form.amcTaxRate) || 0,
+        startDate: form.amcStart,
+        endDate: form.amcEnd,
+        billingCycle: form.amcCycle,
+        status: 'Active',
+        createdAt: Date.now(),
+        sourceId: qId,
+        sourceType: 'Quotation'
+      }));
     }
 
     const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (form.client || '').trim().toLowerCase() && l.stage !== wonStage);
@@ -153,8 +225,7 @@ export default function Quotations({ user, perms, ownerId }) {
 
     try {
       await db.transact(txs);
-      if (isNewCustomer) toast('Converted Lead to Customer & saved Quote', 'success');
-      else toast('Quotation saved', 'success');
+      toast('Quotation saved', 'success');
       setModal(false);
     } catch { toast('Error saving quotation', 'error'); }
   };
@@ -243,6 +314,7 @@ export default function Quotations({ user, perms, ownerId }) {
           data={dataWithContext} 
           profile={profile} 
           type="Quotation" 
+          settings={settings}
         />
         <div className="no-print" style={{ marginTop: 40, textAlign: 'center', paddingBottom: 40 }}>
           <button className="btn btn-primary" onClick={() => window.print()} style={{ marginRight: 10 }}>Print / Save PDF</button>
@@ -375,6 +447,36 @@ export default function Quotations({ user, perms, ownerId }) {
                   )}
                 </div>
               )}
+
+              {/* AMC Section */}
+              <div style={{ background: '#f0f9ff', padding: 15, borderRadius: 8, border: '1px solid #bae6fd', marginBottom: 20 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13, color: '#0369a1' }}>
+                  <input type="checkbox" checked={form.isAmc} onChange={e => setForm(p => ({ ...p, isAmc: e.target.checked }))} style={{ width: 16, height: 16 }} />
+                  Automatically generate AMC Contract for this Quotation
+                </label>
+                {form.isAmc && (
+                  <div className="fgrid" style={{ marginTop: 15, marginBottom: 0 }}>
+                    <div className="fg"><label>Plan Name</label><input value={form.amcPlan} onChange={e => setForm(p => ({ ...p, amcPlan: e.target.value }))} placeholder="e.g. Basic Support" /></div>
+                    <div className="fg">
+                      <label>Cycle</label>
+                      <select value={form.amcCycle} onChange={e => handleAmcCycleChange(e.target.value)}>
+                        <option>Monthly</option>
+                        <option>Yearly</option>
+                        <option>Custom</option>
+                      </select>
+                    </div>
+                    <div className="fg"><label>Amount</label><input type="number" value={form.amcAmount} onChange={e => setForm(p => ({ ...p, amcAmount: e.target.value }))} /></div>
+                    <div className="fg">
+                      <label>Tax (%)</label>
+                      <select value={form.amcTaxRate} onChange={e => setForm(p => ({ ...p, amcTaxRate: parseFloat(e.target.value) || 0 }))}>
+                        {taxRates.map(t => <option key={t.label} value={t.rate}>{t.label}</option>)}
+                      </select>
+                    </div>
+                    <div className="fg"><label>Start Date</label><input type="date" value={form.amcStart} onChange={e => handleAmcStartChange(e.target.value)} /></div>
+                    <div className="fg"><label>End Date</label><input type="date" value={form.amcEnd} onChange={e => setForm(p => ({ ...p, amcEnd: e.target.value }))} /></div>
+                  </div>
+                )}
+              </div>
 
               {/* Line Items */}
               <div style={{ marginTop: 12 }}>

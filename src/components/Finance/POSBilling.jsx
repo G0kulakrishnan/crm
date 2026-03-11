@@ -4,7 +4,7 @@ import { id } from '@instantdb/react';
 import { fmt, fmtD } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
-export default function POSBilling({ user, ownerId, perms }) {
+export default function POSBilling({ user, perms, ownerId, settings }) {
   const toast = useToast();
   
   // 1. Data Query
@@ -204,7 +204,9 @@ export default function POSBilling({ user, ownerId, perms }) {
 
           <div style={{ textAlign: 'center', marginTop: 20, fontSize: 10 }}>
             <div>Thank you! Visit Again.</div>
-            <div style={{ marginTop: 5, fontSize: 8 }}>Powered by TechCRM</div>
+            {settings?.showBranding !== false && (
+              <div style={{ marginTop: 5, fontSize: 8 }}>Powered by TechCRM</div>
+            )}
           </div>
         </div>
         <div className="no-print" style={{ marginTop: 20, display: 'flex', gap: 10 }}>

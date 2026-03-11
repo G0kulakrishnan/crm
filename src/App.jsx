@@ -39,11 +39,13 @@ function AppInner() {
   const { data } = db.useQuery({ globalSettings: {} });
   const rawSettings = data?.globalSettings?.[0] || {};
   const settings = {
-    brandName: rawSettings.brandName || 'TechCRM',
-    brandShort: rawSettings.brandShort || 'TC',
-    title: rawSettings.title || 'TechCRM | Lead & Sales Management',
+    brandName: rawSettings.brandName || '',
+    brandShort: rawSettings.brandShort || '',
+    title: rawSettings.title || '',
     favicon: rawSettings.favicon || '',
     crmDomain: rawSettings.crmDomain || '',
+    brandLogo: rawSettings.brandLogo || '',
+    showBranding: rawSettings.showBranding !== false,
     plans: rawSettings.plans ? JSON.parse(rawSettings.plans) : null,
   };
 

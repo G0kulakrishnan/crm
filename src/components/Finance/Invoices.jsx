@@ -16,7 +16,7 @@ function calcTotals(items, disc, discType, adj) {
 
 const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [], assign: '' };
 const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
-export default function Invoices({ user, perms, ownerId }) {
+export default function Invoices({ user, perms, ownerId, settings }) {
   const canCreate = perms?.can('Invoices', 'create') !== false;
   const canEdit = perms?.can('Invoices', 'edit') !== false;
   const canDelete = perms?.can('Invoices', 'delete') !== false;
@@ -94,7 +94,13 @@ export default function Invoices({ user, perms, ownerId }) {
     setEditData(null); 
     const nextNo = `INV/${new Date().getFullYear()}/${String(invoices.length + 1).padStart(3, '0')}`;
     const defTax = profile?.defaultTaxRate || 0;
-    setForm({ ...EMPTY, no: nextNo, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: defTax }] }); 
+    
+    // Default 14-day due date
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    const defDue = d.toISOString().split('T')[0];
+    
+    setForm({ ...EMPTY, no: nextNo, dueDate: defDue, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: defTax }] }); 
     setModal(true); 
   };
   const openEdit = (inv) => {
@@ -298,6 +304,7 @@ export default function Invoices({ user, perms, ownerId }) {
           data={dataWithContext} 
           profile={profile} 
           type="Invoice" 
+          settings={settings}
         />
         <div className="no-print" style={{ marginTop: 40, textAlign: 'center', paddingBottom: 40 }}>
           <button className="btn btn-primary" onClick={() => window.print()} style={{ marginRight: 10 }}>Print / Save PDF</button>

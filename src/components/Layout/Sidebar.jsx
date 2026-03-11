@@ -42,9 +42,17 @@ export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, 
       <div className={`sidebar-overlay ${mobileSidebarOpen ? 'mobile-open' : ''}`} onClick={() => setMobileSidebarOpen(false)} />
       <aside className={`sidebar${sidebarExpanded ? ' expanded' : ''}${mobileSidebarOpen ? ' mobile-open' : ''}`}>
         <div className="sidebar-logo" onClick={() => setSidebarExpanded(v => !v)}>
-        <span>{settings?.brandShort || 'TC'}</span>
-        <span className="nav-label" style={{ fontWeight: 800, fontSize: 13 }}>{settings?.brandName || 'TechCRM'}</span>
-      </div>
+          {settings?.brandLogo ? (
+            <img src={settings.brandLogo} alt="Logo" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
+          ) : settings?.brandShort ? (
+            <span>{settings.brandShort}</span>
+          ) : (
+            <svg style={{ width: 20, height: 20 }} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+            </svg>
+          )}
+          <span className="nav-label" style={{ fontWeight: 800, fontSize: 13 }}>{settings?.brandName || ''}</span>
+        </div>
       <nav style={{ width: '100%', flex: 1, overflowY: 'auto' }}>
         {filteredItems.map((item, i) => {
           if (item.group) {
