@@ -29,16 +29,11 @@ export default function AllTasks({ user, perms, ownerId }) {
   });
   const tasks = useMemo(() => {
     const rawTasks = data?.tasks || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return rawTasks;
-    return rawTasks.filter(t => {
-      if (t.actorId === user.id || perms.isAdmin || perms.isManager) return true;
-      const assign = (t.assignTo || '').toLowerCase().trim();
-      const userName = (perms.name || '').toLowerCase().trim();
-      const userEmail = (user.email || '').toLowerCase().trim();
-      return (assign && (assign === userName || assign === userEmail));
-    });
-  }, [data?.tasks, perms, user]);
+    // If the user can access the module, they should see all tasks in this "All Tasks" view
+    // unless there is a specific lower-level restriction.
+    // For now, we will show all tasks assigned to the business/owner.
+    return rawTasks;
+  }, [data?.tasks]);
 
   const projects = data?.projects || [];
   const team = data?.teamMembers || [];
@@ -76,6 +71,8 @@ export default function AllTasks({ user, perms, ownerId }) {
     return [t.title, t.assignTo, t.notes, pName].some(v => (v || '').toLowerCase().includes(q));
   });
 
+  const [viewData, setViewData] = useState(null);
+
   const save = async () => {
     if (!form.title.trim()) { toast('Title required', 'error'); return; }
     const payload = { ...form, userId: ownerId, actorId: user.id };
@@ -99,13 +96,13 @@ export default function AllTasks({ user, perms, ownerId }) {
 
   return (
     <div>
-      <div className="sh"><div><h2>All Tasks</h2></div>{canCreate && <button className="btn btn-primary btn-sm" onClick={() => { setEditData(null); setForm({ title: '', assignTo: '', dueDate: '', priority: 'Medium', status: taskStatuses[0], notes: '', projectId: '', client: '' }); setModal(true); }}>+ Create Task</button>}</div>
+      <div className="sh"><div><h2>All Tasks</h2></div>{canCreate && <button className="btn btn-primary btn-sm" onClick={() => { setEditData(null); setViewData(null); setForm({ title: '', assignTo: '', dueDate: '', priority: 'Medium', status: taskStatuses[0], notes: '', projectId: '', client: '' }); setModal(true); }}>+ Create Task</button>}</div>
       <div className="tabs">
+        <div className={`tab${filter === 'all' ? ' active' : ''}`} onClick={() => setFilter('all')}>All</div>
         <div className={`tab${filter === 'high' ? ' active' : ''}`} onClick={() => setFilter('high')}>🔴 High Priority</div>
         {taskStatuses.map(s => (
           <div key={s} className={`tab${filter === s ? ' active' : ''}`} onClick={() => setFilter(s)}>{s}</div>
         ))}
-        <div className={`tab${filter === 'all' ? ' active' : ''}`} onClick={() => setFilter('all')}>All</div>
       </div>
       <div className="tw">
         <div className="tw-head">
@@ -119,7 +116,7 @@ export default function AllTasks({ user, perms, ownerId }) {
           <table>
             <thead><tr><th>#</th><th>Title</th><th>Client</th><th>Project</th><th>Assigned To</th><th>Due Date</th><th>Priority</th><th>Status</th><th>Actions</th></tr></thead>
             <tbody>
-              {filtered.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No tasks</td></tr>
+              {filtered.length === 0 ? <tr><td colSpan={9} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No tasks</td></tr>
                 : filtered.map((t, i) => (
                   <tr key={t.id}>
                     <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
@@ -131,7 +128,8 @@ export default function AllTasks({ user, perms, ownerId }) {
                     <td><span className={`badge ${prioBadgeClass(t.priority)}`}>{t.priority}</span></td>
                     <td><span className={`badge ${stageBadgeClass(t.status)}`}>{t.status}</span></td>
                     <td>
-                      {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(t); setForm({ title: t.title, assignTo: t.assignTo || '', dueDate: t.dueDate || '', priority: t.priority, status: t.status, notes: t.notes || '', projectId: t.projectId || '', client: t.client || '' }); setModal(true); }}>Edit</button>}{' '}
+                      <button className="btn btn-secondary btn-sm" onClick={() => { setViewData(t); setEditData(null); setForm({ title: t.title, assignTo: t.assignTo || '', dueDate: t.dueDate || '', priority: t.priority, status: t.status, notes: t.notes || '', projectId: t.projectId || '', client: t.client || '' }); setModal(true); }}>View</button>{' '}
+                      {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(t); setViewData(null); setForm({ title: t.title, assignTo: t.assignTo || '', dueDate: t.dueDate || '', priority: t.priority, status: t.status, notes: t.notes || '', projectId: t.projectId || '', client: t.client || '' }); setModal(true); }}>Edit</button>}{' '}
                       {canDelete && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(t.id)}>Del</button>}
                     </td>
                   </tr>
@@ -143,35 +141,58 @@ export default function AllTasks({ user, perms, ownerId }) {
       {modal && (
         <div className="mo open">
           <div className="mo-box">
-            <div className="mo-head"><h3>{editData ? 'Edit' : 'Create'} Task</h3><button className="btn-icon" onClick={() => setModal(false)}>✕</button></div>
+            <div className="mo-head"><h3>{viewData ? 'View' : editData ? 'Edit' : 'Create'} Task</h3><button className="btn-icon" onClick={() => setModal(false)}>✕</button></div>
             <div className="mo-body">
               <div className="fgrid">
-                <div className="fg span2"><label>Task Title *</label><input value={form.title} onChange={f('title')} /></div>
+                <div className="fg span2"><label>Task Title {!viewData && '*'}</label><input value={form.title} onChange={f('title')} disabled={!!viewData} /></div>
                 <div className="fg">
                   <label>Client</label>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <div style={{ flex: 1 }}>
-                      <SearchableSelect 
-                        options={clientOptions} 
-                        displayKey="displayName" 
-                        returnKey="name"
-                        value={form.client} 
-                        onChange={val => setForm(p => ({ ...p, client: val }))} 
-                        placeholder="Search client or lead..." 
-                      />
+                      {viewData ? (
+                        <input value={form.client || '-'} disabled />
+                      ) : (
+                        <SearchableSelect 
+                          options={clientOptions} 
+                          displayKey="displayName" 
+                          returnKey="name"
+                          value={form.client} 
+                          onChange={val => setForm(p => ({ ...p, client: val }))} 
+                          placeholder="Search client or lead..." 
+                        />
+                      )}
                     </div>
-                    <button className="btn btn-secondary" style={{ padding: '0 10px' }} onClick={() => setCustModal(true)} title="Add New Customer">+</button>
+                    {!viewData && <button className="btn btn-secondary" style={{ padding: '0 10px' }} onClick={() => setCustModal(true)} title="Add New Customer">+</button>}
                   </div>
                 </div>
-                <div className="fg"><label>Project</label><select value={form.projectId} onChange={f('projectId')}><option value="">No Project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select></div>
-                <div className="fg"><label>Assign To</label><select value={form.assignTo} onChange={f('assignTo')}><option value="">Unassigned</option>{team.map(t => <option key={t.id}>{t.name}</option>)}</select></div>
-                <div className="fg"><label>Due Date</label><input type="date" value={form.dueDate} onChange={f('dueDate')} /></div>
-                <div className="fg"><label>Priority</label><select value={form.priority} onChange={f('priority')}>{['High', 'Medium', 'Low'].map(s => <option key={s}>{s}</option>)}</select></div>
-                <div className="fg"><label>Status</label><select value={form.status} onChange={f('status')}>{taskStatuses.map(s => <option key={s}>{s}</option>)}</select></div>
-                <div className="fg span2"><label>Notes</label><textarea value={form.notes} onChange={f('notes')} /></div>
+                <div className="fg"><label>Project</label>
+                  {viewData ? <input value={projName(form.projectId)} disabled /> : (
+                    <select value={form.projectId} onChange={f('projectId')}><option value="">No Project</option>{projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
+                  )}
+                </div>
+                <div className="fg"><label>Assign To</label>
+                  {viewData ? <input value={form.assignTo || 'Unassigned'} disabled /> : (
+                    <select value={form.assignTo} onChange={f('assignTo')}><option value="">Unassigned</option>{team.map(t => <option key={t.id}>{t.name}</option>)}</select>
+                  )}
+                </div>
+                <div className="fg"><label>Due Date</label><input type="date" value={form.dueDate} onChange={f('dueDate')} disabled={!!viewData} /></div>
+                <div className="fg"><label>Priority</label>
+                  {viewData ? <input value={form.priority} disabled /> : (
+                    <select value={form.priority} onChange={f('priority')}>{['High', 'Medium', 'Low'].map(s => <option key={s}>{s}</option>)}</select>
+                  )}
+                </div>
+                <div className="fg"><label>Status</label>
+                  {viewData ? <input value={form.status} disabled /> : (
+                    <select value={form.status} onChange={f('status')}>{taskStatuses.map(s => <option key={s}>{s}</option>)}</select>
+                  )}
+                </div>
+                <div className="fg span2"><label>Notes</label><textarea value={form.notes} onChange={f('notes')} disabled={!!viewData} style={{ minHeight: viewData ? 120 : 80 }} /></div>
               </div>
             </div>
-            <div className="mo-foot"><button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>Cancel</button><button className="btn btn-primary btn-sm" onClick={save}>Save</button></div>
+            <div className="mo-foot">
+              <button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>{viewData ? 'Close' : 'Cancel'}</button>
+              {!viewData && <button className="btn btn-primary btn-sm" onClick={save}>Save</button>}
+            </div>
           </div>
         </div>
       )}
