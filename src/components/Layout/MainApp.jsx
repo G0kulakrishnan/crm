@@ -315,7 +315,7 @@ export default function MainApp({ user, settings }) {
       <div className="loading-screen">
         <div className="logo">{settings?.brandShort || ''}</div>
         <div className="spinner" />
-        <p>{isDiscovering ? 'Discovering Workspace...' : `Configuring ${settings?.brandName || ''}...`}</p>
+        <p>{isDiscovering ? 'Discovering Workspace...' : `Loading ${settings?.brandName || ''}...`}</p>
       </div>
     );
   }
