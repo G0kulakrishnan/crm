@@ -935,7 +935,7 @@ export default function LeadsView({ user, perms, ownerId }) {
         </div>
       ) : (
         /* KANBAN */
-        <div className="kanban">
+        <div className="kanban" style={{ justifyContent: 'flex-start' }}>
           {activeStages.map(stage => {
             const cards = filtered.filter(l => l.stage === stage);
             const isOver = dragOverStage === stage;
