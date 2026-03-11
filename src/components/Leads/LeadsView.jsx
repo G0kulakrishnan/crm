@@ -35,6 +35,7 @@ export default function LeadsView({ user, perms, ownerId }) {
   const [colModal, setColModal] = useState(false);
   const [tempCols, setTempCols] = useState([]);
   const [tempStages, setTempStages] = useState([]);
+  const [tempPageSize, setTempPageSize] = useState(25);
   const [viewLead, setViewLead] = useState(null);
   const [noteText, setNoteText] = useState('');
   const [dragOverStage, setDragOverStage] = useState(null);
@@ -59,7 +60,6 @@ export default function LeadsView({ user, perms, ownerId }) {
   const customFields = data?.userProfiles?.[0]?.customFields || [];
   const disabledStages = data?.userProfiles?.[0]?.disabledStages || [];
   const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
-  const profileId = data?.userProfiles?.[0]?.id;
   const activeSources = data?.userProfiles?.[0]?.sources || DEFAULT_SOURCES;
   const activeLabels = data?.userProfiles?.[0]?.labels || DEFAULT_LABELS;
   const allStages = data?.userProfiles?.[0]?.stages || DEFAULT_STAGES;
@@ -92,11 +92,24 @@ export default function LeadsView({ user, perms, ownerId }) {
     }
   }, [leads]);
 
-  const savedCols = data?.userProfiles?.[0]?.leadCols;
+  // Fetch saved settings from user profile
+  const profile = data?.userProfiles?.[0];
+  const profileId = profile?.id;
+  const savedCols = profile?.leadCols;
+  const savedLeadStages = profile?.leadStages;
+  const savedDefaultPageSize = profile?.defaultPageSize || 25;
+
+  // Sync pageSize with profile default ONLY when profile loads or default changes
+  useEffect(() => {
+    if (savedDefaultPageSize) {
+      setPageSize(savedDefaultPageSize);
+      setTempPageSize(savedDefaultPageSize);
+    }
+  }, [savedDefaultPageSize]);
+
   const allPossibleCols = ['Created', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Label', 'Reminder', ...customFields.map(c => c.name)];
   const activeCols = savedCols || allPossibleCols;
 
-  const savedLeadStages = data?.userProfiles?.[0]?.leadStages;   // visible subset saved from Leads colModal
   // activeStages is for visual components (Kanban/List), should exclude deleted & disabled
   const activeStages = (savedLeadStages?.length > 0 
     ? allStages.filter(s => savedLeadStages.includes(s)) 
@@ -463,17 +476,26 @@ export default function LeadsView({ user, perms, ownerId }) {
     }
   };
 
-  const saveViewConfig = async (colsToSave, stagesVisible) => {
+  const saveViewConfig = async (colsToSave, stagesVisible, defaultSize) => {
     if (profileId) {
-      await db.transact(db.tx.userProfiles[profileId].update({ leadCols: colsToSave, leadStages: stagesVisible }));
+      await db.transact(db.tx.userProfiles[profileId].update({ 
+        leadCols: colsToSave, 
+        leadStages: stagesVisible,
+        defaultPageSize: defaultSize 
+      }));
     } else {
-      await db.transact(db.tx.userProfiles[id()].update({ leadCols: colsToSave, leadStages: stagesVisible, userId: ownerId }));
+      await db.transact(db.tx.userProfiles[id()].update({ 
+        leadCols: colsToSave, 
+        leadStages: stagesVisible,
+        defaultPageSize: defaultSize,
+        userId: ownerId 
+      }));
     }
     setColModal(false);
     toast('View configuration saved', 'success');
   };
 
-  const resetViewConfig = () => saveViewConfig(allPossibleCols, allStages);
+  const resetViewConfig = () => saveViewConfig(allPossibleCols, allStages, 25);
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   const cf = (k) => (e) => setForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
@@ -709,7 +731,12 @@ export default function LeadsView({ user, perms, ownerId }) {
                   <option value="">All Stages</option>
                   {allStages.map(s => <option key={s}>{s}</option>)}
                 </select>
-                <button className="btn btn-secondary btn-sm" onClick={() => { setTempCols(activeCols); setTempStages(activeStages); setColModal(true); }}>⚙ Configure View</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => { 
+                  setTempCols(activeCols); 
+                  setTempStages(savedLeadStages || allStages); 
+                  setTempPageSize(pageSize);
+                  setColModal(true); 
+                }}>⚙ Configure View</button>
               </div>
             </div>
 
@@ -1200,12 +1227,29 @@ export default function LeadsView({ user, perms, ownerId }) {
                 </div>
               </div>
 
+              {/* Default Page Size */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Default Leads per Page</strong>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {[25, 50, 100, 500, 'all'].map(size => (
+                    <button
+                      key={size}
+                      className={`btn btn-sm ${tempPageSize === size ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setTempPageSize(size)}
+                      style={{ padding: '6px 12px' }}
+                    >
+                      {size === 'all' ? 'All Leads' : size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
             </div>
             <div className="mo-foot" style={{ justifyContent: 'space-between' }}>
               <button className="btn btn-secondary btn-sm" onClick={resetViewConfig}>Reset to Default</button>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button className="btn btn-secondary btn-sm" onClick={() => setColModal(false)}>Cancel</button>
-                <button className="btn btn-primary btn-sm" onClick={() => saveViewConfig(tempCols, tempStages)}>Save View</button>
+                <button className="btn btn-primary btn-sm" onClick={() => saveViewConfig(tempCols, tempStages, tempPageSize)}>Save View</button>
               </div>
             </div>
           </div>
