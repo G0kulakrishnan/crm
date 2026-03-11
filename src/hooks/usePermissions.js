@@ -47,8 +47,12 @@ export function usePermissions(user, profile, teamMembers = []) {
      * For Team Members: We strictly revoke Admin/Manager status and block sensitive modules.
      * This overrides any role-based configurations in the database.
      */
-    const isAdmin = false;    // Hard-revoked
-    const isManager = false;  // Hard-revoked
+    /**
+     * [ROLE ESCALATION]
+     * Deriving admin/manager status from role name to enable advanced visibility in Reports/Filters.
+     */
+    const isAdmin = member.role?.toLowerCase().includes('admin');
+    const isManager = member.role?.toLowerCase().includes('manager');
     const BLOCKED_MODULES = ['Admin', 'Settings']; // Strictly block Admin & Settings for members
 
     // 4. Trace Permissions (Diagnostic)

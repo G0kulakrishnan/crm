@@ -22,11 +22,8 @@ export default function Expenses({ user, perms, ownerId }) {
     userProfiles: { $: { where: { userId: ownerId } } }
   });
   const expenses = useMemo(() => {
-    const raw = data?.expenses || [];
-    const isTeam = perms && !perms.isOwner;
-    if (!isTeam) return raw;
-    return raw.filter(e => e.actorId === user.id || perms.isAdmin || perms.isManager);
-  }, [data?.expenses, perms, user]);
+    return data?.expenses || [];
+  }, [data?.expenses]);
   const profile = data?.userProfiles?.[0] || {};
   const cats = profile.expCats || DEFAULT_CATS;
   const taxRates = profile.taxRates || [{ label: 'None (0%)', rate: 0 }, { label: 'GST @ 5%', rate: 5 }, { label: 'GST @ 12%', rate: 12 }, { label: 'GST @ 18%', rate: 18 }, { label: 'GST @ 28%', rate: 28 }];
