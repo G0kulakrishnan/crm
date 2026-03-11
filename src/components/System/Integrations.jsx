@@ -285,21 +285,21 @@ export default function Integrations({ user, ownerId }) {
             {item.id === 'gsheets' && gsheets.length > 0 && (
               <div style={{ marginTop: -10, marginBottom: 15 }}>
                 {gsheets.map((gs, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg)', borderRadius: 8, marginBottom: 6, fontSize: 12 }}>
-                    <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120, opacity: (gs.disabled || profile?.gsheetsDisabled) ? 0.5 : 1 }}>
+                  <div key={idx} style={{ padding: '10px 12px', background: 'var(--bg)', borderRadius: 8, marginBottom: 8, fontSize: 12, border: '1px solid var(--border)' }}>
+                    <div style={{ fontWeight: 600, marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: (gs.disabled || profile?.gsheetsDisabled) ? 0.5 : 1 }}>
                       {(gs.disabled || profile?.gsheetsDisabled) ? '⏸ ' : '📄 '}{gs.configName || gs.sheetId.substring(0, 8) + '...'}
-                    </span>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                       <button 
                         className={`btn ${gs.disabled ? 'btn-secondary' : 'btn-primary'} btn-sm`} 
-                        style={{ padding: '2px 8px', fontSize: 10 }} 
+                        style={{ padding: '2px 8px', fontSize: 10, flex: 1, minWidth: 'fit-content' }} 
                         onClick={() => handleToggleSheet(idx)}
                       >
                         {gs.disabled ? 'Enable' : 'Disable'}
                       </button>
                       <button 
                         className="btn btn-primary btn-sm" 
-                        style={{ padding: '2px 10px', fontSize: 10 }} 
+                        style={{ padding: '2px 10px', fontSize: 10, flex: 1.5, minWidth: 'fit-content' }} 
                         onClick={() => syncGoogleSheet(idx)} 
                         disabled={syncing !== null || isCoolingDown || gs.disabled || profile?.gsheetsDisabled}
                       >

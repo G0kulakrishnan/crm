@@ -43,6 +43,8 @@ export default function LeadsView({ user, perms, ownerId }) {
   const [importHeaders, setImportHeaders] = useState([]);
   const [importData, setImportData] = useState([]); // Raw rows from CSV
   const [importSample, setImportSample] = useState(null); // First data row for preview
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const dragLeadId = useRef(null);
   const toast = useToast();
 
@@ -149,6 +151,15 @@ export default function LeadsView({ user, perms, ownerId }) {
         return [l.name, l.email, l.phone, l.source, l.stage, l.assign, l.label, l.notes].some(v => (v || '').toLowerCase().includes(q));
       });
   }, [leads, tab, srcFilter, stgFilter, search]);
+
+  const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
+  const paginated = useMemo(() => {
+    if (pageSize === 'all') return filtered;
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
+
+  useEffect(() => { setCurrentPage(1); }, [tab, search, srcFilter, stgFilter, pageSize]);
 
   const overdueCount = leads.filter(l => l.followup && new Date(l.followup) < new Date()).length;
   const todayCount = leads.filter(l => l.followup && new Date(l.followup).toDateString() === new Date().toDateString()).length;
@@ -342,6 +353,52 @@ export default function LeadsView({ user, perms, ownerId }) {
     } catch (err) {
       toast('Error importing leads', 'error');
     }
+  };
+
+  const handleExportExcel = () => {
+    if (leads.length === 0) return toast('No leads to export', 'error');
+    
+    // Header
+    const standardFields = ['Name', 'Email', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Label', 'Notes', 'Created At'];
+    const customFieldNames = customFields.map(cf => cf.name);
+    const headers = [...standardFields, ...customFieldNames];
+
+    const escapeCSV = (val) => {
+      if (val === null || val === undefined) return '';
+      const str = String(val).replace(/"/g, '""');
+      return str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str}"` : str;
+    };
+
+    const csvRows = [headers.join(',')];
+    
+    filtered.forEach(l => {
+      const row = [
+        escapeCSV(l.name),
+        escapeCSV(l.email),
+        escapeCSV(l.phone),
+        escapeCSV(l.source),
+        escapeCSV(l.stage),
+        escapeCSV(l.assign),
+        escapeCSV(l.followup ? new Date(l.followup).toLocaleDateString() : ''),
+        escapeCSV(l.label),
+        escapeCSV(l.notes),
+        escapeCSV(new Date(l.createdAt).toLocaleString()),
+        ...customFieldNames.map(cfName => escapeCSV(l.custom?.[cfName] || ''))
+      ];
+      csvRows.push(row.join(','));
+    });
+
+    const csvString = csvRows.join('\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast('Export successful!', 'success');
   };
 
   const bulkDelete = async () => {
@@ -595,6 +652,7 @@ export default function LeadsView({ user, perms, ownerId }) {
             </>
           )}
           {canCreate && <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Create Lead</button>}
+          <button className="btn btn-secondary btn-sm" onClick={handleExportExcel}>📊 Export Excel</button>
         </div>
       </div>
 
@@ -632,7 +690,23 @@ export default function LeadsView({ user, perms, ownerId }) {
           {/* Table */}
           <div className="tw">
             <div className="tw-head">
-              <h3>All Leads ({filtered.length})</h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+                <h3 style={{ margin: 0 }}>All Leads ({filtered.length})</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, background: 'var(--bg-soft)', padding: '4px 12px', borderRadius: 8 }}>
+                  <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Show</span>
+                  <select 
+                    style={{ border: 'none', background: 'transparent', fontWeight: 700, outline: 'none', cursor: 'pointer', color: 'var(--accent)' }}
+                    value={pageSize}
+                    onChange={e => setPageSize(e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10))}
+                  >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={500}>500</option>
+                    <option value="all">All Leads</option>
+                  </select>
+                </div>
+              </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <div className="sw">
                   <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
@@ -669,12 +743,12 @@ export default function LeadsView({ user, perms, ownerId }) {
                   </tr>
                 </thead>
               <tbody>
-                {filtered.length === 0 ? (
-                  <tr><td colSpan={11} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No leads found</td></tr>
-                ) : filtered.map((l, i) => (
+                {paginated.length === 0 ? (
+                  <tr><td colSpan={activeCols.length + 3} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No leads found</td></tr>
+                ) : paginated.map((l, i) => (
                   <tr key={l.id}>
                     <td><input type="checkbox" checked={selectedIds.has(l.id)} onChange={e => { const s = new Set(selectedIds); e.target.checked ? s.add(l.id) : s.delete(l.id); setSelectedIds(s); }} style={{ width: 14, height: 14, accentColor: 'var(--accent)' }} /></td>
-                    <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
+                    <td style={{ color: 'var(--muted)', fontSize: 11 }}>{(currentPage - 1) * (pageSize === 'all' ? 0 : pageSize) + i + 1}</td>
                     <td>
                       <strong>{l.name}</strong>
                       <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>{l.email}</div>
@@ -736,6 +810,40 @@ export default function LeadsView({ user, perms, ownerId }) {
               </tbody>
             </table>
             </div>
+
+            {pageSize !== 'all' && totalPages > 1 && (
+              <div style={{ padding: '15px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', background: 'var(--bg-soft)' }}>
+                <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+                  Showing <strong>{(currentPage - 1) * pageSize + 1}</strong> to <strong>{Math.min(currentPage * pageSize, filtered.length)}</strong> of <strong>{filtered.length}</strong> leads
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button 
+                    className="btn btn-secondary btn-sm" 
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => prev - 1)}
+                  >
+                    Previous
+                  </button>
+                  {[...Array(totalPages)].map((_, i) => (
+                    <button 
+                      key={i} 
+                      className={`btn btn-sm ${currentPage === i + 1 ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ minWidth: 32, padding: 0 }}
+                      onClick={() => setCurrentPage(i + 1)}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                  <button 
+                    className="btn btn-secondary btn-sm" 
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => prev + 1)}
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ) : (
