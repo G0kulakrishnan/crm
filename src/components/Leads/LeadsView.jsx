@@ -695,23 +695,7 @@ export default function LeadsView({ user, perms, ownerId }) {
           {/* Table */}
           <div className="tw">
             <div className="tw-head">
-              <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
-                <h3 style={{ margin: 0 }}>All Leads ({filtered.length})</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, background: 'var(--bg-soft)', padding: '4px 12px', borderRadius: 8 }}>
-                  <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Show</span>
-                  <select 
-                    style={{ border: 'none', background: 'transparent', fontWeight: 700, outline: 'none', cursor: 'pointer', color: 'var(--accent)' }}
-                    value={pageSize}
-                    onChange={e => setPageSize(e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10))}
-                  >
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                    <option value={500}>500</option>
-                    <option value="all">All Leads</option>
-                  </select>
-                </div>
-              </div>
+              <div style={{ flex: 1 }}></div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <div className="sw">
                   <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
@@ -728,6 +712,65 @@ export default function LeadsView({ user, perms, ownerId }) {
                 <button className="btn btn-secondary btn-sm" onClick={() => { setTempCols(activeCols); setTempStages(activeStages); setColModal(true); }}>⚙ Configure View</button>
               </div>
             </div>
+
+            {/* Top Pagination & Show Dropdown */}
+            <div style={{ padding: '8px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', background: 'var(--bg-soft)', gap: 15 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+                <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Show</span>
+                <select 
+                  style={{ border: '1px solid var(--border)', background: 'var(--surface)', fontWeight: 700, outline: 'none', cursor: 'pointer', color: 'var(--accent)', padding: '2px 4px', borderRadius: 4, fontSize: 11 }}
+                  value={pageSize}
+                  onChange={e => setPageSize(e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10))}
+                >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={500}>500</option>
+                  <option value="all">All Leads</option>
+                </select>
+              </div>
+
+              {pageSize !== 'all' && totalPages > 1 && (
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <button 
+                    className="btn btn-secondary btn-sm" 
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => prev - 1)}
+                    style={{ padding: '2px 8px', fontSize: 11 }}
+                  >
+                    Prev
+                  </button>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {[...Array(totalPages)].map((_, i) => {
+                      const page = i + 1;
+                      if (Math.abs(currentPage - page) > 1 && page !== 1 && page !== totalPages) return null;
+                      return (
+                        <React.Fragment key={page}>
+                          {page === totalPages && Math.abs(currentPage - page) > 2 && <span style={{ color: 'var(--muted)', fontSize: 10 }}>...</span>}
+                          <button 
+                            className={`btn btn-sm ${currentPage === page ? 'btn-primary' : 'btn-secondary'}`}
+                            style={{ minWidth: 26, height: 26, padding: 0, fontSize: 11 }}
+                            onClick={() => setCurrentPage(page)}
+                          >
+                            {page}
+                          </button>
+                          {page === 1 && Math.abs(currentPage - page) > 2 && <span style={{ color: 'var(--muted)', fontSize: 10 }}>...</span>}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                  <button 
+                    className="btn btn-secondary btn-sm" 
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => prev + 1)}
+                    style={{ padding: '2px 8px', fontSize: 11 }}
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+
             <div className="tw-scroll">
               <table style={{ minWidth: 800 }}>
                 <thead>
