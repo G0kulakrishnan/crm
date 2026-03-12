@@ -45,12 +45,33 @@ export default async function handler(req, res) {
 
     // Check if this is a team member login
     const isTeamMember = !!(user.isTeamMember && user.ownerUserId);
+    let role = 'Owner';
+    let perms = null;
+
+    if (isTeamMember) {
+      // Fetch permissions for the team member
+      const { teamMembers, userProfiles } = await db.query({
+        teamMembers: { $: { where: { email: email.trim().toLowerCase(), userId: user.ownerUserId }, limit: 1 } },
+        userProfiles: { $: { where: { userId: user.ownerUserId }, limit: 1 } }
+      });
+
+      const member = teamMembers?.[0];
+      const profile = userProfiles?.[0];
+
+      if (member && profile) {
+        role = member.role;
+        const roleMatch = (profile.roles || []).find(r => r.name === member.role);
+        perms = roleMatch ? roleMatch.perms : {};
+      }
+    }
     
     return res.status(200).json({
       success: true,
       token,
       isTeamMember,
-      ownerUserId: isTeamMember ? user.ownerUserId : null,
+      role,
+      perms,
+      ownerUserId: isTeamMember ? user.ownerUserId : (user.userId || user.id),
       teamMemberId: isTeamMember ? user.teamMemberId : null
     });
   } catch (err) {
