@@ -52,7 +52,8 @@ export default function MainApp({ user, settings }) {
   });
 
   // 2. Discovery: If no teamInfo, check if this user IS a team member somewhere
-  const discQuery = (!teamInfo && user.email) 
+  const isSuperadmin = user.email === SUPERADMIN_KEY;
+  const discQuery = (!teamInfo && user.email && !isSuperadmin) 
     ? { teamMembers: { $: { where: { email: String(user.email).toLowerCase() }, limit: 1 } } } 
     : null;
   const { data: discovery, isLoading: reqLoading } = db.useQuery(discQuery);
@@ -74,8 +75,8 @@ export default function MainApp({ user, settings }) {
   }, [discovery, teamInfo]);
 
   // 3. Main Data Fetch (target the owner's data)
-  const targetUserId = teamInfo?.isTeamMember ? teamInfo.ownerUserId : user.id;
-  const isTeamMember = !!teamInfo?.isTeamMember;
+  const targetUserId = (teamInfo?.isTeamMember && !isSuperadmin) ? teamInfo.ownerUserId : user.id;
+  const isTeamMember = !!teamInfo?.isTeamMember && !isSuperadmin;
 
   const { isLoading: mainLoading, data, error } = db.useQuery({
     userProfiles: { $: { where: { userId: targetUserId } } },
@@ -114,7 +115,6 @@ export default function MainApp({ user, settings }) {
   // 2. Load Automation Engine (for background checks)
   useAutomationEngine(user, targetUserId);
 
-  const isSuperadmin = user.email === SUPERADMIN_KEY;
   const isExpired = profile?.planExpiry && profile.planExpiry < Date.now();
 
   // Strict guard to prevent infinite transaction loops

@@ -300,8 +300,13 @@ export default function Invoices({ user, perms, ownerId, settings }) {
           type="Invoice" 
           settings={settings}
         />
-        <div className="no-print" style={{ marginTop: 40, textAlign: 'center', paddingBottom: 40 }}>
-          <button className="btn btn-primary" onClick={() => window.print()} style={{ marginRight: 10 }}>Print / Save PDF</button>
+        <div className="no-print" style={{ marginTop: 40, textAlign: 'center', paddingBottom: 40, display: 'flex', justifyContent: 'center', gap: 10 }}>
+          <button className="btn btn-primary" onClick={() => window.print()}>Print / Save PDF</button>
+          <button className="btn btn-secondary" onClick={() => { 
+            const inv = printing;
+            setPrinting(null);
+            openEdit(inv);
+          }}>Edit Invoice</button>
           <button className="btn btn-secondary" onClick={() => setPrinting(null)}>Close</button>
         </div>
       </div>
@@ -413,7 +418,12 @@ export default function Invoices({ user, perms, ownerId, settings }) {
                       <tr key={inv.id}>
                         <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
                         <td>
-                          <strong style={{ fontSize: 12 }}>{inv.no}</strong>
+                          <strong 
+                            style={{ fontSize: 12, cursor: 'pointer', color: 'var(--accent2)', textDecoration: 'underline' }} 
+                            onClick={() => setPrinting(inv)}
+                          >
+                            {inv.no}
+                          </strong>
                           {inv.fromAmc && <span style={{ marginLeft: 6, fontSize: 10, background: '#e0e7ff', color: '#4338ca', padding: '2px 4px', borderRadius: 4, fontWeight: 600 }}>AMC</span>}
                         </td>
                         <td>{inv.client}</td>
@@ -425,6 +435,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
                         {activeCols.includes('Balance Due') && <td style={{ color: '#dc2626', fontWeight: 600 }}>{fmt(balAmt < 0 ? 0 : balAmt)}</td>}
                          <td>
                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
+                             <button className="btn btn-secondary btn-sm" onClick={() => setPrinting(inv)}>View</button>
                              {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => openEdit(inv)}>Edit</button>}
                              <button className="btn-icon" onClick={(e) => {
                               const dm = e.currentTarget.nextElementSibling;

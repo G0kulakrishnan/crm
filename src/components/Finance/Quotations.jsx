@@ -300,8 +300,13 @@ export default function Quotations({ user, perms, ownerId, settings }) {
           type="Quotation" 
           settings={settings}
         />
-        <div className="no-print" style={{ marginTop: 40, textAlign: 'center', paddingBottom: 40 }}>
-          <button className="btn btn-primary" onClick={() => window.print()} style={{ marginRight: 10 }}>Print / Save PDF</button>
+        <div className="no-print" style={{ marginTop: 40, textAlign: 'center', paddingBottom: 40, display: 'flex', justifyContent: 'center', gap: 10 }}>
+          <button className="btn btn-primary" onClick={() => window.print()}>Print / Save PDF</button>
+          <button className="btn btn-secondary" onClick={() => { 
+            const q = printing;
+            setPrinting(null);
+            openEdit(q);
+          }}>Edit Quotation</button>
           <button className="btn btn-secondary" onClick={() => setPrinting(null)}>Close</button>
         </div>
       </div>
@@ -338,7 +343,14 @@ export default function Quotations({ user, perms, ownerId, settings }) {
               ) : filtered.map((q, i) => (
                 <tr key={q.id}>
                   <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
-                  <td><strong style={{ fontSize: 12 }}>{q.no}</strong></td>
+                  <td>
+                    <strong 
+                      style={{ fontSize: 12, cursor: 'pointer', color: 'var(--accent2)', textDecoration: 'underline' }} 
+                      onClick={() => setPrinting(q)}
+                    >
+                      {q.no}
+                    </strong>
+                  </td>
                   <td>{q.client}</td>
                   <td><span className={`badge ${stageBadgeClass(q.status)}`}>{q.status}</span></td>
                   <td style={{ fontSize: 12 }}>{fmtD(q.date)}</td>
@@ -346,6 +358,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
                   <td style={{ fontWeight: 700 }}>{fmt(q.total)}</td>
                   <td>
                     <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <button className="btn btn-secondary btn-sm" onClick={() => setPrinting(q)}>View</button>
                       {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => openEdit(q)}>Edit</button>}
                       <button className="btn-icon" onClick={(e) => {
                         const dm = e.currentTarget.nextElementSibling;

@@ -104,50 +104,34 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
 
   const handleCheckout = async () => {
     if (cart.length === 0) return toast('Cart is empty', 'error');
-    const invNo = `POS-${Date.now().toString().slice(-6)}`;
-    const payload = {
-      no: invNo,
-      client: selectedCust ? selectedCust.name : 'Walk-in Customer',
-      customerId: selectedCust ? selectedCust.id : null,
-      date: new Date().toISOString().split('T')[0],
-      items: cart.map(it => ({ name: it.name, qty: it.qty, rate: it.rate, taxRate: it.tax || 0 })),
-      total: totals.total,
-      status: 'Paid',
-      payMode,
-      userId: ownerId,
-      actorId: user.id,
-      createdAt: Date.now(),
-      type: 'POS',
-      taxAmt: totals.tax
-    };
     
-    const txs = [db.tx.invoices[id()].update(payload)];
-
-    // Lead matching and conversion
-    if (selectedCust) {
-       const lMatch = (data?.leads || []).find(l => (l.name || '').trim().toLowerCase() === (selectedCust.name || '').trim().toLowerCase() && l.stage !== wonStage);
-       if (lMatch) {
-          txs.push(db.tx.leads[lMatch.id].update({ 
-             stage: wonStage,
-             email: lMatch.email || selectedCust.email || '',
-             phone: lMatch.phone || selectedCust.phone || ''
-          }));
-          txs.push(db.tx.activityLogs[id()].update({
-             entityId: lMatch.id, entityType: 'lead', text: `Lead converted to Customer. Stage changed to ${wonStage} (via POS Checkout).`,
-             userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
-          }));
-       }
-    }
-
     try {
-      await db.transact(txs);
-      setPrinting({ ...payload, profile });
+      toast('Generating bill...', 'info');
+      
+      const response = await fetch('/api/finance/generate-bill', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cart,
+          customer: selectedCust,
+          payMode,
+          userId: ownerId,
+          actorId: user.id
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.error || 'Checkout failed');
+
+      setPrinting({ ...result.invoice, profile });
       setCart([]);
       setSelectedCust(null);
       setCustSearch('');
       toast('Bill Generated!', 'success');
-    } catch {
-      toast('Checkout failed', 'error');
+    } catch (err) {
+      console.error('Checkout error:', err);
+      toast(err.message || 'Checkout failed', 'error');
     }
   };
 

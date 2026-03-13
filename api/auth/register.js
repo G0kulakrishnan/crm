@@ -36,24 +36,30 @@ export default async function handler(req, res) {
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
     const credentialId = id();
+    
+    // Generate a 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
     // Save the credentials and profile info in InstantDB
     await db.transact([
       tx.userCredentials[credentialId].update({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password: hashedPassword,
         fullName: fullName || '',
         bizName: bizName || '',
         phone: phone || '',
         selectedPlan: selectedPlan || 'Trial',
+        isVerified: false,
+        otp: otp,
         createdAt: Date.now()
       })
     ]);
 
-    // Generate token securely through InstantDB
-    const token = await db.auth.createToken({ email: email.trim() });
-
-    return res.status(200).json({ success: true, token, message: 'Registered successfully' });
+    return res.status(200).json({ 
+      success: true, 
+      otp, 
+      message: 'Registration successful. Please verify your email with the OTP.' 
+    });
   } catch (err) {
     console.error('Registration error:', err);
     return res.status(500).json({ error: err.message || 'Failed to register user' });

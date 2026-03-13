@@ -40,6 +40,15 @@ export default async function handler(req, res) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    // NEW: Check if email is verified
+    // Business owners have an isVerified flag, team members are assumed verified by the owner
+    if (user.isVerified === false) {
+      return res.status(403).json({ 
+        error: 'Email verification pending', 
+        message: 'Please verify your email using the OTP sent during registration.' 
+      });
+    }
+
     // Generate token securely through InstantDB
     const token = await db.auth.createToken({ email: email.trim().toLowerCase() });
 
@@ -47,6 +56,8 @@ export default async function handler(req, res) {
     const isTeamMember = !!(user.isTeamMember && user.ownerUserId);
     let role = 'Owner';
     let perms = null;
+    let ownerUserId = isTeamMember ? user.ownerUserId : null;
+    let teamMemberId = isTeamMember ? user.teamMemberId : null;
 
     if (isTeamMember) {
       // Fetch permissions for the team member
@@ -63,6 +74,15 @@ export default async function handler(req, res) {
         const roleMatch = (profile.roles || []).find(r => r.name === member.role);
         perms = roleMatch ? roleMatch.perms : {};
       }
+    } else {
+      // Fetch owner's profile to get their userId
+      const { userProfiles } = await db.query({
+        userProfiles: { $: { where: { email: email.trim().toLowerCase() }, limit: 1 } }
+      });
+      if (userProfiles?.[0]) {
+        ownerUserId = userProfiles[0].userId;
+        role = userProfiles[0].role || 'Owner';
+      }
     }
     
     return res.status(200).json({
@@ -71,8 +91,8 @@ export default async function handler(req, res) {
       isTeamMember,
       role,
       perms,
-      ownerUserId: isTeamMember ? user.ownerUserId : (user.userId || user.id),
-      teamMemberId: isTeamMember ? user.teamMemberId : null
+      ownerUserId,
+      teamMemberId
     });
   } catch (err) {
     console.error('Login error:', err);
