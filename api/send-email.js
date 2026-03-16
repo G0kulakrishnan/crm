@@ -16,28 +16,45 @@ export default async function handler(req, res) {
     const APP_ID = env.VITE_INSTANT_APP_ID;
     const ADMIN_TOKEN = env.INSTANT_ADMIN_TOKEN;
 
-    const { to, subject, body, ownerId, fromName } = req.body || {};
+    const { to, subject, body, ownerId, fromName, smtpConfig } = req.body || {};
 
-    if (!to || !subject || !body || !ownerId) {
-      return res.status(400).json({ error: 'Missing required fields: to, subject, body, ownerId' });
+    if (!to || !subject || !body) {
+      return res.status(400).json({ error: 'Missing required fields: to, subject, body' });
     }
 
-    const { init } = require('@instantdb/admin');
-    const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
+    let smtpHost, smtpPort, smtpUser, smtpPass, bizName;
 
-    // Fetch owner profile for SMTP
-    const { userProfiles } = await db.query({
-      userProfiles: { $: { where: { userId: ownerId }, limit: 1 } }
-    });
+    // If smtpConfig is passed directly (e.g. from "Test Connection"), use it.
+    // Otherwise fetch from the database using ownerId.
+    if (smtpConfig && smtpConfig.smtpHost && smtpConfig.smtpUser && smtpConfig.smtpPass) {
+      smtpHost = smtpConfig.smtpHost;
+      smtpPort = smtpConfig.smtpPort || '587';
+      smtpUser = smtpConfig.smtpUser;
+      smtpPass = smtpConfig.smtpPass;
+      bizName  = smtpConfig.bizName || fromName || '';
+    } else {
+      if (!ownerId) {
+        return res.status(400).json({ error: 'Missing ownerId or smtpConfig' });
+      }
 
-    const profile = userProfiles?.[0];
-    const smtpHost = profile?.smtpHost;
-    const smtpPort = profile?.smtpPort;
-    const smtpUser = profile?.smtpUser;
-    const smtpPass = profile?.smtpPass;
+      const { init } = require('@instantdb/admin');
+      const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
 
-    if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
-      return res.status(400).json({ error: 'SMTP configuration not found for this business' });
+      // Fetch owner profile for SMTP
+      const { userProfiles } = await db.query({
+        userProfiles: { $: { where: { userId: ownerId }, limit: 1 } }
+      });
+
+      const profile = userProfiles?.[0];
+      smtpHost = profile?.smtpHost;
+      smtpPort = profile?.smtpPort;
+      smtpUser = profile?.smtpUser;
+      smtpPass = profile?.smtpPass;
+      bizName  = profile?.bizName || fromName || '';
+
+      if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
+        return res.status(400).json({ error: 'SMTP configuration not found. Please configure SMTP in Settings → SMTP.' });
+      }
     }
 
     const port = parseInt(smtpPort);
@@ -55,7 +72,7 @@ export default async function handler(req, res) {
     });
 
     const info = await transporter.sendMail({
-      from: fromName ? `"${fromName}" <${smtpUser}>` : smtpUser,
+      from: bizName ? `"${bizName}" <${smtpUser}>` : smtpUser,
       to: to,
       subject: subject,
       text: body,

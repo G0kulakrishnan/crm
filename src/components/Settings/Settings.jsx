@@ -390,27 +390,26 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   };
 
   const testSMTP = async () => {
-    if (!smtpHost || !smtpUser || !smtpPass) return toast('Please save SMTP settings first', 'error');
-    const testEmail = prompt('Recipient Email:', userProfile.email);
+    if (!smtpHost || !smtpUser || !smtpPass) return toast('Fill in SMTP Host, Username and Password first', 'error');
+    const testEmail = prompt('Recipient Email:', user?.email || smtpUser);
     if (!testEmail) return;
-    const testSubject = prompt('Email Subject:', 'TechCRM SMTP Test');
+    const testSubject = prompt('Email Subject:', 'CRM SMTP Test');
     if (!testSubject) return;
-    const testBody = prompt('Email Content:', 'This is a test email sent directly via your SMTP server.');
+    const testBody = prompt('Email Content:', 'This is a test email from your CRM. If you see this, SMTP is working!');
     if (!testBody) return;
 
     try {
-      toast('Sending test email via SMTP...', 'info');
+      toast('Sending test email...', 'info');
       const smtpConfig = { smtpHost, smtpPort, smtpUser, smtpPass, bizName: biz.bizName };
-      const result = await sendEmail(testEmail, testSubject, testBody, ownerId, biz.bizName, user.id);
-      
+      const result = await sendEmail(testEmail, testSubject, testBody, ownerId, biz.bizName, user.id, smtpConfig);
       if (result === 'OK') {
-        toast('Test email sent successfully! 🚀', 'success');
+        toast('✅ Test email sent successfully!', 'success');
       } else {
-        toast(`Error: ${result}`, 'warning');
+        toast(`⚠️ Unexpected result: ${result}`, 'warning');
       }
     } catch (e) {
       console.error('SMTP Test Error:', e);
-      toast(`Failed: ${e.message}`, 'error');
+      toast(`❌ Failed: ${e.message}`, 'error');
     }
   };
 

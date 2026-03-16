@@ -69,7 +69,8 @@ export default async function handler(req, res) {
         txs.push(db.tx.leads[lMatch.id].update({ 
           stage: wonStage,
           email: lMatch.email || customer.email || '',
-          phone: lMatch.phone || customer.phone || ''
+          phone: lMatch.phone || customer.phone || '',
+          stageChangedAt: Date.now()
         }));
         txs.push(db.tx.activityLogs[id()].update({
           entityId: lMatch.id, 

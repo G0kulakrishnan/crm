@@ -97,6 +97,13 @@ export default function MainApp({ user, settings }) {
   let profile = data?.userProfiles?.[0];
   const memberProfile = data?.memberProfiles?.[0];
 
+  const visibleLeads = useMemo(() => {
+    const savedLeadStages = profile?.leadStages;
+    if (!savedLeadStages || savedLeadStages.length === 0) return leads;
+    // Only count leads whose stage is in the active/visible stages list
+    return leads.filter(l => savedLeadStages.includes(l.stage));
+  }, [leads, profile?.leadStages]);
+
   // Security: Cleanse profile for team members (remove tokens/passwords)
   if (isTeamMember && profile) {
     const { 
@@ -242,12 +249,12 @@ export default function MainApp({ user, settings }) {
       return isAssigned || isCreator;
     };
 
-    const overdueLeads = leads.filter(l => leadFilter(l) && l.followup && new Date(l.followup) < now);
+    const overdueLeads = visibleLeads.filter(l => leadFilter(l) && l.followup && new Date(l.followup) < now);
     if (overdueLeads.length)
       notifs.push({ id: 'fu-overdue', unread: true, title: `⏰ ${overdueLeads.length} Overdue Follow-up${overdueLeads.length > 1 ? 's' : ''}`, desc: `Leads: ${overdueLeads.map(l => l.name).join(', ')}`, time: new Date().toLocaleString() });
 
     return notifs;
-  }, [amc, subs, leads, perms, user]);
+  }, [amc, subs, visibleLeads, perms, user]);
 
   const amcExpiringCount = amc.filter(a => {
     const isTeam = perms && !perms.isOwner;
@@ -326,7 +333,7 @@ export default function MainApp({ user, settings }) {
     <div className="app">
       <Sidebar 
         isSuperadmin={isSuperadmin} 
-        leadCount={leads.length} 
+        leadCount={visibleLeads.length} 
         amcCount={amcExpiringCount} 
         isExpired={isExpired} 
         perms={perms}

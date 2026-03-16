@@ -11,11 +11,17 @@ export const renderTemplate = (template, data = {}) => {
   let msg = template;
   const placeholders = {
     '{client}': data.client || data.name || 'Customer',
-    '{date}': data.date || '',
+    '{date}': data.date || new Date().toLocaleDateString('en-IN'),
     '{amount}': data.amount ? `₹${data.amount.toLocaleString()}` : '',
     '{bizName}': data.bizName || '',
     '{invoiceNo}': data.invoiceNo || '',
     '{contractNo}': data.contractNo || '',
+    '{email}': data.email || '',
+    '{phone}': data.phone || '',
+    '{stage}': data.stage || '',
+    '{source}': data.source || '',
+    '{assignee}': data.assignee || data.assign || '',
+    '{followupDate}': data.followupDate || data.followup || '',
   };
 
   Object.entries(placeholders).forEach(([key, val]) => {
@@ -45,18 +51,31 @@ const logToOutbox = async (userId, type, recipient, content, metadata = {}) => {
 
 /**
  * Sends an email via the Nodemailer serverless function at /api/send-email.
- * Signature updated to use ownerId for server-side token fetching.
+ * @param {string} to - recipient email
+ * @param {string} subject
+ * @param {string} body
+ * @param {string} ownerId - used to fetch SMTP config from DB when no smtpConfig is provided
+ * @param {string} bizName
+ * @param {string} userId - for outbox logging
+ * @param {object} [smtpConfig] - optional: pass raw SMTP creds to skip DB lookup (e.g. for "Test Connection")
  */
-export const sendEmail = async (to, subject, body, ownerId, bizName, userId) => {
-  if (!ownerId) {
-    throw new Error("Missing ownerId for email sending.");
+export const sendEmail = async (to, subject, body, ownerId, bizName, userId, smtpConfig = null) => {
+  if (!ownerId && !smtpConfig) {
+    throw new Error("Missing ownerId or smtpConfig for email sending.");
   }
 
   try {
+    const payload = { to, subject, body, fromName: bizName || '' };
+    if (smtpConfig) {
+      payload.smtpConfig = smtpConfig; // bypass DB lookup
+    } else {
+      payload.ownerId = ownerId;
+    }
+
     const resp = await fetch('/api/send-email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, subject, body, ownerId, fromName: bizName || '' })
+      body: JSON.stringify(payload)
     });
 
     const data = await resp.json();

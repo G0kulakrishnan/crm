@@ -58,11 +58,16 @@ export default function Quotations({ user, perms, ownerId, settings }) {
   const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
   
   const clientOptions = useMemo(() => {
+    const savedLeadStages = profile?.leadStages;
+    const filteredLeads = leads.filter(l => {
+      const isVisible = !savedLeadStages || savedLeadStages.length === 0 || savedLeadStages.includes(l.stage);
+      return isVisible && l.stage !== wonStage;
+    });
     return [
       ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
-      ...leads.filter(l => l.stage !== wonStage).map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+      ...filteredLeads.map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
     ];
-  }, [customers, leads]);
+  }, [customers, leads, profile?.leadStages, wonStage]);
 
   const filtered = useMemo(() => {
     return quotes.filter(q => tab === 'all' || q.status === tab)
@@ -197,7 +202,8 @@ export default function Quotations({ user, perms, ownerId, settings }) {
           txs.push(db.tx.leads[lMatch.id].update({ 
              stage: 'Quotation Sent',
              email: lMatch.email || payload.email || '',
-             phone: lMatch.phone || payload.phone || ''
+             phone: lMatch.phone || payload.phone || '',
+             stageChangedAt: Date.now()
           }));
           txs.push(db.tx.activityLogs[id()].update({
              entityId: lMatch.id, entityType: 'lead', text: 'Stage changed to Quotation Sent (via Quotation)',
@@ -207,7 +213,8 @@ export default function Quotations({ user, perms, ownerId, settings }) {
            txs.push(db.tx.leads[lMatch.id].update({ 
               stage: 'Quotation Created',
               email: lMatch.email || payload.email || '',
-              phone: lMatch.phone || payload.phone || ''
+              phone: lMatch.phone || payload.phone || '',
+              stageChangedAt: Date.now()
            }));
            txs.push(db.tx.activityLogs[id()].update({
               entityId: lMatch.id, entityType: 'lead', text: 'Stage changed to Quotation Created (via Quotation)',
@@ -261,7 +268,8 @@ export default function Quotations({ user, perms, ownerId, settings }) {
         txs.push(db.tx.leads[lMatch.id].update({ 
            stage: 'Invoice Created',
            email: lMatch.email || q.email || '',
-           phone: lMatch.phone || q.phone || ''
+           phone: lMatch.phone || q.phone || '',
+           stageChangedAt: Date.now()
         }));
         txs.push(db.tx.activityLogs[id()].update({
            entityId: lMatch.id, entityType: 'lead', text: `Quotation converted to Invoice (${invNo}). Stage changed to Invoice Created.`,

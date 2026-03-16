@@ -60,11 +60,16 @@ export default function Invoices({ user, perms, ownerId, settings }) {
   const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
   
   const clientOptions = useMemo(() => {
+    const savedLeadStages = profile?.leadStages;
+    const filteredLeads = leads.filter(l => {
+      const isVisible = !savedLeadStages || savedLeadStages.length === 0 || savedLeadStages.includes(l.stage);
+      return isVisible && l.stage !== wonStage;
+    });
     return [
       ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
-      ...leads.filter(l => l.stage !== wonStage).map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+      ...filteredLeads.map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
     ];
-  }, [customers, leads]);
+  }, [customers, leads, profile?.leadStages, wonStage]);
   
   const allPossibleCols = ['Date', 'Due Date', 'Status', 'Paid Amount', 'Balance Due'];
   const savedCols = profile?.invoiceCols;
@@ -211,7 +216,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
     
     if (lMatch) {
       if (payload.status === 'Sent') {
-        txs.push(db.tx.leads[lMatch.id].update({ stage: 'Invoice Sent' }));
+        txs.push(db.tx.leads[lMatch.id].update({ stage: 'Invoice Sent', stageChangedAt: Date.now() }));
         txs.push(db.tx.activityLogs[id()].update({
            entityId: lMatch.id, entityType: 'lead', text: 'Stage changed to Invoice Sent (via Invoice)',
            userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
@@ -220,7 +225,8 @@ export default function Invoices({ user, perms, ownerId, settings }) {
         txs.push(db.tx.leads[lMatch.id].update({ 
            stage: 'Invoice Created',
            email: lMatch.email || payload.email || '',
-           phone: lMatch.phone || payload.phone || ''
+           phone: lMatch.phone || payload.phone || '',
+           stageChangedAt: Date.now()
         }));
         txs.push(db.tx.activityLogs[id()].update({
            entityId: lMatch.id, entityType: 'lead', text: 'Stage changed to Invoice Created (via Invoice)',
@@ -233,7 +239,8 @@ export default function Invoices({ user, perms, ownerId, settings }) {
         txs.push(db.tx.leads[lMatch.id].update({ 
            stage: wonStage,
            email: lMatch.email || payload.email || '',
-           phone: lMatch.phone || payload.phone || ''
+           phone: lMatch.phone || payload.phone || '',
+           stageChangedAt: Date.now()
         }));
         txs.push(db.tx.activityLogs[id()].update({
            entityId: lMatch.id, entityType: 'lead', text: `Lead converted to Customer. Stage changed to ${wonStage} (via Invoice save).`,
@@ -336,7 +343,8 @@ export default function Invoices({ user, perms, ownerId, settings }) {
          txs.push(db.tx.leads[lMatch.id].update({ 
             stage: wonStage,
             email: lMatch.email || payModal.email || '', // payModal might not have email/phone, depends on where it comes from
-            phone: lMatch.phone || payModal.phone || ''
+            phone: lMatch.phone || payModal.phone || '',
+            stageChangedAt: Date.now()
          }));
          txs.push(db.tx.activityLogs[id()].update({
             entityId: lMatch.id, entityType: 'lead', text: `Payment received. Lead converted to Customer. Stage changed to ${wonStage} (via Invoice payment).`,

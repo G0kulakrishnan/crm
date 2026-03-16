@@ -30,8 +30,13 @@ export default function Dashboard({ user, ownerId, perms }) {
   console.log("📊 [Dashboard] Data - leadsRaw count:", leadsRaw.length);
 
   const { leads, quotes, invoices, projects, amc } = useMemo(() => {
-    return { leads: leadsRaw, quotes: quotesRaw, invoices: invoicesRaw, projects: projectsRaw, amc: amcRaw };
-  }, [leadsRaw, quotesRaw, invoicesRaw, projectsRaw, amcRaw]);
+    const savedLeadStages = profile.leadStages;
+    const filteredLeads = (!savedLeadStages || savedLeadStages.length === 0)
+      ? leadsRaw
+      : leadsRaw.filter(l => savedLeadStages.includes(l.stage));
+    
+    return { leads: filteredLeads, quotes: quotesRaw, invoices: invoicesRaw, projects: projectsRaw, amc: amcRaw };
+  }, [leadsRaw, quotesRaw, invoicesRaw, projectsRaw, amcRaw, profile.leadStages]);
   const now = new Date();
 
   const stats = useMemo(() => {

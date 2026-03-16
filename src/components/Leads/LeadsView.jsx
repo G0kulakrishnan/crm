@@ -237,7 +237,11 @@ export default function LeadsView({ user, perms, ownerId }) {
           }
         });
         
-        await db.transact(db.tx.leads[editData.id].update({ ...form, userId: ownerId, actorId: user.id, updatedAt: Date.now() }));
+        const updates = { ...form, userId: ownerId, actorId: user.id, updatedAt: Date.now() };
+        if (editData.stage !== form.stage) {
+          updates.stageChangedAt = Date.now();
+        }
+        await db.transact(db.tx.leads[editData.id].update(updates));
         
         if (changes.length > 0) {
           await logActivity(editData.id, changes.join(' | '));
@@ -431,7 +435,10 @@ export default function LeadsView({ user, perms, ownerId }) {
   const bulkStage = async (newStage) => {
     if (!selectedIds.size || !newStage) return;
     await Promise.all([...selectedIds].map(async lid => {
-      await db.transact(db.tx.leads[lid].update({ stage: newStage }));
+      await db.transact(db.tx.leads[lid].update({ 
+        stage: newStage,
+        stageChangedAt: Date.now()
+      }));
       await logActivity(lid, `Bulk status changed to ${newStage}`);
     }));
     setSelectedIds(new Set());
@@ -455,6 +462,7 @@ export default function LeadsView({ user, perms, ownerId }) {
         db.tx.customers[id()].update(payload),
         db.tx.leads[l.id].update({ 
            stage: (data?.userProfiles?.[0]?.wonStage || 'Won'), // use wonStage from profile if possible, it's defined in the component
+           stageChangedAt: Date.now(),
            email: l.email || '',
            phone: l.phone || ''
         }),
