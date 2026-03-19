@@ -320,7 +320,7 @@ export default function AutomationView({ user, ownerId }) {
     setConditions(tpl.conditions || []);
     setDelayValue(tpl.delay.value); setDelayUnit(tpl.delay.unit);
     setDelayDir(tpl.delay.dir || (tpl.delay.value > 0 ? 'after' : 'immediately'));
-    setRecipient(tpl.recipient); setEmailSubject(tpl.subject || ''); setTemplate(tpl.template || '');
+    setRecipient(tpl.recipient); setEmailSubject(tpl.subject || ''); setTemplate(tpl.template || tpl.body || '');
     setStep(1); setModal(true);
   };
 
@@ -526,7 +526,8 @@ export default function AutomationView({ user, ownerId }) {
                           {(t.body||'').slice(0,120)}{(t.body||'').length>120?'…':''}
                         </div>
                         <div style={{display:'flex',gap:6}}>
-                          <button className="btn btn-secondary btn-sm" style={{flex:1}} onClick={() => openEditTpl(t)}>✎ Edit</button>
+                          <button className="btn btn-primary btn-sm" style={{flex:1}} onClick={() => applyBuiltIn(t)}>⚡ Use Template</button>
+                          <button className="btn btn-secondary btn-sm" onClick={() => openEditTpl(t)}>✎ Edit</button>
                           <button className="btn btn-sm" style={{background:'#fee2e2',color:'#991b1b'}} onClick={() => deleteSavedTpl(t.id)}>Del</button>
                         </div>
                       </div>
