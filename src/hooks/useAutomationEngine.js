@@ -271,8 +271,8 @@ export default function useAutomationEngine(user, ownerId) {
     leads.forEach(lead => {
       if (!lead.followup) return;
       
-      // followup date in MS at midnight
-      const followupDateMs = new Date(lead.followup).setHours(0, 0, 0, 0);
+      // followup date - use exact timestamp to respect scheduled hours/minutes
+      const followupDateMs = new Date(lead.followup).getTime();
       
       followupFlows.forEach(flow => {
         if (!matchesConditions(flow, lead)) return;
@@ -301,7 +301,7 @@ export default function useAutomationEngine(user, ownerId) {
     const paymentFlows = activeFlows.filter(f => f.trigger === 'trig-payment');
     leads.forEach(lead => {
       if (!lead.paymentDue) return;
-      const payDueDateMs = new Date(lead.paymentDue).setHours(0, 0, 0, 0);
+      const payDueDateMs = new Date(lead.paymentDue).getTime();
       paymentFlows.forEach(flow => {
         if (!matchesConditions(flow, lead)) return;
         if (shouldFire(flow, `lead-payment-${lead.id}-${payDueDateMs}`, payDueDateMs)) {
