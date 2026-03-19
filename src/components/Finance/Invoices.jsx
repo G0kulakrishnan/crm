@@ -251,7 +251,21 @@ export default function Invoices({ user, perms, ownerId, settings }) {
     }
 
     await db.transact(txs);
-    toast('Invoice saved' + (isAmc ? ' & AMC created' : '') + (isNewCustomer ? ' & Lead Converted!' : ''), 'success');
+    
+    // Email Recipient Warning
+    if (payload.status === 'Sent') {
+      const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (payload.client || '').trim().toLowerCase());
+      const cMatch = customers.find(c => (c.name || '').trim().toLowerCase() === (payload.client || '').trim().toLowerCase());
+      const targetEmail = lMatch?.email || cMatch?.email;
+      if (!targetEmail) {
+        toast('Invoice saved, but client has no email address. Automated email was skipped.', 'warning');
+      } else {
+        toast('Invoice saved' + (isAmc ? ' & AMC created' : '') + (isNewCustomer ? ' & Lead Converted!' : ''), 'success');
+      }
+    } else {
+      toast('Invoice saved' + (isAmc ? ' & AMC created' : '') + (isNewCustomer ? ' & Lead Converted!' : ''), 'success');
+    }
+    
     setModal(false);
   };
 
@@ -309,6 +323,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
         />
         <div className="no-print" style={{ marginTop: 40, textAlign: 'center', paddingBottom: 40, display: 'flex', justifyContent: 'center', gap: 10 }}>
           <button className="btn btn-primary" onClick={() => window.print()}>Print / Save PDF</button>
+          <button className="btn btn-secondary" onClick={() => window.print()}>Download PDF</button>
           <button className="btn btn-secondary" onClick={() => { 
             const inv = printing;
             setPrinting(null);

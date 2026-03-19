@@ -27,7 +27,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
     width: '210mm',
     minHeight: '297mm',
     padding: '15mm',
-    margin: '10mm auto',
+    margin: '0 auto', // Removed 10mm top/bottom margin for better print alignment
     background: '#fff',
     boxShadow: '0 0 10px rgba(0,0,0,0.1)',
     position: 'relative',
@@ -51,8 +51,9 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
           <style>{`
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
             @media print {
-              body { margin: 0; padding: 0; background: #fff; }
-              .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 0 !important; }
+              @page { size: A4; margin: 0; }
+              body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; }
+              .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 15mm !important; }
               .no-print { display: none !important; }
             }
             .s-table { width: 100%; border-collapse: collapse; border: none; }
@@ -283,8 +284,9 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
       <div style={{ fontFamily: t === 'Modern' ? 'Outfit, sans-serif' : 'sans-serif' }}>
         <style>{`
           @media print {
-            body { margin: 0; padding: 0; background: #fff; }
-            .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; }
+            @page { size: A4; margin: 0; }
+            body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; }
+            .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 15mm !important; }
             .no-print { display: none !important; }
           }
         `}</style>

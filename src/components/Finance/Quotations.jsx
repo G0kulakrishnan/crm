@@ -225,7 +225,21 @@ export default function Quotations({ user, perms, ownerId, settings }) {
 
     try {
       await db.transact(txs);
-      toast('Quotation saved', 'success');
+      
+      // Email Recipient Warning
+      if (payload.status === 'Sent') {
+        const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (form.client || '').trim().toLowerCase());
+        const cMatch = customers.find(c => (c.name || '').trim().toLowerCase() === (form.client || '').trim().toLowerCase());
+        const targetEmail = lMatch?.email || cMatch?.email;
+        if (!targetEmail) {
+          toast('Quotation saved, but client has no email address. Automated email was skipped.', 'warning');
+        } else {
+          toast('Quotation saved', 'success');
+        }
+      } else {
+        toast('Quotation saved', 'success');
+      }
+      
       setModal(false);
     } catch { toast('Error saving quotation', 'error'); }
   };
@@ -310,6 +324,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
         />
         <div className="no-print" style={{ marginTop: 40, textAlign: 'center', paddingBottom: 40, display: 'flex', justifyContent: 'center', gap: 10 }}>
           <button className="btn btn-primary" onClick={() => window.print()}>Print / Save PDF</button>
+          <button className="btn btn-secondary" onClick={() => window.print()}>Download PDF</button>
           <button className="btn btn-secondary" onClick={() => { 
             const q = printing;
             setPrinting(null);
@@ -494,10 +509,18 @@ export default function Quotations({ user, perms, ownerId, settings }) {
                   <tbody>
                     {form.items.map((it, i) => (
                       <tr key={i}>
-                        <td>
-                          <input className="li-input" list="prodList" value={it.name} onChange={e => updateItem(i, 'name', e.target.value)} placeholder="Item name" />
-                          <datalist id="prodList">{products.map(p => <option key={p.id} value={p.name} />)}</datalist>
-                        </td>
+                      <td>
+                        <div style={{ position: 'relative', minWidth: 200 }}>
+                          <SearchableSelect 
+                            options={products}
+                            displayKey="name"
+                            returnKey="name"
+                            value={it.name}
+                            onChange={val => updateItem(i, 'name', val)}
+                            placeholder="Select Product"
+                          />
+                        </div>
+                      </td>
                         <td><input className="li-input" type="number" value={it.qty} onChange={e => updateItem(i, 'qty', e.target.value)} style={{ width: 55, textAlign: 'center' }} /></td>
                         <td><input className="li-input" type="number" value={it.rate} onChange={e => updateItem(i, 'rate', e.target.value)} style={{ textAlign: 'right' }} /></td>
                         <td>

@@ -217,14 +217,19 @@ export default function useAutomationEngine(user, ownerId) {
     const shouldFire = (flow, triggerKey, triggerTimestamp) => {
       const waitMs = delayMs(flow.delay);
       const fireAt = (triggerTimestamp || 0) + waitMs;
-      const ready  = nowStamp >= fireAt;
-      const key    = `${triggerKey}_${flow.id}`;
+      
+      // For 'before' timing, we need to be careful. 
+      // If now is >= fireAt, it's ready.
+      const ready = nowStamp >= fireAt;
 
-      if (ready && !processedRef.current.has(key)) {
-        processedRef.current.add(key);
-        return true;
-      }
-      return false;
+      if (!ready) return false;
+      
+      // Ensure we don't fire multiple times for the same trigger event
+      const processedKey = `${flow.id}-${triggerKey}-${triggerTimestamp}`;
+      if (processedRef.current.has(processedKey)) return false;
+      
+      processedRef.current.add(processedKey); // Mark as processed
+      return true;
     };
 
     // ─── 1. New Lead Trigger (trig-lead) ────────────────────────────────────────
@@ -265,12 +270,14 @@ export default function useAutomationEngine(user, ownerId) {
     const followupFlows = activeFlows.filter(f => f.trigger === 'trig-followup');
     leads.forEach(lead => {
       if (!lead.followup) return;
-      const followupDate = new Date(lead.followup).setHours(0, 0, 0, 0);
-      const today        = new Date().setHours(0, 0, 0, 0);
-      if (followupDate !== today) return;
+      
+      // followup date in MS at midnight
+      const followupDateMs = new Date(lead.followup).setHours(0, 0, 0, 0);
+      
       followupFlows.forEach(flow => {
         if (!matchesConditions(flow, lead)) return;
-        if (shouldFire(flow, `lead-followup-${lead.id}-${lead.followup}`, today)) {
+        if (shouldFire(flow, `lead-followup-${lead.id}-${followupDateMs}`, followupDateMs)) {
+          console.log(`[Automation] ⚡ Firing Follow-up flow "${flow.name}" for lead: ${lead.name}`);
           executeAction(flow, lead, null, lead.id, 'lead');
         }
       });
@@ -294,12 +301,11 @@ export default function useAutomationEngine(user, ownerId) {
     const paymentFlows = activeFlows.filter(f => f.trigger === 'trig-payment');
     leads.forEach(lead => {
       if (!lead.paymentDue) return;
-      const payDueDate = new Date(lead.paymentDue).setHours(0, 0, 0, 0);
-      const today      = new Date().setHours(0, 0, 0, 0);
-      if (payDueDate !== today) return;
+      const payDueDateMs = new Date(lead.paymentDue).setHours(0, 0, 0, 0);
       paymentFlows.forEach(flow => {
         if (!matchesConditions(flow, lead)) return;
-        if (shouldFire(flow, `lead-payment-${lead.id}-${lead.paymentDue}`, today)) {
+        if (shouldFire(flow, `lead-payment-${lead.id}-${payDueDateMs}`, payDueDateMs)) {
+          console.log(`[Automation] ⚡ Firing Payment Due flow "${flow.name}" for lead: ${lead.name}`);
           executeAction(flow, lead, null, lead.id, 'lead');
         }
       });

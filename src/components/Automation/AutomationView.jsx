@@ -312,6 +312,7 @@ export default function AutomationView({ user, ownerId }) {
   };
 
   const applyBuiltIn = (tpl) => {
+    resetForm(); // Crucial: Clear ANY existing state including editingFlowId
     setFlowName(tpl.name); setSelectedTrig(tpl.trigger);
     // support both legacy action string and new actions array
     const acts = tpl.actions || (tpl.action ? [tpl.action] : []);
