@@ -109,15 +109,16 @@ export default async function handler(req, res) {
           const processedKey = `${flow.id}-${triggerKeyBase}-${triggerTimestamp}`;
           const isExecuted = executedKeys.has(processedKey);
 
-          console.log(`[CRON]     → Flow "${flow.name}": Now=${new Date(nowStamp).toLocaleTimeString()} | FireAt=${new Date(fireAt).toLocaleTimeString()} | Exists=${isExecuted}`);
+          const STALE_THRESHOLD = 24 * 60 * 60 * 1000; // Skip if due more than 24h ago
+          const isStale = (nowStamp - fireAt) > STALE_THRESHOLD;
+
+          console.log(`[CRON]     → Flow "${flow.name}": Now=${new Date(nowStamp).toLocaleTimeString()} | FireAt=${new Date(fireAt).toLocaleTimeString()} | Exists=${isExecuted} | Stale=${isStale}`);
 
           if (nowStamp < fireAt) {
-            // console.log(`[CRON]   ↳ Skip "${flow.name}": Not due yet (Due at ${new Date(fireAt).toLocaleTimeString()})`);
             continue;
           }
 
-          if (isExecuted) {
-            // console.log(`[CRON]   ↳ Skip "${flow.name}": Already executed.`);
+          if (isExecuted || isStale) {
             continue;
           }
 
@@ -171,19 +172,28 @@ async function executeAutomation(flow, entity, profile, processedKey) {
   const ownerId = profile.userId;
 
   // Resolve recipients
-  const ownerEmail = profile.bizEmail || profile.email || profile.smtpUser || '';
-  const recipients = [];
-  const recMode = (flow.recipient || 'customer').toLowerCase();
+  const resolveRecipients = (flow, lead, amc_entry, profile) => {
+      const ownerEmail = profile.bizEmail || profile.email || profile.smtpUser || '';
+      const extraEmails = (profile.bizExtraEmails || '').split(',').map(e => e.trim()).filter(Boolean);
+      const recipients = [];
+      const recMode = (flow.recipient || 'customer').toLowerCase();
 
-  if (recMode === 'customer' || recMode === 'both') {
-    if (entity.email) recipients.push({ email: entity.email, isOwner: false });
-  }
-  if (recMode === 'owner' || recMode === 'both') {
-    if (ownerEmail) recipients.push({ email: ownerEmail, isOwner: true });
-  }
-
-  // Deduplicate
-  const targets = recipients.filter((v, i, a) => a.findIndex(t => t.email === v.email) === i);
+      if (recMode === 'customer' || recMode === 'both') {
+        if (lead.email) recipients.push({ email: lead.email, isOwner: false });
+        else if (amc_entry?.email) recipients.push({ email: amc_entry.email, isOwner: false });
+      }
+      if (recMode === 'owner' || recMode === 'both') {
+        if (ownerEmail) recipients.push({ email: ownerEmail, isOwner: true });
+        // Add additional notification emails
+        extraEmails.forEach(email => {
+          recipients.push({ email, isOwner: true });
+        });
+      }
+      
+      // Deduplicate by email address
+      return recipients.filter((v, i, a) => a.findIndex(t => t.email === v.email) === i);
+    };
+  const targets = resolveRecipients(flow, entity, entity, profile);
 
   const templateData = {
     client:      entity.name || entity.client || '',

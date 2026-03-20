@@ -103,19 +103,23 @@ export default function useAutomationEngine(user, ownerId) {
 
     /**
      * Resolve recipients based on flow.recipient setting.
-     * Returns an array of { to, toOwner } pairs to process.
+     * Returns an array of { email, isOwner } pairs to process.
      */
-    const resolveRecipients = (flow, lead) => {
-      // Prioritize the actual business email for notifications over the SMTP username
+    const resolveRecipients = (flow, lead, amc_entry) => {
       const ownerEmail = profile.bizEmail || profile.email || profile.smtpUser || '';
+      const extraEmails = (profile.bizExtraEmails || '').split(',').map(e => e.trim()).filter(Boolean);
       const targets = [];
       const rec = (flow.recipient || 'customer').toLowerCase();
 
       if (rec === 'customer' || rec === 'both') {
-        if (lead?.email) targets.push({ email: lead.email, phone: lead.phone, isOwner: false });
+        const targetLead = lead || amc_entry;
+        if (targetLead?.email) targets.push({ email: targetLead.email, phone: targetLead.phone, isOwner: false });
       }
       if (rec === 'owner' || rec === 'both') {
         if (ownerEmail) targets.push({ email: ownerEmail, phone: ownerEmail, isOwner: true });
+        extraEmails.forEach(email => {
+          targets.push({ email, phone: email, isOwner: true });
+        });
       }
 
       // De-duplicate: Ensure we don't send to the same email twice in one go

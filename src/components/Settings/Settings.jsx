@@ -63,6 +63,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     gstin: profile?.gstin || '', pan: profile?.pan || '',
     website: profile?.website || '',
     logo: profile?.logo || null,
+    bizExtraEmails: profile?.bizExtraEmails || '',
   });
   const [fin, setFin] = useState({
     qPrefix: profile?.qPrefix || 'QUO-',
@@ -115,6 +116,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
         pan: profile.pan || '',
         website: profile.website || '',
         logo: profile.logo || null,
+        bizExtraEmails: profile.bizExtraEmails || '',
       });
       setFin({
         qPrefix: profile.qPrefix || 'QUO-',
@@ -565,6 +567,15 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                   <div className="fg"><label>GSTIN</label><input value={biz.gstin} onChange={e => setBiz(b => ({ ...b, gstin: e.target.value }))} placeholder="22AAAAA0000A1Z5" /></div>
                   <div className="fg"><label>PAN</label><input value={biz.pan} onChange={e => setBiz(b => ({ ...b, pan: e.target.value }))} placeholder="AAAPZ1234C" /></div>
                   <div className="fg span2"><label>Website</label><input value={biz.website} onChange={e => setBiz(b => ({ ...b, website: e.target.value }))} /></div>
+                  <div className="fg span2">
+                    <label>Additional Notification Emails (comma-separated)</label>
+                    <input 
+                      value={biz.bizExtraEmails} 
+                      onChange={e => setBiz(b => ({ ...b, bizExtraEmails: e.target.value }))} 
+                      placeholder="manager@example.com, support@example.com" 
+                    />
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>These emails will also receive automated business alerts (Follow-ups, etc.)</div>
+                  </div>
                   <div className="fg span2">
                     <label>Business Logo</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 15, marginTop: 5 }}>
