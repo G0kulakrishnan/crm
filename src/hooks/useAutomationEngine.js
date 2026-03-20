@@ -53,6 +53,7 @@ export default function useAutomationEngine(user, ownerId) {
     automations: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     campaigns: { $: { where: { userId: ownerId } } },
+    executedAutomations: { $: { where: { userId: ownerId } } },
   });
 
   const leads      = data?.leads      || [];
@@ -60,6 +61,7 @@ export default function useAutomationEngine(user, ownerId) {
   const automations = data?.automations || [];
   const campaigns  = data?.campaigns  || [];
   const profile    = data?.userProfiles?.[0] || {};
+  const executed    = data?.executedAutomations || [];
 
   // Fallback reminders from profile settings (used for AMC days threshold)
   const reminders = profile.reminders || {
@@ -134,7 +136,7 @@ export default function useAutomationEngine(user, ownerId) {
     /**
      * Execute all actions configured on an automation for a given lead.
      */
-    const executeAction = async (flow, lead, amc_entry, logEntityId, logEntityType) => {
+    const executeAction = async (flow, lead, amc_entry, logEntityId, logEntityType, processedKey) => {
       const templateData = {
         name:        lead?.name    || amc_entry?.client || '',
         client:      lead?.name    || amc_entry?.client || '',
@@ -207,29 +209,43 @@ export default function useAutomationEngine(user, ownerId) {
           }
         }
       }
+
+      // Persist the execution record to prevent re-firing across sessions
+      if (processedKey) {
+        await db.transact(db.tx.executedAutomations[id()].update({
+          key: processedKey,
+          userId: ownerId,
+          createdAt: Date.now(),
+        })).catch(e => console.error("[Automation] Failed to persist execution record:", e));
+      }
     };
 
 
     /**
      * Check if a delayed automation is ready to fire.
-     * Fire only once per trigger+automation pair using a processedRef key.
+     * Uses both in-memory processedRef (for instant debounce) and DB persistence (for session persistence).
      */
     const shouldFire = (flow, triggerKey, triggerTimestamp) => {
       const waitMs = delayMs(flow.delay);
       const fireAt = (triggerTimestamp || 0) + waitMs;
       
-      // For 'before' timing, we need to be careful. 
-      // If now is >= fireAt, it's ready.
       const ready = nowStamp >= fireAt;
-
       if (!ready) return false;
       
-      // Ensure we don't fire multiple times for the same trigger event
       const processedKey = `${flow.id}-${triggerKey}-${triggerTimestamp}`;
+      
+      // 1. Check in-memory ref (fast)
       if (processedRef.current.has(processedKey)) return false;
       
-      processedRef.current.add(processedKey); // Mark as processed
-      return true;
+      // 2. Check DB persisted records
+      const alreadyExecuted = executed.some(e => e.key === processedKey);
+      if (alreadyExecuted) {
+        processedRef.current.add(processedKey); // Also add to memory to skip future some() checks
+        return false;
+      }
+      
+      processedRef.current.add(processedKey); // Mark as processed in memory immediately
+      return { processedKey };
     };
 
     // ─── 1. New Lead Trigger (trig-lead) ────────────────────────────────────────
@@ -238,29 +254,27 @@ export default function useAutomationEngine(user, ownerId) {
     leads.forEach(lead => {
       leadFlows.forEach(flow => {
         if (!matchesConditions(flow, lead)) return;
-        if (shouldFire(flow, `lead-new-${lead.id}`, lead.createdAt)) {
+        const res = shouldFire(flow, `lead-new-${lead.id}`, lead.createdAt);
+        if (res) {
           console.log(`[Automation] ⚡ Firing flow "${flow.name}" for lead: ${lead.name}`);
-          executeAction(flow, lead, null, lead.id, 'lead');
+          executeAction(flow, lead, null, lead.id, 'lead', res.processedKey);
         }
       });
     });
 
     // ─── 2. Stage Changed Trigger (trig-stage) ──────────────────────────────────
-    // Fires when stageChangedAt is within 60 minutes.
-    // Key uses stageChangedAt timestamp so every distinct change event fires.
     const stageFlows = activeFlows.filter(f => f.trigger === 'trig-stage');
-    console.log(`[Automation] 🔍 Checking ${stageFlows.length} stage-change flows against ${leads.length} leads`);
     leads.forEach(lead => {
       if (!lead.stageChangedAt) return;
-      const isRecent = nowStamp - lead.stageChangedAt < 60 * 60 * 1000; // extended to 60 minutes
+      const isRecent = nowStamp - lead.stageChangedAt < 60 * 60 * 1000;
       if (!isRecent) return;
       stageFlows.forEach(flow => {
         if (!matchesConditions(flow, lead)) return;
-        // Use stageChangedAt timestamp in key so each real change event fires once
-        if (shouldFire(flow, `lead-stage-${lead.id}-${lead.stageChangedAt}`, lead.stageChangedAt)) {
+        const res = shouldFire(flow, `lead-stage-${lead.id}-${lead.stageChangedAt}`, lead.stageChangedAt);
+        if (res) {
           console.log(`[Automation] ⚡ Stage-change flow "${flow.name}" firing for: ${lead.name} → ${lead.stage}`);
           logAutoActivity(lead.id, 'lead', `Automation "${flow.name}" triggered by stage change to "${lead.stage}"`);
-          executeAction(flow, lead, null, lead.id, 'lead');
+          executeAction(flow, lead, null, lead.id, 'lead', res.processedKey);
         }
       });
     });
@@ -270,15 +284,13 @@ export default function useAutomationEngine(user, ownerId) {
     const followupFlows = activeFlows.filter(f => f.trigger === 'trig-followup');
     leads.forEach(lead => {
       if (!lead.followup) return;
-      
-      // followup date - use exact timestamp to respect scheduled hours/minutes
       const followupDateMs = new Date(lead.followup).getTime();
-      
       followupFlows.forEach(flow => {
         if (!matchesConditions(flow, lead)) return;
-        if (shouldFire(flow, `lead-followup-${lead.id}-${followupDateMs}`, followupDateMs)) {
+        const res = shouldFire(flow, `lead-followup-${lead.id}-${followupDateMs}`, followupDateMs);
+        if (res) {
           console.log(`[Automation] ⚡ Firing Follow-up flow "${flow.name}" for lead: ${lead.name}`);
-          executeAction(flow, lead, null, lead.id, 'lead');
+          executeAction(flow, lead, null, lead.id, 'lead', res.processedKey);
         }
       });
     });
@@ -289,10 +301,10 @@ export default function useAutomationEngine(user, ownerId) {
       const daysLeft = Math.ceil((new Date(entry.endDate) - nowStamp) / (1000 * 60 * 60 * 24));
       if (daysLeft !== reminders.amc.days) return;
       amcFlows.forEach(flow => {
-        if (shouldFire(flow, `amc-exp-${entry.id}-${daysLeft}`, nowStamp)) {
-          // Use AMC entry as the "lead" context for templates
+        const res = shouldFire(flow, `amc-exp-${entry.id}-${daysLeft}`, nowStamp);
+        if (res) {
           const amcAsLead = { name: entry.client, email: entry.email, phone: entry.phone };
-          executeAction(flow, amcAsLead, entry, entry.id, 'amc');
+          executeAction(flow, amcAsLead, entry, entry.id, 'amc', res.processedKey);
         }
       });
     });
@@ -304,9 +316,10 @@ export default function useAutomationEngine(user, ownerId) {
       const payDueDateMs = new Date(lead.paymentDue).getTime();
       paymentFlows.forEach(flow => {
         if (!matchesConditions(flow, lead)) return;
-        if (shouldFire(flow, `lead-payment-${lead.id}-${payDueDateMs}`, payDueDateMs)) {
+        const res = shouldFire(flow, `lead-payment-${lead.id}-${payDueDateMs}`, payDueDateMs);
+        if (res) {
           console.log(`[Automation] ⚡ Firing Payment Due flow "${flow.name}" for lead: ${lead.name}`);
-          executeAction(flow, lead, null, lead.id, 'lead');
+          executeAction(flow, lead, null, lead.id, 'lead', res.processedKey);
         }
       });
     });

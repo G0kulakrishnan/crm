@@ -1,0 +1,256 @@
+import { init } from '@instantdb/admin';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const nodemailer = require('nodemailer');
+const crypto = require('crypto');
+
+const APP_ID = process.env.VITE_INSTANT_APP_ID;
+const ADMIN_TOKEN = process.env.INSTANT_ADMIN_TOKEN;
+
+const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
+
+/**
+ * Calculates the delay offset in milliseconds from a delay config object.
+ */
+const delayMs = (delay) => {
+  if (!delay || !delay.value || delay.dir === 'immediately') return 0;
+  const multipliers = { minutes: 60 * 1000, hours: 60 * 60 * 1000, days: 24 * 60 * 60 * 1000 };
+  const ms = (delay.value || 0) * (multipliers[delay.unit] || 0);
+  return delay.dir === 'before' ? -ms : ms;
+};
+
+/**
+ * Replaces placeholders in a template string with actual data.
+ */
+const renderTemplate = (template, data = {}) => {
+  if (!template) return '';
+  let msg = template;
+  const placeholders = {
+    '{client}': data.client || data.name || 'Customer',
+    '{date}': data.date || new Date().toLocaleDateString('en-IN'),
+    '{amount}': data.amount ? `₹${data.amount.toLocaleString()}` : '',
+    '{bizName}': data.bizName || '',
+    '{invoiceNo}': data.invoiceNo || '',
+    '{contractNo}': data.contractNo || '',
+    '{email}': data.email || '',
+    '{phone}': data.phone || '',
+    '{stage}': data.stage || '',
+    '{source}': data.source || '',
+    '{assignee}': data.assignee || data.assign || '',
+    '{followupDate}': data.followupDate || data.followup || '',
+  };
+
+  Object.entries(placeholders).forEach(([key, val]) => {
+    msg = msg.replaceAll(key, String(val));
+  });
+
+  return msg;
+};
+
+/**
+ * Returns true if the lead matches ALL conditions defined on the automation.
+ */
+const matchesConditions = (flow, lead) => {
+  if (!flow.conditions || flow.conditions.length === 0) return true;
+  return flow.conditions.every(cond => {
+    const fieldVal = (lead[cond.field] || '').toLowerCase();
+    const condVal  = (cond.value || '').toLowerCase();
+    if (cond.op === 'is')       return fieldVal === condVal;
+    if (cond.op === 'is not')   return fieldVal !== condVal;
+    if (cond.op === 'contains') return fieldVal.includes(condVal);
+    return true;
+  });
+};
+
+export default async function handler(req, res) {
+  // CORS (optional for CRON but good to have)
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET');
+
+  try {
+    console.log('[CRON] 🚀 Starting automation processing...');
+    
+    // 1. Fetch all user profiles to iterate through users
+    const { userProfiles } = await db.query({ userProfiles: {} });
+    console.log(`[CRON] 👥 Found ${userProfiles.length} user profiles.`);
+
+    let totalFired = 0;
+
+    for (const profile of userProfiles) {
+      const ownerId = profile.userId;
+      const ownerEmail = profile.bizEmail || profile.email || 'N/A';
+      
+      console.log(`[CRON] 👤 Processing User: ${ownerEmail} (${ownerId})`);
+      const { leads, amc, automations, executedAutomations } = await db.query({
+        leads: { $: { where: { userId: ownerId } } },
+        amc:   { $: { where: { userId: ownerId } } },
+        automations: { $: { where: { userId: ownerId } } },
+        executedAutomations: { $: { where: { userId: ownerId } } },
+      });
+
+      const activeFlows = (automations || []).filter(f => f.active !== false);
+      if (activeFlows.length === 0) continue;
+
+      const nowStamp = Date.now();
+      const executedKeys = new Set((executedAutomations || []).map(e => e.key));
+
+      console.log(`[CRON] 👤 User: ${ownerId} | Leads: ${leads.length} | Active Automations: ${activeFlows.length}`);
+
+      // ─── Trigger Logic ────────────────────────────────────────────────────────
+      
+      const processFlows = async (entity, triggerType, triggerKeyBase, triggerTimestamp) => {
+        const flows = activeFlows.filter(f => f.trigger === triggerType);
+        for (const flow of flows) {
+          if (!matchesConditions(flow, entity)) continue;
+          
+          const waitMs = delayMs(flow.delay);
+          const fireAt = (triggerTimestamp || 0) + waitMs;
+          
+          const processedKey = `${flow.id}-${triggerKeyBase}-${triggerTimestamp}`;
+          const isExecuted = executedKeys.has(processedKey);
+
+          console.log(`[CRON]     → Flow "${flow.name}": Now=${new Date(nowStamp).toLocaleTimeString()} | FireAt=${new Date(fireAt).toLocaleTimeString()} | Exists=${isExecuted}`);
+
+          if (nowStamp < fireAt) {
+            // console.log(`[CRON]   ↳ Skip "${flow.name}": Not due yet (Due at ${new Date(fireAt).toLocaleTimeString()})`);
+            continue;
+          }
+
+          if (isExecuted) {
+            // console.log(`[CRON]   ↳ Skip "${flow.name}": Already executed.`);
+            continue;
+          }
+
+          // FIRE ACTION!
+          console.log(`[CRON] ⚡ Firing automation "${flow.name}" for entity: ${entity.name || entity.id}`);
+          await executeAutomation(flow, entity, profile, processedKey);
+          totalFired++;
+        }
+      };
+
+      // 1. New Lead (trig-lead)
+      for (const lead of leads) {
+        await processFlows(lead, 'trig-lead', `lead-new-${lead.id}`, lead.createdAt);
+      }
+
+      // 2. Follow-up Due (trig-followup)
+      for (const lead of leads) {
+        if (!lead.followup) continue;
+        const followupTs = new Date(lead.followup).getTime();
+        console.log(`[CRON]   🔎 Lead "${lead.name}": Follow-up ${lead.followup} | TS: ${followupTs}`);
+        await processFlows(lead, 'trig-followup', `lead-followup-${lead.id}-${followupTs}`, followupTs);
+      }
+
+      // 3. AMC Expiring (trig-amc)
+      for (const entry of amc) {
+        const daysLeft = Math.ceil((new Date(entry.endDate) - nowStamp) / (1000 * 60 * 60 * 24));
+        const reminders = profile.reminders || { amc: { days: 30 } };
+        if (daysLeft === (reminders.amc?.days || 30)) {
+           await processFlows({ ...entry, name: entry.client }, 'trig-amc', `amc-exp-${entry.id}-${daysLeft}`, nowStamp);
+        }
+      }
+
+      // 4. Payment Due (trig-payment)
+      for (const lead of leads) {
+        if (!lead.paymentDue) continue;
+        const payTs = new Date(lead.paymentDue).getTime();
+        await processFlows(lead, 'trig-payment', `lead-payment-${lead.id}-${payTs}`, payTs);
+      }
+    }
+
+    console.log(`[CRON] ✅ Done. Total automations fired: ${totalFired}`);
+    return res.status(200).json({ success: true, fired: totalFired });
+
+  } catch (err) {
+    console.error('[CRON] ❌ Error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}
+
+async function executeAutomation(flow, entity, profile, processedKey) {
+  const ownerId = profile.userId;
+
+  // Resolve recipients
+  const ownerEmail = profile.bizEmail || profile.email || profile.smtpUser || '';
+  const recipients = [];
+  const recMode = (flow.recipient || 'customer').toLowerCase();
+
+  if (recMode === 'customer' || recMode === 'both') {
+    if (entity.email) recipients.push({ email: entity.email, isOwner: false });
+  }
+  if (recMode === 'owner' || recMode === 'both') {
+    if (ownerEmail) recipients.push({ email: ownerEmail, isOwner: true });
+  }
+
+  // Deduplicate
+  const targets = recipients.filter((v, i, a) => a.findIndex(t => t.email === v.email) === i);
+
+  const templateData = {
+    client:      entity.name || entity.client || '',
+    email:       entity.email || '',
+    phone:       entity.phone || '',
+    stage:       entity.stage || '',
+    source:      entity.source || '',
+    assignee:    entity.assign || '',
+    followupDate:entity.followup || '',
+    bizName:     profile.bizName || '',
+    date:        new Date().toLocaleDateString('en-IN'),
+    contractNo:  entity.contractNo || '',
+    amount:      entity.amount || '',
+  };
+
+  const subject = renderTemplate(flow.subject || 'Reminder', templateData);
+  const body    = renderTemplate(flow.template || 'Hello', templateData);
+
+  const actionList = Array.isArray(flow.actions) ? flow.actions : [flow.action];
+
+  for (const actionId of actionList) {
+    if (actionId === 'act-email' && profile.smtpHost && profile.smtpUser) {
+      for (const target of targets) {
+        try {
+          console.log(`[CRON]     📧 Attempting email to ${target.email}...`);
+          await sendEmailSMTP(target.email, subject, body, profile);
+          console.log(`[CRON]     ✅ Email sent successfully to ${target.email}`);
+        } catch (err) {
+          console.error(`[CRON]     ❌ SMTP Error for ${target.email}:`, err);
+        }
+      }
+    }
+    // Handle other actions (stage, notif, etc.) if needed on server
+    if (actionId === 'act-stage' && entity.id && flow.targetStage) {
+      await db.transact(db.tx.leads[entity.id].update({ stage: flow.targetStage, stageChangedAt: Date.now() }));
+    }
+  }
+
+  // 1. Log activity
+  await db.transact(db.tx.activityLogs[crypto.randomUUID()].update({
+    entityId: entity.id,
+    entityType: 'lead',
+    text: `🤖 [Auto-Cron] Sent automation: ${flow.name}`,
+    userId: ownerId,
+    userName: 'Automation Bot (Server)',
+    createdAt: Date.now(),
+  }));
+
+  // 2. Persist execution
+  await db.transact(db.tx.executedAutomations[crypto.randomUUID()].update({
+    key: processedKey,
+    userId: ownerId,
+    createdAt: Date.now(),
+  }));
+}
+
+async function sendEmailSMTP(to, subject, body, profile) {
+  const transporter = nodemailer.createTransport({
+    host: profile.smtpHost,
+    port: parseInt(profile.smtpPort) || 587,
+    secure: parseInt(profile.smtpPort) === 465,
+    auth: { user: profile.smtpUser, pass: profile.smtpPass },
+    tls: { rejectUnauthorized: false }
+  });
+
+  await transporter.sendMail({
+    from: profile.bizName ? `"${profile.bizName}" <${profile.smtpUser}>` : profile.smtpUser,
+    to, subject, text: body, html: body.replace(/\n/g, '<br/>')
+  });
+}

@@ -13,6 +13,44 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const vercelApiPlugin = () => ({
   name: 'vercel-api-dev',
   configureServer(server) {
+    // 💡 Automated CRON Simulator
+    // This runs the automation logic in the background every minute 
+    // so you don't have to manually trigger the API or log in.
+    let cronRunning = false;
+    const runCron = async () => {
+      if (cronRunning) return;
+      cronRunning = true;
+      try {
+        const cronPath = path.join(__dirname, 'api/cron/process-automations.js');
+        if (fs.existsSync(cronPath)) {
+          const module = await import('file://' + cronPath.replace(/\\/g, '/') + '?t=' + Date.now());
+          const handler = module.default;
+          // Create minimal mock for req/res
+          const mockReq = { env: process.env, method: 'POST' };
+          const mockRes = { 
+            status: () => ({ json: () => {}, end: () => {} }), 
+            json: () => {}, 
+            setHeader: () => {},
+            end: () => {}
+          };
+          await handler(mockReq, mockRes);
+        }
+      } catch (e) {
+        // Silently fail if DB is not ready during startup
+        if (!String(e).includes('init')) {
+          console.error('[CRON-SIMULATOR] Error:', e);
+        }
+      } finally {
+        cronRunning = false;
+      }
+    };
+
+    // Run every 60 seconds
+    const cronInterval = setInterval(runCron, 60000);
+    setTimeout(runCron, 2000); // Initial run after 2s
+
+    server.httpServer?.on('close', () => clearInterval(cronInterval));
+
     server.middlewares.use(async (req, res, next) => {
       if (req.url.startsWith('/api')) {
         try {
