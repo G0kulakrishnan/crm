@@ -28,6 +28,7 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
   const [printing, setPrinting] = useState(null);
   const [payMode, setPayMode] = useState('Cash');
   const [custModal, setCustModal] = useState(false);
+  const [showCartMobile, setShowCartMobile] = useState(false);
   const [newCustForm, setNewCustForm] = useState({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
 
   // 3. Derived Data
@@ -237,11 +238,14 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
       </div>
 
       {/* Right: Cart & Billing */}
-      <div className="pos-side">
+      <div className={`pos-side ${showCartMobile ? 'mobile-open' : ''}`}>
         <div className="pos-bill-box">
           <div className="pos-bill-head">
             <h3>Checkout</h3>
-            <button className="btn btn-sm btn-secondary" onClick={() => setCart([])}>Clear</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-sm btn-secondary no-desktop" onClick={() => setShowCartMobile(false)}>Close</button>
+              <button className="btn btn-sm btn-secondary" onClick={() => setCart([])}>Clear</button>
+            </div>
           </div>
 
           <div className="pos-cust-sec">
@@ -376,6 +380,38 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
           .pos-receipt-wrap { background: transparent !important; padding: 0 !important; }
           .pos-receipt { box-shadow: none !important; width: 100% !important; padding: 0 !important; margin: 0 !important; }
         }
+
+        @media (max-width: 1024px) {
+          .pos-container { grid-template-columns: 1fr; height: calc(100vh - 60px); padding-bottom: 80px; }
+          .pos-side { 
+            position: fixed; 
+            top: 0; 
+            left: 0; 
+            right: 0; 
+            bottom: 0; 
+            z-index: 2000; 
+            display: none; 
+            border-radius: 0;
+            height: 100vh;
+          }
+          .pos-side.mobile-open { display: flex; }
+          .pos-mobile-bar { 
+            display: flex; 
+            position: fixed; 
+            bottom: 0; 
+            left: 0; 
+            right: 0; 
+            background: #fff; 
+            padding: 12px 20px; 
+            border-top: 1px solid var(--border); 
+            z-index: 1500; 
+            justify-content: space-between; 
+            align-items: center; 
+            box-shadow: 0 -4px 15px rgba(0,0,0,0.1); 
+          }
+          .no-desktop { display: block !important; }
+        }
+        .no-desktop { display: none; }
       `}</style>
       {/* Quick Add Customer Modal */}
       {custModal && (
@@ -417,6 +453,17 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
           </div>
         </div>
       )}
+
+      {/* Mobile Sticky Bar */}
+      <div className="pos-mobile-bar" onClick={() => setShowCartMobile(true)}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontWeight: 700, fontSize: 14 }}>{cart.length} Items</div>
+          <div style={{ fontSize: 11, color: 'var(--muted)' }}>Total: {fmt(totals.total)}</div>
+        </div>
+        <button className="btn btn-primary" style={{ padding: '8px 16px' }}>
+          View Cart
+        </button>
+      </div>
     </div>
   );
 }
