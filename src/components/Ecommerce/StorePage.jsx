@@ -12,8 +12,10 @@ const RESPONSIVE_CSS = `
     .banner { height: 180px !important; }
     .banner h1 { font-size: 24px !important; }
     .mobile-hide { display: none !important; }
+    .mobile-only { display: block !important; }
     .store-container { padding: 12px 10px !important; }
   }
+  .mobile-only { display: none !important; }
 `;
 
 /* ─────────── SHARED COMPONENTS ─────────── */
@@ -141,7 +143,7 @@ function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSu
                   <div style={{ fontSize: 80 }}>📦</div>
                   <h2 style={{ fontSize: 24, fontWeight: 900, marginBottom: 12, color: '#1e293b' }}>Order Placed!</h2>
                   <p style={{ color: '#4b5563', marginBottom: 24 }}>Thank you, {form.name}. We'll process your order soon.</p>
-                  <button onClick={onClose} style={{ width: '100%', padding: 16, background: primary, color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>Finish</button>
+                  <button onClick={onClose} style={{ width: '100%', padding: 16, background: primaryC, color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>Finish</button>
                </div>
             ) : (
                <>
@@ -159,7 +161,7 @@ function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSu
                      <span style={{ fontSize: 24, fontWeight: 900, color: '#1e293b' }}>₹{total.toLocaleString()}</span>
                   </div>
 
-                  <button disabled={submitting} onClick={submit} style={{ width: '100%', padding: 18, background: primary, color: '#fff', border: 'none', borderRadius: 16, fontWeight: 900, fontSize: 16, cursor: 'pointer', transition: 'transform 0.2s', boxShadow: `0 8px 20px ${primary}44` }}>
+                  <button disabled={submitting} onClick={submit} style={{ width: '100%', padding: 18, background: primaryC, color: '#fff', border: 'none', borderRadius: 16, fontWeight: 900, fontSize: 16, cursor: 'pointer', transition: 'transform 0.2s', boxShadow: `0 8px 20px ${primaryC}44` }}>
                      {submitting ? 'Processing...' : 'CONFIRM ORDER'}
                   </button>
                   
