@@ -6,11 +6,12 @@ const db = init({ appId: APP_ID });
 
 /* ─────────── RESPONSIVE CSS ─────────── */
 const RESPONSIVE_CSS = `
+  .hide-scroll::-webkit-scrollbar { display: none !important; }
+  .hide-scroll { -ms-overflow-style: none !important; scrollbar-width: none !important; }
   @media (max-width: 768px) {
     .banner { height: 180px !important; }
     .banner h1 { font-size: 24px !important; }
     .mobile-hide { display: none !important; }
-    .mobile-scroll { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
     .store-container { padding: 12px 10px !important; }
   }
 `;
@@ -136,6 +137,7 @@ function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSu
             <h3 style={{ fontSize: 22, fontWeight: 900, marginBottom: 20 }}>Complete Checkout</h3>
             <div style={{ display: 'grid', gap: 16 }}>
                <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>Full Name</label><input placeholder="Required" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10 }} /></div>
+               <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>Email Address</label><input type="email" placeholder="Required" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10 }} /></div>
                <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>Phone Number</label><input placeholder="Required" value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10 }} /></div>
                <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>Delivery Address</label><textarea placeholder="Optional" value={form.address} onChange={e => setForm(f => ({...f, address: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, height: 100 }} /></div>
             </div>
@@ -254,7 +256,7 @@ export default function StorePage() {
                 style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1.5px solid ${isDark ? '#334155' : '#e2e8f0'}`, background: isDark ? 'rgba(255,255,255,0.05)' : '#fff', color: isDark ? '#fff' : '#1e293b', fontSize: 14, outline: 'none' }} 
               />
             </div>
-            <div className="mobile-scroll" style={{ display: 'flex', flexDirection: 'row', gap: 8, flex: 2 }}>
+            <div className="hide-scroll" style={{ display: 'flex', flexDirection: 'row', gap: 8, flex: 2, overflowX: 'auto', paddingBottom: 4 }}>
                {['All', ...categories].map(c => (
                   <button key={c} onClick={() => setCat(c)} style={{ padding: '10px 18px', borderRadius: 25, border: `1.5px solid ${cat === c ? primaryC : (isDark ? '#334155' : '#e2e8f0')}`, background: cat === c ? primaryC : (isDark ? 'rgba(255,255,255,0.05)' : '#fff'), color: cat === c ? '#fff' : (isDark ? '#94a3b8' : '#64748b'), fontWeight: 800, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>{c}</button>
                ))}
