@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/data/:module",
+      "destination": "/api/data?module=:module"
+    }
+  ]
+}
