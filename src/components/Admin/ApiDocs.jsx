@@ -120,10 +120,13 @@ export default function ApiDocs({ ownerId }) {
   const getActionPath = (groupPath, action) => {
     if (groupPath.startsWith('/api/data/')) {
        if (action.method === 'GET') return `${groupPath}/list`;
+       if (action.method === 'POST') return `${groupPath}/create`;
+       if (action.method === 'PATCH') return `${groupPath}/update`;
        if (action.method === 'DELETE') return `${groupPath}/delete`;
     }
     return groupPath;
   };
+
 
 
   const filtered = API_LIST.filter(g => 

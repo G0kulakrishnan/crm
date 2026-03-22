@@ -5,6 +5,14 @@
       "destination": "/api/data?module=:module"
     },
     {
+      "source": "/api/data/:module/update",
+      "destination": "/api/data?module=:module"
+    },
+    {
+      "source": "/api/data/:module/create",
+      "destination": "/api/data?module=:module"
+    },
+    {
       "source": "/api/data/:module/list",
       "destination": "/api/data?module=:module"
     },
@@ -14,4 +22,5 @@
     }
   ]
 }
+
 
