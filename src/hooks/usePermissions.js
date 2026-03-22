@@ -80,6 +80,12 @@ export function usePermissions(user, profile, teamMembers = []) {
             return false;
         }
 
+        // Admin override: Grant full access to all modules except blocked ones
+        if (isAdmin) {
+            trace(module, action, true, 'Admin override');
+            return true;
+        }
+
         const modPerms = perms[module];
         
         // If no permissions defined for this module, deny all

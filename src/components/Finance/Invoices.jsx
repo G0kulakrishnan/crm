@@ -250,6 +250,27 @@ export default function Invoices({ user, perms, ownerId, settings }) {
       }
     }
 
+    // Inventory Stock Deduction Logic
+    if (payload.status === 'Paid' && !editData?.stockDeducted) {
+      payload.stockDeducted = true;
+      for (const item of payload.items) {
+        const pMatch = products.find(p => p.name === item.name);
+        if (pMatch && pMatch.trackStock) {
+          const newStock = (pMatch.stock || 0) - (item.qty || 0);
+          txs.push(db.tx.products[pMatch.id].update({ stock: newStock }));
+          txs.push(db.tx.activityLogs[id()].update({
+            entityId: pMatch.id,
+            entityType: 'product',
+            text: `Stock reduced by ${item.qty} via Invoice ${payload.no}. New stock: ${newStock}`,
+            userId: ownerId,
+            actorId: user.id,
+            userName: user.email,
+            createdAt: Date.now()
+          }));
+        }
+      }
+    }
+
     await db.transact(txs);
     
     // Email Recipient Warning

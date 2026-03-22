@@ -137,9 +137,15 @@ export default async function handler(req, res) {
       // 2. Follow-up Due (trig-followup)
       for (const lead of leads) {
         if (!lead.followup) continue;
+        
+        // Skip if lead is in a terminal stage (Won/Lost)
+        const isTerminal = ['Won', 'Lost', (profile.wonStage || 'Won'), (profile.lostStage || 'Lost')].includes(lead.stage);
+        if (isTerminal) continue;
+
         const followupTs = new Date(lead.followup).getTime();
+        const dateKey = String(lead.followup).split('T')[0];
         console.log(`[CRON]   🔎 Lead "${lead.name}": Follow-up ${lead.followup} | TS: ${followupTs}`);
-        await processFlows(lead, 'trig-followup', `lead-followup-${lead.id}-${followupTs}`, followupTs);
+        await processFlows(lead, 'trig-followup', `lead-followup-${lead.id}-${dateKey}`, followupTs);
       }
 
       // 3. AMC Expiring (trig-amc)

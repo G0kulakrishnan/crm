@@ -224,15 +224,29 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
         </div>
         
         <div className="pos-grid">
-          {filteredProducts.map(p => (
-            <div key={p.id} className="pos-card" onClick={() => addToCart(p)}>
-              <div className="pos-card-info">
-                <div className="pos-card-name">{p.name}</div>
-                <div className="pos-card-cat">{p.category || 'General'}</div>
-                <div className="pos-card-price">{fmt(p.rate)}</div>
+          {filteredProducts.map(p => {
+            const isOutOfStock = p.trackStock && p.stock <= 0;
+            return (
+              <div 
+                key={p.id} 
+                className={`pos-card ${isOutOfStock ? 'out-of-stock' : ''}`} 
+                onClick={() => !isOutOfStock && addToCart(p)}
+              >
+                <div className="pos-card-info">
+                  <div className="pos-card-name">{p.name}</div>
+                  <div className="pos-card-cat">{p.category || 'General'}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 'auto' }}>
+                    <div className="pos-card-price">{fmt(p.rate)}</div>
+                    {p.trackStock && (
+                      <div style={{ fontSize: 10, fontWeight: 700, color: isOutOfStock ? 'var(--red)' : 'var(--muted)' }}>
+                        {isOutOfStock ? 'Out of Stock' : `Stock: ${p.stock}`}
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {products.length === 0 && <div style={{ gridColumn: 'span 4', textAlign: 'center', padding: 40, color: 'var(--muted)' }}>No products found.</div>}
         </div>
       </div>
@@ -346,6 +360,8 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
         .pos-card-name { font-size: 12px; font-weight: 700; color: #333; height: 32px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.3; }
         .pos-card-cat { font-size: 10px; color: var(--muted); margin-top: 4px; }
         .pos-card-price { font-size: 13px; font-weight: 800; color: var(--accent); margin-top: auto; }
+        .pos-card.out-of-stock { opacity: 0.6; filter: grayscale(1); cursor: not-allowed; border-color: #fee2e2; background: #fffafb; }
+        .pos-card.out-of-stock:hover { box-shadow: none; border-color: #fee2e2; }
         
         .pos-side { background: #fff; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
         .pos-bill-box { flex: 1; display: flex; flex-direction: column; }

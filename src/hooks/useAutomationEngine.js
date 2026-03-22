@@ -15,6 +15,8 @@ const delayMs = (delay) => {
   return delay.dir === 'before' ? -ms : ms;
 };
 
+const STALE_THRESHOLD = 24 * 60 * 60 * 1000; // Skip if due more than 24h ago
+
 
 /**
  * Resolves a lead field value for condition matching.
@@ -235,6 +237,10 @@ export default function useAutomationEngine(user, ownerId) {
       
       const ready = nowStamp >= fireAt;
       if (!ready) return false;
+
+      // STALE CHECK: Skip if overdue by more than 24h (consistent with server)
+      const isStale = (nowStamp - fireAt) > STALE_THRESHOLD;
+      if (isStale) return false;
       
       const processedKey = `${flow.id}-${triggerKey}-${triggerTimestamp}`;
       
@@ -288,10 +294,18 @@ export default function useAutomationEngine(user, ownerId) {
     const followupFlows = activeFlows.filter(f => f.trigger === 'trig-followup');
     leads.forEach(lead => {
       if (!lead.followup) return;
+      
+      // Skip if lead is in a terminal stage (Won/Lost)
+      const isTerminal = ['Won', 'Lost', (profile.wonStage || 'Won'), (profile.lostStage || 'Lost')].includes(lead.stage);
+      if (isTerminal) return;
+
       const followupDateMs = new Date(lead.followup).getTime();
+      // Normalize key: Use the raw date string instead of getTime() to avoid timezone mismatch with server
+      const dateKey = String(lead.followup).split('T')[0]; 
+      
       followupFlows.forEach(flow => {
         if (!matchesConditions(flow, lead)) return;
-        const res = shouldFire(flow, `lead-followup-${lead.id}-${followupDateMs}`, followupDateMs);
+        const res = shouldFire(flow, `lead-followup-${lead.id}-${dateKey}`, followupDateMs);
         if (res) {
           console.log(`[Automation] ⚡ Firing Follow-up flow "${flow.name}" for lead: ${lead.name}`);
           executeAction(flow, lead, null, lead.id, 'lead', res.processedKey);

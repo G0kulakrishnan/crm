@@ -12,6 +12,8 @@ const MODULES = [
   { key: 'AMC', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'Expenses', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'Products', actions: ['list', 'create', 'edit', 'delete'] },
+  { key: 'Vendors', actions: ['list', 'create', 'edit', 'delete'] },
+  { key: 'PurchaseOrders', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'Campaigns', actions: ['list', 'create', 'edit'] },
   { key: 'Projects', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'Tasks', actions: ['list', 'create', 'edit', 'delete'] },

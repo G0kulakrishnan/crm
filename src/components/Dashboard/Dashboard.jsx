@@ -14,6 +14,8 @@ export default function Dashboard({ user, ownerId, perms }) {
     amc: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
+    products: { $: { where: { userId: ownerId } } },
+    expenses: { $: { where: { userId: ownerId } } },
   });
 
   const profile = data?.userProfiles?.[0] || {};
@@ -44,8 +46,10 @@ export default function Dashboard({ user, ownerId, perms }) {
     const active = leads.filter(l => l.stage !== wonStage && l.stage !== lostStage).length;
     const amcExp = amc.filter(a => { const d = daysLeft(a.endDate); return d <= 30 && d >= 0; }).length;
     const inProgress = projects.filter(p => p.status === 'In Progress').length;
-    return { overdue, active, amcExp, inProgress };
-  }, [leads, amc, projects]);
+    const outOfStock = (data?.products || []).filter(p => p.trackStock && p.stock <= 0).length;
+    const lowStock = (data?.products || []).filter(p => p.trackStock && p.stock > 0 && p.stock <= (p.lowStockThreshold || 5)).length;
+    return { overdue, active, amcExp, inProgress, outOfStock, lowStock };
+  }, [leads, amc, projects, data?.products]);
 
   // Source chart data
   const srcData = useMemo(() => {
@@ -61,8 +65,15 @@ export default function Dashboard({ user, ownerId, perms }) {
     const rem = [];
     amc.forEach(a => { const d = daysLeft(a.endDate); if (d <= 30 && d >= 0) rem.push({ icon: '🛡', text: `<strong>${a.client}</strong> AMC ${a.plan ? `(<strong>${a.plan}</strong>) ` : ''}expires in <strong>${d} days</strong>`, actionInfo: { type: 'amc', id: a.id } }); });
     leads.filter(l => l.followup && new Date(l.followup) < now).forEach(l => rem.push({ icon: '⏰', text: `Follow-up overdue: <strong>${l.name}</strong>`, actionInfo: { type: 'lead', id: l.id } }));
+    
+    // Inventory Alerts
+    (data?.products || []).filter(p => p.trackStock).forEach(p => {
+      if (p.stock <= 0) rem.push({ icon: '🔴', text: `Out of Stock: <strong>${p.name}</strong> (Available: 0)`, actionInfo: { type: 'product', id: p.id } });
+      else if (p.stock <= (p.lowStockThreshold || 5)) rem.push({ icon: '🟡', text: `Low Stock: <strong>${p.name}</strong> (Only <strong>${p.stock}</strong> left)`, actionInfo: { type: 'product', id: p.id } });
+    });
+
     return rem;
-  }, [amc, leads]);
+  }, [amc, leads, data?.products]);
 
   // Revenue Trend (Last 6 Months)
   const revenueTrend = useMemo(() => {
@@ -84,6 +95,24 @@ export default function Dashboard({ user, ownerId, perms }) {
     return months;
   }, [invoices]);
   const maxRev = Math.max(...revenueTrend.map(m => m.total), 1);
+
+  // Profit & Loss
+  const pnl = useMemo(() => {
+    const prodMap = (data?.products || []).reduce((acc, p) => { acc[p.name] = p; return acc; }, {});
+    const revenue = invoices.filter(inv => inv.status === 'Paid').reduce((s, inv) => s + (inv.total || 0), 0);
+    let cogs = 0;
+    invoices.filter(inv => inv.status === 'Paid').forEach(inv => {
+      (inv.items || []).forEach(item => {
+        const prod = prodMap[item.name];
+        if (prod && prod.purchasePrice) cogs += (item.qty || 0) * prod.purchasePrice;
+      });
+    });
+    const totalExpenses = (data?.expenses || []).filter(e => e.status === 'Approved').reduce((s, e) => s + (e.amount || 0), 0);
+    const grossProfit = revenue - cogs;
+    const netProfit = grossProfit - totalExpenses;
+    const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
+    return { revenue, cogs, grossProfit, netProfit, totalExpenses, margin };
+  }, [invoices, data?.products, data?.expenses]);
 
   // Hot Leads
   const hotLeads = useMemo(() => {
@@ -119,6 +148,8 @@ export default function Dashboard({ user, ownerId, perms }) {
     } else if (info.type === 'lead') {
       localStorage.setItem('tc_open_lead', info.id);
       setActiveView('leads');
+    } else if (info.type === 'product') {
+      setActiveView('products');
     }
   };
 
@@ -155,6 +186,12 @@ export default function Dashboard({ user, ownerId, perms }) {
         )}
         {perms.can('AMC', 'list') === true && (
           <div className="stat-card sc-red"><div className="lbl">AMC Expiring</div><div className="val">{stats.amcExp}</div></div>
+        )}
+        {perms.can('Products', 'list') === true && (
+          <>
+            <div className="stat-card sc-red" style={{ background: '#fff5f5', borderColor: '#feb2b2' }}><div className="lbl" style={{ color: '#c53030' }}>Out of Stock</div><div className="val" style={{ color: '#c53030' }}>{stats.outOfStock}</div></div>
+            <div className="stat-card sc-yellow" style={{ background: '#fffff0', borderColor: '#faf089' }}><div className="lbl" style={{ color: '#b7791f' }}>Low Stock</div><div className="val" style={{ color: '#b7791f' }}>{stats.lowStock}</div></div>
+          </>
         )}
       </div>
 
@@ -240,6 +277,28 @@ export default function Dashboard({ user, ownerId, perms }) {
               </div>
             </div>
           </>
+        )}
+
+        {/* P&L Summary */}
+        {perms.can('Invoices', 'list') === true && (
+          <div className="tw">
+            <div className="tw-head"><h3>💰 Profit &amp; Loss Summary</h3><span style={{ fontSize: 11, color: 'var(--muted)' }}>Based on Paid Invoices</span></div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0, borderTop: '1px solid var(--border)' }}>
+              {[
+                { label: 'Revenue', value: fmt(pnl.revenue), color: '#16a34a', bg: '#f0fdf4' },
+                { label: 'COGS', value: fmt(pnl.cogs), color: '#7c3aed', bg: '#faf5ff' },
+                { label: 'Gross Profit', value: fmt(pnl.grossProfit), color: pnl.grossProfit >= 0 ? '#16a34a' : '#dc2626', bg: pnl.grossProfit >= 0 ? '#f0fdf4' : '#fff5f5' },
+                { label: 'Expenses', value: fmt(pnl.totalExpenses), color: '#d97706', bg: '#fffbeb' },
+                { label: 'Net Profit', value: fmt(pnl.netProfit), color: pnl.netProfit >= 0 ? '#16a34a' : '#dc2626', bg: pnl.netProfit >= 0 ? '#f0fdf4' : '#fff5f5' },
+                { label: 'Margin %', value: `${pnl.margin}%`, color: pnl.margin >= 0 ? '#16a34a' : '#dc2626', bg: pnl.margin >= 0 ? '#f0fdf4' : '#fff5f5' },
+              ].map((item, i) => (
+                <div key={i} style={{ padding: '14px 18px', borderRight: (i + 1) % 3 !== 0 ? '1px solid var(--border)' : 'none', borderBottom: i < 3 ? '1px solid var(--border)' : 'none', background: item.bg }}>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{item.label}</div>
+                  <div style={{ fontSize: 17, fontWeight: 800, color: item.color }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Revenue Trend */}

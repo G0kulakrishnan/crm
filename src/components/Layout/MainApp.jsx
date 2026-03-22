@@ -18,6 +18,8 @@ import AMC from '../Clients/AMC';
 import Customers from '../Clients/Customers';
 import Expenses from '../Business/Expenses';
 import Products from '../Business/Products';
+import Vendors from '../Business/Vendors';
+import PurchaseOrders from '../Business/PurchaseOrders';
 import Campaigns from '../Marketing/Campaigns';
 import Projects from '../Work/Projects';
 import AllTasks from '../Work/AllTasks';
@@ -273,6 +275,8 @@ export default function MainApp({ user, settings }) {
     amc: { component: <AMC user={user} perms={perms} ownerId={targetUserId} />, label: 'AMC' },
     expenses: { component: <Expenses user={user} perms={perms} ownerId={targetUserId} />, label: 'Expenses' },
     products: { component: <Products user={user} perms={perms} ownerId={targetUserId} />, label: 'Products' },
+    vendors: { component: <Vendors user={user} perms={perms} ownerId={targetUserId} />, label: 'Vendors' },
+    'purchase-orders': { component: <PurchaseOrders user={user} perms={perms} ownerId={targetUserId} />, label: 'PurchaseOrders' },
     campaigns: { component: <Campaigns user={user} perms={perms} ownerId={targetUserId} />, label: 'Campaigns' },
     projects: { component: <Projects user={user} perms={perms} ownerId={targetUserId} />, label: 'Projects' },
     alltasks: { component: <AllTasks user={user} perms={perms} ownerId={targetUserId} />, label: 'Tasks' },

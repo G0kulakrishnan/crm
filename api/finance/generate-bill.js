@@ -78,7 +78,32 @@ export default async function handler(req, res) {
           text: `Lead converted to Customer. Stage changed to ${wonStage} (via POS Billing API).`,
           userId, 
           actorId, 
-          userName: actorId, // We use actorId as a fallback for userName in backend
+          userName: actorId,
+          createdAt: Date.now()
+        }));
+      }
+    }
+
+    // 4. Stock Deduction Logic
+    const cartProductNames = cart.map(it => it.name);
+    const prodData = await db.query({ products: { $: { where: { userId, name: { in: cartProductNames } } } } });
+    const productsMap = (prodData.products || []).reduce((acc, p) => ({ ...acc, [p.name]: p }), {});
+
+    for (const item of cart) {
+      const dbProd = productsMap[item.name];
+      if (dbProd && dbProd.trackStock) {
+        const newStock = (dbProd.stock || 0) - item.qty;
+        if (newStock < 0) {
+          return res.status(400).json({ error: `Insufficient stock for ${item.name}. Available: ${dbProd.stock}` });
+        }
+        txs.push(db.tx.products[dbProd.id].update({ stock: newStock }));
+        txs.push(db.tx.activityLogs[id()].update({
+          entityId: dbProd.id,
+          entityType: 'product',
+          text: `Stock reduced by ${item.qty} via POS Bill ${invNo}. New stock: ${newStock}`,
+          userId,
+          actorId,
+          userName: 'POS System',
           createdAt: Date.now()
         }));
       }
