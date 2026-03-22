@@ -183,9 +183,9 @@ export default function StorePage() {
   if (!ownerId) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#6b7280' }}><h2>🏪 Store Not Found</h2></div>;
 
   const templateId = Number(settings?.template) || 1;
-  const p = settings.primaryColor || '#6366f1';
+  const primaryC = settings.primaryColor || '#6366f1';
   const a = settings.accentColor || '#fdd835';
-  const s = settings.secondaryColor || '#2e7d32';
+  const secondaryC = settings.secondaryColor || '#2e7d32';
 
   const isDark = templateId === 2;
   const theme = templateId === 5 ? 'catalog' : (templateId === 4 ? 'list' : 'grid');
@@ -195,15 +195,15 @@ export default function StorePage() {
       <style>{RESPONSIVE_CSS}</style>
       
       {/* Header */}
-      <header style={{ background: isDark ? `${p}99` : '#fff', borderBottom: `2px solid ${p}`, padding: '0 20px', position: 'sticky', top: 0, zIndex: 100, backdropFilter: isDark ? 'blur(10px)' : 'none' }}>
+      <header style={{ background: isDark ? `${primaryC}99` : '#fff', borderBottom: `2px solid ${primaryC}`, padding: '0 20px', position: 'sticky', top: 0, zIndex: 100, backdropFilter: isDark ? 'blur(10px)' : 'none' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
              {settings.logo && <img src={settings.logo} alt="Logo" style={{ height: 36, width: 36, objectFit: 'contain', borderRadius: 6 }} />}
              <div style={{ fontWeight: 900, fontSize: 18 }}>{settings.title || 'Store'}</div>
            </div>
            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-             {customerSession && <a href={`/${ecomName}/orders`} style={{ fontSize: 13, color: isDark ? '#fff' : p, fontWeight: 700, textDecoration: 'none' }}>ORDERS</a>}
-             <div onClick={() => setShowCheckout(true)} style={{ background: isDark ? a : p, color: isDark ? '#000' : '#fff', padding: '10px 18px', borderRadius: 10, cursor: 'pointer', fontWeight: 900, fontSize: 13, boxShadow: `0 4px 12px ${p}33` }}>
+             {customerSession && <a href={`/${ecomName}/orders`} style={{ fontSize: 13, color: isDark ? '#fff' : primaryC, fontWeight: 700, textDecoration: 'none' }}>ORDERS</a>}
+             <div onClick={() => setShowCheckout(true)} style={{ background: isDark ? a : primaryC, color: isDark ? '#000' : '#fff', padding: '10px 18px', borderRadius: 10, cursor: 'pointer', fontWeight: 900, fontSize: 13, boxShadow: `0 4px 12px ${primaryC}33` }}>
                 🛒 ({cart.length})
              </div>
            </div>
@@ -234,7 +234,7 @@ export default function StorePage() {
             </div>
             <div className="mobile-scroll" style={{ display: 'flex', flexDirection: 'row', gap: 8, flex: 2 }}>
                {['All', ...categories].map(c => (
-                  <button key={c} onClick={() => setCat(c)} style={{ padding: '10px 18px', borderRadius: 25, border: `1.5px solid ${cat === c ? p : (isDark ? '#334155' : '#e2e8f0')}`, background: cat === c ? p : (isDark ? 'rgba(255,255,255,0.05)' : '#fff'), color: cat === c ? '#fff' : (isDark ? '#94a3b8' : '#64748b'), fontWeight: 800, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>{c}</button>
+                  <button key={c} onClick={() => setCat(c)} style={{ padding: '10px 18px', borderRadius: 25, border: `1.5px solid ${cat === c ? primaryC : (isDark ? '#334155' : '#e2e8f0')}`, background: cat === c ? primaryC : (isDark ? 'rgba(255,255,255,0.05)' : '#fff'), color: cat === c ? '#fff' : (isDark ? '#94a3b8' : '#64748b'), fontWeight: 800, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>{c}</button>
                ))}
             </div>
          </div>
@@ -249,13 +249,13 @@ export default function StorePage() {
             overflow: 'hidden', background: theme === 'grid' ? 'transparent' : (isDark ? '#1e293b' : '#fff')
          }}>
            {filtered.map(p => (
-              <ProductItem key={p.id} p={p} inCart={cart.find(c => c.id === p.id)} theme={theme} isDark={isDark} addToCart={pi => setCart(prev => { const ex = prev.find(i => i.id === pi.id); if (ex) return prev.map(i => i.id === pi.id ? { ...i, qty: i.qty + 1 } : i); return [...prev, { ...pi, qty: 1 }]; })} removeFromCart={pid => setCart(prev => { const ex = prev.find(i => i.id === pid); if (ex?.qty <= 1) return prev.filter(i => i.id !== pid); return prev.map(i => i.id === pid ? { ...i, qty: i.qty - 1 } : i); })} primary={p} secondary={s} />
+              <ProductItem key={p.id} p={p} inCart={cart.find(c => c.id === p.id)} theme={theme} isDark={isDark} addToCart={pi => setCart(prev => { const ex = prev.find(i => i.id === pi.id); if (ex) return prev.map(i => i.id === pi.id ? { ...i, qty: i.qty + 1 } : i); return [...prev, { ...pi, qty: 1 }]; })} removeFromCart={pid => setCart(prev => { const ex = prev.find(i => i.id === pid); if (ex?.qty <= 1) return prev.filter(i => i.id !== pid); return prev.map(i => i.id === pid ? { ...i, qty: i.qty - 1 } : i); })} primary={primaryC} secondary={secondaryC} />
            ))}
            {filtered.length === 0 && <div style={{ padding: 64, textAlign: 'center', color: '#94a3b8' }}><h3>No products found</h3></div>}
          </div>
       </main>
 
-      {showCheckout && <CheckoutModal cart={cart} ownerId={ownerId} ecomName={ecomName} customerSession={customerSession} onClose={() => setShowCheckout(false)} onSuccess={setCustomerSession} primary={p} />}
+      {showCheckout && <CheckoutModal cart={cart} ownerId={ownerId} ecomName={ecomName} customerSession={customerSession} onClose={() => setShowCheckout(false)} onSuccess={setCustomerSession} primary={primaryC} />}
     </div>
   );
 }
