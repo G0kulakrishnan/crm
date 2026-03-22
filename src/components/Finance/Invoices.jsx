@@ -80,8 +80,9 @@ export default function Invoices({ user, perms, ownerId, settings }) {
       .filter(inv => {
         if (!search) return true;
         const s = search.toLowerCase();
+        const items = Array.isArray(inv.items) ? inv.items : (inv.items ? JSON.parse(inv.items) : []);
         return [inv.no, inv.client, inv.status, inv.notes, inv.terms].some(v => (v || '').toLowerCase().includes(s)) ||
-               (inv.items || []).some(it => (it.name || '').toLowerCase().includes(s));
+               items.some(it => (it.name || '').toLowerCase().includes(s));
       });
   }, [invoices, tab, search]);
   const tots = calcTotals(form.items, form.disc, form.discType, form.adj);
@@ -456,7 +457,8 @@ export default function Invoices({ user, perms, ownerId, settings }) {
               {filtered.length === 0
                 ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No invoices yet</td></tr>
                 : filtered.map((inv, i) => {
-                    const paidAmt = (inv.payments || []).reduce((s, p) => s + p.amount, 0);
+                    const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
+                    const paidAmt = payments.reduce((s, p) => s + p.amount, 0);
                     const balAmt = inv.total - paidAmt;
                     return (
                       <tr key={inv.id}>
@@ -693,9 +695,12 @@ export default function Invoices({ user, perms, ownerId, settings }) {
           <div className="mo-box" style={{ width: 400 }}>
             <div className="mo-head"><h3>Record Payment</h3><button className="btn-icon" onClick={() => setPayModal(null)}>✕</button></div>
             <div className="mo-body" style={{ padding: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 15, fontSize: 13, background: '#f8fafc', padding: 10, borderRadius: 8 }}>
+             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 15, fontSize: 13, background: '#f8fafc', padding: 10, borderRadius: 8 }}>
                 <span>Total: <strong>{fmt(payModal.total)}</strong></span>
-                <span>Paid: <strong style={{ color: '#16a34a' }}>{fmt((payModal.payments || []).reduce((s,p) => s + p.amount, 0))}</strong></span>
+                {(() => {
+                  const payments = Array.isArray(payModal.payments) ? payModal.payments : (payModal.payments ? JSON.parse(payModal.payments) : []);
+                  return <span>Paid: <strong style={{ color: '#16a34a' }}>{fmt(payments.reduce((s,p) => s + p.amount, 0))}</strong></span>
+                })()}
               </div>
               <div className="fg">
                 <label>Amount (₹)</label>

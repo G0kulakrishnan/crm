@@ -74,8 +74,9 @@ export default function Quotations({ user, perms, ownerId, settings }) {
       .filter(q => {
         if (!search) return true;
         const s = search.toLowerCase();
+        const items = Array.isArray(q.items) ? q.items : (q.items ? JSON.parse(q.items) : []);
         return [q.no, q.client, q.status, q.notes, q.terms].some(v => (v || '').toLowerCase().includes(s)) ||
-               (q.items || []).some(it => (it.name || '').toLowerCase().includes(s));
+               items.some(it => (it.name || '').toLowerCase().includes(s));
       });
   }, [quotes, tab, search]);
   const tots = calcTotals(form.items, form.disc, form.tdsRate, form.adj);

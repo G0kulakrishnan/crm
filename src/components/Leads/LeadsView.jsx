@@ -580,7 +580,7 @@ export default function LeadsView({ user, perms, ownerId }) {
               ))}
               <div style={{ marginTop: 10 }}>
                 <span style={{ fontSize: 12, color: 'var(--muted)', display: 'block', marginBottom: 4 }}>Internal Notes</span>
-                <div style={{ fontSize: 13, background: 'var(--bg)', padding: 12, borderRadius: 8, minHeight: 60 }}>{l.notes || 'No notes provided during creation.'}</div>
+                <div style={{ fontSize: 13, background: 'var(--bg)', padding: 12, borderRadius: 8, minHeight: 60, whiteSpace: 'pre-wrap' }}>{l.notes || 'No notes provided during creation.'}</div>
               </div>
             </div>
           </div>

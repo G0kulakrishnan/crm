@@ -4,7 +4,7 @@ import { id } from '@instantdb/react';
 import { fmt, fmtD } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
-const ORDER_STATUSES = ['Pending', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
+const FALLBACK_STATUSES = ['Pending', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
 
 const STATUS_COLORS = {
   Pending: { bg: '#fef3c7', color: '#92400e' },
@@ -23,9 +23,15 @@ export default function EcomOrders({ ownerId, perms }) {
 
   const { data } = db.useQuery({
     orders: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId } } },
   });
 
   const orders = data?.orders || [];
+  const customers = data?.customers || [];
+  const leads = data?.leads || [];
+  const orderStatuses = data?.userProfiles?.[0]?.orderStatuses || FALLBACK_STATUSES;
 
   const filtered = useMemo(() => {
     let list = [...orders].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
@@ -38,8 +44,60 @@ export default function EcomOrders({ ownerId, perms }) {
   }, [orders, statusFilter, search]);
 
   const updateStatus = async (orderId, status) => {
-    await db.transact(db.tx.orders[orderId].update({ status, updatedAt: Date.now() }));
+    const order = orders.find(o => o.id === orderId);
+    if (!window.confirm(`Are you sure you want to change this order's status to ${status}?`)) return;
+    
+    const txs = [db.tx.orders[orderId].update({ status, updatedAt: Date.now() })];
+
+    if (status === 'Delivered') {
+      const existingCustomer = customers.find(c => c.phone === order.customerPhone || (c.email && c.email === order.customerEmail));
+      if (!existingCustomer && order.customerPhone) {
+        const newCustomerId = id();
+        txs.push(db.tx.customers[newCustomerId].update({
+          userId: ownerId,
+          name: order.customerName || 'Unknown',
+          phone: order.customerPhone || '',
+          email: order.customerEmail || '',
+          address: order.customerAddress || '',
+          createdAt: Date.now()
+        }));
+        
+        txs.push(db.tx.activityLogs[id()].update({
+          entityId: newCustomerId, entityType: 'customer', text: `Auto-converted from E-commerce order (${order.id.slice(0,8)}) upon delivery.`,
+          userId: ownerId, createdAt: Date.now()
+        }));
+      }
+      
+      // Update Lead to Converted
+      const existingLead = leads.find(l => l.phone === order.customerPhone || (l.email && l.email === order.customerEmail));
+      if (existingLead && existingLead.stage !== 'Converted') {
+        txs.push(db.tx.leads[existingLead.id].update({ stage: 'Converted', updatedAt: Date.now() }));
+      }
+    }
+    
+    await db.transact(txs);
     toast(`Order status updated to ${status}`, 'success');
+
+    if (order && order.customerEmail) {
+      if (window.confirm(`Would you like to email ${order.customerName} about this status update?`)) {
+        try {
+          await fetch('/api/notify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              type: 'email',
+              to: order.customerEmail,
+              subject: `Update on your order - ${order.ecomName || 'Store'}`,
+              body: `Hi ${order.customerName},\n\nThe status of your order (${orderId.slice(0, 8).toUpperCase()}) has been updated to: ${status}.\n\nThank you for shopping with us!`,
+              ownerId
+            })
+          });
+          toast('Notification sent', 'success');
+        } catch (err) {
+          toast('Failed to send notification', 'error');
+        }
+      }
+    }
   };
 
   const totalRevenue = orders.filter(o => o.status === 'Delivered').reduce((s, o) => s + (o.total || 0), 0);
@@ -66,7 +124,7 @@ export default function EcomOrders({ ownerId, perms }) {
         <div className="tw-head">
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <h3>Orders ({filtered.length})</h3>
-            {['All', ...ORDER_STATUSES].map(s => (
+            {['All', ...orderStatuses].map(s => (
               <button key={s} onClick={() => setStatusFilter(s)}
                 className={`btn btn-sm ${statusFilter === s ? 'btn-primary' : 'btn-secondary'}`}
                 style={{ fontSize: 11, padding: '3px 10px' }}>
@@ -107,9 +165,12 @@ export default function EcomOrders({ ownerId, perms }) {
                     <td>
                       <select
                         value={o.status || 'Pending'}
-                        onChange={e => updateStatus(o.id, e.target.value)}
-                        style={{ fontSize: 11, padding: '3px 6px', borderRadius: 6, border: '1.5px solid', borderColor: sc.color, background: sc.bg, color: sc.color, fontWeight: 700 }}>
-                        {ORDER_STATUSES.map(s => <option key={s}>{s}</option>)}
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val !== o.status) updateStatus(o.id, val);
+                        }}
+                        style={{ fontSize: 11, padding: '3px 6px', borderRadius: 6, border: '1.5px solid', borderColor: sc.color || '#3b82f6', background: sc.bg || '#eff6ff', color: sc.color || '#1d4ed8', fontWeight: 700 }}>
+                        {orderStatuses.map(s => <option key={s}>{s}</option>)}
                       </select>
                     </td>
                     <td style={{ fontSize: 11 }}>{o.createdAt ? fmtD(o.createdAt) : '—'}</td>

@@ -21,7 +21,7 @@ const SETTINGS_GROUPS = [
   },
   {
     title: 'Operations',
-    items: ['Task Statuses']
+    items: ['Task Statuses', 'Order Statuses']
   },
   {
     title: 'Comms & Alerts',
@@ -34,6 +34,7 @@ const DEFAULT_CFIELDS = []; // { name: 'Requirement', type: 'text'|'number'|'dro
 const DEFAULT_PROD_CATS = ['Electronics', 'Home Appliances', 'Services', 'Furniture', 'General'];
 const DEFAULT_EXP_CATS = ['Software', 'Hardware', 'Travel', 'Office', 'Marketing', 'Utilities', 'Salaries', 'Misc'];
 const DEFAULT_TASK_STATUSES = ['Pending', 'In Progress', 'Completed'];
+const DEFAULT_ORDER_STATUSES = ['Pending', 'Confirmed', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
 const DEFAULT_TAX_OPTIONS = [
   { label: 'None (0%)', rate: 0 },
   { label: 'GST @ 5%', rate: 5 },
@@ -42,7 +43,7 @@ const DEFAULT_TAX_OPTIONS = [
   { label: 'GST @ 28%', rate: 28 }
 ];
 
-export default function Settings({ user, profile, isExpired, initialTab, ownerId, perms, teamInfo, memberProfile }) {
+export default function Settings({ user, profile, isExpired, initialTab, ownerId, perms, teamInfo, memberProfile, settings }) {
   const groups = SETTINGS_GROUPS;
 
   const [active, setActive] = useState(initialTab || 'Business');
@@ -64,6 +65,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     website: profile?.website || '',
     logo: profile?.logo || null,
     bizExtraEmails: profile?.bizExtraEmails || '',
+    slug: profile?.slug || '',
   });
   const [fin, setFin] = useState({
     qPrefix: profile?.qPrefix || 'QUO-',
@@ -117,6 +119,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
         website: profile.website || '',
         logo: profile.logo || null,
         bizExtraEmails: profile.bizExtraEmails || '',
+        slug: profile.slug || '',
       });
       setFin({
         qPrefix: profile.qPrefix || 'QUO-',
@@ -162,10 +165,13 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
 
   const { data } = db.useQuery({ 
      userProfiles: { $: { where: { userId: ownerId } } },
+     allProfiles: { userProfiles: {} },
      leads: { $: { where: { userId: ownerId } } },
      customers: { $: { where: { userId: ownerId } } },
      quotes: { $: { where: { userId: ownerId } } },
-     invoices: { $: { where: { userId: ownerId } } }
+     invoices: { $: { where: { userId: ownerId } } },
+     ecomSettings: { $: { where: { userId: ownerId } } },
+     appointmentSettings: { $: { where: { userId: ownerId } } }
   });
   const profileId = data?.userProfiles?.[0]?.id;
   const sources = data?.userProfiles?.[0]?.sources || DEFAULT_SOURCES;
@@ -178,7 +184,10 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   const productCats = data?.userProfiles?.[0]?.productCats || DEFAULT_PROD_CATS;
   const expCats = data?.userProfiles?.[0]?.expCats || DEFAULT_EXP_CATS;
   const taskStatuses = data?.userProfiles?.[0]?.taskStatuses || DEFAULT_TASK_STATUSES;
+  const orderStatuses = data?.userProfiles?.[0]?.orderStatuses || DEFAULT_ORDER_STATUSES;
   const taxRates = data?.userProfiles?.[0]?.taxRates || DEFAULT_TAX_OPTIONS;
+
+  const [newOrderStatus, setNewOrderStatus] = useState('');
 
   // Auto-migration for revamped stage names: Drafted -> Created
   useEffect(() => {
@@ -236,18 +245,49 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
 
 
   const saveBiz = async () => {
+    // Normalize slug: lowercase, trim, replace non-alphanumeric with hyphens
+    const cleanSlug = (biz.slug || '').toLowerCase().trim().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+    
+    // Uniqueness check
+    const isTaken = data?.allProfiles?.userProfiles?.some(p => p.slug === cleanSlug && p.userId !== ownerId);
+    if (cleanSlug && isTaken) {
+      return toast('This brand URL slug is already taken! Please choose another one.', 'error');
+    }
+
     const payload = { 
-      ...biz, 
+      ...biz,
+      slug: cleanSlug,
       accHolder: fin.accHolder,
       bankName: fin.bankName,
       accountNo: fin.accountNo,
       ifsc: fin.ifsc,
       bankExtra: fin.bankExtra,
       qrCode: fin.qrCode,
+      tagline: biz.tagline || profile?.tagline || '', // Ensure tagline is synced
       userId: ownerId 
     };
-    if (profileId) await db.transact(db.tx.userProfiles[profileId].update(payload));
-    toast('Business details saved!', 'success');
+
+    const txs = [];
+    if (profileId) txs.push(db.tx.userProfiles[profileId].update(payload));
+
+    // Global Slug Sync: Force update linked modules to the new slug
+    const ecomId = data?.ecomSettings?.[0]?.id;
+    if (ecomId) {
+      txs.push(db.tx.ecomSettings[ecomId].update({ ecomName: cleanSlug }));
+    }
+    
+    const apptId = data?.appointmentSettings?.[0]?.id;
+    if (apptId) {
+      txs.push(db.tx.appointmentSettings[apptId].update({ slug: cleanSlug }));
+    }
+
+    try {
+      if (txs.length > 0) await db.transact(txs);
+      setBiz(b => ({ ...b, slug: cleanSlug })); // Update local state with cleaned slug
+      toast('Business Profile & URLs synced successfully! 🚀', 'success');
+    } catch (err) {
+      toast('Sync failed: ' + err.message, 'error');
+    }
   };
 
   const saveFin = async () => {
@@ -546,7 +586,8 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
               <div style={{ padding: '20px' }}>
                 <div className="sub" style={{ marginBottom: 20 }}>Public business information used for invoices and professional documents.</div>
                 <div className="fgrid">
-                  <div className="fg span2"><label>Business Name</label><input value={biz.bizName} onChange={e => setBiz(b => ({ ...b, bizName: e.target.value }))} /></div>
+                  <div className="fg span2"><label>Business Name</label><input value={biz.bizName} onChange={e => setBiz(b => ({ ...b, bizName: e.target.value }))} placeholder="e.g. Acme Corp" /></div>
+                  <div className="fg span2"><label>Business Tagline</label><input value={biz.tagline} onChange={e => setBiz(b => ({ ...b, tagline: e.target.value }))} placeholder="e.g. Quality products at best prices" /></div>
                   <div className="fg span2"><label>Business Address</label><textarea value={biz.address} onChange={e => setBiz(b => ({ ...b, address: e.target.value }))} style={{ minHeight: 60 }} /></div>
                   <div className="fg"><label>Official Email</label><input type="email" value={biz.bizEmail} onChange={e => setBiz(b => ({ ...b, bizEmail: e.target.value }))} /></div>
                   <div className="fg"><label>Official Phone</label><input value={biz.bizPhone} onChange={e => setBiz(b => ({ ...b, bizPhone: e.target.value }))} /></div>
@@ -576,8 +617,55 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                     />
                     <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>These emails will also receive automated business alerts (Follow-ups, etc.)</div>
                   </div>
+
+                  <div className="fg span2" style={{ background: 'var(--bg-soft)', padding: 16, borderRadius: 10, border: '1px solid var(--border)' }}>
+                    <label style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      🌐 Brand URL Slug
+                      <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>(e.g. your-business-name)</span>
+                    </label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 0, marginTop: 8, border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
+                      <span style={{ padding: '8px 10px', background: 'var(--bg-soft)', fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', borderRight: '1px solid var(--border)' }}>
+                        {(settings?.crmDomain || window.location.origin).replace(/\/$/, '')}/
+                      </span>
+                      <input
+                        value={biz.slug}
+                        onChange={e => setBiz(b => ({ ...b, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))}
+                        placeholder="your-slug"
+                        style={{ border: 'none', borderRadius: 0, flex: 1, padding: '8px 12px' }}
+                      />
+                    </div>
+                    {biz.slug && (
+                      <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                        <div style={{ background: '#fff', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', position: 'relative' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>🛒 Store Website</div>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button className="btn-icon" style={{ fontSize: 10, padding: '2px 6px' }} onClick={() => { navigator.clipboard.writeText(`${(settings?.crmDomain || window.location.origin).replace(/\/$/, '')}/${biz.slug}/store`); toast('Copied!', 'success'); }} title="Copy Store Link">📋</button>
+                              <button className="btn-icon" style={{ fontSize: 10, padding: '2px 6px' }} onClick={() => window.open(`${(settings?.crmDomain || window.location.origin).replace(/\/$/, '')}/${biz.slug}/store`, '_blank')} title="Open Store">👁</button>
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 4, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {(settings?.crmDomain || window.location.origin).replace(/\/$/, '')}/{biz.slug}/store
+                          </div>
+                        </div>
+                        <div style={{ background: '#fff', padding: '10px 14px', borderRadius: 10, border: '1px solid var(--border)', position: 'relative' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                            <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>📅 Booking Page</div>
+                            <div style={{ display: 'flex', gap: 4 }}>
+                              <button className="btn-icon" style={{ fontSize: 10, padding: '2px 6px' }} onClick={() => { navigator.clipboard.writeText(`${(settings?.crmDomain || window.location.origin).replace(/\/$/, '')}/${biz.slug}/book`); toast('Copied!', 'success'); }} title="Copy Booking Link">📋</button>
+                              <button className="btn-icon" style={{ fontSize: 10, padding: '2px 6px' }} onClick={() => window.open(`${(settings?.crmDomain || window.location.origin).replace(/\/$/, '')}/${biz.slug}/book`, '_blank')} title="Open Booking Page">👁</button>
+                            </div>
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 4, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {(settings?.crmDomain || window.location.origin).replace(/\/$/, '')}/{biz.slug}/book
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   <div className="fg span2">
-                    <label>Business Logo</label>
+                    <label>Brand Logo</label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 15, marginTop: 5 }}>
                       {biz.logo && <img src={biz.logo} alt="Logo" style={{ height: 60, width: 60, objectFit: 'contain', border: '1px solid var(--border)', borderRadius: 8 }} />}
                       <div style={{ flex: 1 }}>
@@ -990,6 +1078,27 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                       {s} 
                       <span style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => editItem('taskStatuses', taskStatuses, i, s)}>✎</span>
                       <span style={{ cursor: 'pointer' }} onClick={() => removeItem('taskStatuses', taskStatuses, i)}>✕</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {active === 'Order Statuses' && (
+            <div className="tw">
+              <div className="tw-head"><h3>Order Statuses</h3></div>
+              <div style={{ padding: '16px 20px' }}>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                  <input value={newOrderStatus} onChange={e => setNewOrderStatus(e.target.value)} placeholder="New order status..." style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }} />
+                  <button className="btn btn-primary btn-sm" onClick={() => addItem('orderStatuses', orderStatuses, newOrderStatus, setNewOrderStatus)}>Add</button>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {orderStatuses.map((s, i) => (
+                    <span key={i} className="badge bg-blue" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 10px' }}>
+                      {s} 
+                      <span style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => editItem('orderStatuses', orderStatuses, i, s)}>✎</span>
+                      <span style={{ cursor: 'pointer' }} onClick={() => removeItem('orderStatuses', orderStatuses, i)}>✕</span>
                     </span>
                   ))}
                 </div>

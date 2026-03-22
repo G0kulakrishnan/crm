@@ -9,6 +9,10 @@ const TRIGGER_TYPES = [
   { id: 'trig-followup', label: 'Follow-Up Due',       desc: 'Reminder date reached',               icon: '⏰', color: '#f59e0b' },
   { id: 'trig-amc',      label: 'AMC Expiring',        desc: 'Contract expiring within threshold',   icon: '🛡', color: '#ef4444' },
   { id: 'trig-payment',  label: 'Payment Due',          desc: 'Subscription payment due',            icon: '💰', color: '#14b8a6' },
+  { id: 'trig-appt-new', label: 'New Appointment',      desc: 'When a new booking is made',          icon: '📅', color: '#0ea5e9' },
+  { id: 'trig-appt-status', label: 'Appt Status Changed', desc: 'When appointment status updates',     icon: '✅', color: '#10b981' },
+  { id: 'trig-order-new', label: 'New Ecom Order',       desc: 'When a new store order is placed',     icon: '🛒', color: '#f43f5e' },
+  { id: 'trig-order-status', label: 'Order Status Changed', desc: 'When ecom order status updates',      icon: '📦', color: '#f97316' },
 ];
 
 const ACTION_TYPES = [
@@ -39,6 +43,12 @@ const TEMPLATE_VARS = [
   { var: '{date}',         label: "Today's Date"    },
   { var: '{amount}',       label: 'Amount'          },
   { var: '{contractNo}',   label: 'Contract No.'    },
+  { var: '{apptDate}',     label: 'Appt Date'       },
+  { var: '{apptTime}',     label: 'Appt Time'       },
+  { var: '{service}',      label: 'Service Name'    },
+  { var: '{orderId}',      label: 'Order ID'        },
+  { var: '{orderStatus}',  label: 'Order Status'    },
+  { var: '{orderAmount}',  label: 'Order Total'     },
 ];
 
 const COND_OPS = ['is', 'is not', 'contains'];
@@ -131,6 +141,64 @@ const BUILT_IN_TEMPLATES = [
       },
     ]
   },
+  {
+    category: '📅 Appointment Management',
+    items: [
+      {
+        name: 'Booking Confirmation',
+        trigger: 'trig-appt-new', action: 'act-email',
+        delay: { value: 0, unit: 'minutes' }, recipient: 'customer', conditions: [],
+        subject: 'Appointment Confirmed: {service} on {apptDate}',
+        template: 'Hi {client},\n\nYour appointment for {service} has been confirmed for {apptDate} at {apptTime}.\n\nLocation: {bizName}\n\nWe look forward to seeing you!\n\nBest regards,\nTeam {bizName}',
+        desc: 'Instant confirmation email after booking',
+      },
+      {
+        name: 'Appt Reminder (1 Day Before)',
+        trigger: 'trig-appt-new', action: 'act-wa',
+        delay: { value: 1, unit: 'days', dir: 'before' }, recipient: 'customer', conditions: [],
+        subject: '',
+        template: 'Hi {client}! 👋 Just a reminder that you have an appointment for {service} tomorrow ({apptDate}) at {apptTime}. See you soon! 😊',
+        desc: 'Send WhatsApp reminder 24h before appointment',
+      },
+      {
+        name: 'New Booking Alert (Owner)',
+        trigger: 'trig-appt-new', action: 'act-notif',
+        delay: { value: 0, unit: 'minutes' }, recipient: 'owner', conditions: [],
+        subject: '',
+        template: '📅 New Booking: {client} for {service} on {apptDate} at {apptTime}.',
+        desc: 'In-app alert for the business owner',
+      },
+    ]
+  },
+  {
+    category: '🛒 E-Commerce & Orders',
+    items: [
+      {
+        name: 'Order Confirmation',
+        trigger: 'trig-order-new', action: 'act-email',
+        delay: { value: 0, unit: 'minutes' }, recipient: 'customer', conditions: [],
+        subject: 'Order Received - #{orderId}',
+        template: 'Hi {client},\n\nThank you for your order #{orderId} from {bizName}!\n\nTotal: {orderAmount}\nStatus: {orderStatus}\n\nWe are processing your order and will notify you when it ships.\n\nThank you for shopping with us!\n\nBest regards,\nTeam {bizName}',
+        desc: 'Send order confirmation after successful checkout',
+      },
+      {
+        name: 'Order Shipped Update',
+        trigger: 'trig-order-status', action: 'act-wa',
+        delay: { value: 0, unit: 'minutes' }, recipient: 'customer', conditions: [{ field: 'orderStatus', op: 'is', value: 'Shipped' }],
+        subject: '',
+        template: 'Great news {client}! 🚚 Your order #{orderId} from {bizName} has been shipped! It will be with you shortly. 😊',
+        desc: 'WhatsApp notification when order status changes to Shipped',
+      },
+      {
+        name: 'New Order Alert (Owner)',
+        trigger: 'trig-order-new', action: 'act-email',
+        delay: { value: 0, unit: 'minutes' }, recipient: 'owner', conditions: [],
+        subject: '🛒 New Order Received: #{orderId}',
+        template: 'Hi Owner,\n\nA new order #{orderId} has been placed by {client} for {orderAmount}.\n\nCheck your dashboard to process the order.\n\nAutomation Bot 🤖',
+        desc: 'Email alert to owner for every new order',
+      },
+    ]
+  },
 ];
 
 const WIZARD_STEPS = ['Name', 'Trigger', 'Action', 'Conditions', 'Timing', 'Recipient', 'Template'];
@@ -178,6 +246,8 @@ export default function AutomationView({ user, ownerId }) {
     automationTemplates: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     teamMembers:  { $: { where: { userId: ownerId } } },
+    orders:       { $: { where: { userId: ownerId } } },
+    appointments: { $: { where: { userId: ownerId } } },
   });
 
   const automations      = data?.automations          || [];

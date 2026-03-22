@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     const appointmentId = id();
     const now = Date.now();
 
-    await db.transact([
+    const txs = [
       tx.appointments[appointmentId].update({
         userId: ownerId,
         ecomName: ecomName || '',
@@ -49,7 +49,65 @@ export default async function handler(req, res) {
         status: 'Pending',
         createdAt: now,
       })
-    ]);
+    ];
+
+    // Check if customer is already a lead
+    if (customer.email || customer.phone) {
+      const existingLeads = await db.query({ leads: { $: { where: { userId: ownerId } } } });
+      const matchLead = existingLeads.leads?.find(l =>
+        (customer.email && l.email === customer.email) ||
+        (customer.phone && l.phone === customer.phone)
+      );
+      if (!matchLead) {
+        txs.push(tx.leads[id()].update({
+          userId: ownerId,
+          name: customer.name,
+          email: customer.email || '',
+          phone: customer.phone,
+          source: 'appointment',
+          stage: 'New Enquiry',
+          notes: `Booked appointment for: ${service || 'General'} on ${date} at ${time}`,
+          createdAt: now,
+        }));
+      } else {
+        // Update existing lead with new name and new note
+        const oldNotes = matchLead.notes || '';
+        const timestampedNote = `[${new Date().toLocaleDateString('en-IN')}] Booked appointment for: ${service || 'General'} on ${date} at ${time}`;
+        const newNotes = oldNotes ? `${oldNotes}\n${timestampedNote}` : timestampedNote;
+        
+        txs.push(tx.leads[matchLead.id].update({
+          name: customer.name, // Update to the newly provided name
+          notes: newNotes,
+          updatedAt: now,
+        }));
+      }
+    }
+
+    await db.transact(txs);
+
+    // Send confirmation email
+    if (customer.email) {
+      try {
+        const port = process.env.PORT || 3000;
+        const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+        const host = req.headers.host || `localhost:${port}`;
+        const notifyUrl = `${protocol}://${host}/api/notify`;
+        
+        await fetch(notifyUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'email',
+            to: customer.email,
+            subject: `Appointment Confirmation - ${service || 'General'}`,
+            body: `Hi ${customer.name},\n\nYour appointment request has been received!\n\nDetails:\nService: ${service || 'General Appointment'}\nDate: ${date}\nTime: ${time}\n\nWe will contact you shortly to confirm.\n\nThanks,\n${ecomName || 'Our Team'}`,
+            ownerId
+          })
+        });
+      } catch (e) {
+        console.error('Failed to send appointment confirmation email:', e);
+      }
+    }
 
     return res.status(200).json({ success: true, appointmentId });
   } catch (err) {

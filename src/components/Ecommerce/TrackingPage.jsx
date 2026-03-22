@@ -15,8 +15,16 @@ const STATUS_MAP = {
 
 export default function TrackingPage({ ecomSettings }) {
   const ecomName = window.location.pathname.split('/')[1];
-  const [phone, setPhone] = useState('');
-  const [searched, setSearched] = useState(false);
+  
+  const [customerSession] = useState(() => {
+    try {
+      const s = localStorage.getItem(`session_${ecomName}`);
+      return s ? JSON.parse(s) : null;
+    } catch { return null; }
+  });
+
+  const [phone, setPhone] = useState(customerSession?.phone || '');
+  const [searched, setSearched] = useState(!!customerSession?.phone);
 
   const { data, isLoading } = db.useQuery({
     orders: { $: { where: { ecomName } } },

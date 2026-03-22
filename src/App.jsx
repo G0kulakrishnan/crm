@@ -78,7 +78,7 @@ function AppInner() {
   const path = window.location.pathname;
   const isPublicStore = path.endsWith('/store');
   const isPublicOrders = path.endsWith('/orders');
-  const isPublicBooking = path.endsWith('/appointment');
+  const isPublicBooking = path.endsWith('/book');
 
   if (isPublicStore) return <StorePage />;
   if (isPublicOrders) return <TrackingPage />;

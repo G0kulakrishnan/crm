@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useApp } from '../../context/AppContext';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
@@ -11,11 +12,15 @@ const TEMPLATES = [
 
 export default function EcomSettings({ ownerId, globalSettings }) {
   const toast = useToast();
+  const { setActiveView } = useApp();
   const [saving, setSaving] = useState(false);
 
   const { data } = db.useQuery({
     ecomSettings: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
   });
+  const profile = data?.userProfiles?.[0];
+  const profileId = profile?.id;
   const existing = data?.ecomSettings?.[0];
   const settingsId = existing?.id || id();
 
@@ -25,7 +30,7 @@ export default function EcomSettings({ ownerId, globalSettings }) {
   React.useEffect(() => {
     if (existing && !form) {
       setForm({
-        ecomName: existing.ecomName || '',
+        ecomName: profile?.slug || existing.ecomName || '',
         logo: existing.logo || '',
         bannerUrl: existing.bannerUrl || '',
         title: existing.title || '',
@@ -33,23 +38,27 @@ export default function EcomSettings({ ownerId, globalSettings }) {
         template: existing.template || 1,
       });
     } else if (!existing && !form) {
-      setForm({ ecomName: '', logo: '', bannerUrl: '', title: '', tagline: '', template: 1 });
+      setForm({ ecomName: profile?.slug || '', logo: '', bannerUrl: '', title: '', tagline: '', template: 1 });
     }
-  }, [existing]);
+  }, [existing, profile?.slug]);
 
   if (!form) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>;
 
-  const crmDomain = globalSettings?.crmDomain || window.location.origin;
+  const crmDomain = (globalSettings?.crmDomain || window.location.origin).replace(/\/$/, '');
   const storeUrl = form.ecomName ? `${crmDomain}/${form.ecomName}/store` : null;
   const ordersUrl = form.ecomName ? `${crmDomain}/${form.ecomName}/orders` : null;
-  const appointmentUrl = form.ecomName ? `${crmDomain}/${form.ecomName}/appointment` : null;
+  const bookingUrl = form.ecomName ? `${crmDomain}/${form.ecomName}/book` : null;
 
   const save = async () => {
     if (!form.ecomName.trim()) { toast('Store URL slug is required', 'error'); return; }
     if (!/^[a-z0-9-]+$/.test(form.ecomName)) { toast('Slug must be lowercase letters, numbers, and hyphens only', 'error'); return; }
     setSaving(true);
     try {
-      await db.transact(db.tx.ecomSettings[settingsId].update({ ...form, userId: ownerId, updatedAt: Date.now() }));
+      const txs = [db.tx.ecomSettings[settingsId].update({ ...form, userId: ownerId, updatedAt: Date.now() })];
+      if (profileId) {
+        txs.push(db.tx.userProfiles[profileId].update({ slug: form.ecomName }));
+      }
+      await db.transact(txs);
       toast('Store settings saved!', 'success');
     } catch (err) {
       toast('Save failed: ' + err.message, 'error');
@@ -79,35 +88,25 @@ export default function EcomSettings({ ownerId, globalSettings }) {
         <div className="tw" style={{ padding: 24 }}>
           <h4 style={{ marginBottom: 16, fontSize: 14 }}>🏪 Store Identity</h4>
           <div className="fgrid" style={{ gridTemplateColumns: '1fr' }}>
-            <div className="fg">
-              <label>
-                Store URL Slug *
-                <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 6, fontWeight: 400 }}>lowercase, no spaces</span>
-              </label>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 0, border: '1.5px solid var(--border)', borderRadius: 8, overflow: 'hidden', background: '#fff' }}>
-                <span style={{ padding: '8px 10px', background: 'var(--bg-soft)', fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', borderRight: '1px solid var(--border)' }}>
-                  {crmDomain.replace('https://', '').replace('http://', '')}/
-                </span>
-                <input
-                  value={form.ecomName}
-                  onChange={e => setForm(p => ({ ...p, ecomName: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '') }))}
-                  placeholder="chris"
-                  style={{ border: 'none', borderRadius: 0, flex: 1 }}
-                />
-                <span style={{ padding: '8px 10px', background: 'var(--bg-soft)', fontSize: 12, color: 'var(--muted)', whiteSpace: 'nowrap', borderLeft: '1px solid var(--border)' }}>
-                  /store
-                </span>
-              </div>
-            </div>
-
-            <div className="fg">
-              <label>Store Title</label>
-              <input value={form.title} onChange={f('title')} placeholder="e.g. Chris Electronics" />
-            </div>
-
-            <div className="fg">
-              <label>Store Tagline</label>
-              <input value={form.tagline} onChange={f('tagline')} placeholder="e.g. Quality products at best prices" />
+            <div className="fg" style={{ marginBottom: 16 }}>
+              {form.ecomName && (
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>
+                    To change your URL, visit <span style={{ color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }} onClick={() => setActiveView('settings')}>Business Profile Settings</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: '#fff', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Public Store URL</div>
+                      <a href={`${crmDomain}/${form.ecomName}/store`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', display: 'block', wordBreak: 'break-all' }}>
+                        {crmDomain}/{form.ecomName}/store
+                      </a>
+                    </div>
+                    <button className="btn-icon" style={{ padding: '8px', background: 'var(--bg-soft)', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', flexShrink: 0 }} title="Copy URL" onClick={(e) => { e.preventDefault(); navigator.clipboard.writeText(`${crmDomain}/${form.ecomName}/store`); toast('Store link copied!', 'success'); }}>
+                      📋
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="fg">
@@ -165,7 +164,7 @@ export default function EcomSettings({ ownerId, globalSettings }) {
               {[
                 { label: '🛒 Store', url: storeUrl },
                 { label: '📦 Orders', url: ordersUrl },
-                { label: '📅 Appointments', url: appointmentUrl },
+                { label: '📅 Booking', url: bookingUrl },
               ].map(({ label, url }) => (
                 <div key={label} style={{ marginBottom: 10 }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 4 }}>{label}</div>

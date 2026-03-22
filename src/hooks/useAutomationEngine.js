@@ -56,6 +56,8 @@ export default function useAutomationEngine(user, ownerId) {
     userProfiles: { $: { where: { userId: ownerId } } },
     campaigns: { $: { where: { userId: ownerId } } },
     executedAutomations: { $: { where: { userId: ownerId } } },
+    appointments: { $: { where: { userId: ownerId } } },
+    orders: { $: { where: { userId: ownerId } } },
   });
 
   const leads      = data?.leads      || [];
@@ -64,6 +66,8 @@ export default function useAutomationEngine(user, ownerId) {
   const campaigns  = data?.campaigns  || [];
   const profile    = data?.userProfiles?.[0] || {};
   const executed    = data?.executedAutomations || [];
+  const appts       = data?.appointments || [];
+  const orders      = data?.orders || [];
 
   // Fallback reminders from profile settings (used for AMC days threshold)
   const reminders = profile.reminders || {
@@ -142,22 +146,29 @@ export default function useAutomationEngine(user, ownerId) {
     /**
      * Execute all actions configured on an automation for a given lead.
      */
-    const executeAction = async (flow, lead, amc_entry, logEntityId, logEntityType, processedKey) => {
+    const executeAction = async (flow, entity, amc_entry, logEntityId, logEntityType, processedKey) => {
       const templateData = {
-        name:        lead?.name    || amc_entry?.client || '',
-        client:      lead?.name    || amc_entry?.client || '',
-        email:       lead?.email   || '',
-        phone:       lead?.phone   || '',
-        stage:       lead?.stage   || '',
-        source:      lead?.source  || '',
-        assign:      lead?.assign  || '',
-        assignee:    lead?.assign  || '',
-        followup:    lead?.followup || '',
-        followupDate:lead?.followup || '',
+        name:        entity?.name || entity?.customerName || amc_entry?.client || '',
+        client:      entity?.name || entity?.customerName || amc_entry?.client || '',
+        email:       entity?.email || entity?.customerEmail || '',
+        phone:       entity?.phone || entity?.customerPhone || '',
+        stage:       entity?.stage || '',
+        source:      entity?.source || '',
+        assign:      entity?.assign || '',
+        assignee:    entity?.assign || '',
+        followup:    entity?.followup || '',
+        followupDate:entity?.followup || '',
         bizName:     profile.bizName || '',
-        date:        amc_entry?.endDate || new Date().toLocaleDateString('en-IN'),
+        date:        amc_entry?.endDate || entity?.date || new Date().toLocaleDateString('en-IN'),
         contractNo:  amc_entry?.contractNo || '',
-        amount:      amc_entry?.amount || lead?.amount || '',
+        amount:      amc_entry?.amount || entity?.amount || entity?.total || '',
+        // New variables
+        apptDate:    entity?.date || '',
+        apptTime:    entity?.time || '',
+        service:     entity?.service || '',
+        orderId:     entity?.id?.slice(0, 8) || '',
+        orderStatus: entity?.status || '',
+        orderAmount: entity?.total || '',
       };
 
       const body    = renderTemplate(flow.template || 'Hello {client}, this is an automated message from {bizName}.', templateData);
@@ -400,5 +411,60 @@ export default function useAutomationEngine(user, ownerId) {
 
     runScheduledCampaigns();
 
-  }, [leads, amc, automations, campaigns, user, profile, reminders]);
+    // ─── 7. Appointment Triggers (trig-appt-*) ──────────────────────────────
+    const apptFlows = activeFlows.filter(f => f.trigger.startsWith('trig-appt-'));
+    appts.forEach(appt => {
+      apptFlows.forEach(flow => {
+        // Condition matching (genericized)
+        const getVal = (fId) => appt[fId] || (fId === 'status' ? appt.status : '');
+        const matches = !flow.conditions || flow.conditions.every(c => {
+          const v = (getVal(c.field) || '').toLowerCase();
+          const cv = (c.value || '').toLowerCase();
+          if (c.op === 'is') return v === cv;
+          if (c.op === 'is not') return v !== cv;
+          if (c.op === 'contains') return v.includes(cv);
+          return true;
+        });
+        if (!matches) return;
+
+        if (flow.trigger === 'trig-appt-new') {
+          const res = shouldFire(flow, `appt-new-${appt.id}`, appt.createdAt);
+          if (res) executeAction(flow, appt, null, appt.id, 'appointment', res.processedKey);
+        } else if (flow.trigger === 'trig-appt-status' && appt.updatedAt) {
+          const isRecent = nowStamp - appt.updatedAt < 60 * 60 * 1000;
+          if (!isRecent) return;
+          const res = shouldFire(flow, `appt-status-${appt.id}-${appt.status}-${appt.updatedAt}`, appt.updatedAt);
+          if (res) executeAction(flow, appt, null, appt.id, 'appointment', res.processedKey);
+        }
+      });
+    });
+
+    // ─── 8. E-commerce Order Triggers (trig-order-*) ─────────────────────────
+    const orderFlows = activeFlows.filter(f => f.trigger.startsWith('trig-order-'));
+    orders.forEach(order => {
+      orderFlows.forEach(flow => {
+        const getVal = (fId) => order[fId] || (fId === 'orderStatus' ? order.status : order[fId]);
+        const matches = !flow.conditions || flow.conditions.every(c => {
+          const v = (getVal(c.field) || '').toLowerCase();
+          const cv = (c.value || '').toLowerCase();
+          if (c.op === 'is') return v === cv;
+          if (c.op === 'is not') return v !== cv;
+          if (c.op === 'contains') return v.includes(cv);
+          return true;
+        });
+        if (!matches) return;
+
+        if (flow.trigger === 'trig-order-new') {
+          const res = shouldFire(flow, `order-new-${order.id}`, order.createdAt);
+          if (res) executeAction(flow, order, null, order.id, 'ecommerceOrder', res.processedKey);
+        } else if (flow.trigger === 'trig-order-status' && order.updatedAt) {
+          const isRecent = nowStamp - order.updatedAt < 60 * 60 * 1000;
+          if (!isRecent) return;
+          const res = shouldFire(flow, `order-status-${order.id}-${order.status}-${order.updatedAt}`, order.updatedAt);
+          if (res) executeAction(flow, order, null, order.id, 'ecommerceOrder', res.processedKey);
+        }
+      });
+    });
+
+  }, [leads, amc, automations, campaigns, appts, orders, user, profile, reminders]);
 }

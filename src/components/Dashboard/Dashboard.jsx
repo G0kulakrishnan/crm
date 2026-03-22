@@ -16,6 +16,8 @@ export default function Dashboard({ user, ownerId, perms }) {
     teamMembers: { $: { where: { userId: ownerId } } },
     products: { $: { where: { userId: ownerId } } },
     expenses: { $: { where: { userId: ownerId } } },
+    orders: { $: { where: { userId: ownerId } } },
+    appointments: { $: { where: { userId: ownerId } } },
   });
 
   const profile = data?.userProfiles?.[0] || {};
@@ -27,18 +29,20 @@ export default function Dashboard({ user, ownerId, perms }) {
   const projectsRaw = data?.projects || [];
   const tasksRaw = data?.tasks || [];
   const amcRaw = data?.amc || [];
+  const ordersRaw = data?.orders || [];
+  const apptsRaw = data?.appointments || [];
   
   console.log("🔍 [Dashboard] Props - ownerId:", ownerId, "perms:", perms?.isOwner ? "Owner" : "Team");
   console.log("📊 [Dashboard] Data - leadsRaw count:", leadsRaw.length);
 
-  const { leads, quotes, invoices, projects, amc } = useMemo(() => {
+  const { leads, quotes, invoices, projects, amc, orders, appts } = useMemo(() => {
     const savedLeadStages = profile.leadStages;
     const filteredLeads = (!savedLeadStages || savedLeadStages.length === 0)
       ? leadsRaw
       : leadsRaw.filter(l => savedLeadStages.includes(l.stage));
     
-    return { leads: filteredLeads, quotes: quotesRaw, invoices: invoicesRaw, projects: projectsRaw, amc: amcRaw };
-  }, [leadsRaw, quotesRaw, invoicesRaw, projectsRaw, amcRaw, profile.leadStages]);
+    return { leads: filteredLeads, quotes: quotesRaw, invoices: invoicesRaw, projects: projectsRaw, amc: amcRaw, orders: ordersRaw, appts: apptsRaw };
+  }, [leadsRaw, quotesRaw, invoicesRaw, projectsRaw, amcRaw, ordersRaw, apptsRaw, profile.leadStages]);
   const now = new Date();
 
   const stats = useMemo(() => {
@@ -50,6 +54,21 @@ export default function Dashboard({ user, ownerId, perms }) {
     const lowStock = (data?.products || []).filter(p => p.trackStock && p.stock > 0 && p.stock <= (p.lowStockThreshold || 5)).length;
     return { overdue, active, amcExp, inProgress, outOfStock, lowStock };
   }, [leads, amc, projects, data?.products]);
+
+  const ecomStats = useMemo(() => {
+    const total = orders.length;
+    const revenue = orders.filter(o => o.status === 'Delivered').reduce((s, o) => s + (o.total || 0), 0);
+    const recent = [...orders].sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 5);
+    return { total, revenue, recent };
+  }, [orders]);
+
+  const apptStats = useMemo(() => {
+    // Determine today's date in YYYY-MM-DD roughly, matching the date picker output format
+    const today = new Date();
+    const ts = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
+    const todayAppts = appts.filter(a => a.date === ts);
+    return { todayAppts };
+  }, [appts]);
 
   // Source chart data
   const srcData = useMemo(() => {
@@ -191,6 +210,12 @@ export default function Dashboard({ user, ownerId, perms }) {
           <>
             <div className="stat-card sc-red" style={{ background: '#fff5f5', borderColor: '#feb2b2' }}><div className="lbl" style={{ color: '#c53030' }}>Out of Stock</div><div className="val" style={{ color: '#c53030' }}>{stats.outOfStock}</div></div>
             <div className="stat-card sc-yellow" style={{ background: '#fffff0', borderColor: '#faf089' }}><div className="lbl" style={{ color: '#b7791f' }}>Low Stock</div><div className="val" style={{ color: '#b7791f' }}>{stats.lowStock}</div></div>
+          </>
+        )}
+        {perms.can('Ecommerce', 'list') === true && (
+          <>
+            <div className="stat-card sc-blue" style={{ background: '#eff6ff', borderColor: '#bfdbfe' }}><div className="lbl" style={{ color: '#1d4ed8' }}>Store Orders</div><div className="val" style={{ color: '#1d4ed8' }}>{ecomStats.total}</div></div>
+            <div className="stat-card sc-green" style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}><div className="lbl" style={{ color: '#15803d' }}>Store Revenue</div><div className="val" style={{ color: '#15803d' }}>{fmt(ecomStats.revenue)}</div></div>
           </>
         )}
       </div>
@@ -346,6 +371,53 @@ export default function Dashboard({ user, ownerId, perms }) {
                     </div>
                 ))}
               </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Ecom & Appointments Row */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginTop: 18 }}>
+        {perms.can('Ecommerce', 'list') === true && (
+          <div className="tw">
+            <div className="tw-head"><h3>Recent Store Orders</h3></div>
+            <table>
+              <thead><tr><th>Customer</th><th>Status</th><th>Total</th></tr></thead>
+              <tbody>
+                {ecomStats.recent.map(o => (
+                  <tr key={o.id}>
+                    <td>
+                      <div><strong>{o.customerName}</strong></div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>{o.id.slice(0, 8).toUpperCase()}</div>
+                    </td>
+                    <td><span className={`badge ${o.status === 'Delivered' ? 'bg-green-100 text-green-800' : 'bg-gray-100'}`} style={{ fontSize: 11 }}>{o.status}</span></td>
+                    <td style={{ fontWeight: 700 }}>{fmt(o.total)}</td>
+                  </tr>
+                ))}
+                {ecomStats.recent.length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>No recent orders</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {perms.can('Appointments', 'list') === true && (
+          <div className="tw">
+            <div className="tw-head"><h3>Appointments Today</h3></div>
+            <div style={{ padding: 0 }}>
+              {apptStats.todayAppts.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 28, color: 'var(--muted)', fontSize: 12 }}>No appointments scheduled for today</div>
+              ) : apptStats.todayAppts.sort((a, b) => a.time.localeCompare(b.time)).map(a => (
+                <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{a.customerName}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{a.service}</div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--accent)' }}>{a.time}</div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{a.customerPhone}</div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

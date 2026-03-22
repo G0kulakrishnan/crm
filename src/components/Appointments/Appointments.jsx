@@ -2,10 +2,14 @@ import React, { useState, useMemo } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD } from '../../utils/helpers';
+import { useApp } from '../../context/AppContext';
 import { useToast } from '../../context/ToastContext';
 
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-const DEFAULT_HOURS = Object.fromEntries(DAYS.map(d => [d, { enabled: d !== 'Sunday', start: '09:00', end: '18:00' }]));
+const DEFAULT_HOURS = Object.fromEntries(DAYS.map(d => [d, { 
+  enabled: d !== 'Sunday', 
+  slots: [{ start: '09:00', end: '18:00' }] 
+}]));
 const STATUSES = ['Pending', 'Confirmed', 'Completed', 'Cancelled', 'No Show'];
 const STATUS_COLORS = {
   Pending: { bg: '#fef3c7', color: '#92400e' },
@@ -15,54 +19,208 @@ const STATUS_COLORS = {
   'No Show': { bg: '#f3f4f6', color: '#374151' },
 };
 
-export default function Appointments({ ownerId, perms }) {
+export default function Appointments({ ownerId, perms, initialTab, settings }) {
   const toast = useToast();
-  const [tab, setTab] = useState('list'); // list | settings
+  const [tab, setTab] = useState(initialTab || 'list'); // list | settings
   const [dateFilter, setDateFilter] = useState('today');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [customRange, setCustomRange] = useState({ 
+    start: new Date().toISOString().split('T')[0], 
+    end: new Date(Date.now() + 7 * 86400000).toISOString().split('T')[0] 
+  });
+  const [confModal, setConfModal] = useState(false);
+  const [tempConf, setTempConf] = useState({ dateFilter: 'today', statusFilter: 'All' });
+  const [initialized, setInitialized] = useState(false);
   const [rescheduleModal, setRescheduleModal] = useState(null);
   const [rsForm, setRsForm] = useState({ date: '', time: '' });
+  const [editModal, setEditModal] = useState(null);
+  const [editForm, setEditForm] = useState({ notes: '', status: '' });
+  const [newNote, setNewNote] = useState('');
 
   const { data } = db.useQuery({
     appointments: { $: { where: { userId: ownerId } } },
     appointmentSettings: { $: { where: { userId: ownerId } } },
+    ecomSettings: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId } } },
+    activityLogs: { $: { where: { userId: ownerId } } },
   });
+  const profile = data?.userProfiles?.[0];
+  const ecom = data?.ecomSettings?.[0];
   const appointments = data?.appointments || [];
+  const customers = data?.customers || [];
+  const leads = data?.leads || [];
+  const activityLogs = data?.activityLogs || [];
   const settingsRecord = data?.appointmentSettings?.[0];
   const settingsId = settingsRecord?.id || id();
 
   const [settingsForm, setSettingsForm] = useState(null);
   React.useEffect(() => {
     if (settingsRecord && !settingsForm) {
+      const parsedHours = settingsRecord.workingHours ? JSON.parse(settingsRecord.workingHours) : DEFAULT_HOURS;
+      
+      // Migrate old start/end format to slots array
+      const migratedHours = {};
+      DAYS.forEach(day => {
+        const h = parsedHours[day] || { enabled: false };
+        if (h.start && h.end && !h.slots) {
+          migratedHours[day] = { enabled: h.enabled, slots: [{ start: h.start, end: h.end }] };
+        } else if (!h.slots) {
+          migratedHours[day] = { enabled: h.enabled, slots: [{ start: '09:00', end: '18:00' }] };
+        } else {
+          migratedHours[day] = h;
+        }
+      });
+
       setSettingsForm({
-        workingHours: settingsRecord.workingHours ? JSON.parse(settingsRecord.workingHours) : DEFAULT_HOURS,
+        workingHours: migratedHours,
         holidays: settingsRecord.holidays ? JSON.parse(settingsRecord.holidays) : [],
         slotDuration: settingsRecord.slotDuration || 30,
         maxPerSlot: settingsRecord.maxPerSlot || 1,
-        services: settingsRecord.services ? JSON.parse(settingsRecord.services) : ['General Appointment'],
+        bookingWindow: settingsRecord.bookingWindow || 1,
+        slug: profile?.slug || settingsRecord.slug || '',
+        services: settingsRecord.services 
+          ? JSON.parse(settingsRecord.services).map(s => typeof s === 'string' ? { name: s, duration: '' } : s) 
+          : [{ name: 'General Appointment', duration: '' }],
       });
     } else if (!settingsRecord && !settingsForm) {
-      setSettingsForm({ workingHours: DEFAULT_HOURS, holidays: [], slotDuration: 30, maxPerSlot: 1, services: ['General Appointment'] });
+      setSettingsForm({ workingHours: DEFAULT_HOURS, holidays: [], slotDuration: 30, maxPerSlot: 1, bookingWindow: 1, slug: profile?.slug || '', services: [{ name: 'General Appointment', duration: '' }] });
     }
-  }, [settingsRecord]);
+  }, [settingsRecord, profile?.slug]);
+
+  // Sync slug if it was initially empty but profile loaded
+  React.useEffect(() => {
+    if (profile?.slug && settingsForm && !settingsForm.slug) {
+      setSettingsForm(p => ({ ...p, slug: profile.slug }));
+    }
+  }, [profile?.slug, settingsForm?.slug === '']);
+
+  // Load saved default view filters once profile loads
+  React.useEffect(() => {
+    if (profile && !initialized) {
+      if (profile.apptConfig?.dateFilter) setDateFilter(profile.apptConfig.dateFilter);
+      if (profile.apptConfig?.statusFilter) setStatusFilter(profile.apptConfig.statusFilter);
+      setInitialized(true);
+    }
+  }, [profile, initialized]);
+
+  const saveConfig = async () => {
+    if (profile) {
+      await db.transact(db.tx.userProfiles[profile.id].update({ apptConfig: tempConf }));
+      setDateFilter(tempConf.dateFilter);
+      setStatusFilter(tempConf.statusFilter);
+    }
+    setConfModal(false);
+    toast('Default view saved!', 'success');
+  };
 
   const saveSettings = async () => {
-    await db.transact(db.tx.appointmentSettings[settingsId].update({
-      userId: ownerId,
-      workingHours: JSON.stringify(settingsForm.workingHours),
-      holidays: JSON.stringify(settingsForm.holidays),
-      slotDuration: settingsForm.slotDuration,
-      maxPerSlot: settingsForm.maxPerSlot,
-      services: JSON.stringify(settingsForm.services),
-      updatedAt: Date.now(),
-    }));
+    const cleanSlug = (settingsForm.slug || '').toLowerCase().trim().replace(/[^a-z0-9-]/g, '-');
+    const txs = [
+      db.tx.appointmentSettings[settingsId].update({
+        userId: ownerId,
+        workingHours: JSON.stringify(settingsForm.workingHours),
+        holidays: JSON.stringify(settingsForm.holidays),
+        slotDuration: settingsForm.slotDuration,
+        maxPerSlot: settingsForm.maxPerSlot,
+        bookingWindow: settingsForm.bookingWindow,
+        slug: cleanSlug,
+        services: JSON.stringify(settingsForm.services),
+        updatedAt: Date.now(),
+      })
+    ];
+
+    if (profile?.id) {
+      txs.push(db.tx.userProfiles[profile.id].update({ slug: cleanSlug }));
+    }
+    if (ecom?.id) {
+      txs.push(db.tx.ecomSettings[ecom.id].update({ ecomName: cleanSlug }));
+    }
+
+    let logText = [];
+    if (settingsRecord) {
+      const oldHolidays = settingsRecord.holidays ? JSON.parse(settingsRecord.holidays) : [];
+      const newHolidays = settingsForm.holidays;
+      const addedHolidays = newHolidays.filter(h => !oldHolidays.includes(h));
+      const removedHolidays = oldHolidays.filter(h => !newHolidays.includes(h));
+
+      if (addedHolidays.length > 0) logText.push(`Added holiday(s): ${addedHolidays.join(', ')}`);
+      if (removedHolidays.length > 0) logText.push(`Removed holiday(s): ${removedHolidays.join(', ')}`);
+
+      const oldHours = settingsRecord.workingHours || '{}';
+      if (oldHours !== JSON.stringify(settingsForm.workingHours)) {
+        logText.push('Updated working hours');
+      }
+
+      const oldServices = settingsRecord.services || '[]';
+      if (oldServices !== JSON.stringify(settingsForm.services)) {
+        logText.push('Updated services');
+      }
+      
+      const oldSlotDuration = settingsRecord.slotDuration || 30;
+      if (oldSlotDuration !== settingsForm.slotDuration) logText.push(`Changed slot duration to ${settingsForm.slotDuration}m`);
+    } else {
+      logText.push('Initial appointment settings configured');
+    }
+
+    if (logText.length > 0) {
+      txs.push(db.tx.activityLogs[id()].update({
+        entityId: settingsId,
+        entityType: 'appointmentSettings',
+        text: logText.join(' | '),
+        userId: ownerId,
+        createdAt: Date.now()
+      }));
+    }
+
+    await db.transact(txs);
     toast('Availability settings saved!', 'success');
   };
 
   const updateStatus = async (apptId, status) => {
-    await db.transact(db.tx.appointments[apptId].update({ status, updatedAt: Date.now() }));
-    toast(`Status updated to ${status}`, 'success');
+    if (!status) return true;
+    const appt = appointments.find(a => a.id === apptId);
+    
+    if (appt && appt.status !== status) {
+      if (!window.confirm(`Are you sure you want to change the appointment status to ${status}?`)) {
+        setTab(tab); // trigger re-render
+        return false;
+      }
+    } else if (appt && appt.status === status) {
+      return true; // No status change needed
+    }
+
+    const txs = [db.tx.appointments[apptId].update({ status, updatedAt: Date.now() })];
+    
+    if (status === 'Completed' && appt) {
+      const existingCustomer = customers.find(c => c.phone === appt.customerPhone || (c.email && c.email === appt.customerEmail));
+      if (!existingCustomer && appt.customerPhone) {
+        const newCustomerId = id();
+        txs.push(db.tx.customers[newCustomerId].update({
+          userId: ownerId,
+          name: appt.customerName || 'Unknown',
+          phone: appt.customerPhone || '',
+          email: appt.customerEmail || '',
+          createdAt: Date.now()
+        }));
+        
+        txs.push(db.tx.activityLogs[id()].update({
+          entityId: newCustomerId, entityType: 'customer', text: `Auto-converted from Appointment (${apptId.slice(0,8)}) upon completion.`,
+          userId: ownerId, createdAt: Date.now()
+        }));
+      }
+      
+      const existingLead = leads.find(l => l.phone === appt.customerPhone || (l.email && l.email === appt.customerEmail));
+      if (existingLead && existingLead.stage !== 'Converted') {
+        txs.push(db.tx.leads[existingLead.id].update({ stage: 'Converted', updatedAt: Date.now() }));
+      }
+    }
+
+    await db.transact(txs);
+    if (appt?.status !== status) toast(`Status updated to ${status}`, 'success');
+    return true;
   };
 
   const reschedule = async () => {
@@ -70,6 +228,53 @@ export default function Appointments({ ownerId, perms }) {
     await db.transact(db.tx.appointments[rescheduleModal.id].update({ date: rsForm.date, time: rsForm.time, updatedAt: Date.now() }));
     toast('Appointment rescheduled', 'success');
     setRescheduleModal(null);
+  };
+
+  const saveAppointment = async () => {
+    if (!editModal) return;
+    const proceed = await updateStatus(editModal.id, editForm.status);
+    if (!proceed) return;
+    
+    // Find matching lead for master history update
+    const matchingLead = leads.find(l => 
+      (editModal.customerEmail && l.email === editModal.customerEmail) || 
+      (editModal.customerPhone && l.phone === editModal.customerPhone)
+    );
+
+    let apptNotes = editModal.notes || '';
+    let masterNotes = matchingLead?.notes || '';
+    
+    if (newNote.trim()) {
+      const ts = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+      const entry = `[${ts}] ${newNote.trim()}`;
+      
+      apptNotes = apptNotes ? `${apptNotes}\n${entry}` : entry;
+      masterNotes = masterNotes ? `${masterNotes}\n${entry}` : entry;
+    }
+
+    const txs = [db.tx.appointments[editModal.id].update({ 
+      notes: apptNotes,
+      updatedAt: Date.now() 
+    })];
+
+    if (matchingLead && newNote.trim()) {
+      txs.push(db.tx.leads[matchingLead.id].update({
+        notes: masterNotes,
+        updatedAt: Date.now()
+      }));
+    }
+
+    await db.transact(txs);
+    toast('Appointment and Lead updated', 'success');
+    setEditModal(null);
+    setNewNote('');
+  };
+
+  const copyLink = () => {
+    const s = settingsForm?.slug || ownerId;
+    const link = `${window.location.origin}/book/${s}`;
+    navigator.clipboard.writeText(link);
+    toast('Booking link copied!', 'success');
   };
 
   const now = new Date();
@@ -86,15 +291,18 @@ export default function Appointments({ ownerId, perms }) {
     if (dateFilter === 'today') list = list.filter(a => a.date === todayStr);
     else if (dateFilter === 'tomorrow') list = list.filter(a => a.date === tomorrowStr);
     else if (dateFilter === 'week') list = list.filter(a => a.date >= todayStr && a.date <= weekEnd);
+    else if (dateFilter === 'custom') list = list.filter(a => a.date >= customRange.start && a.date <= customRange.end);
     if (statusFilter !== 'All') list = list.filter(a => a.status === statusFilter);
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(a => [a.customerName, a.customerPhone, a.service].some(v => String(v || '').toLowerCase().includes(q)));
     }
     return list;
-  }, [appointments, dateFilter, statusFilter, search, todayStr, tomorrowStr, weekEnd]);
+  }, [appointments, dateFilter, statusFilter, search, todayStr, tomorrowStr, weekEnd, customRange.start, customRange.end]);
 
   const todayCount = appointments.filter(a => a.date === todayStr).length;
+  const tomorrowCount = appointments.filter(a => a.date === tomorrowStr).length;
+  const weekCount = appointments.filter(a => a.date >= todayStr && a.date <= weekEnd).length;
   const pending = appointments.filter(a => a.status === 'Pending').length;
   const upcoming = appointments.filter(a => a.date >= todayStr && a.status !== 'Cancelled').length;
 
@@ -103,11 +311,14 @@ export default function Appointments({ ownerId, perms }) {
       <div className="sh">
         <div>
           <h2>📅 Appointments</h2>
-          <div className="sub">Manage bookings for your services</div>
+          <div className="sub" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <span>Manage bookings for your services</span>
+            <button className="btn btn-secondary btn-sm" onClick={copyLink} style={{ padding: '4px 10px', fontSize: 11, background: '#f0fdf4', borderColor: '#86efac', color: '#166534' }}>🔗 Copy Booking Link</button>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className={`btn btn-sm ${tab === 'list' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('list')}>📋 Appointments</button>
-          <button className={`btn btn-sm ${tab === 'settings' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('settings')}>⚙️ Availability</button>
+          <button className={`btn btn-sm ${tab === 'list' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('list')}>📋 List</button>
+          <button className={`btn btn-sm ${tab === 'settings' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTab('settings')}>⚙️ Settings & Availability</button>
         </div>
       </div>
 
@@ -120,27 +331,55 @@ export default function Appointments({ ownerId, perms }) {
             <div className="stat-card sc-purple"><div className="lbl">Total</div><div className="val">{appointments.length}</div></div>
           </div>
 
-          <div className="tw">
-            <div className="tw-head" style={{ flexWrap: 'wrap', gap: 10 }}>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                {[['today', 'Today'], ['tomorrow', 'Tomorrow'], ['week', 'This Week'], ['all', 'All']].map(([v, l]) => (
-                  <button key={v} onClick={() => setDateFilter(v)} className={`btn btn-sm ${dateFilter === v ? 'btn-primary' : 'btn-secondary'}`} style={{ fontSize: 11 }}>{l}</button>
-                ))}
-                {['All', ...STATUSES].map(s => (
-                  <button key={s} onClick={() => setStatusFilter(s)} className={`btn btn-sm ${statusFilter === s ? 'btn-primary' : 'btn-secondary'}`} style={{ fontSize: 11, padding: '3px 8px' }}>{s}</button>
-                ))}
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <div className="tabs" style={{ marginBottom: 0 }}>
+              {[
+                ['all', `All (${appointments.length})`],
+                ['today', `Today (${todayCount})`],
+                ['tomorrow', `Tomorrow (${tomorrowCount})`],
+                ['week', `This Week (${weekCount})`],
+                ['custom', 'Custom Range']
+              ].map(([v, l]) => (
+                <div key={v} className={`tab${dateFilter === v ? ' active' : ''}`} onClick={() => setDateFilter(v)}>{l}</div>
+              ))}
+            </div>
+            
+            {dateFilter === 'custom' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, background: '#fff', padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)' }}>
+                <input type="date" className="si" style={{ padding: '4px 8px', margin: 0 }} value={customRange.start} onChange={e => setCustomRange(p => ({ ...p, start: e.target.value }))} />
+                <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>to</span>
+                <input type="date" className="si" style={{ padding: '4px 8px', margin: 0 }} value={customRange.end} onChange={e => setCustomRange(p => ({ ...p, end: e.target.value }))} />
               </div>
-              <div className="sw">
-                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+            )}
+          </div>
+
+          <div className="tw" style={{ marginTop: 16 }}>
+            <div className="tw-head" style={{ flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ flex: 1 }}></div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => {
+                  setTempConf({
+                    dateFilter: profile?.apptConfig?.dateFilter || 'today',
+                    statusFilter: profile?.apptConfig?.statusFilter || 'All'
+                  });
+                  setConfModal(true);
+                }}>⚙️ Configure View</button>
+                <div className="sw">
+                  <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                  <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+                </div>
+                <select className="si" style={{ width: 140 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+                  <option value="All">All Statuses</option>
+                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
             </div>
             <div className="tw-scroll">
               <table>
-                <thead><tr><th>#</th><th>Customer</th><th>Service</th><th>Date & Time</th><th>Status</th><th>Notes</th><th>Actions</th></tr></thead>
+                <thead><tr><th>#</th><th>Customer</th><th>Service</th><th>Date & Time</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                   {filtered.length === 0 && (
-                    <tr><td colSpan={7} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>No appointments {dateFilter !== 'all' ? `for ${dateFilter}` : ''}.</td></tr>
+                    <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>No appointments {dateFilter !== 'all' ? `for ${dateFilter}` : ''}.</td></tr>
                   )}
                   {filtered.map((a, i) => {
                     const sc = STATUS_COLORS[a.status] || STATUS_COLORS.Pending;
@@ -154,7 +393,21 @@ export default function Appointments({ ownerId, perms }) {
                         <td style={{ fontSize: 13 }}>{a.service || '—'}</td>
                         <td>
                           <div style={{ fontWeight: 600 }}>{a.date}</div>
-                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>{a.time}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+                            {a.time} - {(() => {
+                              try {
+                                if (!a.time) return '?';
+                                const [t, p] = a.time.split(' ');
+                                let [h, m] = t.split(':').map(Number);
+                                if (p === 'PM' && h !== 12) h += 12;
+                                if (p === 'AM' && h === 12) h = 0;
+                                const svc = (settingsRecord?.services ? JSON.parse(settingsRecord.services) : []).find(s => (typeof s === 'string' ? s : s.name) === a.service);
+                                const dur = (typeof svc === 'object' && svc.duration) ? Number(svc.duration) : (settingsRecord?.slotDuration || 30);
+                                const d = new Date(2000, 0, 1, h, m + dur);
+                                return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+                              } catch(e) { return ''; }
+                            })()}
+                          </div>
                         </td>
                         <td>
                           <select value={a.status || 'Pending'} onChange={e => updateStatus(a.id, e.target.value)}
@@ -162,9 +415,12 @@ export default function Appointments({ ownerId, perms }) {
                             {STATUSES.map(s => <option key={s}>{s}</option>)}
                           </select>
                         </td>
-                        <td style={{ fontSize: 12, color: 'var(--muted)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.notes || '—'}</td>
+
                         <td>
-                          <button className="btn btn-secondary btn-sm" onClick={() => { setRescheduleModal(a); setRsForm({ date: a.date, time: a.time }); }}>📅 Reschedule</button>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            <button className="btn btn-secondary btn-sm" style={{ padding: '4px 8px' }} onClick={() => { setEditModal(a); setEditForm({ notes: a.notes || '', status: a.status || 'Pending' }); }}>📝 Edit</button>
+                            <button className="btn btn-secondary btn-sm" style={{ padding: '4px 8px' }} onClick={() => { setRescheduleModal(a); setRsForm({ date: a.date, time: a.time }); }}>📅 Reschedule</button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -177,12 +433,15 @@ export default function Appointments({ ownerId, perms }) {
       )}
 
       {tab === 'settings' && settingsForm && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, maxWidth: 800 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: 24 }}>
           <div className="tw" style={{ padding: 24 }}>
-            <h4 style={{ marginBottom: 16, fontSize: 14 }}>🕐 Working Hours</h4>
-            <div style={{ display: 'flex', gap: 12, marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <h4 style={{ margin: 0, fontSize: 14 }}>🕐 Working Hours</h4>
+              <button className="btn btn-primary btn-sm" onClick={saveSettings}>💾 Save</button>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 12, marginBottom: 14 }}>
               <div className="fg" style={{ marginBottom: 0 }}>
-                <label>Slot Duration (minutes)</label>
+                <label>Slot Duration</label>
                 <select value={settingsForm.slotDuration} onChange={e => setSettingsForm(p => ({ ...p, slotDuration: +e.target.value }))}>
                   {[15, 30, 45, 60, 90, 120].map(d => <option key={d} value={d}>{d} mins</option>)}
                 </select>
@@ -191,21 +450,63 @@ export default function Appointments({ ownerId, perms }) {
                 <label>Max bookings/slot</label>
                 <input type="number" min={1} max={20} value={settingsForm.maxPerSlot} onChange={e => setSettingsForm(p => ({ ...p, maxPerSlot: +e.target.value }))} />
               </div>
+              <div className="fg" style={{ marginBottom: 0 }}>
+                <label>Booking Window</label>
+                <select value={settingsForm.bookingWindow} onChange={e => setSettingsForm(p => ({ ...p, bookingWindow: +e.target.value }))}>
+                  {[1, 2, 3, 4, 5, 6, 12].map(m => <option key={m} value={m}>{m} {m === 1 ? 'Month' : 'Months'}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div className="fg" style={{ marginBottom: 16 }}>
+              {settingsForm.slug && (
+                <div>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 8 }}>
+                    To change your URL, visit <span style={{ color: 'var(--accent)', cursor: 'pointer', fontWeight: 600 }} onClick={() => useApp().setActiveView?.('settings')}>Business Profile Settings</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center', background: '#fff', padding: '10px 14px', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Public Booking URL</div>
+                      <a href={`${(settings?.crmDomain || window.location.origin).replace(/\/$/, '')}/${settingsForm.slug}/book`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent)', textDecoration: 'none', display: 'block', wordBreak: 'break-all' }}>
+                        {(settings?.crmDomain || window.location.origin).replace(/\/$/, '')}/{settingsForm.slug}/book
+                      </a>
+                    </div>
+                    <button className="btn-icon" style={{ padding: '8px', background: 'var(--bg-soft)', borderRadius: 6, border: '1px solid var(--border)', cursor: 'pointer', flexShrink: 0 }} title="Copy URL" onClick={() => { navigator.clipboard.writeText(`${(settings?.crmDomain || window.location.origin).replace(/\/$/, '')}/${settingsForm.slug}/book`); toast('Link copied!', 'success'); }}>
+                      📋
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
             {DAYS.map(day => {
-              const hours = settingsForm.workingHours[day] || { enabled: false, start: '09:00', end: '18:00' };
+              const hours = settingsForm.workingHours[day] || { enabled: false, slots: [{ start: '09:00', end: '18:00' }] };
               return (
-                <div key={day} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, padding: '8px 12px', background: hours.enabled ? 'var(--bg-soft)' : '#fef2f2', borderRadius: 8 }}>
-                  <input type="checkbox" checked={hours.enabled} onChange={e => setSettingsForm(p => ({ ...p, workingHours: { ...p.workingHours, [day]: { ...hours, enabled: e.target.checked } } }))} style={{ width: 15, height: 15 }} />
-                  <span style={{ fontWeight: 600, fontSize: 13, width: 90 }}>{day}</span>
-                  {hours.enabled && (
-                    <>
-                      <input type="time" value={hours.start} onChange={e => setSettingsForm(p => ({ ...p, workingHours: { ...p.workingHours, [day]: { ...hours, start: e.target.value } } }))} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }} />
-                      <span style={{ fontSize: 11, color: 'var(--muted)' }}>to</span>
-                      <input type="time" value={hours.end} onChange={e => setSettingsForm(p => ({ ...p, workingHours: { ...p.workingHours, [day]: { ...hours, end: e.target.value } } }))} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }} />
-                    </>
-                  )}
-                  {!hours.enabled && <span style={{ fontSize: 11, color: '#991b1b' }}>Closed</span>}
+                <div key={day} style={{ marginBottom: 10, padding: '12px', background: hours.enabled ? 'var(--bg-soft)' : '#fef2f2', borderRadius: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: hours.enabled ? 8 : 0 }}>
+                    <input type="checkbox" checked={hours.enabled} onChange={e => setSettingsForm(p => ({ ...p, workingHours: { ...p.workingHours, [day]: { ...hours, enabled: e.target.checked } } }))} style={{ width: 15, height: 15 }} />
+                    <span style={{ fontWeight: 600, fontSize: 13, width: 90 }}>{day}</span>
+                    {!hours.enabled && <span style={{ fontSize: 11, color: '#991b1b' }}>Closed</span>}
+                    {hours.enabled && <button className="btn btn-secondary btn-sm" style={{ marginLeft: 'auto', padding: '2px 8px', fontSize: 10 }} onClick={() => setSettingsForm(p => ({ ...p, workingHours: { ...p.workingHours, [day]: { ...hours, slots: [...hours.slots, { start: '14:00', end: '17:00' }] } } }))}>+ Add Slot</button>}
+                  </div>
+                  
+                  {hours.enabled && hours.slots.map((slot, si) => (
+                    <div key={si} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, marginLeft: 25 }}>
+                       <input type="time" value={slot.start} onChange={e => setSettingsForm(p => {
+                         const newSlots = [...hours.slots];
+                         newSlots[si] = { ...slot, start: e.target.value };
+                         return { ...p, workingHours: { ...p.workingHours, [day]: { ...hours, slots: newSlots } } };
+                       })} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }} />
+                       <span style={{ fontSize: 11, color: 'var(--muted)' }}>to</span>
+                       <input type="time" value={slot.end} onChange={e => setSettingsForm(p => {
+                         const newSlots = [...hours.slots];
+                         newSlots[si] = { ...slot, end: e.target.value };
+                         return { ...p, workingHours: { ...p.workingHours, [day]: { ...hours, slots: newSlots } } };
+                       })} style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }} />
+                       {hours.slots.length > 1 && (
+                         <button onClick={() => setSettingsForm(p => ({ ...p, workingHours: { ...p.workingHours, [day]: { ...hours, slots: hours.slots.filter((_, i) => i !== si) } } }))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8' }}>✕</button>
+                       )}
+                    </div>
+                  ))}
                 </div>
               );
             })}
@@ -214,38 +515,199 @@ export default function Appointments({ ownerId, perms }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div className="tw" style={{ padding: 24 }}>
               <h4 style={{ marginBottom: 14, fontSize: 14 }}>💼 Services Offered</h4>
-              {settingsForm.services.map((svc, i) => (
-                <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-                  <input value={svc} onChange={e => setSettingsForm(p => ({ ...p, services: p.services.map((s, j) => j === i ? e.target.value : s) }))} style={{ flex: 1 }} />
-                  <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => setSettingsForm(p => ({ ...p, services: p.services.filter((_, j) => j !== i) }))}>✕</button>
-                </div>
-              ))}
-              <button className="btn btn-secondary btn-sm" style={{ marginTop: 4 }} onClick={() => setSettingsForm(p => ({ ...p, services: [...p.services, ''] }))}>+ Add Service</button>
+              {settingsForm.services.map((svc, i) => {
+                const sName = typeof svc === 'string' ? svc : svc.name;
+                const sDur = typeof svc === 'string' ? '' : (svc.duration || '');
+                return (
+                  <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+                    <input 
+                      className="si"
+                      value={sName} 
+                      onChange={e => setSettingsForm(p => ({ ...p, services: p.services.map((s, j) => j === i ? { ...s, name: e.target.value } : s) }))} 
+                      placeholder="Service Name" 
+                      style={{ flex: 2, margin: 0 }} 
+                    />
+                    <input 
+                      className="si"
+                      type="number"
+                      value={sDur} 
+                      onChange={e => setSettingsForm(p => ({ ...p, services: p.services.map((s, j) => j === i ? { ...s, name: sName, duration: e.target.value ? Number(e.target.value) : '' } : s) }))} 
+                      placeholder="Mins (Optional)" 
+                      style={{ flex: 1, margin: 0 }} 
+                    />
+                    <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', padding: '8px 12px' }} onClick={() => setSettingsForm(p => ({ ...p, services: p.services.filter((_, j) => j !== i) }))}>✕</button>
+                  </div>
+                );
+              })}
+              <button className="btn btn-secondary btn-sm" style={{ marginTop: 4 }} onClick={() => setSettingsForm(p => ({ ...p, services: [...p.services, { name: '', duration: '' }] }))}>+ Add Service</button>
             </div>
 
             <div className="tw" style={{ padding: 24 }}>
               <h4 style={{ marginBottom: 14, fontSize: 14 }}>🚫 Holidays / Off Days</h4>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                <input type="date" id="holiday-input" style={{ flex: 1 }} />
-                <button className="btn btn-secondary btn-sm" onClick={() => {
-                  const val = document.getElementById('holiday-input').value;
-                  if (val && !settingsForm.holidays.includes(val)) setSettingsForm(p => ({ ...p, holidays: [...p.holidays, val].sort() }));
+              <div style={{ display: 'flex', gap: 8, marginBottom: 12, alignItems: 'center' }}>
+                <input className="si" type="date" id="holiday-input" style={{ flex: 1, margin: 0 }} />
+                <button className="btn btn-secondary btn-sm" onClick={async () => {
+                  const el = document.getElementById('holiday-input');
+                  const val = el.value;
+                  if (val && !settingsForm.holidays.includes(val)) {
+                    const newHolidays = [...settingsForm.holidays, val].sort();
+                    setSettingsForm(p => ({ ...p, holidays: newHolidays }));
+                    el.value = '';
+                    await db.tx.appointmentSettings[settingsId].update({ holidays: JSON.stringify(newHolidays) });
+                    await db.tx.activityLogs[id()].update({ entityId: settingsId, entityType: 'appointmentSettings', text: `Added holiday: ${val}`, userId: ownerId, createdAt: Date.now() });
+                    toast('Holiday added & saved!', 'success');
+                  }
                 }}>Add</button>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {settingsForm.holidays.map(h => (
-                  <span key={h} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
-                    {h}
-                    <button onClick={() => setSettingsForm(p => ({ ...p, holidays: p.holidays.filter(x => x !== h) }))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#991b1b', fontWeight: 800, lineHeight: 1 }}>✕</button>
-                  </span>
-                ))}
-                {settingsForm.holidays.length === 0 && <span style={{ fontSize: 12, color: 'var(--muted)' }}>No holidays set</span>}
+                {(() => {
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  const upcoming = settingsForm.holidays.filter(h => h >= todayStr).sort();
+                  const past = settingsForm.holidays.filter(h => h < todayStr);
+                  
+                  if (upcoming.length === 0) return <span style={{ fontSize: 12, color: 'var(--muted)' }}>No upcoming holidays set</span>;
+                  
+                  return upcoming.map(h => (
+                    <span key={h} style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#fee2e2', color: '#991b1b', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>
+                      {h}
+                      <button onClick={async () => {
+                        const newHolidays = settingsForm.holidays.filter(x => x !== h);
+                        setSettingsForm(p => ({ ...p, holidays: newHolidays }));
+                        await db.tx.appointmentSettings[settingsId].update({ holidays: JSON.stringify(newHolidays) });
+                        await db.tx.activityLogs[id()].update({ entityId: settingsId, entityType: 'appointmentSettings', text: `Removed holiday: ${h}`, userId: ownerId, createdAt: Date.now() });
+                        toast('Holiday removed!', 'success');
+                      }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#991b1b', fontWeight: 800, lineHeight: 1 }}>✕</button>
+                    </span>
+                  ));
+                })()}
               </div>
             </div>
           </div>
 
           <div style={{ gridColumn: '1 / -1' }}>
             <button className="btn btn-primary" onClick={saveSettings}>💾 Save Availability Settings</button>
+          </div>
+
+          <div style={{ gridColumn: '1 / -1', marginTop: 10, paddingTop: 20, borderTop: '1px solid var(--border)' }}>
+            <h4 style={{ marginBottom: 14, fontSize: 14 }}>📜 Settings Change History</h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 300, overflowY: 'auto', background: '#fff', padding: 16, borderRadius: 8, border: '1px solid var(--border)' }}>
+              {(() => {
+                const logs = activityLogs.filter(l => l.entityId === settingsId && l.entityType === 'appointmentSettings').sort((a,b) => b.createdAt - a.createdAt);
+                if (logs.length === 0) return <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>No changes logged yet. Your changes will be recorded here.</div>;
+                return logs.map(l => (
+                  <div key={l.id} style={{ fontSize: 13, borderBottom: '1px solid var(--bg-soft)', paddingBottom: 8, marginBottom: 8 }}>
+                    <span style={{ color: 'var(--muted)', width: 140, display: 'inline-block', fontWeight: 600 }}>{new Date(l.createdAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                    <span style={{ color: 'var(--text)' }}>{l.text}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {editModal && (
+        <div className="mo open">
+          <div className="mo-box" style={{ maxWidth: 500 }}>
+            <div className="mo-head">
+              <h3>📝 Edit Appointment</h3>
+              <button onClick={() => setEditModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            </div>
+            
+            <div className="mo-body">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+                <div>
+                  <label className="lbl" style={{ marginBottom: 4, display: 'block' }}>Customer</label>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{editModal.customerName}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{editModal.customerPhone}</div>
+                </div>
+                <div>
+                  <label className="lbl" style={{ marginBottom: 4, display: 'block' }}>Booking</label>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{editModal.service}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{editModal.date} at {editModal.time}</div>
+                </div>
+              </div>
+
+              <div className="fg">
+                <label>Status</label>
+                <select value={editForm.status} onChange={e => setEditForm(p => ({ ...p, status: e.target.value }))}>
+                  {STATUSES.map(s => <option key={s}>{s}</option>)}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div className="fg">
+                  <label>Past Bookings</label>
+                  <div style={{ 
+                    height: 140, 
+                    fontSize: 12, 
+                    padding: 10, 
+                    background: 'var(--bg-soft)', 
+                    borderRadius: 8, 
+                    overflowY: 'auto', 
+                    border: '1px solid var(--border)',
+                    color: 'var(--text)'
+                  }}>
+                    {(() => {
+                      const past = appointments.filter(a => 
+                        a.id !== editModal.id && 
+                        ((editModal.customerEmail && a.customerEmail === editModal.customerEmail) || 
+                         (editModal.customerPhone && a.customerPhone === editModal.customerPhone))
+                      ).sort((a,b) => `${b.date}T${b.time}`.localeCompare(`${a.date}T${a.time}`));
+
+                      if (past.length === 0) return <div style={{ color: 'var(--muted)', fontStyle: 'italic' }}>No past bookings found.</div>;
+                      
+                      return past.map(p => (
+                        <div key={p.id} style={{ marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
+                          <span style={{ fontWeight: 600 }}>{p.date}</span> at <span style={{ fontWeight: 600 }}>{p.time}</span><br />
+                          Service: {p.service || 'N/A'} <br />
+                          Status: <span style={{ color: STATUS_COLORS[p.status]?.color || 'var(--text)', fontWeight: 600 }}>{p.status}</span>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+
+                <div className="fg">
+                  <label>Master CRM Notes</label>
+                  <div style={{ 
+                    height: 140, 
+                    fontSize: 12, 
+                    padding: 10, 
+                    background: 'var(--bg-soft)', 
+                    borderRadius: 8, 
+                    overflowY: 'auto', 
+                    whiteSpace: 'pre-wrap',
+                    border: '1px solid var(--border)',
+                    color: 'var(--muted)'
+                  }}>
+                    {(() => {
+                      const lead = leads.find(l => 
+                        (editModal.customerEmail && l.email === editModal.customerEmail) || 
+                        (editModal.customerPhone && l.phone === editModal.customerPhone)
+                      );
+                      return lead?.notes || editModal.notes || 'No history yet.';
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              <div className="fg">
+                <label>Add New Note</label>
+                <textarea 
+                  value={newNote} 
+                  onChange={e => setNewNote(e.target.value)}
+                  placeholder="Type a new update here..."
+                  style={{ height: 80, fontSize: 13 }}
+                />
+              </div>
+            </div>
+
+            <div className="mo-foot">
+              <button className="btn btn-secondary" onClick={() => { setEditModal(null); setNewNote(''); }}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveAppointment}>Save & Sync to CRM</button>
+            </div>
           </div>
         </div>
       )}
@@ -254,17 +716,51 @@ export default function Appointments({ ownerId, perms }) {
       {rescheduleModal && (
         <div className="mo open">
           <div className="mo-box" style={{ maxWidth: 400 }}>
-            <div className="mo-head"><h3>Reschedule Appointment</h3><button className="btn-icon" onClick={() => setRescheduleModal(null)}>✕</button></div>
-            <div className="mo-body" style={{ padding: 20 }}>
-              <div style={{ fontWeight: 600, marginBottom: 16 }}>{rescheduleModal.customerName} — {rescheduleModal.service}</div>
-              <div className="fgrid" style={{ gridTemplateColumns: '1fr' }}>
-                <div className="fg"><label>New Date</label><input type="date" value={rsForm.date} onChange={e => setRsForm(p => ({ ...p, date: e.target.value }))} /></div>
-                <div className="fg"><label>New Time</label><input type="time" value={rsForm.time} onChange={e => setRsForm(p => ({ ...p, time: e.target.value }))} /></div>
+            <div className="mo-head">
+              <h3>📅 Reschedule</h3>
+              <button onClick={() => setRescheduleModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            </div>
+            <div className="mo-body">
+              <div className="fg"><label>New Date</label><input type="date" value={rsForm.date} onChange={e => setRsForm({ ...rsForm, date: e.target.value })} /></div>
+              <div className="fg"><label>New Time</label><input type="time" value={rsForm.time} onChange={e => setRsForm({ ...rsForm, time: e.target.value })} /></div>
+            </div>
+            <div className="mo-foot">
+              <button className="btn btn-secondary" onClick={() => setRescheduleModal(null)}>Cancel</button>
+              <button className="btn btn-primary" onClick={reschedule}>Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Configure View Modal */}
+      {confModal && (
+        <div className="mo open">
+          <div className="mo-box" style={{ maxWidth: 400 }}>
+            <div className="mo-head">
+              <h3>⚙️ Configure Default View</h3>
+              <button onClick={() => setConfModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18 }}>✕</button>
+            </div>
+            <div className="mo-body">
+              <div className="fg">
+                <label>Default Date Filter</label>
+                <select value={tempConf.dateFilter} onChange={e => setTempConf(p => ({ ...p, dateFilter: e.target.value }))}>
+                  <option value="all">All</option>
+                  <option value="today">Today</option>
+                  <option value="tomorrow">Tomorrow</option>
+                  <option value="week">This Week</option>
+                </select>
+              </div>
+              <div className="fg">
+                <label>Default Status Filter</label>
+                <select value={tempConf.statusFilter} onChange={e => setTempConf(p => ({ ...p, statusFilter: e.target.value }))}>
+                  <option value="All">All Statuses</option>
+                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
               </div>
             </div>
             <div className="mo-foot">
-              <button className="btn btn-secondary btn-sm" onClick={() => setRescheduleModal(null)}>Cancel</button>
-              <button className="btn btn-primary btn-sm" onClick={reschedule}>Save Reschedule</button>
+              <button className="btn btn-secondary" onClick={() => setConfModal(false)}>Cancel</button>
+              <button className="btn btn-primary" onClick={saveConfig}>💾 Save Defaults</button>
             </div>
           </div>
         </div>

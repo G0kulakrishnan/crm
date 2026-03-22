@@ -4,9 +4,13 @@ import { fmt, fmtD, numberToWords } from '../../utils/helpers';
 export default function DocumentTemplate({ data, profile, type = 'Invoice', preview = false, settings }) {
   const profileTemplate = type === 'Invoice' ? profile?.invoiceTemplate : profile?.quotationTemplate;
   const t = profileTemplate || data.template || 'Classic';
+  const items = Array.isArray(data.items) 
+    ? data.items 
+    : (typeof data.items === 'string' ? JSON.parse(data.items) : []);
+
   const ptots = (() => {
-    const sub = (data.items || []).reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
-    const taxTotal = (data.items || []).reduce((s, it) => s + (it.qty || 0) * (it.rate || 0) * (it.taxRate || 0) / 100, 0);
+    const sub = items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
+    const taxTotal = items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0) * (it.taxRate || 0) / 100, 0);
     const discAmt = data.discType === '₹' ? (parseFloat(data.disc) || 0) : (sub * (parseFloat(data.disc) || 0) / 100);
     const total = Math.round(sub - discAmt + taxTotal + (parseFloat(data.adj) || 0));
     return { sub, taxTotal, discAmt, total };
@@ -151,7 +155,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                   </tr>
                 </thead>
                 <tbody>
-                  {data.items.map((it, i) => {
+                  {items.map((it, i) => {
                     const itemTotal = (it.qty || 0) * (it.rate || 0);
                     const taxRate = it.taxRate || 0;
                     const taxAmt = itemTotal * taxRate / 100;
@@ -236,14 +240,14 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                     
                     {!isInterState ? (
                       <>
-                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>CGST ({data.items[0]?.taxRate / 2}%)</div>
+                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>CGST ({items[0]?.taxRate / 2}%)</div>
                         <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right', fontSize: getDynFS(ptots.taxTotal/2, '12px') }}>{fmt(ptots.taxTotal/2).replace('₹', '')}</div>
-                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>SGST ({data.items[0]?.taxRate / 2}%)</div>
+                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>SGST ({items[0]?.taxRate / 2}%)</div>
                         <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right', fontSize: getDynFS(ptots.taxTotal/2, '12px') }}>{fmt(ptots.taxTotal/2).replace('₹', '')}</div>
                       </>
                     ) : (
                       <>
-                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>IGST ({data.items[0]?.taxRate}%)</div>
+                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>IGST ({items[0]?.taxRate}%)</div>
                         <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right', fontSize: getDynFS(ptots.taxTotal, '12px') }}>{fmt(ptots.taxTotal).replace('₹', '')}</div>
                       </>
                     )}
@@ -359,7 +363,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             </tr>
           </thead>
           <tbody>
-            {(data.items || []).map((it, i) => (
+            {items.map((it, i) => (
               <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
                 <td style={{ padding: '14px 8px', fontSize: 13 }}><strong>{it.name}</strong>{it.desc && <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{it.desc}</div>}</td>
                 <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'center' }}>{it.qty}</td>

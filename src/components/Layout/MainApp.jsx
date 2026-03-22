@@ -291,9 +291,10 @@ export default function MainApp({ user, settings }) {
     reports: { component: <Reports user={user} perms={perms} ownerId={targetUserId} />, label: 'Reports' },
     'ecom-settings': { component: <EcomSettings ownerId={targetUserId} globalSettings={settings} perms={perms} />, label: 'Ecommerce' },
     'ecom-orders': { component: <EcomOrders ownerId={targetUserId} perms={perms} />, label: 'Ecommerce' },
-    appointments: { component: <Appointments ownerId={targetUserId} perms={perms} />, label: 'Appointments' },
+    appointments: { component: <Appointments ownerId={targetUserId} perms={perms} settings={settings} />, label: 'Appointments' },
+    'appointment-settings': { component: <Appointments ownerId={targetUserId} perms={perms} initialTab="settings" settings={settings} />, label: 'Appointments' },
     userprofile: { component: <UserProfile user={user} profile={profile} perms={perms} memberProfile={memberProfile} ownerId={targetUserId} />, label: 'Public' },
-    settings: { component: <Settings user={user} profile={profile} isExpired={isExpired} ownerId={targetUserId} initialTab={settingsTab} perms={perms} teamInfo={teamMembers.find(m => m.id === teamInfo?.teamMemberId)} memberProfile={memberProfile} />, label: 'Settings' },
+    settings: { component: <Settings user={user} profile={profile} isExpired={isExpired} ownerId={targetUserId} initialTab={settingsTab} perms={perms} teamInfo={teamMembers.find(m => m.id === teamInfo?.teamMemberId)} memberProfile={memberProfile} settings={settings} />, label: 'Settings' },
     admin: { component: isSuperadmin ? <AdminPanel user={user} /> : null, label: 'Admin' },
     apidocs: { component: isSuperadmin ? <ApiDocs ownerId={targetUserId} /> : null, label: 'API Docs' },
   };

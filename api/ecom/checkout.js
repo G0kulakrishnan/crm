@@ -31,7 +31,7 @@ export default async function handler(req, res) {
         customerPhone: customer.phone,
         address: customer.address || '',
         notes: customer.notes || '',
-        items: JSON.stringify(items),
+        items,
         total: total || 0,
         status: 'Pending',
         createdAt: now,
@@ -49,7 +49,7 @@ export default async function handler(req, res) {
       clientPhone: customer.phone,
       date: now,
       dueDate: now + 7 * 24 * 60 * 60 * 1000,
-      items: JSON.stringify(items.map(i => ({ name: i.name, qty: i.qty, rate: i.rate, taxRate: i.tax || 0 }))),
+      items: items.map(i => ({ name: i.name, qty: i.qty, rate: i.rate, taxRate: i.tax || 0 })),
       total: total || 0,
       status: 'Unpaid',
       tag: 'ecom',
@@ -70,10 +70,21 @@ export default async function handler(req, res) {
           name: customer.name,
           email: customer.email || '',
           phone: customer.phone,
-          source: 'E-Commerce',
-          stage: 'New',
+          source: 'ecom',
+          stage: 'New Enquiry',
           notes: `Ordered from e-com store: ${ecomName}`,
           createdAt: now,
+        }));
+      } else {
+        // Update existing lead with new name and new note
+        const oldNotes = matchLead.notes || '';
+        const timestampedNote = `[${new Date().toLocaleDateString('en-IN')}] Ordered from e-com store: ${ecomName} (Total: ₹${total})`;
+        const newNotes = oldNotes ? `${oldNotes}\n${timestampedNote}` : timestampedNote;
+        
+        txs.push(tx.leads[matchLead.id].update({
+          name: customer.name, // Update to the newly provided name
+          notes: newNotes,
+          updatedAt: now,
         }));
       }
     }
@@ -82,6 +93,30 @@ export default async function handler(req, res) {
     txs.push(tx.orders[orderId].update({ invoiceId }));
 
     await db.transact(txs);
+
+    // 5. Send order confirmation email
+    if (customer.email) {
+      try {
+        const port = process.env.PORT || 3000;
+        const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
+        const host = req.headers.host || `localhost:${port}`;
+        const notifyUrl = `${protocol}://${host}/api/notify`;
+        
+        await fetch(notifyUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'email',
+            to: customer.email,
+            subject: `Order Confirmation - ${invoiceNo}`,
+            body: `Hi ${customer.name},\n\nThank you for your order!\nYour order ID is: ${orderId.slice(0, 8).toUpperCase()}\nTotal Amount: ₹${total.toLocaleString()}\n\nYou can track your order at: ${protocol}://${host}/${ecomName}/orders\n\nThanks,\n${ecomName}`,
+            ownerId
+          })
+        });
+      } catch (e) {
+        console.error('Failed to send order confirmation email:', e);
+      }
+    }
 
     return res.status(200).json({ success: true, orderId, invoiceId, invoiceNo });
   } catch (err) {

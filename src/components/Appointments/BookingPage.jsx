@@ -20,24 +20,18 @@ function generateSlots(startTime, endTime, durationMins) {
 }
 
 export default function BookingPage() {
-  const pathParts = window.location.pathname.split('/');
-  const ecomName = pathParts[1];
+  const pathParts = window.location.pathname.split('/').filter(Boolean);
+  // Handle both /book/[slug] and /[slug]/book
+  const isDedicatedBook = pathParts[0] === 'book';
+  const rawSlug = isDedicatedBook ? (pathParts[1] || '') : (pathParts[0] || '');
+  const cleanSlug = rawSlug.toLowerCase().trim();
 
-  const { data } = db.useQuery({
-    ecomSettings: { $: { where: { ecomName } } },
-    appointmentSettings: {},
-    appointments: {},
+  // --- 1. Top-Level Hooks ---
+  const { data, isLoading } = db.useQuery({
+    userProfiles: { $: { where: { slug: cleanSlug } } },
+    appointmentSettings: { $: { where: { slug: cleanSlug } } },
+    appointments: { $: { where: { slug: cleanSlug } } },
   });
-
-  const storeSetting = data?.ecomSettings?.[0];
-  const ownerId = storeSetting?.userId;
-
-  const apptSettings = data?.appointmentSettings?.find(s => s.userId === ownerId);
-  const workingHours = apptSettings?.workingHours ? JSON.parse(apptSettings.workingHours) : {};
-  const holidays = apptSettings?.holidays ? JSON.parse(apptSettings.holidays) : [];
-  const slotDuration = apptSettings?.slotDuration || 30;
-  const maxPerSlot = apptSettings?.maxPerSlot || 1;
-  const services = apptSettings?.services ? JSON.parse(apptSettings.services) : ['General Appointment'];
 
   const [step, setStep] = useState(1); // 1: service, 2: date, 3: time, 4: details, 5: confirm
   const [selectedService, setSelectedService] = useState('');
@@ -47,7 +41,64 @@ export default function BookingPage() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
+  // --- 2. Derived Data (safe to calculate unconditionally) ---
+  const profile = data?.userProfiles?.[0];
+  const apptSettings = data?.appointmentSettings?.[0] || {};
+  const ownerId = profile?.userId || apptSettings?.userId;
+
+  const workingHours = apptSettings?.workingHours ? JSON.parse(apptSettings.workingHours) : {};
+  const holidays = apptSettings?.holidays ? JSON.parse(apptSettings.holidays) : [];
+  const slotDuration = apptSettings?.slotDuration || 30;
+  const maxPerSlot = apptSettings?.maxPerSlot || 1;
+  const bookingWindow = apptSettings?.bookingWindow || 1;
+  const services = apptSettings?.services ? JSON.parse(apptSettings.services) : [{ name: 'General Appointment', duration: '' }];
+
+  const selectedServiceObj = useMemo(() => {
+    return services.find(s => (typeof s === 'string' ? s : s.name) === selectedService) || {};
+  }, [services, selectedService]);
+
+  const currentDuration = (typeof selectedServiceObj === 'object' && selectedServiceObj.duration) 
+    ? Number(selectedServiceObj.duration) 
+    : slotDuration;
+
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  const availableSlots = useMemo(() => {
+    if (!selectedDate || !workingHours) return [];
+    const d = new Date(selectedDate);
+    const dayName = dayNames[d.getDay()];
+    const hours = workingHours[dayName];
+    if (!hours?.enabled || (!hours.slots && !hours.start)) return [];
+    
+    let all = [];
+    if (hours.slots) {
+      hours.slots.forEach(slot => {
+        all = [...all, ...generateSlots(slot.start, slot.end, currentDuration)];
+      });
+    } else {
+      all = generateSlots(hours.start, hours.end, currentDuration);
+    }
+
+    const taken = (data?.appointments || []).filter(a => a.userId === ownerId && a.date === selectedDate);
+    return all.filter(slot => {
+      const count = taken.filter(a => a.time === slot).length;
+      return count < maxPerSlot;
+    });
+  }, [selectedDate, workingHours, currentDuration, maxPerSlot, data?.appointments, ownerId]);
+
+  // --- 3. Early Returns (Rules of Hooks safe) ---
+  if (isLoading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>Loading...</div>;
+  
+  if (!ownerId) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#6b7280' }}>
+      <div style={{ textAlign: 'center' }}><div style={{ fontSize: 64, marginBottom: 16 }}>📅</div><h2>Booking page not found</h2><p>The link might be incorrect or the business has moved.</p></div>
+    </div>
+  );
+
+  // --- 4. Main Render Data ---
+  const bizTitle = profile?.bizName || apptSettings?.title || 'Book an Appointment';
+  const bizLogo = profile?.logo || apptSettings?.logo;
+  const bizTagline = profile?.tagline || apptSettings?.tagline || '';
 
   const isDateAvailable = (dateStr) => {
     if (holidays.includes(dateStr)) return false;
@@ -56,20 +107,6 @@ export default function BookingPage() {
     const hours = workingHours[dayName];
     return hours?.enabled !== false;
   };
-
-  const availableSlots = useMemo(() => {
-    if (!selectedDate) return [];
-    const d = new Date(selectedDate);
-    const dayName = dayNames[d.getDay()];
-    const hours = workingHours[dayName];
-    if (!hours?.enabled) return [];
-    const all = generateSlots(hours.start, hours.end, slotDuration);
-    const taken = (data?.appointments || []).filter(a => a.userId === ownerId && a.date === selectedDate);
-    return all.filter(slot => {
-      const count = taken.filter(a => a.time === slot).length;
-      return count < maxPerSlot;
-    });
-  }, [selectedDate, workingHours, slotDuration, maxPerSlot, data?.appointments, ownerId]);
 
   const submit = async () => {
     if (!form.name || !form.phone) return;
@@ -80,7 +117,7 @@ export default function BookingPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ownerId,
-          ecomName,
+          slug: cleanSlug,
           service: selectedService,
           date: selectedDate,
           time: selectedTime,
@@ -97,21 +134,15 @@ export default function BookingPage() {
     }
   };
 
-  // Generate next 30 days for date picker
+  // Generate days for date picker based on bookingWindow
   const today = new Date();
-  const dateOptions = Array.from({ length: 30 }, (_, i) => {
+  const daysInWindow = bookingWindow * 30 + 5; // roughly 30 days per month
+  const dateOptions = Array.from({ length: daysInWindow }, (_, i) => {
     const d = new Date(today.getTime() + (i + 1) * 86400000);
     return d.toISOString().split('T')[0];
   }).filter(isDateAvailable);
 
-  if (!storeSetting) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>
-      <div style={{ textAlign: 'center', color: '#6b7280' }}>
-        <div style={{ fontSize: 64 }}>📅</div>
-        <h2>Booking page not found</h2>
-      </div>
-    </div>
-  );
+
 
   const accentColor = '#6366f1';
 
@@ -119,9 +150,9 @@ export default function BookingPage() {
     <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: 'Inter, system-ui, sans-serif' }}>
       {/* Header */}
       <div style={{ background: accentColor, color: '#fff', padding: '20px 24px', textAlign: 'center' }}>
-        {storeSetting.logo && <img src={storeSetting.logo} alt="Logo" style={{ height: 48, marginBottom: 8, display: 'block', margin: '0 auto 8px' }} />}
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>{storeSetting.title || 'Book an Appointment'}</h1>
-        {storeSetting.tagline && <p style={{ margin: '6px 0 0', opacity: 0.85, fontSize: 14 }}>{storeSetting.tagline}</p>}
+        {bizLogo && <img src={bizLogo} alt="Logo" style={{ height: 48, marginBottom: 8, display: 'block', margin: '0 auto 8px', borderRadius: 8 }} />}
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>{bizTitle}</h1>
+        {bizTagline && <p style={{ margin: '6px 0 0', opacity: 0.85, fontSize: 14 }}>{bizTagline}</p>}
       </div>
 
       {done ? (
@@ -163,12 +194,19 @@ export default function BookingPage() {
               <div>
                 <h3 style={{ marginBottom: 20, fontSize: 18 }}>Select a Service</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {services.filter(s => s.trim()).map(svc => (
-                    <button key={svc} onClick={() => { setSelectedService(svc); setStep(2); }}
-                      style={{ padding: '14px 18px', borderRadius: 10, border: `2px solid ${selectedService === svc ? accentColor : '#e5e7eb'}`, background: selectedService === svc ? `rgba(99,102,241,0.05)` : '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 15, textAlign: 'left', color: '#1f2937', transition: 'all .15s' }}>
-                      📋 {svc}
-                    </button>
-                  ))}
+                  {services.map((svc, si) => {
+                    const sName = typeof svc === 'object' ? svc.name : svc;
+                    if (!sName || !sName.trim()) return null;
+                    const sDur = typeof svc === 'object' ? svc.duration : '';
+                    const durationText = sDur ? `${sDur} mins` : (slotDuration ? `${slotDuration} mins` : '');
+                    return (
+                      <button key={si} onClick={() => { setSelectedService(sName); setStep(2); }}
+                        style={{ padding: '14px 18px', borderRadius: 10, border: `2px solid ${selectedService === sName ? accentColor : '#e5e7eb'}`, background: selectedService === sName ? `rgba(99,102,241,0.05)` : '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 15, textAlign: 'left', color: '#1f2937', transition: 'all .15s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>📋 {sName}</span>
+                        {durationText && <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500 }}>{durationText}</span>}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
