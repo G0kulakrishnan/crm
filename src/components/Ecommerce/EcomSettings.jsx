@@ -8,14 +8,16 @@ const TEMPLATES = [
   { id: 1, name: 'Minimal Grid', desc: 'Clean white background, centered grid', color: '#6366f1', type: 'grid' },
   { id: 2, name: 'Bold Vibrant', desc: 'Dark theme, high contrast, large tiles', color: '#8b5cf6', type: 'bold' },
   { id: 3, name: 'Elegant Premium', desc: 'Serif fonts, ivory background, luxury feel', color: '#1c1917', type: 'serif' },
-  { id: 4, name: 'Efficient List', desc: 'Compact rows, ideal for large catalogs', color: '#f59e0b', type: 'list' },
+  { id: 4, name: 'Efficient List', desc: 'Compact rows with images', color: '#f59e0b', type: 'list' },
+  { id: 5, name: 'Compact Catalog', desc: 'No images, maximum density layout', color: '#10b981', type: 'catalog' },
 ];
 
 function TemplatePreview({ type, active }) {
   const isDark = type === 'bold';
-  const isList = type === 'list';
+  const isList = type === 'list' || type === 'catalog';
+  const isCatalog = type === 'catalog';
   const isSerif = type === 'serif';
-  const accent = type === 'bold' ? '#8b5cf6' : type === 'list' ? '#ff9800' : type === 'serif' ? '#1c1917' : '#6366f1';
+  const accent = type === 'bold' ? '#8b5cf6' : type === 'catalog' ? '#10b981' : type === 'list' ? '#ff9800' : type === 'serif' ? '#1c1917' : '#6366f1';
   
   return (
     <div style={{ 
@@ -33,14 +35,14 @@ function TemplatePreview({ type, active }) {
       {/* Mock Content */}
       <div style={{ display: 'grid', gridTemplateColumns: isList ? '1fr' : '1fr 1fr', gap: 10 }}>
         {[1, 2, 3, 4].map(i => (
-          <div key={i} style={{ 
-            height: isList ? 14 : 40, 
-            background: isDark ? '#1e293b' : '#fff', 
-            border: `2px solid ${isDark ? '#334155' : '#f8fafc'}`, 
-            borderRadius: 10, display: 'flex', gap: 8, padding: 6,
-            boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
-          }}>
-            <div style={{ width: isList ? 18 : '100%', height: isList ? 12 : 20, background: isDark ? '#4b5563' : '#f1f5f9', borderRadius: 4 }} />
+            <div style={{ 
+              height: isList ? (isCatalog ? 30 : 14) : 40, 
+              background: isDark ? '#1e293b' : '#fff', 
+              border: `2px solid ${isDark ? '#334155' : '#f8fafc'}`, 
+              borderRadius: 10, display: 'flex', gap: 8, padding: 6,
+              boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
+            }}>
+              {!isCatalog && <div style={{ width: isList ? 18 : '100%', height: isList ? 12 : 20, background: isDark ? '#4b5563' : '#f1f5f9', borderRadius: 4 }} />}
             {isList && (
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <div style={{ width: '85%', height: 5, background: isDark ? '#4b5563' : '#f1f5f9', borderRadius: 2 }} />
