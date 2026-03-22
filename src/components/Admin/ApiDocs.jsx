@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import db from '../../instant';
+
 
 const API_LIST = [
   { 
@@ -105,8 +107,24 @@ const API_LIST = [
   }
 ];
 
-export default function ApiDocs() {
+export default function ApiDocs({ ownerId }) {
   const [apiSearch, setApiSearch] = useState('');
+  const { data } = db.useQuery({ 
+    userProfiles: { $: { where: { userId: ownerId } } },
+    globalSettings: {}
+  });
+  const profile = data?.userProfiles?.[0];
+  const gStats = data?.globalSettings?.[0];
+  const baseUrl = gStats?.crmDomain || profile?.website || window.location.origin;
+
+  const getActionPath = (groupPath, action) => {
+    if (groupPath.startsWith('/api/data/')) {
+       if (action.method === 'GET') return `${groupPath}/list`;
+       if (action.method === 'DELETE') return `${groupPath}/delete`;
+    }
+    return groupPath;
+  };
+
 
   const filtered = API_LIST.filter(g => 
     g.group.toLowerCase().includes(apiSearch.toLowerCase()) || 
@@ -185,10 +203,11 @@ export default function ApiDocs() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <code style={{ fontSize: 11, background: '#fff', padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', color: 'var(--muted)' }}>
-                          {window.location.host}{group.path}{action.query ? `?${action.query}` : ''}
+                          {baseUrl.replace(/^https?:\/\//, '')}{getActionPath(group.path, action)}{action.query ? `?${action.query}` : ''}
                         </code>
                         <button className="btn-icon" style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => {
-                          navigator.clipboard.writeText(`${window.location.origin}${group.path}${action.query ? `?${action.query}` : ''}`);
+                          const fullUrl = `${baseUrl.endsWith('/') ? baseUrl.slice(0, -1) : baseUrl}${getActionPath(group.path, action)}${action.query ? `?${action.query}` : ''}`;
+                          navigator.clipboard.writeText(fullUrl);
                           alert('URL Copied!');
                         }}>📋</button>
                       </div>

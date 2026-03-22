@@ -1,8 +1,17 @@
 {
   "rewrites": [
     {
+      "source": "/api/data/:module/delete",
+      "destination": "/api/data?module=:module"
+    },
+    {
+      "source": "/api/data/:module/list",
+      "destination": "/api/data?module=:module"
+    },
+    {
       "source": "/api/data/:module",
       "destination": "/api/data?module=:module"
     }
   ]
 }
+
