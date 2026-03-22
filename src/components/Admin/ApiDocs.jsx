@@ -7,22 +7,90 @@ const API_LIST = [
     method: 'POST', 
     desc: 'Unified authentication gateway for user identity and security.',
     actions: [
-      { name: 'Login', body: { action: 'login', email: 'user@example.com', password: 'yourpassword' }, resp: { success: true, user: { id: '...', email: '...' } } },
-      { name: 'Register', body: { action: 'register', email: 'user@example.com', password: 'yourpassword', name: 'John Doe' }, resp: { success: true, id: '...' } },
-      { name: 'OTP Verify', body: { action: 'verify-otp', email: 'user@example.com', otp: '123456' }, resp: { success: true, token: '...' } }
+      { name: 'Login', method: 'POST', body: { action: 'login', email: 'user@example.com', password: 'yourpassword' }, resp: { success: true, user: { id: '...', email: '...' } } },
+      { name: 'Register', method: 'POST', body: { action: 'register', email: 'user@example.com', password: 'yourpassword', name: 'John Doe' }, resp: { success: true, id: '...' } },
+      { name: 'OTP Verify', method: 'POST', body: { action: 'verify-otp', email: 'user@example.com', otp: '123456' }, resp: { success: true, token: '...' } }
+    ]
+  },
+  {
+    group: 'Leads (CRM)',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Manage potential clients and inquiries.',
+    actions: [
+      { name: 'Create Lead (POST)', method: 'POST', body: { module: 'leads', ownerId: 'WORKSPACE_ID', actorId: 'USER_ID', name: 'John Smith', email: 'john@example.com', phone: '9876543210', source: 'Website', stage: 'New', notes: 'Initial inquiry' }, resp: { success: true, id: '12345...' } },
+      { name: 'List Leads (GET)', method: 'GET', query: 'module=leads&ownerId=WORKSPACE_ID', resp: { success: true, data: [{ id: '123', name: 'John Smith', stage: 'New' }] } },
+      { name: 'Update Lead (PATCH)', method: 'PATCH', body: { module: 'leads', id: 'LEAD_ID', ownerId: 'WORKSPACE_ID', stage: 'Contacted' }, resp: { success: true, message: 'Updated' } },
+      { name: 'Delete Lead (DELETE)', method: 'DELETE', body: { module: 'leads', id: 'LEAD_ID', ownerId: 'WORKSPACE_ID' }, resp: { success: true, message: 'Deleted' } }
+    ]
+  },
+  {
+    group: 'Customers',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Manage your verified clients and their details.',
+    actions: [
+      { name: 'Create Customer (POST)', method: 'POST', body: { module: 'customers', ownerId: '...', actorId: '...', name: 'Acme Corp', email: 'billing@acme.com', phone: '9988776655', address: '123 Street', state: 'Tamil Nadu', country: 'India', gstin: '22AAAAA0000A1Z5' }, resp: { success: true, id: '...' } },
+      { name: 'List Customers (GET)', method: 'GET', query: 'module=customers&ownerId=...', resp: { success: true, data: [{ id: '...', name: 'Acme Corp' }] } },
+      { name: 'Update Customer (PATCH)', method: 'PATCH', body: { module: 'customers', id: 'CUST_ID', ownerId: '...', email: 'new@acme.com' }, resp: { success: true, message: 'Updated' } },
+      { name: 'Delete Customer (DELETE)', method: 'DELETE', body: { module: 'customers', id: 'CUST_ID', ownerId: '...' }, resp: { success: true, message: 'Deleted' } }
+    ]
+  },
+  {
+    group: 'Projects',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Manage ongoing work and client projects.',
+    actions: [
+      { name: 'Create Project (POST)', method: 'POST', body: { module: 'projects', ownerId: '...', actorId: '...', name: 'Website Redesign', client: 'Acme Corp', status: 'In Progress', budget: 50000, deadline: '2026-12-31' }, resp: { success: true, id: '...' } },
+      { name: 'List Projects (GET)', method: 'GET', query: 'module=projects&ownerId=...', resp: { success: true, data: [{ id: '...', name: 'Website Redesign', status: 'In Progress' }] } },
+      { name: 'Update Project (PATCH)', method: 'PATCH', body: { module: 'projects', id: 'PROJ_ID', ownerId: '...', status: 'Completed' }, resp: { success: true, message: 'Updated' } },
+      { name: 'Delete Project (DELETE)', method: 'DELETE', body: { module: 'projects', id: 'PROJ_ID', ownerId: '...' }, resp: { success: true, message: 'Deleted' } }
+    ]
+  },
+  {
+    group: 'Tasks',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Manage individual tasks within projects or independently.',
+    actions: [
+      { name: 'Create Task (POST)', method: 'POST', body: { module: 'tasks', ownerId: '...', actorId: '...', title: 'Design Homepage', projectId: 'PROJ_ID', priority: 'High', status: 'Pending', assignedTo: 'Designer Name' }, resp: { success: true, id: '...' } },
+      { name: 'List Tasks (GET)', method: 'GET', query: 'module=tasks&ownerId=...', resp: { success: true, data: [{ id: '...', title: 'Design Homepage', status: 'Pending' }] } },
+      { name: 'Update Task (PATCH)', method: 'PATCH', body: { module: 'tasks', id: 'TASK_ID', ownerId: '...', status: 'Completed' }, resp: { success: true, message: 'Updated' } },
+      { name: 'Delete Task (DELETE)', method: 'DELETE', body: { module: 'tasks', id: 'TASK_ID', ownerId: '...' }, resp: { success: true, message: 'Deleted' } }
+    ]
+  },
+  {
+    group: 'Quotations',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Generate and manage sales quotes.',
+    actions: [
+      { name: 'Create Quote (POST)', method: 'POST', body: { module: 'quotations', ownerId: '...', actorId: '...', no: 'QUOTE/2026/001', client: 'Acme Corp', date: '2026-03-22', validUntil: '2026-04-05', status: 'Created', items: [{ name: 'Web Dev', qty: 1, rate: 10000, taxRate: 18 }], sub: 10000, taxAmt: 1800, total: 11800 }, resp: { success: true, id: '...' } },
+      { name: 'List Quotes (GET)', method: 'GET', query: 'module=quotations&ownerId=...', resp: { success: true, data: [{ id: '...', no: 'QUOTE/2026/001' }] } },
+      { name: 'Update Quote (PATCH)', method: 'PATCH', body: { module: 'quotations', id: 'QUOTE_ID', ownerId: '...', status: 'Sent' }, resp: { success: true, message: 'Updated' } },
+      { name: 'Delete Quote (DELETE)', method: 'DELETE', body: { module: 'quotations', id: 'QUOTE_ID', ownerId: '...' }, resp: { success: true, message: 'Deleted' } }
+    ]
+  },
+  {
+    group: 'Invoices',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Generate, manage, and track tax invoices.',
+    actions: [
+      { name: 'Create Invoice (POST)', method: 'POST', body: { module: 'invoices', ownerId: '...', actorId: '...', no: 'INV/2026/001', client: 'Acme Corp', date: '2026-03-22', dueDate: '2026-04-05', status: 'Draft', items: [{ name: 'Web Dev', qty: 1, rate: 10000, taxRate: 18 }], sub: 10000, taxAmt: 1800, total: 11800, isAmc: false }, resp: { success: true, id: '...' } },
+      { name: 'List Invoices (GET)', method: 'GET', query: 'module=invoices&ownerId=...', resp: { success: true, data: [{ id: '...', no: 'INV/2026/001', total: 11800 }] } },
+      { name: 'Update Invoice & Payment (PATCH)', method: 'PATCH', body: { module: 'invoices', id: 'INV_ID', ownerId: '...', status: 'Partially Paid', payments: [{ amount: 5000, date: 1711234567890 }] }, resp: { success: true, message: 'Updated' } },
+      { name: 'Delete Invoice (DELETE)', method: 'DELETE', body: { module: 'invoices', id: 'INV_ID', ownerId: '...' }, resp: { success: true, message: 'Deleted' } }
     ]
   },
   { 
-    group: 'Finance', 
+    group: 'POS Billing', 
     path: '/api/finance', 
     method: 'POST', 
-    desc: 'Operations related to billing, POS checkout, and stock management.',
+    desc: 'Retail checkout logic processing.',
     actions: [
-      { 
-        name: 'Generate Bill', 
-        body: { action: 'generate-bill', cart: [{ name: 'Laptop', qty: 1, rate: 50000, tax: 18 }], customer: { name: 'Gokul', phone: '9876543210' }, userId: 'owner-id', actorId: 'user-id' },
-        resp: { success: true, billId: '...', pdfUrl: '...' }
-      }
+      { name: 'Generate Retail Bill', method: 'POST', body: { action: 'generate-bill', cart: [{ id: 'PROD_ID', name: 'Wireless Mouse', qty: 2, rate: 500, tax: 18 }], customer: { id: 'CUST_ID', name: 'Walk-in', phone: '9000000000' }, payMode: 'UPI', userId: 'WORKSPACE_ID', actorId: 'USER_ID' }, resp: { success: true, invoice: { no: 'BILL/2026/001', total: 1180 } } }
     ]
   },
   { 
@@ -31,20 +99,8 @@ const API_LIST = [
     method: 'POST', 
     desc: 'Send transactional emails or WhatsApp messages.',
     actions: [
-      { name: 'Send Email', body: { type: 'email', to: 'client@example.com', subject: 'Invoice #123', body: 'Please find attached...' }, resp: { success: true, msgId: '...' } },
-      { name: 'Send WhatsApp', body: { type: 'whatsapp', to: '919876543210', message: 'Hi, your order is ready!' }, resp: { success: true, sid: '...' } }
-    ]
-  },
-  { 
-    group: 'Unified Data (CRUD)', 
-    path: '/api/data', 
-    method: 'ALL', 
-    desc: 'Standardized CRUD for all business modules (Leads, Tasks, Projects, etc.).',
-    actions: [
-      { name: 'List Records (GET)', method: 'GET', query: 'module=leads&ownerId=xyz', resp: { success: true, data: [{ id: '1', name: 'Lead A' }] } },
-      { name: 'Create Product (POST)', method: 'POST', body: { module: 'products', ownerId: '...', name: 'iPhone 15', price: 79900, stock: 10, category: 'Electronics' }, resp: { success: true, id: 'prod_123' } },
-      { name: 'Update Customer (PATCH)', method: 'PATCH', body: { module: 'customers', id: 'cust_456', email: 'newemail@example.com', ownerId: '...' }, resp: { success: true, message: 'Updated' } },
-      { name: 'Delete Task (DELETE)', method: 'DELETE', body: { module: 'tasks', id: 'task_789', ownerId: '...' }, resp: { success: true, message: 'Deleted' } }
+      { name: 'Send Email', method: 'POST', body: { type: 'email', to: 'client@example.com', subject: 'Invoice #123', body: 'Hi, find attached...', ownerId: 'WORKSPACE_ID' }, resp: { success: true, msgId: '...' } },
+      { name: 'Send WhatsApp', method: 'POST', body: { type: 'whatsapp', to: '919876543210', message: 'Your order is ready!', ownerId: 'WORKSPACE_ID' }, resp: { success: true, sid: '...' } }
     ]
   }
 ];
