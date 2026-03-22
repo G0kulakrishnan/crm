@@ -31,6 +31,10 @@
     {
       "source": "/:slug/appointment",
       "destination": "/index.html"
+    },
+    {
+      "source": "/:slug/book",
+      "destination": "/index.html"
     }
   ]
 }

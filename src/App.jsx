@@ -75,10 +75,10 @@ function AppInner() {
     );
   }
 
-  const path = window.location.pathname;
+  const path = window.location.pathname.toLowerCase();
   const isPublicStore = path.endsWith('/store');
   const isPublicOrders = path.endsWith('/orders');
-  const isPublicBooking = path.endsWith('/book');
+  const isPublicBooking = path.endsWith('/book') || path.endsWith('/appointment');
 
   if (isPublicStore) return <StorePage />;
   if (isPublicOrders) return <TrackingPage />;

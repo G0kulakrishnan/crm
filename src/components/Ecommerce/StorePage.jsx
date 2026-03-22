@@ -23,22 +23,23 @@ function ProductItem({ p, inCart, theme, isDark, addToCart, removeFromCart, prim
   const textColor = isDark ? (isList || isCatalog ? '#1e293b' : '#f1f5f9') : '#1e293b';
   const cardBg = isDark ? (isList || isCatalog ? '#fff' : '#1e293b') : '#fff';
   const borderColor = isDark ? '#334155' : '#e5e7eb';
+  const rateStr = (p.rate || 0).toLocaleString();
 
   // --- TEMPLATE 5: COMPACT CATALOG (No Images, Text only row) ---
   if (isCatalog) {
     return (
       <div key={p.id} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid #f1f5f9', gap: 12, background: '#fff', color: '#1e293b' }}>
          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 16, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</div>
-            {p.desc && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{p.desc}</div>}
+            <div style={{ fontWeight: 800, fontSize: 16, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+            {p.desc && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>{p.desc}</div>}
          </div>
          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 14, flexShrink: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 17, color: '#111827' }}>₹{p.rate?.toLocaleString()}</div>
+            <div style={{ fontWeight: 800, fontSize: 17, color: '#111827' }}>₹{rateStr}</div>
             {inCart ? (
               <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, background: '#f8fafc', padding: 3, borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                 <button onClick={() => removeFromCart(p.id)} style={{ width: 30, height: 30, borderRadius: 6, border: '1px solid #ddd', background: '#fff', cursor: 'pointer' }}>-</button>
+                 <button onClick={() => removeFromCart(p.id)} style={{ width: 30, height: 30, borderRadius: 6, border: '1px solid #ddd', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
                  <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 900 }}>{inCart.qty}</span>
-                 <button onClick={() => addToCart(p)} style={{ width: 30, height: 30, borderRadius: 6, border: 'none', background: primary, color: '#fff', cursor: 'pointer' }}>+</button>
+                 <button onClick={() => addToCart(p)} style={{ width: 30, height: 30, borderRadius: 6, border: 'none', background: primary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
               </div>
             ) : (
               <button onClick={() => addToCart(p)} style={{ background: primary, color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 8, fontWeight: 900, fontSize: 13, cursor: 'pointer' }}>ADD</button>
@@ -56,15 +57,15 @@ function ProductItem({ p, inCart, theme, isDark, addToCart, removeFromCart, prim
             {p.imageUrl ? <img src={p.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>🛍️</div>}
          </div>
          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 16, color: '#2563eb' }}>{p.name}</div>
-            {p.desc && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>{p.desc}</div>}
-            <div style={{ fontWeight: 900, fontSize: 18, marginTop: 8, color: '#111827' }}>₹{p.rate?.toLocaleString()}</div>
+            <div style={{ fontWeight: 800, fontSize: 16, color: primary }}>{p.name}</div>
+            {p.desc && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>{p.desc}</div>}
+            <div style={{ fontWeight: 900, fontSize: 18, marginTop: 8, color: '#111827' }}>₹{rateStr}</div>
             <div style={{ marginTop: 14, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                {inCart ? (
                   <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                     <button onClick={() => removeFromCart(p.id)} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #ddd', background: '#fff' }}>-</button>
+                     <button onClick={() => removeFromCart(p.id)} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #ddd', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
                      <span style={{ fontWeight: 800, minWidth: 24, textAlign: 'center', color: '#111827' }}>{inCart.qty}</span>
-                     <button onClick={() => addToCart(p)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: primary, color: '#fff' }}>+</button>
+                     <button onClick={() => addToCart(p)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: primary, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                   </div>
                ) : (
                   <div style={{ display: 'flex', flexDirection: 'row', gap: 8 }}>
@@ -79,17 +80,19 @@ function ProductItem({ p, inCart, theme, isDark, addToCart, removeFromCart, prim
   }
 
   // --- DEFAULT GRID (Minimal/Bold/Elegant) ---
+  const isGallery = theme === 'gallery'; // Assume ID 3 is gallery
   return (
-    <div key={p.id} style={{ borderRadius: 16, overflow: 'hidden', border: `1px solid ${borderColor}`, background: cardBg, display: 'flex', flexDirection: 'column' }}>
-       <div style={{ height: 220, background: isDark ? '#334155' : '#f8fafc' }}>
+    <div key={p.id} style={{ borderRadius: 16, overflow: 'hidden', border: `1px solid ${borderColor}`, background: cardBg, display: 'flex', flexDirection: 'column', transition: 'transform 0.2s shadow 0.2s', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
+       <div style={{ height: isGallery ? 300 : 220, background: isDark ? '#334155' : '#f8fafc', position: 'relative' }}>
           {p.imageUrl ? <img src={p.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>🛍️</div>}
+          {p.category && <div style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, color: '#1e293b', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>{p.category}</div>}
        </div>
        <div style={{ padding: 18, flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontWeight: 800, fontSize: 16, color: textColor }}>{p.name}</div>
-          <div style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', marginTop: 4 }}>{p.desc}</div>
+          <div style={{ fontWeight: 800, fontSize: 16, color: textColor, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{p.name}</div>
+          {p.desc && <div style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', marginTop: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', height: 38 }}>{p.desc}</div>}
           <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 16 }}>
-            <div style={{ fontWeight: 900, fontSize: 19, color: textColor }}>₹{p.rate?.toLocaleString()}</div>
-            <button onClick={() => addToCart(p)} style={{ background: primary, color: '#fff', border: 'none', padding: '9px 18px', borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: 'pointer' }}>{inCart ? `Add (${inCart.qty})` : 'Add'}</button>
+            <div style={{ fontWeight: 900, fontSize: 19, color: textColor }}>₹{rateStr}</div>
+            <button onClick={() => addToCart(p)} style={{ background: primary, color: '#fff', border: 'none', padding: '9px 18px', borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: 'pointer', transition: 'opacity 0.2s' }}>{inCart ? `Add (${inCart.qty})` : 'Add'}</button>
           </div>
        </div>
     </div>
@@ -158,20 +161,31 @@ export default function StorePage() {
   const [cat, setCat] = useState('All');
 
   const cleanSlug = ecomName.toLowerCase().trim();
-  const { data, isLoading } = db.useQuery({ userProfiles: { $: { where: { slug: cleanSlug } } }, ecomSettings: { $: { where: { ecomName: cleanSlug } } }, products: {} });
+  const { data, isLoading } = db.useQuery({ 
+    userProfiles: { $: { where: { slug: cleanSlug } } }, 
+    ecomSettings: { $: { where: { ecomName: cleanSlug } } }, 
+    products: {} 
+  });
 
-  if (isLoading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>Loading...</div>;
   const profile = data?.userProfiles?.[0];
-  const settings = { ...(data?.ecomSettings?.[0] || {}) };
-  const ownerId = profile?.userId || settings?.userId;
+  const settings = useMemo(() => {
+    const s = { ...(data?.ecomSettings?.[0] || {}) };
+    if (profile) {
+      if (profile.bizName) s.title = profile.bizName;
+      if (profile.logo) s.logo = profile.logo;
+      if (profile.bannerUrl && !s.bannerUrl) s.bannerUrl = profile.bannerUrl;
+    }
+    return s;
+  }, [data?.ecomSettings, profile]);
 
-  if (profile) {
-    if (profile.bizName) settings.title = profile.bizName;
-    if (profile.logo) settings.logo = profile.logo;
-    if (profile.bannerUrl && !settings.bannerUrl) settings.bannerUrl = profile.bannerUrl;
-  }
-  const allProducts = (data?.products || []).filter(p => p.userId === ownerId && p.listInEcom);
-  const categories = [...new Set(allProducts.map(p => p.category).filter(Boolean))];
+  const ownerId = profile?.userId || settings?.userId;
+  const allProducts = useMemo(() => {
+    return (data?.products || []).filter(p => p.userId === ownerId && p.listInEcom);
+  }, [data?.products, ownerId]);
+
+  const categories = useMemo(() => {
+    return [...new Set(allProducts.map(p => p.category).filter(Boolean))];
+  }, [allProducts]);
 
   const filtered = useMemo(() => {
     let list = allProducts;
@@ -180,6 +194,7 @@ export default function StorePage() {
     return list;
   }, [allProducts, cat, search]);
 
+  if (isLoading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>Loading...</div>;
   if (!ownerId) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#6b7280' }}><h2>🏪 Store Not Found</h2></div>;
 
   const templateId = Number(settings?.template) || 1;
