@@ -12,7 +12,8 @@ export default async function handler(req, res) {
 
   try {
     const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
-    const { ownerId, ecomName, customer, items, total } = req.body;
+    const { ownerId, ecomName: rawName, customer, items, total } = req.body;
+    const ecomName = (rawName || '').toLowerCase().trim();
 
     if (!ownerId || !customer || !items?.length) {
       return res.status(400).json({ error: 'Missing required fields: ownerId, customer, items' });

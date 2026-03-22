@@ -202,8 +202,7 @@ function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSu
 
 /* ─────────── MAIN STORE PAGE ─────────── */
 export default function StorePage() {
-  const pathParts = window.location.pathname.split('/').filter(Boolean);
-  const ecomName = pathParts[0] || '';
+  const ecomName = (window.location.pathname.split('/')[1] || '').toLowerCase().trim();
   const [cart, setCart] = useState(() => { try { const s = localStorage.getItem(`cart_${ecomName}`); return s ? JSON.parse(s) : []; } catch { return []; } });
   useEffect(() => { localStorage.setItem(`cart_${ecomName}`, JSON.stringify(cart)); }, [cart, ecomName]);
   const [showCheckout, setShowCheckout] = useState(false);

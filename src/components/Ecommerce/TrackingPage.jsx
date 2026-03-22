@@ -14,7 +14,7 @@ const STATUS_MAP = {
 };
 
 export default function TrackingPage({ ecomSettings }) {
-  const ecomName = window.location.pathname.split('/')[1];
+  const ecomName = (window.location.pathname.split('/')[1] || '').toLowerCase().trim();
   
   const [customerSession] = useState(() => {
     try {
@@ -43,7 +43,12 @@ export default function TrackingPage({ ecomSettings }) {
     return <div style={{ padding: 40, textAlign: 'center' }}>Store not found.</div>;
   }
 
-  const myOrders = searched ? (data?.orders || []).filter(o => o.customerPhone && o.customerPhone.includes(phone)).sort((a,b) => b.createdAt - a.createdAt) : [];
+  const normalizedSearchPhone = phone.replace(/\D/g, ''); // Extract only digits
+  const myOrders = searched ? (data?.orders || []).filter(o => {
+    if (!o.customerPhone) return false;
+    const orderPhone = o.customerPhone.replace(/\D/g, ''); // Extract only digits
+    return orderPhone.includes(normalizedSearchPhone) || normalizedSearchPhone.includes(orderPhone);
+  }).sort((a,b) => b.createdAt - a.createdAt) : [];
 
   return (
     <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: 'Inter, system-ui, sans-serif' }}>
