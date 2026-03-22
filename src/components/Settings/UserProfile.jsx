@@ -50,10 +50,10 @@ export default function UserProfile({ user, profile, perms, memberProfile, owner
     if (!newPass || newPass.length < 6) return toast('Password must be at least 6 characters', 'error');
     
     try {
-      const res = await fetch('/api/auth/change-password', {
+      const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: form.email, newPassword: newPass, userId: user.id })
+        body: JSON.stringify({ action: 'change-password', email: form.email, newPassword: newPass, userId: user.id })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);

@@ -1,10 +1,10 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
-import { fmtD, stageBadgeClass, uid, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS } from '../../utils/helpers';
+import { fmtD, stageBadgeClass, uid, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, DEFAULT_PROD_CATS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
-const EMPTY_LEAD = { name: '', email: '', phone: '', source: '', stage: '', assign: '', followup: '', label: '', notes: '', remWA: false, remEmail: true, remSMS: false, custom: {} };
+const EMPTY_LEAD = { name: '', email: '', phone: '', source: '', stage: '', assign: '', followup: '', label: '', notes: '', productCat: '', remWA: false, remEmail: true, remSMS: false, custom: {} };
 
 const DEFAULT_IMPORT_MAPPING = {
   name: { type: 'column', value: '' },
@@ -62,6 +62,7 @@ export default function LeadsView({ user, perms, ownerId }) {
   const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
   const activeSources = data?.userProfiles?.[0]?.sources || DEFAULT_SOURCES;
   const activeLabels = data?.userProfiles?.[0]?.labels || DEFAULT_LABELS;
+  const productCats = data?.userProfiles?.[0]?.productCats || DEFAULT_PROD_CATS;
   const allStages = data?.userProfiles?.[0]?.stages || DEFAULT_STAGES;
   
   console.log("🔍 [LeadsView] Props - ownerId:", ownerId, "perms:", perms?.isOwner ? "Owner" : "Team");
@@ -190,13 +191,14 @@ export default function LeadsView({ user, perms, ownerId }) {
       ...EMPTY_LEAD, 
       source: activeSources[0] || '', 
       stage: allEnabledStages[0] || '', 
-      label: activeLabels[0] || '' 
+      label: activeLabels[0] || '',
+      productCat: productCats[0] || ''
     }); 
     setModal(true); 
   };
   const openEdit = (l) => { 
     setEditData(l); 
-    setForm({ name: l.name, email: l.email || '', phone: l.phone || '', source: l.source || activeSources[0], stage: l.stage || activeStages[0], assign: l.assign || '', followup: l.followup || '', label: l.label || activeLabels[0], notes: l.notes || '', remWA: l.remWA || false, remEmail: l.remEmail !== false, remSMS: l.remSMS || false, custom: l.custom || {} }); 
+    setForm({ name: l.name, email: l.email || '', phone: l.phone || '', source: l.source || activeSources[0], stage: l.stage || activeStages[0], assign: l.assign || '', followup: l.followup || '', label: l.label || activeLabels[0], notes: l.notes || '', productCat: l.productCat || '', remWA: l.remWA || false, remEmail: l.remEmail !== false, remSMS: l.remSMS || false, custom: l.custom || {} }); 
     setModal(true); 
   };
 
@@ -219,7 +221,7 @@ export default function LeadsView({ user, perms, ownerId }) {
     try {
       if (editData) {
         const changes = [];
-        const fields = { name: 'Name', phone: 'Phone', email: 'Email', source: 'Source', stage: 'Stage', assign: 'Assignee', followup: 'Follow Up', label: 'Label', notes: 'Notes' };
+        const fields = { name: 'Name', phone: 'Phone', email: 'Email', source: 'Source', stage: 'Stage', assign: 'Assignee', followup: 'Follow Up', label: 'Label', notes: 'Notes', productCat: 'Product Category' };
         Object.entries(fields).forEach(([k, label]) => {
           if (editData[k] !== form[k]) {
             const oldVal = editData[k] || 'None';
@@ -563,6 +565,7 @@ export default function LeadsView({ user, perms, ownerId }) {
           <div className="stat-card sc-green"><div className="lbl">Assigned To</div><div className="val" style={{ fontSize: 16 }}>{l.assign || 'Unassigned'}</div></div>
           <div className="stat-card sc-yellow"><div className="lbl">Label</div><div className="val" style={{ fontSize: 16 }}>{l.label}</div></div>
           <div className="stat-card sc-purple"><div className="lbl">Follow Up</div><div className="val" style={{ fontSize: 14 }}>{l.followup ? fmtD(l.followup) : 'None'}</div></div>
+          <div className="stat-card sc-teal"><div className="lbl">Product Category</div><div className="val" style={{ fontSize: 14 }}>{l.productCat || 'None'}</div></div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
@@ -650,6 +653,12 @@ export default function LeadsView({ user, perms, ownerId }) {
                   <div className="fg"><label>Label</label>
                     <select value={form.label} onChange={f('label')}>
                       {activeLabels.map(l => <option key={l}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div className="fg"><label>Product Category</label>
+                    <select value={form.productCat} onChange={f('productCat')}>
+                      <option value="">None</option>
+                      {productCats.map(c => <option key={c}>{c}</option>)}
                     </select>
                   </div>
                   <div className="fg span2"><label>Notes</label><textarea value={form.notes} onChange={f('notes')} /></div>

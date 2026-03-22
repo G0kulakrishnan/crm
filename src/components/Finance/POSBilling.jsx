@@ -109,10 +109,11 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
     try {
       toast('Generating bill...', 'info');
       
-      const response = await fetch('/api/finance/generate-bill', {
+      const response = await fetch('/api/finance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'generate-bill',
           cart,
           customer: selectedCust,
           payMode,

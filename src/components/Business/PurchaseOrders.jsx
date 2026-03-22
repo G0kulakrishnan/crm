@@ -154,10 +154,10 @@ export default function PurchaseOrders({ user, perms, ownerId }) {
         `${it.name} | Qty: ${it.qty} | Rate: ₹${it.rate} | Tax: ${it.tax}% | Total: ₹${Math.round((it.qty || 0) * (it.rate || 0) * (1 + (it.tax || 0) / 100))}`
       ).join('\n');
       const body = `Dear ${po.vendor},\n\nPlease find below our Purchase Order ${po.poNo} dated ${fmtD(po.date)}.\n\n--- ITEMS ---\n${itemRows}\n\nSubtotal: ₹${po.subtotal}\nTax: ₹${po.taxTotal}\nGrand Total: ₹${po.grandTotal}\n\nExpected Delivery: ${po.expectedDate ? fmtD(po.expectedDate) : 'TBD'}\n\n${po.notes ? 'Notes: ' + po.notes + '\n\n' : ''}Regards,\n${profile.bizName || profile.fullName || user.email}`;
-      const res = await fetch('/api/finance/send-po-email', {
+      const res = await fetch('/api/notify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: po.vendorEmail, subject: `Purchase Order ${po.poNo}`, body, userId: ownerId })
+        body: JSON.stringify({ to: po.vendorEmail, subject: `Purchase Order ${po.poNo}`, body, ownerId: ownerId, type: 'email' })
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed');

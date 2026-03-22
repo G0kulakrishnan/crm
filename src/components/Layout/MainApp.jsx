@@ -29,6 +29,7 @@ import Reports from '../Reports/Reports';
 import Settings from '../Settings/Settings';
 import MessagingLogs from '../System/MessagingLogs';
 import AdminPanel from '../Admin/AdminPanel';
+import ApiDocs from '../Admin/ApiDocs';
 import Integrations from '../System/Integrations';
 import UserProfile from '../Settings/UserProfile';
 
@@ -288,6 +289,7 @@ export default function MainApp({ user, settings }) {
     userprofile: { component: <UserProfile user={user} profile={profile} perms={perms} memberProfile={memberProfile} ownerId={targetUserId} />, label: 'Public' },
     settings: { component: <Settings user={user} profile={profile} isExpired={isExpired} ownerId={targetUserId} initialTab={settingsTab} perms={perms} teamInfo={teamMembers.find(m => m.id === teamInfo?.teamMemberId)} memberProfile={memberProfile} />, label: 'Settings' },
     admin: { component: isSuperadmin ? <AdminPanel user={user} /> : null, label: 'Admin' },
+    apidocs: { component: isSuperadmin ? <ApiDocs /> : null, label: 'API Docs' },
   };
 
   // 1. Guard against unauthorised views for team members

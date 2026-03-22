@@ -160,10 +160,11 @@ export default function Teams({ user, ownerId, perms }) {
     setPwdLoading(true);
     try {
       const normalizedEmail = pwdModal.email.trim().toLowerCase();
-      const res = await fetch('/api/auth/set-team-password', {
+      const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'set-team-password',
           email: normalizedEmail,
           password: pwdForm.password,
           ownerUserId: ownerId,

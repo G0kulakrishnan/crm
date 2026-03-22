@@ -95,109 +95,157 @@ export default function Projects({ user, perms, ownerId }) {
     if (editProj && !canEditProj) { toast('Permission denied: cannot edit projects', 'error'); return; }
     if (!editProj && !canCreateProj) { toast('Permission denied: cannot create projects', 'error'); return; }
     if (!projForm.name.trim()) { toast('Project name required', 'error'); return; }
-    const payload = { ...projForm, userId: ownerId, actorId: user.id };
-    if (editProj) {
-      const changes = [];
-      const fields = { name: 'Name', client: 'Client', status: 'Status', startDate: 'Start Date', endDate: 'End Date', desc: 'Description' };
-      Object.entries(fields).forEach(([k, label]) => {
-        if (editProj[k] !== projForm[k]) changes.push(`${label} changed to "${projForm[k] || 'None'}"`);
-      });
-      await db.transact(db.tx.projects[editProj.id].update(payload));
-      if (changes.length > 0) await logActivity(editProj.id, 'project', `Project updated: ${changes.join(' | ')}`, editProj.id);
-      toast('Project updated', 'success');
-    }
-    else {
-      const newId = id();
-      const txs = [
-          db.tx.projects[newId].update(payload),
-          db.tx.activityLogs[id()].update({
-            entityId: newId, entityType: 'project', text: `Project "${projForm.name}" created`, projectId: newId,
-            userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
-          })
-      ];
 
-      const wonStage = profile.wonStage || 'Won';
-      const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (projForm.client || '').trim().toLowerCase() && l.stage !== wonStage);
-      if (lMatch) {
-         txs.push(db.tx.leads[lMatch.id].update({ 
-            stage: wonStage,
-            email: lMatch.email || '',
-            phone: lMatch.phone || ''
-         }));
-         txs.push(db.tx.activityLogs[id()].update({
-            entityId: lMatch.id, entityType: 'lead', text: `Project "${projForm.name}" started. Lead converted to Customer. Stage changed to ${wonStage}.`,
-            userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
-         }));
+    try {
+      const isEdit = !!editProj;
+      let logText = null;
+      if (isEdit) {
+        const changes = [];
+        const fields = { name: 'Name', client: 'Client', status: 'Status', startDate: 'Start Date', endDate: 'End Date', desc: 'Description' };
+        Object.entries(fields).forEach(([k, label]) => {
+          if (editProj[k] !== projForm[k]) changes.push(`${label} changed to "${projForm[k] || 'None'}"`);
+        });
+        if (changes.length > 0) logText = `Project updated: ${changes.join(' | ')}`;
+      } else {
+        logText = `Project "${projForm.name}" created`;
       }
 
-      await db.transact(txs);
-      toast('Project created', 'success');
+      const res = await fetch('/api/data', {
+        method: isEdit ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          module: 'projects', 
+          ownerId, 
+          actorId: user.id, 
+          userName: user.email,
+          id: editProj?.id, 
+          logText,
+          ...projForm 
+        })
+      });
+      if (!res.ok) throw new Error('Failed to save project');
+      toast(isEdit ? 'Project updated' : 'Project created', 'success');
+      setProjModal(false);
+    } catch (e) {
+      toast('Error: ' + e.message, 'error');
     }
-    setProjModal(false);
   };
 
-  const delProj = async (pid, pName, pClient) => {
+  const delProj = async (pid, pName) => {
     if (!canDeleteProj) { toast('Permission denied: cannot delete projects', 'error'); return; }
     if (!confirm(`Delete project "${pName}"? All tasks will be lost.`)) return;
-    const projTasks = tasks.filter(t => t.projectId === pid);
-    const txs = [
-      db.tx.projects[pid].delete(),
-      ...projTasks.map(t => db.tx.tasks[t.id].delete()),
-      db.tx.activityLogs[id()].update({
-        entityId: pid, entityType: 'project', text: `Project "${pName}" deleted with all its tasks`, projectId: pid,
-        userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
-      })
-    ];
-
-    const lMatch = leads.find(l => l.name === pClient);
-    if (lMatch) {
-      txs.push(db.tx.activityLogs[id()].update({
-        entityId: lMatch.id, entityType: 'lead', text: `Project "${pName}" was deleted.`,
-        userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
-      }));
+    
+    try {
+      const res = await fetch('/api/data', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          module: 'projects', 
+          ownerId, 
+          actorId: user.id, 
+          userName: user.email,
+          id: pid,
+          logText: `Project "${pName}" deleted with all its tasks`
+        })
+      });
+      if (!res.ok) throw new Error('Failed to delete project');
+      if (selectedProj?.id === pid) setSelectedProj(null);
+      toast('Project deleted', 'error');
+    } catch (e) {
+      toast('Error: ' + e.message, 'error');
     }
-
-    await db.transact(txs);
-    if (selectedProj?.id === pid) setSelectedProj(null);
-    toast('Project deleted', 'error');
   };
 
   const saveTask = async () => {
     if (editTask && !canEditTask) { toast('Permission denied: cannot edit tasks', 'error'); return; }
     if (!editTask && !canCreateTask) { toast('Permission denied: cannot create tasks', 'error'); return; }
     if (!taskForm.title.trim()) { toast('Task title required', 'error'); return; }
-    const payload = { ...taskForm, projectId: selectedProj.id, userId: ownerId, actorId: user.id };
-    if (editTask) {
-      const changes = [];
-      const fields = { title: 'Title', assignTo: 'Assignee', dueDate: 'Due Date', priority: 'Priority', status: 'Status', notes: 'Notes' };
-      Object.entries(fields).forEach(([k, label]) => {
-        if (editTask[k] !== taskForm[k]) changes.push(`${label} changed to "${taskForm[k] || 'None'}"`);
+
+    try {
+      const isEdit = !!editTask;
+      let logText = null;
+      if (isEdit) {
+        const changes = [];
+        const fields = { title: 'Title', assignTo: 'Assignee', dueDate: 'Due Date', priority: 'Priority', status: 'Status', notes: 'Notes' };
+        Object.entries(fields).forEach(([k, label]) => {
+          if (editTask[k] !== taskForm[k]) changes.push(`${label} changed to "${taskForm[k] || 'None'}"`);
+        });
+        if (changes.length > 0) logText = `Task updated: ${changes.join(' | ')}`;
+      } else {
+        logText = `Task "${taskForm.title}" created`;
+      }
+
+      const res = await fetch('/api/data', {
+        method: isEdit ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          module: 'tasks', 
+          ownerId, 
+          actorId: user.id, 
+          userName: user.email,
+          projectId: selectedProj.id,
+          id: editTask?.id, 
+          logText,
+          ...taskForm 
+        })
       });
-      await db.transact(db.tx.tasks[editTask.id].update(payload));
-      if (changes.length > 0) await logActivity(editTask.id, 'task', `Task updated: ${changes.join(' | ')}`, selectedProj.id);
-      toast('Task updated', 'success');
+      if (!res.ok) throw new Error('Failed to save task');
+      toast(isEdit ? 'Task updated' : 'Task created', 'success');
+      setTaskModal(false);
+    } catch (e) {
+      toast('Error: ' + e.message, 'error');
     }
-    else {
-      const newId = id();
-      await db.transact(db.tx.tasks[newId].update(payload));
-      await logActivity(newId, 'task', `Task "${taskForm.title}" created`, selectedProj.id);
-      toast('Task created', 'success');
-    }
-    setTaskModal(false);
   };
 
   const delTask = async (tid, tTitle) => { 
     if (!canDeleteTask) { toast('Permission denied: cannot delete tasks', 'error'); return; }
-    await db.transact(db.tx.tasks[tid].delete()); 
-    await logActivity(tid, 'task', `Task "${tTitle}" deleted`, selectedProj.id);
-    toast('Task deleted', 'error'); 
+    if (!confirm(`Delete task "${tTitle}"?`)) return;
+
+    try {
+      const res = await fetch('/api/data', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          module: 'tasks', 
+          ownerId, 
+          actorId: user.id, 
+          userName: user.email,
+          projectId: selectedProj.id,
+          id: tid,
+          logText: `Task "${tTitle}" deleted`
+        })
+      });
+      if (!res.ok) throw new Error('Failed to delete task');
+      toast('Task deleted', 'error'); 
+    } catch (e) {
+      toast('Error: ' + e.message, 'error');
+    }
   };
+
   const cycleStatus = async (t) => {
     if (!canEditTask) { toast('Permission denied', 'error'); return; }
     const idx = taskStatuses.indexOf(t.status);
     const nextStatus = taskStatuses[(idx + 1) % taskStatuses.length];
-    await db.transact(db.tx.tasks[t.id].update({ status: nextStatus }));
-    await logActivity(t.id, 'task', `Status changed from ${t.status} to ${nextStatus}`, selectedProj.id);
+    
+    try {
+      const res = await fetch('/api/data', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          module: 'tasks', 
+          ownerId, 
+          actorId: user.id, 
+          userName: user.email,
+          projectId: selectedProj.id,
+          id: t.id, 
+          status: nextStatus,
+          logText: `Status changed from ${t.status} to ${nextStatus}`
+        })
+      });
+      if (!res.ok) throw new Error('Failed to cycle status');
+    } catch (e) {
+      toast('Error: ' + e.message, 'error');
+    }
   };
 
   const createCustomer = async () => {
@@ -329,7 +377,30 @@ export default function Projects({ user, perms, ownerId }) {
             <div className="tw-head"><h3>Project Activity Log</h3></div>
             <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
               <input value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Type a note for this project..." style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }} />
-              <button className="btn btn-primary btn-sm" onClick={async () => { if (!noteText.trim()) return; await logActivity(selectedProj.id, 'project', noteText, selectedProj.id); setNoteText(''); toast('Note added', 'success'); }}>Post</button>
+              <button className="btn btn-primary btn-sm" onClick={async () => { 
+                if (!noteText.trim()) return; 
+                try {
+                  const res = await fetch('/api/data', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                      module: 'logs', 
+                      ownerId, 
+                      actorId: user.id, 
+                      userName: user.email,
+                      projectId: selectedProj.id,
+                      entityId: selectedProj.id,
+                      entityType: 'project',
+                      text: noteText
+                    })
+                  });
+                  if (!res.ok) throw new Error('Failed to post note');
+                  setNoteText('');
+                  toast('Note added', 'success');
+                } catch (e) {
+                  toast('Error: ' + e.message, 'error');
+                }
+              }}>Post</button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 300, overflowY: 'auto' }}>
               {(() => {

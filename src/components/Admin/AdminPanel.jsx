@@ -13,19 +13,10 @@ const FALLBACK_PLANS = [
 
 const EMPTY_PLAN = { name: '', duration: 30, price: 0, maxLeads: 500, maxUsers: 5, features: '' };
 
-const API_LIST = [
-  { group: 'Authentication', path: '/api/auth/register', method: 'POST', desc: 'Registers a new business owner and sends an OTP.', params: 'email, password, fullName, bizName, phone, selectedPlan', body: { email: 'user@example.com', password: '...', fullName: 'John Doe', bizName: 'Johns Shop', phone: '9876543210' } },
-  { group: 'Authentication', path: '/api/auth/verify-otp', method: 'POST', desc: 'Verifies the registration OTP and activates the account.', params: 'email, otp', body: { email: 'user@example.com', otp: '123456' } },
-  { group: 'Authentication', path: '/api/auth/login', method: 'POST', desc: 'Authenticates a user and returns a session token.', params: 'email, password', body: { email: 'user@example.com', password: '...' } },
-  { group: 'Finance', path: '/api/finance/generate-bill', method: 'POST', desc: 'Generates a POS bill, reduces stock, and converts leads to customers.', params: 'cart (array), customer (object), payMode, userId, actorId', body: { cart: [{ name: 'Item', qty: 1, rate: 100 }], customer: { name: 'Client' }, userId: 'owner-uuid', actorId: 'user-id' } },
-  { group: 'Finance', path: '/api/finance/send-po-email', method: 'POST', desc: 'Sends a Purchase Order PDF/Details to a vendor via SMTP.', params: 'to, subject, body, ownerId', body: { to: 'vendor@example.com', subject: 'Purchase Order PO-001', body: 'Please find details...', ownerId: '...' } },
-  { group: 'Messaging', path: '/api/send-email', method: 'POST', desc: 'General purpose SMTP email sender using local business configuration.', params: 'to, subject, body, ownerId, fromName?, smtpConfig?', body: { to: '...', subject: '...', body: '...', ownerId: '...' } },
-  { group: 'Messaging', path: '/api/send-whatsapp', method: 'POST', desc: 'Sends a WhatsApp message using Meta Cloud API credentials.', params: 'to, message, ownerId', body: { to: '91xxxxxxxx', message: 'Hello!', ownerId: '...' } },
-];
+
 
 export default function AdminPanel({ user }) {
   const [tab, setTab] = useState('users');
-  const [apiSearch, setApiSearch] = useState('');
   const [couponModal, setCouponModal] = useState(false);
   const [couponForm, setCouponForm] = useState({ code: '', discount: 20, type: 'Percentage', maxUses: 100 });
   const [settingsForm, setSettingsForm] = useState({ brandName: '', brandShort: '', brandLogo: '', title: '', favicon: '', crmDomain: '', showBranding: true });
@@ -179,8 +170,7 @@ export default function AdminPanel({ user }) {
           ['plans', 'Plans'], 
           ['coupons', 'Coupons'], 
           ['transactions', 'Transactions'], 
-          ['settings', 'Platform Branding'],
-          ['api', 'API Docs']
+          ['settings', 'Platform Branding']
         ].map(([t, l]) => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{l}</div>
         ))}
@@ -381,52 +371,7 @@ export default function AdminPanel({ user }) {
         </div>
       )}
 
-      {/* ── API DOCS ── */}
-      {tab === 'api' && (
-        <div className="tw">
-          <div className="tw-head">
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <h3>Developer API Reference</h3>
-              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>Technical documentation for backend endpoints used in the CRM.</div>
-            </div>
-            <input 
-              className="search-input" 
-              style={{ maxWidth: 220, padding: '6px 12px' }} 
-              placeholder="Search endpoints..." 
-              value={apiSearch}
-              onChange={e => setApiSearch(e.target.value)}
-            />
-          </div>
-          <div style={{ padding: '0 20px 20px' }}>
-            {API_LIST.filter(a => a.path.toLowerCase().includes(apiSearch.toLowerCase()) || a.group.toLowerCase().includes(apiSearch.toLowerCase()) || a.desc.toLowerCase().includes(apiSearch.toLowerCase())).map((api, idx) => (
-              <div key={idx} style={{ marginBottom: 24, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--surface)', overflow: 'hidden' }}>
-                <div style={{ background: 'var(--bg-soft)', padding: '10px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', background: 'var(--accent)', color: '#fff', padding: '2px 6px', borderRadius: 4 }}>{api.method}</span>
-                    <strong style={{ fontFamily: 'monospace', fontSize: 14 }}>{api.path}</strong>
-                  </div>
-                  <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>{api.group}</span>
-                </div>
-                <div style={{ padding: '16px 18px' }}>
-                  <div style={{ fontSize: 13, marginBottom: 12 }}>{api.desc}</div>
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Required Parameters</div>
-                    <div style={{ fontSize: 12, fontFamily: 'monospace', background: '#f8fafc', padding: '8px 12px', borderRadius: 6, border: '1px solid #e2e8f0' }}>
-                      {api.params}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Usage Example (JSON)</div>
-                    <pre style={{ margin: 0, fontSize: 12, background: '#1e293b', color: '#f1f5f9', padding: '14px', borderRadius: 8, overflowX: 'auto' }}>
-                      {JSON.stringify(api.body, null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+
       {planModal && (
         <div className="mo open">
           <div className="mo-box">

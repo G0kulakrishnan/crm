@@ -75,13 +75,44 @@ export default function AllTasks({ user, perms, ownerId }) {
 
   const save = async () => {
     if (!form.title.trim()) { toast('Title required', 'error'); return; }
-    const payload = { ...form, userId: ownerId, actorId: user.id };
-    if (editData) { await db.transact(db.tx.tasks[editData.id].update(payload)); toast('Updated', 'success'); }
-    else { await db.transact(db.tx.tasks[id()].update(payload)); toast('Task created', 'success'); }
-    setModal(false);
+    try {
+      if (editData) {
+        const res = await fetch('/api/data', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, id: editData.id, ...form })
+        });
+        if (!res.ok) throw new Error('Failed to update');
+        toast('Updated', 'success');
+      } else {
+        const res = await fetch('/api/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, ...form })
+        });
+        if (!res.ok) throw new Error('Failed to create');
+        toast('Task created', 'success');
+      }
+      setModal(false);
+    } catch (e) {
+      toast('Error: ' + e.message, 'error');
+    }
   };
 
-  const del = async (tid) => { await db.transact(db.tx.tasks[tid].delete()); toast('Deleted', 'error'); };
+  const del = async (tid) => {
+    if (!confirm('Delete this task?')) return;
+    try {
+      const res = await fetch('/api/data', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, id: tid })
+      });
+      if (!res.ok) throw new Error('Failed to delete');
+      toast('Deleted', 'error');
+    } catch (e) {
+      toast('Error: ' + e.message, 'error');
+    }
+  };
 
   const createCustomer = async () => {
     if (!newCustForm.name.trim()) return toast('Name required', 'error');

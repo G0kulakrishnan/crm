@@ -61,16 +61,11 @@ export default function AuthScreen({ settings }) {
     if (!email.trim() || !password) { toast('Enter email and password', 'error'); return; }
     setLoading(true);
 
-    const endpoint = tab === 'login' ? '/api/auth/login' : '/api/auth/register';
-    const payload = tab === 'login' 
-      ? { email: email.trim(), password }
-      : { email: email.trim(), password, fullName, bizName, phone, selectedPlan: selectedPlan || 'Trial' };
-
     try {
-      const res = await fetch(endpoint, {
+      const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ ...payload, action: tab })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Authentication failed');
@@ -107,10 +102,10 @@ export default function AuthScreen({ settings }) {
     if (!email.trim()) { toast('Please enter your email first', 'info'); return; }
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/reset-password', {
+      const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'request', email: email.trim() })
+        body: JSON.stringify({ action: 'reset-password-request', email: email.trim() })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
@@ -133,10 +128,10 @@ export default function AuthScreen({ settings }) {
     if (!code.trim() || !newPassword) { toast('Enter code and new password', 'error'); return; }
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/reset-password', {
+      const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'verify', email: email.trim(), code: code.trim(), newPassword })
+        body: JSON.stringify({ action: 'reset-password-verify', email: email.trim(), code: code.trim(), newPassword })
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);

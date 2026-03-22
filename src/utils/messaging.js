@@ -72,10 +72,10 @@ export const sendEmail = async (to, subject, body, ownerId, bizName, userId, smt
       payload.ownerId = ownerId;
     }
 
-    const resp = await fetch('/api/send-email', {
+    const resp = await fetch('/api/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ ...payload, type: 'email' })
     });
 
     const data = await resp.json();
@@ -107,10 +107,10 @@ export const sendWhatsApp = async (to, message, ownerId, userId) => {
   }
 
   try {
-    const resp = await fetch('/api/send-whatsapp', {
+    const resp = await fetch('/api/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, message, ownerId })
+      body: JSON.stringify({ to, message, ownerId, type: 'whatsapp' })
     });
 
     const data = await resp.json();
