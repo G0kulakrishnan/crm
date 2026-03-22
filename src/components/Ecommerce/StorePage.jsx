@@ -87,16 +87,29 @@ function ProductItem({ p, inCart, theme, isDark, addToCart, removeFromCart, prim
   }
 
   // --- DEFAULT GRID (Minimal/Bold/Elegant) ---
-  const isGallery = theme === 'gallery'; // Assume ID 3 is gallery
+  // The `isGallery` variable was removed as it's not used in the new default grid template.
   return (
-    <div key={p.id} style={{ borderRadius: 16, overflow: 'hidden', border: `1px solid ${borderColor}`, background: cardBg, display: 'flex', flexDirection: 'column', transition: 'transform 0.2s shadow 0.2s', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }}>
-       <div style={{ height: isGallery ? 300 : 220, background: isDark ? '#334155' : '#f8fafc', position: 'relative' }}>
-          {p.imageUrl ? <img src={p.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>🛍️</div>}
-          {p.category && <div style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(255,255,255,0.9)', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 800, color: '#1e293b', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>{p.category}</div>}
+    <div key={p.id} style={{ background: cardBg, border: `1px solid ${borderColor}`, borderRadius: 20, overflow: 'hidden', display: 'flex', flexDirection: 'column', height: '100%', transition: 'transform 0.2s', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+       <div style={{ position: 'relative', paddingTop: '100%', background: isDark ? '#1e293b' : '#f8fafc' }}>
+          {p.imageUrl ? <img src={p.imageUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 40 }}>🛍️</div>}
+          {p.category && <div style={{ position: 'absolute', top: 12, left: 12, background: 'rgba(255,255,255,0.9)', color: '#000', padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 900, backdropFilter: 'blur(4px)' }}>{p.category}</div>}
        </div>
        <div style={{ padding: 18, flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={{ fontWeight: 800, fontSize: 16, color: textColor, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{p.name}</div>
-          {p.desc && <div style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', marginTop: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', height: 38 }}>{p.desc}</div>}
+          
+          {p.desc && (
+             <div style={{ marginTop: 4 }}>
+                <div style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', display: '-webkit-box', WebkitLineClamp: isExp ? 'unset' : 2, WebkitBoxOrient: 'vertical', overflow: isExp ? 'visible' : 'hidden', lineHeight: '1.4' }}>
+                   {p.desc}
+                </div>
+                {p.desc.length > 50 && ( // Only show expand/collapse if description is long
+                   <div onClick={() => setIsExp(!isExp)} style={{ fontSize: 11, fontWeight: 800, color: primary, cursor: 'pointer', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      {isExp ? 'Show Less ↑' : 'Expand & See ↓'}
+                   </div>
+                )}
+             </div>
+          )}
+
           <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 16 }}>
             <div style={{ fontWeight: 900, fontSize: 19, color: textColor }}>₹{rateStr}</div>
             
@@ -143,7 +156,7 @@ function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSu
                   <div style={{ fontSize: 80 }}>📦</div>
                   <h2 style={{ fontSize: 24, fontWeight: 900, marginBottom: 12, color: '#1e293b' }}>Order Placed!</h2>
                   <p style={{ color: '#4b5563', marginBottom: 24 }}>Thank you, {form.name}. We'll process your order soon.</p>
-                  <button onClick={onClose} style={{ width: '100%', padding: 16, background: primaryC, color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>Finish</button>
+                  <button onClick={onClose} style={{ width: '100%', padding: 16, background: primary, color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>Finish</button>
                </div>
             ) : (
                <>
@@ -161,7 +174,7 @@ function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSu
                      <span style={{ fontSize: 24, fontWeight: 900, color: '#1e293b' }}>₹{total.toLocaleString()}</span>
                   </div>
 
-                  <button disabled={submitting} onClick={submit} style={{ width: '100%', padding: 18, background: primaryC, color: '#fff', border: 'none', borderRadius: 16, fontWeight: 900, fontSize: 16, cursor: 'pointer', transition: 'transform 0.2s', boxShadow: `0 8px 20px ${primaryC}44` }}>
+                  <button disabled={submitting} onClick={submit} style={{ width: '100%', padding: 18, background: primary, color: '#fff', border: 'none', borderRadius: 16, fontWeight: 900, fontSize: 16, cursor: 'pointer', transition: 'transform 0.2s', boxShadow: `0 8px 20px ${primary}44` }}>
                      {submitting ? 'Processing...' : 'CONFIRM ORDER'}
                   </button>
                   
@@ -228,7 +241,10 @@ export default function StorePage() {
   const secondaryC = settings.secondaryColor || '#2e7d32';
 
   const isDark = templateId === 2;
-  const theme = templateId === 5 ? 'catalog' : (templateId === 4 ? 'list' : 'grid');
+  // const theme = templateId === 5 ? 'catalog' : (templateId === 4 ? 'list' : 'grid'); // No longer needed, using templateId directly
+
+  const addToCart = (pi) => setCart(prev => { const ex = prev.find(i => i.id === pi.id); if (ex) return prev.map(i => i.id === pi.id ? { ...i, qty: i.qty + 1 } : i); return [...prev, { ...pi, qty: 1 }]; });
+  const removeFromCart = (pid) => setCart(prev => { const ex = prev.find(i => i.id === pid); if (ex?.qty <= 1) return prev.filter(i => i.id !== pid); return prev.map(i => i.id === pid ? { ...i, qty: i.qty - 1 } : i); });
 
   return (
     <div style={{ fontFamily: 'Inter, system-ui, sans-serif', minHeight: '100vh', background: isDark ? '#0f172a' : '#f8fafc', color: isDark ? '#f1f5f9' : '#1e293b' }}>
@@ -282,23 +298,43 @@ export default function StorePage() {
             </div>
          </div>
 
-         {/* Product Grid/List */}
-         <div style={{ 
-            display: theme === 'grid' ? 'grid' : 'flex', 
-            flexDirection: 'column',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', 
-            gap: theme === 'grid' ? 24 : 0,
-            borderRadius: 16, border: theme === 'grid' ? 'none' : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-            overflow: 'hidden', background: theme === 'grid' ? 'transparent' : (isDark ? '#1e293b' : '#fff')
-         }}>
-           {filtered.map(p => (
-              <ProductItem key={p.id} p={p} inCart={cart.find(c => c.id === p.id)} theme={theme} isDark={isDark} addToCart={pi => setCart(prev => { const ex = prev.find(i => i.id === pi.id); if (ex) return prev.map(i => i.id === pi.id ? { ...i, qty: i.qty + 1 } : i); return [...prev, { ...pi, qty: 1 }]; })} removeFromCart={pid => setCart(prev => { const ex = prev.find(i => i.id === pid); if (ex?.qty <= 1) return prev.filter(i => i.id !== pid); return prev.map(i => i.id === pid ? { ...i, qty: i.qty - 1 } : i); })} primary={primaryC} secondary={secondaryC} />
-           ))}
-           {filtered.length === 0 && <div style={{ padding: 64, textAlign: 'center', color: '#94a3b8' }}><h3>No products found</h3></div>}
+         {/* Product Grid Area */}
+         <div style={{ paddingBottom: cart.length > 0 ? 120 : 40 }}>
+            {(templateId === 4 || templateId === 5) && (
+               <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, padding: '16px 20px', background: isDark ? 'rgba(255,255,255,0.03)' : '#f1f5f9', borderRadius: 16, marginBottom: 16, border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, opacity: 0.8 }}>
+                  <div style={{ width: 50, fontSize: 10, fontWeight: 900, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>Icon</div>
+                  <div style={{ flex: 1, fontSize: 10, fontWeight: 900, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>Name & Service Details</div>
+                  <div style={{ display: 'flex', gap: 16, flexShrink: 0, fontSize: 10, fontWeight: 900, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>
+                     <div className="mobile-hide" style={{ minWidth: 80, textAlign: 'right' }}>Price</div>
+                     <div style={{ minWidth: 90, textAlign: 'center' }}>{templateId === 5 ? 'Status' : 'Qty / Action'}</div>
+                  </div>
+               </div>
+            )}
+            
+            <div style={{ display: 'grid', gridTemplateColumns: (templateId === 4 || templateId === 5) ? '1fr' : 'repeat(auto-fill, minmax(280px, 1fr))', gap: (templateId === 4 || templateId === 5) ? 12 : 24 }}>
+               {filtered.map(p => (
+                  <ProductItem key={p.id} p={p} inCart={cart.find(c => c.id === p.id)} t={templateId} isDark={isDark} addToCart={addToCart} removeFromCart={removeFromCart} primary={primaryC} secondary={secondaryC} />
+               ))}
+            </div>
+            {filtered.length === 0 && <div style={{ padding: 64, textAlign: 'center', color: '#94a3b8' }}><h3>No products found</h3></div>}
          </div>
       </main>
 
-      {showCheckout && <CheckoutModal cart={cart} ownerId={ownerId} ecomName={ecomName} customerSession={customerSession} onClose={() => setShowCheckout(false)} onSuccess={setCustomerSession} primary={primaryC} />}
+      {/* Floating Bottom Total Bar */}
+      {cart.length > 0 && (
+         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', width: '92%', maxWidth: 640, background: isDark ? '#1e293b' : '#fff', border: `1.5px solid ${isDark ? '#334155' : '#e2e8f0'}`, padding: '16px 28px', borderRadius: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', zIndex: 1100, backdropFilter: 'blur(16px)' }}>
+            <div>
+               <div style={{ fontSize: 11, fontWeight: 900, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: 1.5 }}>Total Amount</div>
+               <div style={{ fontSize: 24, fontWeight: 900, color: isDark ? '#fff' : '#1e293b' }}>₹{cart.reduce((a, b) => a + (b.rate * b.qty), 0).toLocaleString()}</div>
+            </div>
+            <button onClick={() => setShowCheckout(true)} style={{ background: primaryC, color: '#fff', border: 'none', padding: '16px 36px', borderRadius: 20, fontWeight: 900, fontSize: 16, cursor: 'pointer', boxShadow: `0 10px 25px ${primaryC}44`, display: 'flex', alignItems: 'center', gap: 12, transition: 'transform 0.2s' }}>
+               CHECKOUT
+               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
+            </button>
+         </div>
+      )}
+
+      {showCheckout && <CheckoutModal cart={cart} ownerId={ownerId} ecomName={ecomName} customerSession={customerSession} onClose={() => setShowCheckout(false)} onSuccess={setCustomerSession} primaryC={primaryC} isDark={isDark} />}
     </div>
   );
 }
