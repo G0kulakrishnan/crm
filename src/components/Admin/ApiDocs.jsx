@@ -176,16 +176,26 @@ export default function ApiDocs() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
                 {group.actions.map((action, aIdx) => (
                   <div key={aIdx} style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
-                    <div style={{ padding: '12px 18px', background: 'var(--bg-soft)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ padding: '12px 18px', background: 'var(--bg-soft)', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <span style={{ fontSize: 10, fontWeight: 800, padding: '3px 7px', borderRadius: 4, background: action.method === 'GET' ? '#10b981' : action.method === 'DELETE' ? '#ef4444' : action.method === 'PATCH' ? '#f59e0b' : '#6366f1', color: '#fff' }}>
                           {action.method || group.method}
                         </span>
                         <strong style={{ fontSize: 14 }}>{action.name.replace(/\(.*\)/, '').trim()}</strong>
                       </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <code style={{ fontSize: 11, background: '#fff', padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', color: 'var(--muted)' }}>
+                          {window.location.host}{group.path}{action.query ? `?${action.query}` : ''}
+                        </code>
+                        <button className="btn-icon" style={{ padding: '2px 6px', fontSize: 10 }} onClick={() => {
+                          navigator.clipboard.writeText(`${window.location.origin}${group.path}${action.query ? `?${action.query}` : ''}`);
+                          alert('URL Copied!');
+                        }}>📋</button>
+                      </div>
                     </div>
                     
                     <div style={{ padding: 18 }}>
+
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, width: '100%' }}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
