@@ -103,10 +103,13 @@ export default function Invoices({ user, perms, ownerId, settings }) {
   };
   const openEdit = (inv) => {
     setEditData(inv);
+    const normalizedItems = Array.isArray(inv.items) ? inv.items : (typeof inv.items === 'string' ? JSON.parse(inv.items) : []);
+    const normalizedPayments = Array.isArray(inv.payments) ? inv.payments : (typeof inv.payments === 'string' ? JSON.parse(inv.payments) : []);
+    
     setForm({ 
       no: inv.no || '', client: inv.client, dueDate: inv.dueDate || '', status: inv.status || 'Draft', 
       notes: inv.notes || '', terms: inv.terms || '', disc: inv.disc || 0, discType: inv.discType || '%', adj: inv.adj || 0, 
-      items: inv.items?.length ? inv.items : EMPTY.items,
+      items: normalizedItems.length ? normalizedItems : EMPTY.items,
       isAmc: !!inv.amcStart || !!inv.isAmc, 
       amcCycle: inv.amcCycle || 'Yearly', 
       amcStart: inv.amcStart || '', 
@@ -114,7 +117,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
       amcPlan: inv.amcPlan || '', 
       amcAmount: inv.amcAmount || '', 
       amcTaxRate: inv.amcTaxRate || 0,
-      shipTo: inv.shipTo || '', addShipping: !!inv.shipTo, payments: inv.payments || [],
+      shipTo: inv.shipTo || '', addShipping: !!inv.shipTo, payments: normalizedPayments,
       fromAmc: !!inv.fromAmc
     });
     setModal(true);

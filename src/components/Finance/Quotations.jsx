@@ -97,10 +97,12 @@ export default function Quotations({ user, perms, ownerId, settings }) {
   };
   const openEdit = (q) => {
     setEditData(q);
+    const normalizedItems = Array.isArray(q.items) ? q.items : (typeof q.items === 'string' ? JSON.parse(q.items) : []);
+    
     setForm({ 
       no: q.no || '', client: q.client, validUntil: q.validUntil || '', status: q.status, 
       notes: q.notes || '', terms: q.terms || '', disc: q.disc || 0, adj: q.adj || 0, tdsRate: q.tdsRate || 0, 
-      items: q.items?.length ? q.items : EMPTY.items, 
+      items: normalizedItems.length ? normalizedItems : EMPTY.items, 
       isAmc: !!q.amcStart || !!q.isAmc, 
       amcCycle: q.amcCycle || 'Yearly', 
       amcStart: q.amcStart || '', 
