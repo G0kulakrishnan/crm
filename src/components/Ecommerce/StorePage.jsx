@@ -9,11 +9,13 @@ const RESPONSIVE_CSS = `
   .hide-scroll::-webkit-scrollbar { display: none !important; }
   .hide-scroll { -ms-overflow-style: none !important; scrollbar-width: none !important; }
   @media (max-width: 768px) {
-    .banner { height: 180px !important; }
+    .banner { height: 160px !important; }
     .banner h1 { font-size: 24px !important; }
     .mobile-hide { display: none !important; }
     .mobile-only { display: block !important; }
-    .store-container { padding: 12px 10px !important; }
+    .store-container { padding: 8px !important; }
+    .row-image { width: 55px !important; height: 55px !important; }
+    .row-item { padding: 12px !important; gap: 12px !important; }
   }
   .mobile-only { display: none !important; }
 `;
@@ -61,39 +63,43 @@ function ProductItem({ p, inCart, t, isDark, addToCart, removeFromCart, primary,
   // --- TEMPLATE 4: EFFICIENT LIST (Enhanced Row Layout) ---
   if (isList) {
     return (
-      <div key={p.id} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, padding: 18, borderBottom: `1px solid ${isDark ? '#334155' : '#f1f5f9'}`, background: '#fff' }}>
-         <div style={{ width: 75, height: 75, borderRadius: 12, overflow: 'hidden', flexShrink: 0, border: '1px solid #f1f5f9' }}>
+      <div key={p.id} className="row-item" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, padding: 18, borderBottom: `1px solid ${isDark ? '#334155' : '#f1f5f9'}`, background: '#fff' }}>
+         <div className="row-image" style={{ width: 75, height: 75, borderRadius: 12, overflow: 'hidden', flexShrink: 0, border: '1px solid #f1f5f9' }}>
             {p.imageUrl ? <img src={p.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🛍️</div>}
          </div>
          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
                <div style={{ fontWeight: 800, fontSize: 16, color: primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-                  {p.category && <span style={{ fontSize: 11, fontWeight: 900, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5, background: '#f1f5f9', padding: '2px 8px', borderRadius: 4 }}>{p.category}</span>}
-                  {p.desc && (
-                     <div style={{ fontSize: 12, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: isExp ? 'normal' : 'nowrap', flex: 1 }}>
-                        {p.desc}
-                     </div>
-                  )}
-               </div>
-               {p.desc && p.desc.length > 30 && (
-                  <div onClick={() => setIsExp(!isExp)} style={{ fontSize: 10, fontWeight: 900, color: primary, cursor: 'pointer', marginTop: 4, textTransform: 'uppercase' }}>
-                     {isExp ? 'Show Less ↑' : 'Read More ↓'}
+               
+               {p.desc && (
+                <div style={{ marginTop: 2 }}>
+                  <div style={{ fontSize: 12, color: '#64748b', display: isExp ? 'block' : '-webkit-box', WebkitLineClamp: isExp ? 'unset' : 1, WebkitBoxOrient: 'vertical', overflow: isExp ? 'visible' : 'hidden', lineHeight: '1.4' }}>
+                    {p.desc}
                   </div>
+                  {p.desc.length > 40 && (
+                    <div onClick={() => setIsExp(!isExp)} style={{ fontSize: 10, fontWeight: 900, color: primary, cursor: 'pointer', marginTop: 4, textTransform: 'uppercase', display: 'inline-block' }}>
+                      {isExp ? 'Less ↑' : 'More ↓'}
+                    </div>
+                  )}
+                </div>
                )}
-               <div className="mobile-only" style={{ fontWeight: 900, fontSize: 17, marginTop: 4, color: '#1e293b' }}>₹{rateStr}</div>
+               
+               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                  {p.category && <span style={{ fontSize: 10, fontWeight: 900, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5, background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>{p.category}</span>}
+               </div>
+               <div className="mobile-only" style={{ fontWeight: 900, fontSize: 16, marginTop: 4, color: '#1e293b' }}>₹{rateStr}</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, flexShrink: 0 }}>
                <div className="mobile-hide" style={{ fontWeight: 900, fontSize: 18, color: '#1e293b' }}>₹{rateStr}</div>
                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   {inCart ? (
-                     <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, background: '#f8fafc', padding: '2px 8px', borderRadius: 10, border: '1.5px solid #e2e8f0' }}>
-                        <button onClick={() => removeFromCart(p.id)} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
-                        <span style={{ fontWeight: 900, minWidth: 20, textAlign: 'center', color: '#1e293b', fontSize: 14 }}>{inCart.qty}</span>
-                        <button onClick={() => addToCart(p)} style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: primary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                     <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, background: '#f8fafc', padding: '2px 6px', borderRadius: 10, border: '1.5px solid #e2e8f0' }}>
+                        <button onClick={() => removeFromCart(p.id)} style={{ width: 28, height: 28, borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
+                        <span style={{ fontWeight: 900, minWidth: 16, textAlign: 'center', color: '#1e293b', fontSize: 13 }}>{inCart.qty}</span>
+                        <button onClick={() => addToCart(p)} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: primary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
                      </div>
                   ) : (
-                     <button onClick={() => addToCart(p)} style={{ background: primary, color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 10, fontWeight: 900, fontSize: 13, cursor: 'pointer', boxShadow: `0 4px 12px ${primary}33` }}>Add to Cart</button>
+                     <button onClick={() => addToCart(p)} style={{ background: primary, color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 10, fontWeight: 900, fontSize: 12, cursor: 'pointer', boxShadow: `0 4px 10px ${primary}33` }}>Add</button>
                   )}
                </div>
             </div>
@@ -316,7 +322,7 @@ export default function StorePage() {
 
          <div style={{ paddingBottom: 40 }}>
             {(templateId === 4 || templateId === 5) && (
-               <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, padding: '16px 20px', background: isDark ? 'rgba(255,255,255,0.03)' : '#f1f5f9', borderRadius: 16, marginBottom: 16, border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, opacity: 0.8 }}>
+               <div className="mobile-hide" style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, padding: '16px 20px', background: isDark ? 'rgba(255,255,255,0.03)' : '#f1f5f9', borderRadius: 16, marginBottom: 16, border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, opacity: 0.8 }}>
                   <div style={{ width: 50, fontSize: 10, fontWeight: 900, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>Icon</div>
                   <div style={{ flex: 1, fontSize: 10, fontWeight: 900, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>Name & Service Details</div>
                   <div style={{ display: 'flex', gap: 16, flexShrink: 0, fontSize: 10, fontWeight: 900, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>
