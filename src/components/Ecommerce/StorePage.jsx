@@ -25,54 +25,58 @@ function ProductItem({ p, inCart, theme, isDark, addToCart, removeFromCart, prim
   const borderColor = isDark ? '#334155' : '#e5e7eb';
   const rateStr = (p.rate || 0).toLocaleString();
 
-  // --- TEMPLATE 5: COMPACT CATALOG (No Images, Text only row) ---
+  // --- TEMPLATE 5: COMPACT CATALOG (High Density, Text only) ---
   if (isCatalog) {
     return (
-      <div key={p.id} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid #f1f5f9', gap: 12, background: '#fff', color: '#1e293b' }}>
+      <div key={p.id} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${isDark ? '#334155' : '#f1f5f9'}`, gap: 16, background: '#fff' }}>
          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 16, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-            {p.desc && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>{p.desc}</div>}
+            <div style={{ fontWeight: 800, fontSize: 15, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+            {p.desc && <div style={{ fontSize: 11, color: '#64748b', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.desc}</div>}
          </div>
-         <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 14, flexShrink: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 17, color: '#111827' }}>₹{rateStr}</div>
-            {inCart ? (
-              <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, background: '#f8fafc', padding: 3, borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                 <button onClick={() => removeFromCart(p.id)} style={{ width: 30, height: 30, borderRadius: 6, border: '1px solid #ddd', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
-                 <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 900 }}>{inCart.qty}</span>
-                 <button onClick={() => addToCart(p)} style={{ width: 30, height: 30, borderRadius: 6, border: 'none', background: primary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-              </div>
-            ) : (
-              <button onClick={() => addToCart(p)} style={{ background: primary, color: '#fff', border: 'none', padding: '10px 18px', borderRadius: 8, fontWeight: 900, fontSize: 13, cursor: 'pointer' }}>ADD</button>
-            )}
+         <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: '#1e293b' }}>₹{rateStr}</div>
+            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+               {inCart ? (
+                 <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, background: '#f8fafc', padding: 2, borderRadius: 8, border: '1px solid #e2e8f0' }}>
+                    <button onClick={() => removeFromCart(p.id)} style={{ width: 28, height: 28, borderRadius: 6, border: '1px solid #ddd', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
+                    <span style={{ minWidth: 20, textAlign: 'center', fontWeight: 900, fontSize: 14 }}>{inCart.qty}</span>
+                    <button onClick={() => addToCart(p)} style={{ width: 28, height: 28, borderRadius: 6, border: 'none', background: primary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                 </div>
+               ) : (
+                 <button onClick={() => addToCart(p)} style={{ background: primary, color: '#fff', border: 'none', padding: '8px 16px', borderRadius: 8, fontWeight: 900, fontSize: 12, cursor: 'pointer' }}>ADD</button>
+               )}
+            </div>
          </div>
       </div>
     );
   }
 
-  // --- TEMPLATE 4: EFFICIENT LIST (Image Row) ---
+  // --- TEMPLATE 4: EFFICIENT LIST (Enhanced Row Layout) ---
   if (isList) {
     return (
-      <div key={p.id} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 20, padding: 18, borderBottom: `1px solid ${isDark ? '#334155' : '#f1f5f9'}`, background: '#fff', color: '#1e293b' }}>
-         <div style={{ width: 85, height: 85, borderRadius: 12, overflow: 'hidden', flexShrink: 0, border: '1px solid #f1f5f9' }}>
-            {p.imageUrl ? <img src={p.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>🛍️</div>}
+      <div key={p.id} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, padding: 18, borderBottom: `1px solid ${isDark ? '#334155' : '#f1f5f9'}`, background: '#fff' }}>
+         <div style={{ width: 75, height: 75, borderRadius: 12, overflow: 'hidden', flexShrink: 0, border: '1px solid #f1f5f9' }}>
+            {p.imageUrl ? <img src={p.imageUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ height: '100%', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}>🛍️</div>}
          </div>
-         <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 800, fontSize: 16, color: primary }}>{p.name}</div>
-            {p.desc && <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical' }}>{p.desc}</div>}
-            <div style={{ fontWeight: 900, fontSize: 18, marginTop: 8, color: '#111827' }}>₹{rateStr}</div>
-            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-               {inCart ? (
-                  <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                     <button onClick={() => removeFromCart(p.id)} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid #ddd', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
-                     <span style={{ fontWeight: 800, minWidth: 24, textAlign: 'center', color: '#111827' }}>{inCart.qty}</span>
-                     <button onClick={() => addToCart(p)} style={{ width: 32, height: 32, borderRadius: 8, border: 'none', background: primary, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                  </div>
-               ) : (
-                  <div style={{ display: 'flex', flexDirection: 'row', gap: 8 }}>
-                    <input type="number" defaultValue="1" style={{ width: 45, padding: '8px', border: '1px solid #ddd', borderRadius: 6, textAlign: 'center', fontWeight: 700, color: '#111827' }} readOnly className="mobile-hide" />
-                    <button onClick={() => addToCart(p)} style={{ background: '#f97316', color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 8, fontWeight: 900, fontSize: 13, cursor: 'pointer' }}>Add to cart</button>
-                  </div>
-               )}
+         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+               <div style={{ fontWeight: 800, fontSize: 16, color: primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
+               {p.desc && <div style={{ fontSize: 12, color: '#64748b', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.desc}</div>}
+               <div className="mobile-only" style={{ fontWeight: 900, fontSize: 17, marginTop: 4, color: '#1e293b' }}>₹{rateStr}</div>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, flexShrink: 0 }}>
+               <div className="mobile-hide" style={{ fontWeight: 900, fontSize: 18, color: '#1e293b' }}>₹{rateStr}</div>
+               <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  {inCart ? (
+                     <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, background: '#f8fafc', padding: '2px 8px', borderRadius: 10, border: '1.5px solid #e2e8f0' }}>
+                        <button onClick={() => removeFromCart(p.id)} style={{ width: 30, height: 30, borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>-</button>
+                        <span style={{ fontWeight: 900, minWidth: 20, textAlign: 'center', color: '#1e293b', fontSize: 14 }}>{inCart.qty}</span>
+                        <button onClick={() => addToCart(p)} style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: primary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                     </div>
+                  ) : (
+                     <button onClick={() => addToCart(p)} style={{ background: primary, color: '#fff', border: 'none', padding: '10px 20px', borderRadius: 10, fontWeight: 900, fontSize: 13, cursor: 'pointer', boxShadow: `0 4px 12px ${primary}33` }}>Add to Cart</button>
+                  )}
+               </div>
             </div>
          </div>
       </div>
