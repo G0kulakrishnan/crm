@@ -20,6 +20,8 @@ export default function EcomOrders({ ownerId, perms }) {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [selectedOrder, setSelectedOrder] = useState(null);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState(null);
 
   const { data } = db.useQuery({
     orders: { $: { where: { userId: ownerId } } },
@@ -77,27 +79,38 @@ export default function EcomOrders({ ownerId, perms }) {
     
     await db.transact(txs);
     toast(`Order status updated to ${status}`, 'success');
+  };
 
-    if (order && order.customerEmail) {
-      if (window.confirm(`Would you like to email ${order.customerName} about this status update?`)) {
-        try {
-          await fetch('/api/notify', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: 'email',
-              to: order.customerEmail,
-              subject: `Update on your order - ${order.ecomName || 'Store'}`,
-              body: `Hi ${order.customerName},\n\nThe status of your order (${orderId.slice(0, 8).toUpperCase()}) has been updated to: ${status}.\n\nThank you for shopping with us!`,
-              ownerId
-            })
-          });
-          toast('Notification sent', 'success');
-        } catch (err) {
-          toast('Failed to send notification', 'error');
-        }
-      }
-    }
+  const startEditing = () => {
+    const items = Array.isArray(selectedOrder.items) ? selectedOrder.items : JSON.parse(selectedOrder.items || '[]');
+    setEditForm({ 
+      items: [...items], 
+      address: selectedOrder.address || '', 
+      businessNotes: selectedOrder.businessNotes || '',
+      notes: selectedOrder.notes || '' 
+    });
+    setIsEditing(true);
+  };
+
+  const saveOrderEdits = async () => {
+    if (!editForm) return;
+    const items = editForm.items;
+    const total = items.reduce((s, it) => s + (it.rate * it.qty), 0);
+    
+    await db.transact([
+      db.tx.orders[selectedOrder.id].update({
+        items,
+        total,
+        address: editForm.address,
+        businessNotes: editForm.businessNotes,
+        notes: editForm.notes,
+        updatedAt: Date.now()
+      })
+    ]);
+    
+    toast('Order updated successfully', 'success');
+    setIsEditing(false);
+    setSelectedOrder(prev => ({ ...prev, items, total, ...editForm }));
   };
 
   const totalRevenue = orders.filter(o => o.status === 'Delivered').reduce((s, o) => s + (o.total || 0), 0);
@@ -188,10 +201,10 @@ export default function EcomOrders({ ownerId, perms }) {
       {/* Order Detail Modal */}
       {selectedOrder && (
         <div className="mo open">
-          <div className="mo-box" style={{ maxWidth: 540 }}>
+          <div className="mo-box" style={{ maxWidth: 640 }}>
             <div className="mo-head">
-              <h3>Order Details</h3>
-              <button className="btn-icon" onClick={() => setSelectedOrder(null)}>✕</button>
+              <h3>{isEditing ? 'Editing Order' : 'Order Details'}</h3>
+              <button className="btn-icon" onClick={() => { setSelectedOrder(null); setIsEditing(false); }}>✕</button>
             </div>
             <div className="mo-body" style={{ padding: 20 }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
@@ -207,32 +220,102 @@ export default function EcomOrders({ ownerId, perms }) {
                   </div>
                 ))}
               </div>
-              {selectedOrder.address && (
+
+              {isEditing ? (
+                <div style={{ display: 'grid', gap: 16, marginBottom: 20 }}>
+                   <div className="fg">
+                      <label>Delivery Address</label>
+                      <textarea value={editForm.address} onChange={e => setEditForm(p => ({...p, address: e.target.value}))} style={{ minHeight: 60 }} />
+                   </div>
+                </div>
+              ) : selectedOrder.address && (
                 <div style={{ background: 'var(--bg-soft)', padding: '10px 14px', borderRadius: 8, marginBottom: 16 }}>
                   <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 700, textTransform: 'uppercase', marginBottom: 2 }}>Delivery Address</div>
                   <div style={{ fontSize: 13 }}>{selectedOrder.address}</div>
                 </div>
               )}
-              <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 12 }}>
-                <div style={{ padding: '8px 14px', background: 'var(--bg-soft)', fontWeight: 700, fontSize: 12 }}>Items Ordered</div>
-                {(Array.isArray(selectedOrder.items) ? selectedOrder.items : JSON.parse(selectedOrder.items || '[]')).map((it, j) => (
-                  <div key={j} style={{ padding: '9px 14px', display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', fontSize: 13 }}>
-                    <span>{it.name} × {it.qty}</span>
-                    <strong>{fmt(it.rate * it.qty)}</strong>
+
+              <div style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', marginBottom: 16 }}>
+                <div style={{ padding: '10px 16px', background: 'var(--bg-soft)', fontWeight: 800, fontSize: 12, display: 'flex', justifyContent: 'space-between' }}>
+                   <span>Items Ordered</span>
+                   {isEditing && <span>Qty / Subtotal</span>}
+                </div>
+                {(isEditing ? editForm.items : (Array.isArray(selectedOrder.items) ? selectedOrder.items : JSON.parse(selectedOrder.items || '[]'))).map((it, j) => (
+                  <div key={j} style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', fontSize: 14 }}>
+                    <div style={{ flex: 1 }}>
+                       <div style={{ fontWeight: 600 }}>{it.name}</div>
+                       <div style={{ fontSize: 11, color: 'var(--muted)' }}>Rate: {fmt(it.rate)}</div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                       {isEditing ? (
+                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <button onClick={() => {
+                               const items = [...editForm.items];
+                               if (items[j].qty > 1) items[j].qty--;
+                               setEditForm(p => ({...p, items}));
+                            }} style={{ width: 24, height: 24, borderRadius: 4, border: '1px solid #ddd', background: '#fff', cursor: 'pointer' }}>-</button>
+                            <span style={{ fontWeight: 800, minWidth: 20, textAlign: 'center' }}>{it.qty}</span>
+                            <button onClick={() => {
+                               const items = [...editForm.items];
+                               items[j].qty++;
+                               setEditForm(p => ({...p, items}));
+                            }} style={{ width: 24, height: 24, borderRadius: 4, border: '1px solid #ddd', background: '#fff', cursor: 'pointer' }}>+</button>
+                            <button onClick={() => {
+                               const items = editForm.items.filter((_, idx) => idx !== j);
+                               setEditForm(p => ({...p, items}));
+                            }} style={{ marginLeft: 8, color: '#dc2626', background: 'none', border: 'none', cursor: 'pointer', fontSize: 16 }}>🗑</button>
+                         </div>
+                       ) : (
+                         <strong>{fmt(it.rate * it.qty)}</strong>
+                       )}
+                       {!isEditing && <span style={{ color: 'var(--muted)', fontSize: 12 }}>× {it.qty}</span>}
+                    </div>
                   </div>
                 ))}
-                <div style={{ padding: '10px 14px', borderTop: '2px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontWeight: 800 }}>
-                  <span>Total</span><span>{fmt(selectedOrder.total)}</span>
+                <div style={{ padding: '12px 16px', borderTop: '2px solid var(--border)', display: 'flex', justifyContent: 'space-between', fontWeight: 900, background: 'var(--bg-soft)' }}>
+                  <span>{isEditing ? 'Estimated New Total' : 'Total'}</span>
+                  <span style={{ color: 'var(--accent2)', fontSize: 18 }}>
+                     {fmt(isEditing ? editForm.items.reduce((s, it) => s + (it.rate * it.qty), 0) : selectedOrder.total)}
+                  </span>
                 </div>
               </div>
-              {selectedOrder.notes && (
-                <div style={{ background: '#fefce8', padding: '10px 14px', borderRadius: 8, border: '1px solid #fef08a', fontSize: 12 }}>
-                  <strong>Notes:</strong> {selectedOrder.notes}
-                </div>
-              )}
+
+              <div style={{ display: 'grid', gap: 12 }}>
+                 {isEditing ? (
+                   <>
+                      <div className="fg">
+                         <label>Customer Notes (Visible to Customer)</label>
+                         <textarea value={editForm.notes} onChange={e => setEditForm(p => ({...p, notes: e.target.value}))} placeholder="Explain changes to the customer..." style={{ minHeight: 60 }} />
+                      </div>
+                      <div className="fg">
+                         <label>Business Internal Notes (Private)</label>
+                         <textarea value={editForm.businessNotes} onChange={e => setEditForm(p => ({...p, businessNotes: e.target.value}))} placeholder="Internal reasons for edit..." style={{ minHeight: 60, background: '#fffbeb' }} />
+                      </div>
+                   </>
+                 ) : (
+                   <>
+                      {selectedOrder.notes && (
+                        <div style={{ background: '#eff6ff', padding: '12px 16px', borderRadius: 12, border: '1px solid #dbeafe', fontSize: 13 }}>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', marginBottom: 4 }}>Customer facing note</div>
+                          {selectedOrder.notes}
+                        </div>
+                      )}
+                      {selectedOrder.businessNotes && (
+                        <div style={{ background: '#fffbeb', padding: '12px 16px', borderRadius: 12, border: '1px solid #fef3c7', fontSize: 13 }}>
+                          <div style={{ fontSize: 10, fontWeight: 800, color: '#92400e', textTransform: 'uppercase', marginBottom: 4 }}>Internal Note</div>
+                          {selectedOrder.businessNotes}
+                        </div>
+                      )}
+                   </>
+                 )}
+              </div>
             </div>
-            <div className="mo-foot">
-              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedOrder(null)}>Close</button>
+            <div className="mo-foot" style={{ justifyContent: 'space-between' }}>
+              <div>
+                 {!isEditing && <button className="btn btn-primary btn-sm" onClick={startEditing}>✎ Edit Order</button>}
+                 {isEditing && <button className="btn btn-primary" onClick={saveOrderEdits}>Save Changes</button>}
+              </div>
+              <button className="btn btn-secondary btn-sm" onClick={() => { setSelectedOrder(null); setIsEditing(false); }}>{isEditing ? 'Cancel' : 'Close'}</button>
             </div>
           </div>
         </div>

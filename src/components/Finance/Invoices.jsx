@@ -7,8 +7,9 @@ import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
 
 function calcTotals(items, disc, discType, adj) {
-  const sub = items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
-  const taxTotal = items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0) * (it.taxRate || 0) / 100, 0);
+  const its = Array.isArray(items) ? items : (items ? JSON.parse(items) : []);
+  const sub = its.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
+  const taxTotal = its.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0) * (it.taxRate || 0) / 100, 0);
   const discAmt = discType === '₹' ? (parseFloat(disc) || 0) : (sub * (parseFloat(disc) || 0) / 100);
   const total = Math.round(sub - discAmt + taxTotal + (parseFloat(adj) || 0));
   return { sub, taxTotal, discAmt, total };

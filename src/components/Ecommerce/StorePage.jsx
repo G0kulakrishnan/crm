@@ -19,9 +19,10 @@ const RESPONSIVE_CSS = `
 `;
 
 /* ─────────── SHARED COMPONENTS ─────────── */
-function ProductItem({ p, inCart, theme, isDark, addToCart, removeFromCart, primary, secondary }) {
-  const isList = theme === 'list';
-  const isCatalog = theme === 'catalog';
+function ProductItem({ p, inCart, t, isDark, addToCart, removeFromCart, primary, secondary }) {
+  const [isExp, setIsExp] = useState(false);
+  const isList = t === 4;
+  const isCatalog = t === 5;
   
   const textColor = isDark ? (isList || isCatalog ? '#1e293b' : '#f1f5f9') : '#1e293b';
   const cardBg = isDark ? (isList || isCatalog ? '#fff' : '#1e293b') : '#fff';
@@ -34,7 +35,10 @@ function ProductItem({ p, inCart, theme, isDark, addToCart, removeFromCart, prim
       <div key={p.id} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderBottom: `1px solid ${isDark ? '#334155' : '#f1f5f9'}`, gap: 16, background: '#fff' }}>
          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 15, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-            {p.desc && <div style={{ fontSize: 11, color: '#64748b', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.desc}</div>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 1 }}>
+               {p.category && <span style={{ fontSize: 10, fontWeight: 900, color: primary, textTransform: 'uppercase', letterSpacing: 0.5 }}>{p.category}</span>}
+               {p.desc && <div style={{ fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>• {p.desc}</div>}
+            </div>
          </div>
          <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, flexShrink: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 16, color: '#1e293b' }}>₹{rateStr}</div>
@@ -64,7 +68,19 @@ function ProductItem({ p, inCart, theme, isDark, addToCart, removeFromCart, prim
          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
                <div style={{ fontWeight: 800, fontSize: 16, color: primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.name}</div>
-               {p.desc && <div style={{ fontSize: 12, color: '#64748b', marginTop: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.desc}</div>}
+               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                  {p.category && <span style={{ fontSize: 11, fontWeight: 900, color: '#1e293b', textTransform: 'uppercase', letterSpacing: 0.5, background: '#f1f5f9', padding: '2px 8px', borderRadius: 4 }}>{p.category}</span>}
+                  {p.desc && (
+                     <div style={{ fontSize: 12, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: isExp ? 'normal' : 'nowrap', flex: 1 }}>
+                        {p.desc}
+                     </div>
+                  )}
+               </div>
+               {p.desc && p.desc.length > 30 && (
+                  <div onClick={() => setIsExp(!isExp)} style={{ fontSize: 10, fontWeight: 900, color: primary, cursor: 'pointer', marginTop: 4, textTransform: 'uppercase' }}>
+                     {isExp ? 'Show Less ↑' : 'Read More ↓'}
+                  </div>
+               )}
                <div className="mobile-only" style={{ fontWeight: 900, fontSize: 17, marginTop: 4, color: '#1e293b' }}>₹{rateStr}</div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, flexShrink: 0 }}>
@@ -98,15 +114,13 @@ function ProductItem({ p, inCart, theme, isDark, addToCart, removeFromCart, prim
           <div style={{ fontWeight: 800, fontSize: 16, color: textColor, textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{p.name}</div>
           
           {p.desc && (
-             <div style={{ marginTop: 4 }}>
-                <div style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', display: '-webkit-box', WebkitLineClamp: isExp ? 'unset' : 2, WebkitBoxOrient: 'vertical', overflow: isExp ? 'visible' : 'hidden', lineHeight: '1.4' }}>
+             <div style={{ marginTop: 6, flex: 1 }}>
+                <div style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', display: isExp ? 'block' : '-webkit-box', WebkitLineClamp: isExp ? 'unset' : 2, WebkitBoxOrient: 'vertical', overflow: isExp ? 'visible' : 'hidden', lineHeight: '1.5' }}>
                    {p.desc}
                 </div>
-                {p.desc.length > 50 && ( // Only show expand/collapse if description is long
-                   <div onClick={() => setIsExp(!isExp)} style={{ fontSize: 11, fontWeight: 800, color: primary, cursor: 'pointer', marginTop: 4, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                      {isExp ? 'Show Less ↑' : 'Expand & See ↓'}
-                   </div>
-                )}
+                <div onClick={() => setIsExp(!isExp)} style={{ display: 'inline-block', fontSize: 11, fontWeight: 900, color: primary, cursor: 'pointer', marginTop: 6, textTransform: 'uppercase', letterSpacing: 0.5, background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', padding: '2px 8px', borderRadius: 6 }}>
+                   {isExp ? 'Show Less ↑' : 'Read More ↓'}
+                </div>
              </div>
           )}
 
@@ -129,7 +143,7 @@ function ProductItem({ p, inCart, theme, isDark, addToCart, removeFromCart, prim
 }
 
 /* ─────────── CHECKOUT MODAL ─────────── */
-function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSuccess, primary }) {
+function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSuccess, primaryC, isDark }) {
   const [form, setForm] = useState({ name: customerSession?.name || '', email: customerSession?.email || '', phone: customerSession?.phone || '', address: customerSession?.address || '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -147,34 +161,34 @@ function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSu
   };
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#fff', width: '95%', maxWidth: 500, borderRadius: 24, padding: 32, position: 'relative', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', color: '#1e293b' }}>
-            <div onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, cursor: 'pointer', opacity: 0.5 }}>✕</div>
-            
-            {done ? (
-               <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 80 }}>📦</div>
-                  <h2 style={{ fontSize: 24, fontWeight: 900, marginBottom: 12, color: '#1e293b' }}>Order Placed!</h2>
-                  <p style={{ color: '#4b5563', marginBottom: 24 }}>Thank you, {form.name}. We'll process your order soon.</p>
-                  <button onClick={onClose} style={{ width: '100%', padding: 16, background: primary, color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>Finish</button>
-               </div>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+       <div style={{ background: '#fff', width: '95%', maxWidth: 460, borderRadius: 28, padding: 28, position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', color: '#1e293b' }}>
+             <div onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, cursor: 'pointer', opacity: 0.6, fontSize: 20, fontWeight: 300 }}>✕</div>
+             
+             {done ? (
+                <div style={{ textAlign: 'center', padding: '10px 0' }}>
+                   <div style={{ fontSize: 72 }}>✅</div>
+                   <h2 style={{ fontSize: 22, fontWeight: 900, marginBottom: 8, color: '#1e293b' }}>Order Placed!</h2>
+                   <p style={{ color: '#64748b', marginBottom: 24, fontSize: 14 }}>Thank you, {form.name}. We'll process your order soon.</p>
+                   <button onClick={onClose} style={{ width: '100%', padding: 16, background: primaryC, color: '#fff', border: 'none', borderRadius: 16, fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: `0 8px 15px ${primaryC}33` }}>Finish</button>
+                </div>
             ) : (
                <>
                   <h3 style={{ fontSize: 22, fontWeight: 900, marginBottom: 20, color: '#1e293b' }}>Complete Order</h3>
                   
                   <div style={{ display: 'grid', gap: 16 }}>
-                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Full Name</label><input placeholder="Required" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, color: '#1e293b' }} /></div>
-                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Email Address</label><input type="email" placeholder="Required" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, color: '#1e293b' }} /></div>
-                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Phone Number</label><input placeholder="Required" value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, color: '#1e293b' }} /></div>
-                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Delivery Address</label><textarea placeholder="Optional" value={form.address} onChange={e => setForm(f => ({...f, address: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, height: 100, color: '#1e293b' }} /></div>
+                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Full Name</label><input placeholder="Required" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, color: '#1e293b', outline: 'none', background: '#fff', boxSizing: 'border-box' }} /></div>
+                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Email Address</label><input type="email" placeholder="Required" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, color: '#1e293b', outline: 'none', background: '#fff', boxSizing: 'border-box' }} /></div>
+                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Phone Number</label><input placeholder="Required" value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, color: '#1e293b', outline: 'none', background: '#fff', boxSizing: 'border-box' }} /></div>
+                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Delivery Address</label><textarea placeholder="Optional" value={form.address} onChange={e => setForm(f => ({...f, address: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, height: 100, color: '#1e293b', outline: 'none', background: '#fff', boxSizing: 'border-box', resize: 'none' }} /></div>
                   </div>
 
-                  <div style={{ margin: '24px 0', padding: 20, background: '#f8fafc', borderRadius: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                     <span style={{ fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Total Amount</span>
-                     <span style={{ fontSize: 24, fontWeight: 900, color: '#1e293b' }}>₹{total.toLocaleString()}</span>
+                  <div style={{ margin: '20px 0', padding: 18, background: '#f8fafc', borderRadius: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #f1f5f9' }}>
+                     <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Amount</span>
+                     <span style={{ fontSize: 22, fontWeight: 900, color: '#1e293b' }}>₹{total.toLocaleString()}</span>
                   </div>
 
-                  <button disabled={submitting} onClick={submit} style={{ width: '100%', padding: 18, background: primary, color: '#fff', border: 'none', borderRadius: 16, fontWeight: 900, fontSize: 16, cursor: 'pointer', transition: 'transform 0.2s', boxShadow: `0 8px 20px ${primary}44` }}>
+                  <button disabled={submitting} onClick={submit} style={{ width: '100%', padding: 16, background: primaryC, color: '#fff', border: 'none', borderRadius: 16, fontWeight: 900, fontSize: 15, cursor: 'pointer', transition: 'transform 0.2s', boxShadow: `0 8px 20px ${primaryC}44` }}>
                      {submitting ? 'Processing...' : 'CONFIRM ORDER'}
                   </button>
                   
@@ -259,11 +273,14 @@ export default function StorePage() {
            </div>
            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 14 }}>
              {customerSession && <a href={`/${ecomName}/orders`} style={{ fontSize: 13, color: isDark ? '#fff' : primaryC, fontWeight: 700, textDecoration: 'none' }}>ORDERS</a>}
-             <div onClick={() => setShowCheckout(true)} style={{ background: isDark ? a : primaryC, color: isDark ? '#000' : '#fff', padding: '10px 18px', borderRadius: 10, cursor: 'pointer', fontWeight: 900, fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, boxShadow: `0 4px 12px ${primaryC}33` }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.9 }}>
-                  <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
-                </svg>
-                <span>({cart.length})</span>
+             <div onClick={() => setShowCheckout(true)} style={{ background: isDark ? a : primaryC, color: isDark ? '#000' : '#fff', padding: '10px 20px', borderRadius: 12, cursor: 'pointer', fontWeight: 900, fontSize: 13, display: 'flex', alignItems: 'center', gap: 10, boxShadow: `0 4px 15px ${primaryC}33` }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderRight: `1px solid ${isDark ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'}`, paddingRight: 10 }}>
+                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.9 }}>
+                     <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+                   </svg>
+                   <span>{cart.reduce((a, b) => a + b.qty, 0)}</span>
+                </div>
+                <span style={{ fontSize: 14 }}>₹{cart.reduce((a, b) => a + (b.rate * b.qty), 0).toLocaleString()}</span>
              </div>
            </div>
         </div>
@@ -298,8 +315,7 @@ export default function StorePage() {
             </div>
          </div>
 
-         {/* Product Grid Area */}
-         <div style={{ paddingBottom: cart.length > 0 ? 120 : 40 }}>
+         <div style={{ paddingBottom: 40 }}>
             {(templateId === 4 || templateId === 5) && (
                <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 16, padding: '16px 20px', background: isDark ? 'rgba(255,255,255,0.03)' : '#f1f5f9', borderRadius: 16, marginBottom: 16, border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`, opacity: 0.8 }}>
                   <div style={{ width: 50, fontSize: 10, fontWeight: 900, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: 1 }}>Icon</div>
@@ -319,20 +335,6 @@ export default function StorePage() {
             {filtered.length === 0 && <div style={{ padding: 64, textAlign: 'center', color: '#94a3b8' }}><h3>No products found</h3></div>}
          </div>
       </main>
-
-      {/* Floating Bottom Total Bar */}
-      {cart.length > 0 && (
-         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', width: '92%', maxWidth: 640, background: isDark ? '#1e293b' : '#fff', border: `1.5px solid ${isDark ? '#334155' : '#e2e8f0'}`, padding: '16px 28px', borderRadius: 32, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.3)', zIndex: 1100, backdropFilter: 'blur(16px)' }}>
-            <div>
-               <div style={{ fontSize: 11, fontWeight: 900, color: isDark ? '#94a3b8' : '#64748b', textTransform: 'uppercase', letterSpacing: 1.5 }}>Total Amount</div>
-               <div style={{ fontSize: 24, fontWeight: 900, color: isDark ? '#fff' : '#1e293b' }}>₹{cart.reduce((a, b) => a + (b.rate * b.qty), 0).toLocaleString()}</div>
-            </div>
-            <button onClick={() => setShowCheckout(true)} style={{ background: primaryC, color: '#fff', border: 'none', padding: '16px 36px', borderRadius: 20, fontWeight: 900, fontSize: 16, cursor: 'pointer', boxShadow: `0 10px 25px ${primaryC}44`, display: 'flex', alignItems: 'center', gap: 12, transition: 'transform 0.2s' }}>
-               CHECKOUT
-               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14m-7-7 7 7-7 7"/></svg>
-            </button>
-         </div>
-      )}
 
       {showCheckout && <CheckoutModal cart={cart} ownerId={ownerId} ecomName={ecomName} customerSession={customerSession} onClose={() => setShowCheckout(false)} onSuccess={setCustomerSession} primaryC={primaryC} isDark={isDark} />}
     </div>

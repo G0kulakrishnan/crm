@@ -105,6 +105,13 @@ export default function TrackingPage({ ecomSettings }) {
                           <span>Total</span>
                           <span>₹{(order.total || 0).toLocaleString()}</span>
                         </div>
+
+                        {order.notes && (
+                           <div style={{ marginTop: 16, padding: '12px 16px', background: '#fdf2f8', borderRadius: 12, border: '1px solid #fce7f3', fontSize: 13, color: '#9d174d' }}>
+                              <div style={{ fontWeight: 800, fontSize: 10, textTransform: 'uppercase', marginBottom: 4, opacity: 0.8 }}>Message from Store</div>
+                              {order.notes}
+                           </div>
+                        )}
                       </div>
                     </div>
                   );

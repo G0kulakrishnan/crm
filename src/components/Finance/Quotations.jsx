@@ -10,8 +10,9 @@ const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', notes: ''
 const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 
 function calcTotals(items, disc, tdsRate, adj) {
-  const sub = items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
-  const taxTotal = items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0) * (it.taxRate || 0) / 100, 0);
+  const its = Array.isArray(items) ? items : (items ? JSON.parse(items) : []);
+  const sub = its.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
+  const taxTotal = its.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0) * (it.taxRate || 0) / 100, 0);
   const discAmt = sub * (disc || 0) / 100;
   const tdsAmt = (sub - discAmt) * (tdsRate || 0) / 100;
   const total = Math.round(sub - discAmt + taxTotal - tdsAmt + (parseFloat(adj) || 0));
