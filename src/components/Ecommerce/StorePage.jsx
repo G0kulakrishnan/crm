@@ -97,7 +97,16 @@ function ProductItem({ p, inCart, theme, isDark, addToCart, removeFromCart, prim
           {p.desc && <div style={{ fontSize: 13, color: isDark ? '#94a3b8' : '#64748b', marginTop: 4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', height: 38 }}>{p.desc}</div>}
           <div style={{ marginTop: 'auto', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingTop: 16 }}>
             <div style={{ fontWeight: 900, fontSize: 19, color: textColor }}>₹{rateStr}</div>
-            <button onClick={() => addToCart(p)} style={{ background: primary, color: '#fff', border: 'none', padding: '9px 18px', borderRadius: 10, fontWeight: 800, fontSize: 13, cursor: 'pointer', transition: 'opacity 0.2s' }}>{inCart ? `Add (${inCart.qty})` : 'Add'}</button>
+            
+            {inCart ? (
+               <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 10, background: isDark ? 'rgba(255,255,255,0.05)' : '#f8fafc', padding: '3px 6px', borderRadius: 12, border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}` }}>
+                  <button onClick={() => removeFromCart(p.id)} style={{ width: 30, height: 30, borderRadius: 8, border: `1px solid ${isDark ? '#475569' : '#cbd5e1'}`, background: isDark ? '#1e293b' : '#fff', color: textColor, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>-</button>
+                  <span style={{ fontWeight: 900, minWidth: 20, textAlign: 'center', color: textColor, fontSize: 14 }}>{inCart.qty}</span>
+                  <button onClick={() => addToCart(p)} style={{ width: 30, height: 30, borderRadius: 8, border: 'none', background: primary, color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900 }}>+</button>
+               </div>
+            ) : (
+               <button onClick={() => addToCart(p)} style={{ background: primary, color: '#fff', border: 'none', padding: '10px 22px', borderRadius: 12, fontWeight: 900, fontSize: 13, cursor: 'pointer', transition: 'transform 0.1s shadow 0.1s', boxShadow: `0 4px 10px ${primary}33` }}>Add</button>
+            )}
           </div>
        </div>
     </div>
@@ -124,32 +133,40 @@ function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSu
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: '#fff', borderRadius: 24, maxWidth: 460, width: '100%', maxHeight: '90vh', overflowY: 'auto', padding: 32, boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
-        {done ? (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 80 }}>📦</div>
-            <h2 style={{ fontSize: 24, fontWeight: 900, marginBottom: 12 }}>Order Placed!</h2>
-            <p style={{ color: '#4b5563', marginBottom: 24 }}>Thank you, {form.name}. We'll process your order soon.</p>
-            <button onClick={onClose} style={{ width: '100%', padding: 16, background: primary, color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>Finish</button>
-          </div>
-        ) : (
-          <div>
-            <h3 style={{ fontSize: 22, fontWeight: 900, marginBottom: 20 }}>Complete Checkout</h3>
-            <div style={{ display: 'grid', gap: 16 }}>
-               <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>Full Name</label><input placeholder="Required" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10 }} /></div>
-               <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>Email Address</label><input type="email" placeholder="Required" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10 }} /></div>
-               <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>Phone Number</label><input placeholder="Required" value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10 }} /></div>
-               <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6 }}>Delivery Address</label><textarea placeholder="Optional" value={form.address} onChange={e => setForm(f => ({...f, address: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, height: 100 }} /></div>
-            </div>
-            <div style={{ background: '#f8fafc', padding: 20, borderRadius: 12, marginTop: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-               <div style={{ fontSize: 14, fontWeight: 700, color: '#64748b' }}>TOTAL AMOUNT</div>
-               <div style={{ fontSize: 20, fontWeight: 900, color: '#1e293b' }}>₹{total.toLocaleString()}</div>
-            </div>
-            <button onClick={submit} disabled={submitting} style={{ width: '100%', padding: 18, background: primary, color: '#fff', border: 'none', borderRadius: 12, fontWeight: 900, fontSize: 16, marginTop: 24, cursor: 'pointer', boxShadow: `0 10px 20px ${primary}33` }}>{submitting ? 'PROCESSING...' : `CONFIRM ORDER`}</button>
-            <button onClick={onClose} style={{ width: '100%', padding: 12, color: '#94a3b8', border: 'none', background: 'none', marginTop: 8, cursor: 'pointer', fontSize: 14 }}>Go Back</button>
-          </div>
-        )}
-      </div>
+      <div style={{ background: '#fff', width: '95%', maxWidth: 500, borderRadius: 24, padding: 32, position: 'relative', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)', color: '#1e293b' }}>
+            <div onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, cursor: 'pointer', opacity: 0.5 }}>✕</div>
+            
+            {done ? (
+               <div style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: 80 }}>📦</div>
+                  <h2 style={{ fontSize: 24, fontWeight: 900, marginBottom: 12, color: '#1e293b' }}>Order Placed!</h2>
+                  <p style={{ color: '#4b5563', marginBottom: 24 }}>Thank you, {form.name}. We'll process your order soon.</p>
+                  <button onClick={onClose} style={{ width: '100%', padding: 16, background: primary, color: '#fff', border: 'none', borderRadius: 12, fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>Finish</button>
+               </div>
+            ) : (
+               <>
+                  <h3 style={{ fontSize: 22, fontWeight: 900, marginBottom: 20, color: '#1e293b' }}>Complete Order</h3>
+                  
+                  <div style={{ display: 'grid', gap: 16 }}>
+                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Full Name</label><input placeholder="Required" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, color: '#1e293b' }} /></div>
+                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Email Address</label><input type="email" placeholder="Required" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, color: '#1e293b' }} /></div>
+                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Phone Number</label><input placeholder="Required" value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, color: '#1e293b' }} /></div>
+                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Delivery Address</label><textarea placeholder="Optional" value={form.address} onChange={e => setForm(f => ({...f, address: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, height: 100, color: '#1e293b' }} /></div>
+                  </div>
+
+                  <div style={{ margin: '24px 0', padding: 20, background: '#f8fafc', borderRadius: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                     <span style={{ fontSize: 13, fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>Total Amount</span>
+                     <span style={{ fontSize: 24, fontWeight: 900, color: '#1e293b' }}>₹{total.toLocaleString()}</span>
+                  </div>
+
+                  <button disabled={submitting} onClick={submit} style={{ width: '100%', padding: 18, background: primary, color: '#fff', border: 'none', borderRadius: 16, fontWeight: 900, fontSize: 16, cursor: 'pointer', transition: 'transform 0.2s', boxShadow: `0 8px 20px ${primary}44` }}>
+                     {submitting ? 'Processing...' : 'CONFIRM ORDER'}
+                  </button>
+                  
+                  <div onClick={onClose} style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: '#94a3b8', cursor: 'pointer', fontWeight: 700 }}>Go Back</div>
+               </>
+            )}
+        </div>
     </div>
   );
 }
