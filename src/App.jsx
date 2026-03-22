@@ -4,6 +4,9 @@ import { ToastProvider } from './context/ToastContext';
 import { AppProvider } from './context/AppContext';
 import AuthScreen from './components/Auth/AuthScreen';
 import MainApp from './components/Layout/MainApp';
+import StorePage from './components/Ecommerce/StorePage';
+import TrackingPage from './components/Ecommerce/TrackingPage';
+import BookingPage from './components/Appointments/BookingPage';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -71,6 +74,15 @@ function AppInner() {
       </div>
     );
   }
+
+  const path = window.location.pathname;
+  const isPublicStore = path.endsWith('/store');
+  const isPublicOrders = path.endsWith('/orders');
+  const isPublicBooking = path.endsWith('/appointment');
+
+  if (isPublicStore) return <StorePage />;
+  if (isPublicOrders) return <TrackingPage />;
+  if (isPublicBooking) return <BookingPage />;
 
   if (!user) {
     return <AuthScreen settings={settings} />;

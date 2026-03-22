@@ -32,6 +32,9 @@ import AdminPanel from '../Admin/AdminPanel';
 import ApiDocs from '../Admin/ApiDocs';
 import Integrations from '../System/Integrations';
 import UserProfile from '../Settings/UserProfile';
+import EcomSettings from '../Ecommerce/EcomSettings';
+import EcomOrders from '../Ecommerce/EcomOrders';
+import Appointments from '../Appointments/Appointments';
 
 const TRIAL_DAYS = 7;
 const SUPERADMIN_KEY = 'santhanam.gokul@gmail.com';
@@ -286,6 +289,9 @@ export default function MainApp({ user, settings }) {
     integrations: { component: <Integrations user={user} ownerId={targetUserId} />, label: 'Integrations' },
     'messaging-logs': { component: <MessagingLogs user={user} ownerId={targetUserId} />, label: 'MessagingLogs' },
     reports: { component: <Reports user={user} perms={perms} ownerId={targetUserId} />, label: 'Reports' },
+    'ecom-settings': { component: <EcomSettings ownerId={targetUserId} globalSettings={settings} perms={perms} />, label: 'Ecommerce' },
+    'ecom-orders': { component: <EcomOrders ownerId={targetUserId} perms={perms} />, label: 'Ecommerce' },
+    appointments: { component: <Appointments ownerId={targetUserId} perms={perms} />, label: 'Appointments' },
     userprofile: { component: <UserProfile user={user} profile={profile} perms={perms} memberProfile={memberProfile} ownerId={targetUserId} />, label: 'Public' },
     settings: { component: <Settings user={user} profile={profile} isExpired={isExpired} ownerId={targetUserId} initialTab={settingsTab} perms={perms} teamInfo={teamMembers.find(m => m.id === teamInfo?.teamMemberId)} memberProfile={memberProfile} />, label: 'Settings' },
     admin: { component: isSuperadmin ? <AdminPanel user={user} /> : null, label: 'Admin' },

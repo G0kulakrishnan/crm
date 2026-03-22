@@ -1,0 +1,253 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { init } from '@instantdb/react';
+
+const APP_ID = import.meta.env.VITE_INSTANT_APP_ID;
+const db = init({ appId: APP_ID });
+
+function generateSlots(startTime, endTime, durationMins) {
+  const slots = [];
+  const [sh, sm] = startTime.split(':').map(Number);
+  const [eh, em] = endTime.split(':').map(Number);
+  let current = sh * 60 + sm;
+  const end = eh * 60 + em;
+  while (current + durationMins <= end) {
+    const h = Math.floor(current / 60).toString().padStart(2, '0');
+    const m = (current % 60).toString().padStart(2, '0');
+    slots.push(`${h}:${m}`);
+    current += durationMins;
+  }
+  return slots;
+}
+
+export default function BookingPage() {
+  const pathParts = window.location.pathname.split('/');
+  const ecomName = pathParts[1];
+
+  const { data } = db.useQuery({
+    ecomSettings: { $: { where: { ecomName } } },
+    appointmentSettings: {},
+    appointments: {},
+  });
+
+  const storeSetting = data?.ecomSettings?.[0];
+  const ownerId = storeSetting?.userId;
+
+  const apptSettings = data?.appointmentSettings?.find(s => s.userId === ownerId);
+  const workingHours = apptSettings?.workingHours ? JSON.parse(apptSettings.workingHours) : {};
+  const holidays = apptSettings?.holidays ? JSON.parse(apptSettings.holidays) : [];
+  const slotDuration = apptSettings?.slotDuration || 30;
+  const maxPerSlot = apptSettings?.maxPerSlot || 1;
+  const services = apptSettings?.services ? JSON.parse(apptSettings.services) : ['General Appointment'];
+
+  const [step, setStep] = useState(1); // 1: service, 2: date, 3: time, 4: details, 5: confirm
+  const [selectedService, setSelectedService] = useState('');
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedTime, setSelectedTime] = useState('');
+  const [form, setForm] = useState({ name: '', email: '', phone: '', notes: '' });
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+  const isDateAvailable = (dateStr) => {
+    if (holidays.includes(dateStr)) return false;
+    const d = new Date(dateStr);
+    const dayName = dayNames[d.getDay()];
+    const hours = workingHours[dayName];
+    return hours?.enabled !== false;
+  };
+
+  const availableSlots = useMemo(() => {
+    if (!selectedDate) return [];
+    const d = new Date(selectedDate);
+    const dayName = dayNames[d.getDay()];
+    const hours = workingHours[dayName];
+    if (!hours?.enabled) return [];
+    const all = generateSlots(hours.start, hours.end, slotDuration);
+    const taken = (data?.appointments || []).filter(a => a.userId === ownerId && a.date === selectedDate);
+    return all.filter(slot => {
+      const count = taken.filter(a => a.time === slot).length;
+      return count < maxPerSlot;
+    });
+  }, [selectedDate, workingHours, slotDuration, maxPerSlot, data?.appointments, ownerId]);
+
+  const submit = async () => {
+    if (!form.name || !form.phone) return;
+    setSubmitting(true);
+    try {
+      const res = await fetch('/api/appointments/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ownerId,
+          ecomName,
+          service: selectedService,
+          date: selectedDate,
+          time: selectedTime,
+          customer: form,
+        }),
+      });
+      const result = await res.json();
+      if (result.success) setDone(true);
+      else alert(result.error || 'Booking failed');
+    } catch (err) {
+      alert('Error: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Generate next 30 days for date picker
+  const today = new Date();
+  const dateOptions = Array.from({ length: 30 }, (_, i) => {
+    const d = new Date(today.getTime() + (i + 1) * 86400000);
+    return d.toISOString().split('T')[0];
+  }).filter(isDateAvailable);
+
+  if (!storeSetting) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>
+      <div style={{ textAlign: 'center', color: '#6b7280' }}>
+        <div style={{ fontSize: 64 }}>📅</div>
+        <h2>Booking page not found</h2>
+      </div>
+    </div>
+  );
+
+  const accentColor = '#6366f1';
+
+  return (
+    <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: 'Inter, system-ui, sans-serif' }}>
+      {/* Header */}
+      <div style={{ background: accentColor, color: '#fff', padding: '20px 24px', textAlign: 'center' }}>
+        {storeSetting.logo && <img src={storeSetting.logo} alt="Logo" style={{ height: 48, marginBottom: 8, display: 'block', margin: '0 auto 8px' }} />}
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>{storeSetting.title || 'Book an Appointment'}</h1>
+        {storeSetting.tagline && <p style={{ margin: '6px 0 0', opacity: 0.85, fontSize: 14 }}>{storeSetting.tagline}</p>}
+      </div>
+
+      {done ? (
+        <div style={{ maxWidth: 480, margin: '48px auto', textAlign: 'center', padding: 24 }}>
+          <div style={{ fontSize: 72, marginBottom: 16 }}>✅</div>
+          <h2 style={{ color: '#166534' }}>Booking Confirmed!</h2>
+          <div style={{ background: '#dcfce7', padding: 20, borderRadius: 12, margin: '16px 0', textAlign: 'left' }}>
+            <div><strong>Name:</strong> {form.name}</div>
+            <div><strong>Service:</strong> {selectedService}</div>
+            <div><strong>Date:</strong> {selectedDate}</div>
+            <div><strong>Time:</strong> {selectedTime}</div>
+            <div><strong>Phone:</strong> {form.phone}</div>
+          </div>
+          <p style={{ color: '#6b7280', fontSize: 13 }}>We'll send a confirmation to {form.email || form.phone}. See you soon!</p>
+          <button onClick={() => window.location.reload()} style={{ padding: '10px 24px', background: accentColor, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
+            Book Another Appointment
+          </button>
+        </div>
+      ) : (
+        <div style={{ maxWidth: 560, margin: '32px auto', padding: '0 16px' }}>
+          {/* Progress Steps */}
+          <div style={{ display: 'flex', justifyContent: 'center', gap: 0, marginBottom: 28 }}>
+            {['Service', 'Date', 'Time', 'Details'].map((label, i) => (
+              <div key={label} style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: step > i + 1 ? '#16a34a' : step === i + 1 ? accentColor : '#e5e7eb', color: step >= i + 1 ? '#fff' : '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
+                    {step > i + 1 ? '✓' : i + 1}
+                  </div>
+                  <span style={{ fontSize: 10, color: step === i + 1 ? accentColor : '#6b7280', fontWeight: step === i + 1 ? 700 : 400 }}>{label}</span>
+                </div>
+                {i < 3 && <div style={{ width: 60, height: 2, background: step > i + 1 ? '#16a34a' : '#e5e7eb', margin: '0 4px', marginBottom: 20 }} />}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background: '#fff', borderRadius: 16, padding: 28, boxShadow: '0 1px 12px rgba(0,0,0,0.08)' }}>
+            {/* Step 1: Service */}
+            {step === 1 && (
+              <div>
+                <h3 style={{ marginBottom: 20, fontSize: 18 }}>Select a Service</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {services.filter(s => s.trim()).map(svc => (
+                    <button key={svc} onClick={() => { setSelectedService(svc); setStep(2); }}
+                      style={{ padding: '14px 18px', borderRadius: 10, border: `2px solid ${selectedService === svc ? accentColor : '#e5e7eb'}`, background: selectedService === svc ? `rgba(99,102,241,0.05)` : '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 15, textAlign: 'left', color: '#1f2937', transition: 'all .15s' }}>
+                      📋 {svc}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Step 2: Date */}
+            {step === 2 && (
+              <div>
+                <h3 style={{ marginBottom: 4, fontSize: 18 }}>Select a Date</h3>
+                <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>Service: <strong>{selectedService}</strong></p>
+                {dateOptions.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 32, color: '#6b7280' }}>No available dates in the next 30 days.</div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                    {dateOptions.map(dt => {
+                      const d = new Date(dt);
+                      const label = d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+                      return (
+                        <button key={dt} onClick={() => { setSelectedDate(dt); setStep(3); }}
+                          style={{ padding: '10px 6px', border: `2px solid ${selectedDate === dt ? accentColor : '#e5e7eb'}`, background: selectedDate === dt ? `rgba(99,102,241,0.08)` : '#f9fafb', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#1f2937', textAlign: 'center' }}>
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+                <button onClick={() => setStep(1)} style={{ marginTop: 20, background: 'none', border: 'none', color: accentColor, cursor: 'pointer', fontWeight: 600 }}>← Back</button>
+              </div>
+            )}
+
+            {/* Step 3: Time */}
+            {step === 3 && (
+              <div>
+                <h3 style={{ marginBottom: 4, fontSize: 18 }}>Select a Time</h3>
+                <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>{selectedDate} — {selectedService}</p>
+                {availableSlots.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 32, color: '#6b7280' }}>No available slots for this date.</div>
+                ) : (
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                    {availableSlots.map(slot => (
+                      <button key={slot} onClick={() => { setSelectedTime(slot); setStep(4); }}
+                        style={{ padding: '10px 6px', border: `2px solid ${selectedTime === slot ? accentColor : '#e5e7eb'}`, background: selectedTime === slot ? `rgba(99,102,241,0.08)` : '#f9fafb', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13, color: '#1f2937' }}>
+                        {slot}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <button onClick={() => setStep(2)} style={{ marginTop: 20, background: 'none', border: 'none', color: accentColor, cursor: 'pointer', fontWeight: 600 }}>← Back</button>
+              </div>
+            )}
+
+            {/* Step 4: Details */}
+            {step === 4 && (
+              <div>
+                <h3 style={{ marginBottom: 4, fontSize: 18 }}>Your Details</h3>
+                <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>{selectedDate} at {selectedTime} — {selectedService}</p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {[['name', 'Full Name *', 'text'], ['phone', 'Phone Number *', 'tel'], ['email', 'Email (optional)', 'email'], ['notes', 'Notes / Special Requests', 'text']].map(([key, label, type]) => (
+                    <div key={key}>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 5, color: '#374151' }}>{label}</label>
+                      {key === 'notes' ? (
+                        <textarea value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, resize: 'none', height: 72, boxSizing: 'border-box' }} />
+                      ) : (
+                        <input type={type} value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div style={{ marginTop: 20, display: 'flex', gap: 10 }}>
+                  <button onClick={() => setStep(3)} style={{ padding: '10px 18px', background: '#f3f4f6', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>← Back</button>
+                  <button onClick={submit} disabled={submitting || !form.name || !form.phone}
+                    style={{ flex: 1, padding: '12px', background: accentColor, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 15, opacity: (!form.name || !form.phone) ? 0.7 : 1 }}>
+                    {submitting ? 'Booking...' : '📅 Confirm Booking'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

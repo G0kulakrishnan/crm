@@ -19,6 +19,18 @@
     {
       "source": "/api/data/:module",
       "destination": "/api/data?module=:module"
+    },
+    {
+      "source": "/:slug/store",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/:slug/orders",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/:slug/appointment",
+      "destination": "/index.html"
     }
   ]
 }
