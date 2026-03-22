@@ -5,9 +5,9 @@ import { fmt, stageBadgeClass } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import StockLog from './StockLog';
 
-const EMPTY = { name: '', code: '', type: 'Product', category: 'General', unit: 'Nos', rate: '', purchasePrice: '', tax: 18, desc: '', stock: 0, lowStockThreshold: 5, trackStock: true };
+const EMPTY = { name: '', code: '', type: 'Product', category: 'General', unit: 'Nos', rate: '', purchasePrice: '', tax: 18, desc: '', stock: 0, lowStockThreshold: 5, trackStock: true, listInEcom: false, imageUrl: '', description: '' };
 
-const CSV_HEADERS = ['Name', 'Code', 'Category', 'Type', 'Unit', 'Rate', 'PurchasePrice', 'Tax', 'Stock', 'LowStockThreshold', 'TrackStock', 'Description'];
+const CSV_HEADERS = ['Name', 'Code', 'Category', 'Type', 'Unit', 'Rate', 'PurchasePrice', 'Tax', 'Stock', 'LowStockThreshold', 'TrackStock', 'Description', 'ListInEcom', 'ImageUrl', 'FullDescription'];
 
 function parseCSV(text) {
   const lines = text.trim().split(/\r?\n/);
@@ -22,7 +22,7 @@ function parseCSV(text) {
 }
 
 function downloadCSVTemplate() {
-  const sampleRow = ['LED Bulb 9W', 'SKU-001', 'Electronics', 'Product', 'Nos', '250', '150', '18', '100', '10', 'true', 'Energy efficient LED'];
+  const sampleRow = ['LED Bulb 9W', 'SKU-001', 'Electronics', 'Product', 'Nos', '250', '150', '18', '100', '10', 'true', 'Energy efficient LED bulb', 'false', 'https://example.com/image.jpg', 'High efficiency LED bulb - saves 80% energy'];
   const csv = [CSV_HEADERS.join(','), sampleRow.join(',')].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
@@ -47,6 +47,7 @@ export default function Products({ user, perms, ownerId }) {
   const [importing, setImporting] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [selectedIds, setSelectedIds] = useState(new Set());
   const fileRef = useRef();
   const toast = useToast();
 
@@ -141,6 +142,25 @@ export default function Products({ user, perms, ownerId }) {
     reader.readAsText(file);
   };
 
+  const bulkEcomAction = async (enable) => {
+    if (selectedIds.size === 0) return toast('Select products first', 'error');
+    const txs = [...selectedIds].map(pid => db.tx.products[pid].update({ listInEcom: enable }));
+    await db.transact(txs);
+    toast(`${selectedIds.size} products ${enable ? 'added to' : 'removed from'} E-com store`, 'success');
+    setSelectedIds(new Set());
+  };
+
+  const toggleSelect = (pid) => setSelectedIds(prev => {
+    const next = new Set(prev);
+    if (next.has(pid)) next.delete(pid); else next.add(pid);
+    return next;
+  });
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === paginated.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(paginated.map(p => p.id)));
+  };
+
   const importCSV = async () => {
     if (!csvPreview.length) return;
     setImporting(true);
@@ -160,6 +180,9 @@ export default function Products({ user, perms, ownerId }) {
           lowStockThreshold: parseFloat(row['LowStockThreshold']) || 5,
           trackStock: String(row['TrackStock']).toLowerCase() !== 'false',
           desc: row['Description'] || '',
+          listInEcom: String(row['ListInEcom']).toLowerCase() === 'true',
+          imageUrl: row['ImageUrl'] || '',
+          description: row['FullDescription'] || '',
           userId: ownerId
         });
       });
@@ -180,7 +203,7 @@ export default function Products({ user, perms, ownerId }) {
 
   const handleExport = () => {
     if (filtered.length === 0) return toast('No products to export', 'error');
-    const headers = ['Name', 'Code', 'Category', 'Type', 'Unit', 'Purchase Price', 'Selling Rate', 'GST %', 'Stock', 'Low Stock Threshold', 'Description'];
+    const headers = ['Name', 'Code', 'Category', 'Type', 'Unit', 'Purchase Price', 'Selling Rate', 'GST %', 'Stock', 'Low Stock Threshold', 'Description', 'ListInEcom', 'ImageUrl', 'FullDescription'];
     const escapeCSV = (val) => {
       if (val === null || val === undefined) return '';
       const str = String(val).replace(/"/g, '""');
@@ -189,17 +212,10 @@ export default function Products({ user, perms, ownerId }) {
     const rows = [headers.join(',')];
     filtered.forEach(p => {
       const row = [
-        escapeCSV(p.name),
-        escapeCSV(p.code),
-        escapeCSV(p.category),
-        escapeCSV(p.type),
-        escapeCSV(p.unit),
-        escapeCSV(p.purchasePrice),
-        escapeCSV(p.rate),
-        escapeCSV(p.tax),
-        escapeCSV(p.stock),
-        escapeCSV(p.lowStockThreshold),
-        escapeCSV(p.desc)
+        escapeCSV(p.name), escapeCSV(p.code), escapeCSV(p.category), escapeCSV(p.type),
+        escapeCSV(p.unit), escapeCSV(p.purchasePrice), escapeCSV(p.rate), escapeCSV(p.tax),
+        escapeCSV(p.stock), escapeCSV(p.lowStockThreshold), escapeCSV(p.desc),
+        escapeCSV(p.listInEcom || false), escapeCSV(p.imageUrl || ''), escapeCSV(p.description || '')
       ];
       rows.push(row.join(','));
     });
@@ -216,7 +232,14 @@ export default function Products({ user, perms, ownerId }) {
     <div>
       <div className="sh">
         <div><h2>Products &amp; Services</h2></div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {selectedIds.size > 0 && (
+            <>
+              <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center' }}>{selectedIds.size} selected</span>
+              <button className="btn btn-secondary btn-sm" style={{ background: '#ecfdf5', color: '#065f46', border: '1px solid #6ee7b7' }} onClick={() => bulkEcomAction(true)}>🛒 Add to E-com</button>
+              <button className="btn btn-secondary btn-sm" style={{ background: '#fef2f2', color: '#991b1b', border: '1px solid #fca5a5' }} onClick={() => bulkEcomAction(false)}>Remove from E-com</button>
+            </>
+          )}
           <button className="btn btn-secondary btn-sm" onClick={handleExport}>📊 Export CSV</button>
           {canCreate && <button className="btn btn-secondary btn-sm" onClick={() => setBulkModal(true)}>📤 Bulk Upload</button>}
           {canCreate && <button className="btn btn-primary btn-sm" onClick={() => { setEditData(null); setForm(EMPTY); setModal(true); }}>+ Create</button>}
@@ -291,14 +314,26 @@ export default function Products({ user, perms, ownerId }) {
 
         <div className="tw-scroll">
           <table>
-            <thead><tr><th>#</th><th>Name</th><th>Category</th><th>Code</th><th>Stock</th><th>Unit</th><th>Purchase Price</th><th>Selling Rate</th><th>GST %</th><th>Actions</th></tr></thead>
+            <thead><tr>
+              <th><input type="checkbox" checked={paginated.length > 0 && selectedIds.size === paginated.length} onChange={toggleSelectAll} /></th>
+              <th>#</th><th>Name</th><th>Category</th><th>Code</th><th>Stock</th><th>Unit</th><th>Purchase Price</th><th>Selling Rate</th><th>GST %</th><th>E-com</th><th>Actions</th>
+            </tr></thead>
             <tbody>
-              {paginated.length === 0 ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No products found.</td></tr>
+              {paginated.length === 0 ? <tr><td colSpan={12} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No products found.</td></tr>
                 : paginated.map((p, i) => (
                   <React.Fragment key={p.id}>
-                    <tr>
+                    <tr style={{ background: selectedIds.has(p.id) ? 'rgba(99,102,241,0.05)' : undefined }}>
+                      <td><input type="checkbox" checked={selectedIds.has(p.id)} onChange={() => toggleSelect(p.id)} /></td>
                       <td style={{ color: 'var(--muted)', fontSize: 11 }}>{(currentPage - 1) * (pageSize === 'all' ? 0 : pageSize) + i + 1}</td>
-                      <td><strong>{p.name}</strong><div style={{ fontSize: 10, color: 'var(--muted)' }}>{p.desc}</div></td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          {p.imageUrl && <img src={p.imageUrl} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--border)' }} onError={e => e.target.style.display='none'} />}
+                          <div>
+                            <strong>{p.name}</strong>
+                            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{p.desc}</div>
+                          </div>
+                        </div>
+                      </td>
                       <td><span style={{ fontSize: 11, background: 'var(--bg-soft)', padding: '2px 8px', borderRadius: 4 }}>{p.category || 'General'}</span></td>
                       <td style={{ fontSize: 12, fontFamily: 'monospace' }}>{p.code || '-'}</td>
                       <td>
@@ -319,8 +354,17 @@ export default function Products({ user, perms, ownerId }) {
                       </td>
                       <td>{p.tax}%</td>
                       <td>
+                        <button
+                          onClick={() => db.transact(db.tx.products[p.id].update({ listInEcom: !p.listInEcom }))}
+                          style={{ background: p.listInEcom ? '#ecfdf5' : 'var(--bg-soft)', color: p.listInEcom ? '#065f46' : 'var(--muted)', border: `1px solid ${p.listInEcom ? '#6ee7b7' : 'var(--border)'}`, borderRadius: 6, padding: '3px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
+                          title={p.listInEcom ? 'Listed in E-com Store' : 'Not listed in E-com'}
+                        >
+                          {p.listInEcom ? '🛒 Live' : '+ Add'}
+                        </button>
+                      </td>
+                      <td>
                         <div style={{ display: 'flex', gap: 4 }}>
-                          {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(p); setForm({ name: p.name, code: p.code || '', type: p.type, category: p.category || 'General', unit: p.unit, rate: p.rate, purchasePrice: p.purchasePrice || '', tax: p.tax, desc: p.desc || '', stock: p.stock || 0, lowStockThreshold: p.lowStockThreshold || 5, trackStock: p.trackStock !== false }); setModal(true); }}>Edit</button>}
+                          {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(p); setForm({ name: p.name, code: p.code || '', type: p.type, category: p.category || 'General', unit: p.unit, rate: p.rate, purchasePrice: p.purchasePrice || '', tax: p.tax, desc: p.desc || '', stock: p.stock || 0, lowStockThreshold: p.lowStockThreshold || 5, trackStock: p.trackStock !== false, listInEcom: p.listInEcom || false, imageUrl: p.imageUrl || '', description: p.description || '' }); setModal(true); }}>Edit</button>}
                           {p.trackStock && <button className="btn btn-secondary btn-sm" onClick={() => setShowLog(showLog === p.id ? null : p.id)}>History</button>}
                           {canDelete && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(p.id)}>Del</button>}
                         </div>
@@ -377,7 +421,31 @@ export default function Products({ user, perms, ownerId }) {
                     </div>
                   )}
                 </div>
-                <div className="fg span2"><label>Description</label><textarea value={form.desc} onChange={f('desc')} style={{ minHeight: 55 }} /></div>
+                <div className="fg span2"><label>Short Description</label><textarea value={form.desc} onChange={f('desc')} style={{ minHeight: 55 }} placeholder="Brief description (shown in product list)" /></div>
+                
+                <div className="fg span2" style={{ borderTop: '2px dashed var(--border)', paddingTop: 16, marginTop: 4 }}>
+                  <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 6 }}>🛒 E-Commerce Settings</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', background: form.listInEcom ? '#ecfdf5' : 'var(--bg-soft)', padding: 12, borderRadius: 8, border: `1.5px solid ${form.listInEcom ? '#6ee7b7' : 'var(--border)'}` }}>
+                      <input type="checkbox" checked={form.listInEcom} onChange={e => setForm(p => ({ ...p, listInEcom: e.target.checked }))} style={{ width: 18, height: 18 }} />
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 13 }}>List this product in E-commerce Store</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Customers visiting your store URL will see this product</div>
+                      </div>
+                    </label>
+                    <div className="fg" style={{ marginBottom: 0 }}>
+                      <label>Product Image URL
+                        <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 8, fontWeight: 400 }}>Recommended: 800×800px, PNG/JPG, max 200KB</span>
+                      </label>
+                      <input value={form.imageUrl} onChange={f('imageUrl')} placeholder="https://example.com/product.jpg" />
+                      {form.imageUrl && <img src={form.imageUrl} alt="Preview" style={{ marginTop: 8, width: 80, height: 80, objectFit: 'cover', borderRadius: 6, border: '1px solid var(--border)' }} onError={e => e.target.style.display='none'} />}
+                    </div>
+                    <div className="fg" style={{ marginBottom: 0 }}>
+                      <label>Full Product Description <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>(shown on product detail page in store)</span></label>
+                      <textarea value={form.description} onChange={f('description')} style={{ minHeight: 80 }} placeholder="Detailed product description, features, specifications..." />
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
             <div className="mo-foot"><button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>Cancel</button><button className="btn btn-primary btn-sm" onClick={save}>Save</button></div>

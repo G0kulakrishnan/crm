@@ -18,7 +18,12 @@ const COLLECTION_MAP = {
   'tasks': 'tasks',
   'teams': 'teamMembers',
   'subs': 'subs',
-  'logs': 'activityLogs'
+  'logs': 'activityLogs',
+  'ecomSettings': 'ecomSettings',
+  'orders': 'orders',
+  'appointments': 'appointments',
+  'appointmentSettings': 'appointmentSettings',
+  'ecomCustomers': 'ecomCustomers',
 };
 
 export default async function handler(req, res) {

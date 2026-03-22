@@ -11,7 +11,31 @@ const FALLBACK_PLANS = [
   { id: 'pro', name: 'Premium Pro', duration: 365, price: 29999, maxLeads: -1, maxUsers: -1, features: 'All Features + Priority Support' },
 ];
 
-const EMPTY_PLAN = { name: '', duration: 30, price: 0, maxLeads: 500, maxUsers: 5, features: '' };
+const ALL_MODULES = [
+  { key: 'leads', label: 'Leads', hasLimit: true, limitKey: 'maxLeads', defaultLimit: 10000 },
+  { key: 'customers', label: 'Customers', hasLimit: true, limitKey: 'maxCustomers', defaultLimit: 10000 },
+  { key: 'quotations', label: 'Quotations', hasLimit: false },
+  { key: 'invoices', label: 'Invoices', hasLimit: true, limitKey: 'maxInvoices', defaultLimit: -1 },
+  { key: 'pos', label: 'POS Billing', hasLimit: false },
+  { key: 'amc', label: 'AMC', hasLimit: false },
+  { key: 'expenses', label: 'Expenses', hasLimit: false },
+  { key: 'products', label: 'Products', hasLimit: true, limitKey: 'maxProducts', defaultLimit: -1 },
+  { key: 'vendors', label: 'Vendors', hasLimit: false },
+  { key: 'purchaseOrders', label: 'Purchase Orders', hasLimit: false },
+  { key: 'projects', label: 'Projects', hasLimit: true, limitKey: 'maxProjects', defaultLimit: 10 },
+  { key: 'tasks', label: 'Tasks', hasLimit: true, limitKey: 'maxTasks', defaultLimit: 500 },
+  { key: 'teams', label: 'Teams', hasLimit: true, limitKey: 'maxUsers', defaultLimit: 5 },
+  { key: 'campaigns', label: 'Campaigns / Marketing', hasLimit: false },
+  { key: 'reports', label: 'Reports', hasLimit: false },
+  { key: 'automation', label: 'Automation', hasLimit: false },
+  { key: 'ecommerce', label: 'E-Commerce Store', hasLimit: false },
+  { key: 'appointments', label: 'Appointments', hasLimit: false },
+];
+
+const DEFAULT_MODULES = Object.fromEntries(ALL_MODULES.map(m => [m.key, true]));
+const DEFAULT_LIMITS = Object.fromEntries(ALL_MODULES.filter(m => m.hasLimit).map(m => [m.limitKey, m.defaultLimit]));
+
+const EMPTY_PLAN = { name: '', duration: 30, price: 0, features: '', modules: { ...DEFAULT_MODULES }, limits: { ...DEFAULT_LIMITS } };
 
 
 
@@ -236,26 +260,36 @@ export default function AdminPanel({ user }) {
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
             <button className="btn btn-primary btn-sm" onClick={() => { setEditPlanIdx(null); setPlanForm(EMPTY_PLAN); setPlanModal(true); }}>+ Add Plan</button>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: 14 }}>
-            {plans.map((p, i) => (
-              <div key={p.id || p.name} className={`plan-card${i === 1 ? ' featured' : ''}`} style={{ position: 'relative' }}>
-                {i === 1 && <div className="plan-badge">Popular</div>}
-                <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 5 }}>{p.name}</div>
-                <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent)', marginBottom: 4 }}>
-                  {+p.price === 0 ? 'Free' : `₹${(+p.price).toLocaleString()}`}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 14 }}>
+            {plans.map((p, i) => {
+              const enabledMods = ALL_MODULES.filter(m => p.modules ? p.modules[m.key] !== false : true);
+              return (
+                <div key={p.id || p.name} className={`plan-card${i === 1 ? ' featured' : ''}`} style={{ position: 'relative' }}>
+                  {i === 1 && <div className="plan-badge">Popular</div>}
+                  <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 5 }}>{p.name}</div>
+                  <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent)', marginBottom: 4 }}>
+                    {+p.price === 0 ? 'Free' : `₹${(+p.price).toLocaleString()}`}
+                  </div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>per {p.duration} days</div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
+                    {enabledMods.map(m => (
+                      <span key={m.key} style={{ fontSize: 10, padding: '2px 6px', background: 'var(--bg-soft)', borderRadius: 4, border: '1px solid var(--border)' }}>{m.label}</span>
+                    ))}
+                  </div>
+                  {p.limits && Object.entries(p.limits).some(([, v]) => +v !== -1) && (
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>
+                      {ALL_MODULES.filter(m => m.hasLimit && p.modules?.[m.key] !== false).map(m => (
+                        <div key={m.limitKey}>{m.label}: {p.limits?.[m.limitKey] === -1 || p.limits?.[m.limitKey] === undefined ? 'Unlimited' : p.limits[m.limitKey]}</div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => { setEditPlanIdx(i); setPlanForm({ name: p.name, duration: p.duration, price: p.price, features: p.features || '', modules: { ...DEFAULT_MODULES, ...(p.modules || {}) }, limits: { ...DEFAULT_LIMITS, ...(p.limits || { maxLeads: p.maxLeads, maxUsers: p.maxUsers }) } }); setPlanModal(true); }}>Edit</button>
+                    <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => deletePlan(i)}>Del</button>
+                  </div>
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>per {p.duration} days</div>
-                <div style={{ fontSize: 12, marginBottom: 8 }}>
-                  <div>Max Leads: {+p.maxLeads === -1 ? 'Unlimited' : p.maxLeads}</div>
-                  <div>Max Users: {+p.maxUsers === -1 ? 'Unlimited' : p.maxUsers}</div>
-                  {p.features && <div style={{ marginTop: 4, color: 'var(--muted)', fontSize: 11 }}>{p.features}</div>}
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => { setEditPlanIdx(i); setPlanForm({ ...p }); setPlanModal(true); }}>Edit</button>
-                  <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => deletePlan(i)}>Del</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -374,16 +408,43 @@ export default function AdminPanel({ user }) {
 
       {planModal && (
         <div className="mo open">
-          <div className="mo-box">
+          <div className="mo-box" style={{ maxWidth: 680 }}>
             <div className="mo-head"><h3>{editPlanIdx !== null ? 'Edit' : 'Add'} Plan</h3><button className="btn-icon" onClick={() => setPlanModal(false)}>✕</button></div>
             <div className="mo-body">
               <div className="fgrid">
-                <div className="fg span2"><label>Plan Name *</label><input value={planForm.name} onChange={e => setPlanForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Enterprise" /></div>
+                <div className="fg span2"><label>Plan Name *</label><input value={planForm.name} onChange={e => setPlanForm(p => ({ ...p, name: e.target.value }))} placeholder="e.g. Lead Management, Billing Plan, Parlour Plan" /></div>
                 <div className="fg"><label>Duration (days)</label><input type="number" value={planForm.duration} onChange={e => setPlanForm(p => ({ ...p, duration: e.target.value }))} /></div>
-                <div className="fg"><label>Price (₹)</label><input type="number" value={planForm.price} onChange={e => setPlanForm(p => ({ ...p, price: e.target.value }))} /></div>
-                <div className="fg"><label>Max Leads (-1 = Unlimited)</label><input type="number" value={planForm.maxLeads} onChange={e => setPlanForm(p => ({ ...p, maxLeads: e.target.value }))} /></div>
-                <div className="fg"><label>Max Users (-1 = Unlimited)</label><input type="number" value={planForm.maxUsers} onChange={e => setPlanForm(p => ({ ...p, maxUsers: e.target.value }))} /></div>
-                <div className="fg span2"><label>Features (comma-separated)</label><input value={planForm.features} onChange={e => setPlanForm(p => ({ ...p, features: e.target.value }))} placeholder="e.g. Leads, Invoices, Reports" /></div>
+                <div className="fg"><label>Price (₹) — 0 for Free</label><input type="number" value={planForm.price} onChange={e => setPlanForm(p => ({ ...p, price: e.target.value }))} /></div>
+                <div className="fg span2"><label>Plan Description (optional)</label><input value={planForm.features} onChange={e => setPlanForm(p => ({ ...p, features: e.target.value }))} placeholder="e.g. Best for retail businesses" /></div>
+              </div>
+              
+              <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  🗂️ Module Access & Limits
+                  <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>(-1 = Unlimited)</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {ALL_MODULES.map(m => (
+                    <div key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: planForm.modules?.[m.key] !== false ? 'var(--bg-soft)' : '#fef2f2', borderRadius: 8, border: `1px solid ${planForm.modules?.[m.key] !== false ? 'var(--border)' : '#fca5a5'}` }}>
+                      <input
+                        type="checkbox"
+                        checked={planForm.modules?.[m.key] !== false}
+                        onChange={e => setPlanForm(p => ({ ...p, modules: { ...p.modules, [m.key]: e.target.checked } }))}
+                        style={{ width: 15, height: 15, flexShrink: 0 }}
+                      />
+                      <span style={{ fontSize: 12, flex: 1, fontWeight: 500, color: planForm.modules?.[m.key] === false ? '#991b1b' : undefined }}>{m.label}</span>
+                      {m.hasLimit && planForm.modules?.[m.key] !== false && (
+                        <input
+                          type="number"
+                          value={planForm.limits?.[m.limitKey] ?? m.defaultLimit}
+                          onChange={e => setPlanForm(p => ({ ...p, limits: { ...p.limits, [m.limitKey]: parseInt(e.target.value) } }))}
+                          style={{ width: 72, fontSize: 11, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 5, textAlign: 'center' }}
+                          title={`${m.label} limit (-1 = unlimited)`}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
             <div className="mo-foot">
