@@ -155,15 +155,64 @@ export default function ApiDocs({ ownerId }) {
         </button>
       </div>
 
-      <div style={{ marginBottom: 20, padding: '0 20px' }}>
-        <div className="tw" style={{ padding: 20, background: '#fefce8', border: '1px solid #fef08a', borderRadius: 10 }}>
-          <h4 style={{ color: '#854d0e', marginBottom: 8, fontSize: 14 }}>⚠️ Core Authentication & Context</h4>
-          <p style={{ fontSize: 13, color: '#92400e', margin: 0, lineHeight: '1.6' }}>
-            Every request (except public login/register) requires <strong>ownerId</strong> (workspace ID) and <strong>actorId</strong> (user ID). 
-            Pass these in the request body for POST/PATCH or as query parameters for GET.
-          </p>
+      <div style={{ marginBottom: 30, padding: '0 20px' }}>
+        <div className="tw" style={{ padding: 24, background: '#f8fafc', border: '1px solid var(--border)', borderRadius: 12 }}>
+          <h3 style={{ marginBottom: 15, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 24 }}>🛠️</span> Developer System Overview
+          </h3>
+          
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+            <div>
+              <h4 style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>1. Real-time Infrastructure (InstantDB SDK)</h4>
+              <p style={{ fontSize: 13, lineHeight: '1.6', color: 'var(--text-soft)' }}>
+                For real-time features like chat or live dashboard updates, use the <strong>InstantDB SDK</strong> in Flutter instead of raw HTTP.
+              </p>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fff', padding: '8px 12px', borderRadius: 8, border: '1.5px solid var(--border)', marginTop: 10 }}>
+                <span style={{ fontSize: 12, fontWeight: 700 }}>App ID:</span>
+                <code style={{ fontSize: 12, flex: 1, letterSpacing: 1 }}>19c2...cfd</code>
+                <button className="btn-icon" onClick={() => {
+                  navigator.clipboard.writeText('19c240f7-1ba0-486a-95b4-adb651f63cfd');
+                  alert('App ID Copied!');
+                }}>📋</button>
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>2. Authentication Workflow</h4>
+              <p style={{ fontSize: 13, lineHeight: '1.6', color: 'var(--text-soft)' }}>
+                Login returns a <strong>token</strong> (for SDK) and an <strong>ownerUserId</strong> (Workspace Identifier). 
+                Save these locally.
+              </p>
+              <ul style={{ fontSize: 12, marginTop: 8, paddingLeft: 18, color: 'var(--text-soft)' }}>
+                <li>Every data request <strong>MUST</strong> include <code>ownerId</code> (set this to <code>ownerUserId</code> from login).</li>
+                <li><code>actorId</code> should be the logged-in user's own ID.</li>
+              </ul>
+            </div>
+
+            <div>
+              <h4 style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>3. File & Image Handling</h4>
+              <p style={{ fontSize: 13, lineHeight: '1.6', color: 'var(--text-soft)' }}>
+                This backend persists images (logos, QR codes) as **Base64 encoded strings**. 
+                Convert mobile gallery images to Base64 before sending in `POST/PATCH` payloads.
+              </p>
+            </div>
+
+            <div>
+              <h4 style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 8 }}>4. Standardized API Endpoints</h4>
+              <p style={{ fontSize: 13, lineHeight: '1.6', color: 'var(--text-soft)' }}>
+                All CRUD operations now follow an explicit path-based structure for maximum clarity:
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                 <span className="badge bg-green">/list</span>
+                 <span className="badge bg-blue">/create</span>
+                 <span className="badge bg-yellow">/update</span>
+                 <span className="badge bg-red">/delete</span>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
 
       <div className="tw">
         <div className="tw-head">
