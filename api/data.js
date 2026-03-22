@@ -36,11 +36,15 @@ export default async function handler(req, res) {
 
     const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
     const { method } = req;
-    const { module, ownerId, actorId, userName, projectId, logText, ...data } = method === 'GET' || method === 'DELETE' ? req.query : req.body;
+    
+    // Merge query and body params to support both URL rewrites and JSON bodies
+    const params = { ...req.query, ...(req.body || {}) };
+    const { module, ownerId, actorId, userName, projectId, logText, ...data } = params;
 
     if (!module || !COLLECTION_MAP[module]) {
-      return res.status(400).json({ error: `Invalid or missing module. Allowed: ${Object.keys(COLLECTION_MAP).join(', ')}` });
+      return res.status(400).json({ error: `Invalid or missing module. Received: ${module}. Allowed: ${Object.keys(COLLECTION_MAP).join(', ')}` });
     }
+
 
     if (!ownerId) {
       return res.status(400).json({ error: 'ownerId is required to identify the workspace context' });
