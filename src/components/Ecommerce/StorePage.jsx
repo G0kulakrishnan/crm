@@ -226,11 +226,15 @@ export default function StorePage() {
          {/* Filter Section */}
          <div style={{ display: 'flex', flexDirection: 'row', gap: 12, marginBottom: 20, flexWrap: 'wrap' }}>
             <div style={{ flex: 1, minWidth: 200, position: 'relative' }}>
-              <input placeholder="Search products..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: '1.5px solid #e2e8f0', fontSize: 14, outline: 'none' }} />
+              <input 
+                placeholder="Search products..." 
+                value={search} onChange={e => setSearch(e.target.value)} 
+                style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1.5px solid ${isDark ? '#334155' : '#e2e8f0'}`, background: isDark ? 'rgba(255,255,255,0.05)' : '#fff', color: isDark ? '#fff' : '#1e293b', fontSize: 14, outline: 'none' }} 
+              />
             </div>
             <div className="mobile-scroll" style={{ display: 'flex', flexDirection: 'row', gap: 8, flex: 2 }}>
                {['All', ...categories].map(c => (
-                  <button key={c} onClick={() => setCat(c)} style={{ padding: '10px 18px', borderRadius: 25, border: `1.5px solid ${cat === c ? p : '#e2e8f0'}`, background: cat === c ? p : '#fff', color: cat === c ? '#fff' : '#64748b', fontWeight: 800, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>{c}</button>
+                  <button key={c} onClick={() => setCat(c)} style={{ padding: '10px 18px', borderRadius: 25, border: `1.5px solid ${cat === c ? p : (isDark ? '#334155' : '#e2e8f0')}`, background: cat === c ? p : (isDark ? 'rgba(255,255,255,0.05)' : '#fff'), color: cat === c ? '#fff' : (isDark ? '#94a3b8' : '#64748b'), fontWeight: 800, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>{c}</button>
                ))}
             </div>
          </div>
@@ -241,8 +245,8 @@ export default function StorePage() {
             flexDirection: 'column',
             gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', 
             gap: theme === 'grid' ? 24 : 0,
-            borderRadius: 16, border: theme === 'grid' ? 'none' : '1px solid #e2e8f0',
-            overflow: 'hidden', background: '#fff'
+            borderRadius: 16, border: theme === 'grid' ? 'none' : `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+            overflow: 'hidden', background: theme === 'grid' ? 'transparent' : (isDark ? '#1e293b' : '#fff')
          }}>
            {filtered.map(p => (
               <ProductItem key={p.id} p={p} inCart={cart.find(c => c.id === p.id)} theme={theme} isDark={isDark} addToCart={pi => setCart(prev => { const ex = prev.find(i => i.id === pi.id); if (ex) return prev.map(i => i.id === pi.id ? { ...i, qty: i.qty + 1 } : i); return [...prev, { ...pi, qty: 1 }]; })} removeFromCart={pid => setCart(prev => { const ex = prev.find(i => i.id === pid); if (ex?.qty <= 1) return prev.filter(i => i.id !== pid); return prev.map(i => i.id === pid ? { ...i, qty: i.qty - 1 } : i); })} primary={p} secondary={s} />
