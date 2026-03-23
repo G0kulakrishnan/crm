@@ -122,30 +122,6 @@ export default async function handler(req, res) {
 
     await db.transact(txs);
 
-    // Send confirmation email
-    if (customer.email) {
-      try {
-        const port = process.env.PORT || 3000;
-        const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-        const host = req.headers.host || `localhost:${port}`;
-        const notifyUrl = `${protocol}://${host}/api/notify`;
-        
-        await fetch(notifyUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'email',
-            to: customer.email,
-            subject: `Appointment Confirmation - ${service || 'General'}`,
-            body: `Hi ${customer.name},\n\nYour appointment request has been received!\n\nDetails:\nService: ${service || 'General Appointment'}\nDate: ${date}\nTime: ${time}\n\nWe will contact you shortly to confirm.\n\nThanks,\n${slug || 'Our Team'}`,
-            ownerId
-          })
-        });
-      } catch (e) {
-        console.error('Failed to send appointment confirmation email:', e);
-      }
-    }
-
     return res.status(200).json({ success: true, appointmentId });
   } catch (err) {
     console.error('Appointment Book API Error:', err);

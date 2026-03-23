@@ -127,30 +127,6 @@ export default async function handler(req, res) {
 
     await db.transact(txs);
 
-    // 5. Send order confirmation email
-    if (customer.email) {
-      try {
-        const port = process.env.PORT || 3000;
-        const protocol = process.env.NODE_ENV === 'production' ? 'https' : 'http';
-        const host = req.headers.host || `localhost:${port}`;
-        const notifyUrl = `${protocol}://${host}/api/notify`;
-        
-        await fetch(notifyUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'email',
-            to: customer.email,
-            subject: `Order Confirmation - ${invoiceNo}`,
-            body: `Hi ${customer.name},\n\nThank you for your order!\nYour order ID is: ${orderId.slice(0, 8).toUpperCase()}\nTotal Amount: ₹${total.toLocaleString()}\n\nYou can track your order at: ${protocol}://${host}/${ecomName}/orders\n\nThanks,\n${ecomName}`,
-            ownerId
-          })
-        });
-      } catch (e) {
-        console.error('Failed to send order confirmation email:', e);
-      }
-    }
-
     return res.status(200).json({ success: true, orderId, invoiceId, invoiceNo });
   } catch (err) {
     console.error('Checkout API Error:', err);
