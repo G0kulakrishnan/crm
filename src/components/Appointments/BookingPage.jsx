@@ -79,7 +79,7 @@ export default function BookingPage() {
       all = generateSlots(hours.start, hours.end, currentDuration);
     }
 
-    const taken = (data?.appointments || []).filter(a => a.userId === ownerId && a.date === selectedDate);
+    const taken = (data?.appointments || []).filter(a => a.userId === ownerId && a.date === selectedDate && !['Cancelled', 'No Show'].includes(a.status));
     return all.filter(slot => {
       const count = taken.filter(a => a.time === slot).length;
       return count < maxPerSlot;

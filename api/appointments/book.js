@@ -12,15 +12,24 @@ export default async function handler(req, res) {
 
   try {
     const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
-    const { ownerId, ecomName, service, date, time, customer } = req.body;
+    const { ownerId, slug, service, date, time, customer } = req.body;
 
     if (!ownerId || !date || !time || !customer?.name || !customer?.phone) {
       return res.status(400).json({ error: 'Missing required fields: ownerId, date, time, customer.name, customer.phone' });
     }
 
-    // Check slot availability
+    // Check slot availability (Exclude Cancelled/No Show)
     const existing = await db.query({
-      appointments: { $: { where: { userId: ownerId, date, time } } },
+      appointments: { 
+        $: { 
+          where: { 
+            userId: ownerId, 
+            date, 
+            time,
+            status: { not: ['Cancelled', 'No Show'] } 
+          } 
+        } 
+      },
       appointmentSettings: { $: { where: { userId: ownerId } } },
     });
 
@@ -38,7 +47,7 @@ export default async function handler(req, res) {
     const txs = [
       tx.appointments[appointmentId].update({
         userId: ownerId,
-        ecomName: ecomName || '',
+        slug: slug || '',
         service: service || 'General Appointment',
         date,
         time,
@@ -131,7 +140,7 @@ export default async function handler(req, res) {
             type: 'email',
             to: customer.email,
             subject: `Appointment Confirmation - ${service || 'General'}`,
-            body: `Hi ${customer.name},\n\nYour appointment request has been received!\n\nDetails:\nService: ${service || 'General Appointment'}\nDate: ${date}\nTime: ${time}\n\nWe will contact you shortly to confirm.\n\nThanks,\n${ecomName || 'Our Team'}`,
+            body: `Hi ${customer.name},\n\nYour appointment request has been received!\n\nDetails:\nService: ${service || 'General Appointment'}\nDate: ${date}\nTime: ${time}\n\nWe will contact you shortly to confirm.\n\nThanks,\n${slug || 'Our Team'}`,
             ownerId
           })
         });
