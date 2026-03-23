@@ -62,6 +62,14 @@ export default function AuthScreen({ settings }) {
     setLoading(true);
 
     try {
+      const payload = {
+        email: email.trim(),
+        password,
+        fullName,
+        bizName,
+        phone,
+        selectedPlan
+      };
       const res = await fetch('/api/auth', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
