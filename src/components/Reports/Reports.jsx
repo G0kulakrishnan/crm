@@ -123,8 +123,8 @@ export default function Reports({ user, perms, ownerId, profile }) {
 
   // Lead pipeline
   const STAGE_ORDER = (profile?.leadStages?.length > 0 
-    ? (profile.stages || DEFAULT_STAGES).filter(s => profile.leadStages.includes(s)) 
-    : (profile.stages || DEFAULT_STAGES)
+    ? (profile?.stages || DEFAULT_STAGES).filter(s => profile?.leadStages?.includes(s)) 
+    : (profile?.stages || DEFAULT_STAGES)
   ).filter(s => !(profile?.disabledStages || []).includes(s));
 
   const wonStage = profile?.wonStage || STAGE_ORDER[STAGE_ORDER.length - 1];

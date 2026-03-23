@@ -288,7 +288,7 @@ export default function MainApp({ user, settings }) {
     automation: { component: <AutomationView user={user} perms={perms} ownerId={targetUserId} />, label: 'Automation' },
     integrations: { component: <Integrations user={user} ownerId={targetUserId} />, label: 'Integrations' },
     'messaging-logs': { component: <MessagingLogs user={user} ownerId={targetUserId} />, label: 'MessagingLogs' },
-    reports: { component: <Reports user={user} perms={perms} ownerId={targetUserId} />, label: 'Reports' },
+    reports: { component: <Reports user={user} perms={perms} ownerId={targetUserId} profile={profile} />, label: 'Reports' },
     'ecom-settings': { component: <EcomSettings ownerId={targetUserId} globalSettings={settings} perms={perms} />, label: 'Ecommerce' },
     'ecom-orders': { component: <EcomOrders ownerId={targetUserId} perms={perms} />, label: 'Ecommerce' },
     appointments: { component: <Appointments ownerId={targetUserId} perms={perms} settings={settings} />, label: 'Appointments' },
