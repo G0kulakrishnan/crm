@@ -171,11 +171,16 @@ export default function Customers({ user, perms, ownerId }) {
 
     if (txs.length > 0) {
       await db.transact(txs);
-      toast(`Synced ${count} leads to customers!`, 'success');
-    } else {
-      toast('All "Won" leads are already customers.', 'info');
+      toast(`Automatically synced ${count} new customers from "Won" leads.`, 'success');
     }
   };
+
+  // Auto-sync on load
+  React.useEffect(() => {
+    if (data && leads.length > 0) {
+      syncWonLeads();
+    }
+  }, [data?.leads, data?.customers]);
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
   const cf = (k) => (e) => setForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
@@ -454,7 +459,6 @@ export default function Customers({ user, perms, ownerId }) {
       <div className="sh">
         <div><h2>Customers</h2><div className="sub">Manage converted leads and clients</div></div>
         <div style={{ display: 'flex', gap: 10 }}>
-          {canEdit && <button className="btn btn-secondary btn-sm" onClick={syncWonLeads}>Sync Won Leads</button>}
           {canCreate && <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Create Customer</button>}
         </div>
       </div>

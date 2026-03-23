@@ -148,7 +148,24 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       setSmtpPass(profile.smtpPass || '');
       setWaApiToken(profile.waApiToken || '');
       setWaPhoneId(profile.waPhoneId || '');
-      setWhatsappTemplates(profile.whatsappTemplates || []);
+      const templates = profile.whatsappTemplates || [];
+      if (templates.length === 0) {
+        // Auto-load defaults if none exist
+        const defaults = [
+          { id: 'tpl_welcome', name: 'Welcome Message', templateId: 'welcome_msg_01', body: 'Hi {{1}}, welcome to {{2}}! We are delighted to have you with us.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'slug' }] },
+          { id: 'tpl_order_received', name: 'Order Received', templateId: 'order_rec_01', body: 'Hi {{1}}, we have received your order! Order ID: {{2}}. Amount: {{3}}. Status: {{4}}.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'orderId' }, { index: 3, field: 'orderAmount' }, { index: 4, field: 'orderStatus' }] },
+          { id: 'tpl_order_conf', name: 'Order Confirmed', templateId: 'order_conf_01', body: 'Great news {{1}}! Your order #{{2}} for {{3}} has been confirmed.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'orderId' }, { index: 3, field: 'service' }] },
+          { id: 'tpl_order_del', name: 'Order Delivered', templateId: 'order_del_01', body: 'Hi {{1}}, your order #{{2}} has been delivered. We hope you enjoy it!', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'orderId' }] },
+          { id: 'tpl_appt_booking', name: 'Appointment Confirmed', templateId: 'appt_conf_01', body: 'Hi {{1}}, your appointment for {{2}} on {{3}} at {{4}} is confirmed.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'apptDate' }, { index: 4, field: 'apptTime' }] },
+          { id: 'tpl_appt_rem', name: 'Appointment Reminder', templateId: 'appt_rem_01', body: 'Reminder: Hi {{1}}, you have an appointment for {{2}} today at {{3}}.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'apptTime' }] },
+          { id: 'tpl_amc_rem', name: 'AMC Upcoming Renewal', templateId: 'amc_rem_01', body: 'Dear {{1}}, your AMC for {{2}} (Contract: {{3}}) is expiring on {{4}}.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'contractNo' }, { index: 4, field: 'date' }] },
+          { id: 'tpl_lead_won', name: 'Lead Won / Onboarding', templateId: 'lead_onboard_01', body: 'Hi {{1}}! Welcome aboard! Your status is now {{2}}.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'stage' }] },
+          { id: 'tpl_payment_rec', name: 'Payment Received', templateId: 'payment_rec_01', body: 'Hi {{1}}, we received your payment of {{2}} for order #{{3}}.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'amount' }, { index: 3, field: 'orderId' }] }
+        ];
+        setWhatsappTemplates(defaults);
+      } else {
+        setWhatsappTemplates(templates);
+      }
       setReminders(profile.reminders || {
         amc: { days: 30, msg: 'Hello {client}, your AMC contract is expiring on {date}. Please contact us for renewal.' },
         followup: { days: 1, msg: 'Reminder: Follow-up with {client} is scheduled for {date}.' }
@@ -1281,7 +1298,6 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
               <div className="tw-head">
                 <h3>WhatsApp Templates</h3>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <button className="btn btn-secondary btn-sm" onClick={loadDefaultWATemplates}>Load Default Templates</button>
                   <button className="btn btn-primary btn-sm" onClick={saveWA}>Save All Templates</button>
                 </div>
               </div>
