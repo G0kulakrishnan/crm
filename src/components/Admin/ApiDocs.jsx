@@ -102,7 +102,8 @@ const API_LIST = [
     desc: 'Send transactional emails or WhatsApp messages.',
     actions: [
       { name: 'Send Email', method: 'POST', body: { type: 'email', to: 'client@example.com', subject: 'Invoice #123', body: 'Hi, find attached...', ownerId: 'WORKSPACE_ID' }, resp: { success: true, msgId: '...' } },
-      { name: 'Send WhatsApp', method: 'POST', body: { type: 'whatsapp', to: '919876543210', message: 'Your order is ready!', ownerId: 'WORKSPACE_ID' }, resp: { success: true, sid: '...' } }
+      { name: 'Send WhatsApp (Prompt)', method: 'POST', body: { type: 'whatsapp', to: '919876543210', message: 'Your order is ready!', ownerId: 'WORKSPACE_ID' }, resp: { success: true, sid: '...' } },
+      { name: 'Send WhatsApp (Template)', method: 'POST', body: { type: 'whatsapp', to: '919876543210', templateId: '329129', variables: ['12345', 'Service A', '2026-03-25'], ownerId: 'WORKSPACE_ID' }, resp: { success: true, sid: '...' } }
     ]
   },
   {
@@ -124,9 +125,10 @@ const API_LIST = [
         resp: { success: true, orderId: '...' } 
       },
       {
-        name: 'Error: Data Mismatch',
+        name: 'Validation: Strict Match',
         method: 'POST',
-        body: { customer: { email: 'existing@mail.com', phone: 'DIFFERENT_PHONE' } },
+        desc: 'Returns error if email exists with diff phone, or phone exists with diff email.',
+        body: { customer: { email: 'existing@mail.com', phone: 'NEW_PHONE' } },
         resp: { success: false, error: 'Mail ID or phone number mismatch' }
       }
     ]

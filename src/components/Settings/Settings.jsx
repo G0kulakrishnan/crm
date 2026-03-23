@@ -471,33 +471,68 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
         id: 'tpl_welcome',
         name: 'Welcome Message',
         templateId: 'welcome_msg_01',
-        body: 'Hi {{1}}, welcome to {{2}}! We are glad to connect with you.',
+        body: 'Hi {{1}}, welcome to {{2}}! We are delighted to have you with us.',
         variables: [{ index: 1, field: 'name' }, { index: 2, field: 'slug' }]
       },
       {
-        id: 'tpl_order',
-        name: 'Order Confirmation',
-        templateId: 'order_conf_01',
-        body: 'Hi {{1}}, your order for {{2}} is confirmed! Order ID: {{3}}',
-        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'orderId' }]
+        id: 'tpl_order_received',
+        name: 'Order Received',
+        templateId: 'order_received_02',
+        body: 'Hi {{1}}, your order #{{2}} for {{3}} has been received and is being processed.',
+        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'orderId' }, { index: 3, field: 'service' }]
       },
       {
-        id: 'tpl_appt',
+        id: 'tpl_order_confirmed',
+        name: 'Order Confirmed',
+        templateId: 'order_confirmed_02',
+        body: 'Hi {{1}}, your order #{{2}} is confirmed! Total: {{3}}. Thank you!',
+        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'orderId' }, { index: 3, field: 'orderAmount' }]
+      },
+      {
+        id: 'tpl_order_delivery',
+        name: 'Order Out for Delivery',
+        templateId: 'order_delivery_01',
+        body: 'Great news {{1}}! Your order #{{2}} is out for delivery and will reach you soon.',
+        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'orderId' }]
+      },
+      {
+        id: 'tpl_appt_booking',
         name: 'Appointment Confirmed',
         templateId: 'appt_conf_01',
-        body: 'Hi {{1}}, your appointment for {{2}} on {{3}} is confirmed! See you at {{4}}.',
-        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'date' }, { index: 4, field: 'bizPhone' }]
+        body: 'Hi {{1}}, your appointment for {{2}} on {{3}} at {{4}} is confirmed. See you soon!',
+        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'apptDate' }, { index: 4, field: 'apptTime' }]
       },
       {
-        id: 'tpl_status',
-        name: 'Lead Status Update',
-        templateId: 'status_update_01',
-        body: 'Hi {{1}}, your status has been updated to {{2}}. Contact {{3}} for more info.',
-        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'stage' }, { index: 3, field: 'bizPhone' }]
+        id: 'tpl_appt_rem',
+        name: 'Appointment Reminder',
+        templateId: 'appt_rem_01',
+        body: 'Reminder: Hi {{1}}, you have an appointment for {{2}} today at {{3}}. Please let us know if you need to reschedule.',
+        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'apptTime' }]
+      },
+      {
+        id: 'tpl_amc_rem',
+        name: 'AMC Upcoming Renewal',
+        templateId: 'amc_rem_01',
+        body: 'Dear {{1}}, your AMC for {{2}} (Contract: {{3}}) is expiring on {{4}}. Please renew to avoid service interruption.',
+        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'contractNo' }, { index: 4, field: 'date' }]
+      },
+      {
+        id: 'tpl_lead_won',
+        name: 'Lead Won / Onboarding',
+        templateId: 'lead_onboard_01',
+        body: 'Hi {{1}}! We are excited to start working with you. Your status has been updated to {{2}}. Welcome aboard!',
+        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'stage' }]
+      },
+      {
+        id: 'tpl_payment_rec',
+        name: 'Payment Received',
+        templateId: 'payment_rec_01',
+        body: 'Hi {{1}}, we have received your payment of {{2}} for order #{{3}}. Thank you for your business!',
+        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'amount' }, { index: 3, field: 'orderId' }]
       }
     ];
     setWhatsappTemplates(defaults);
-    toast('Loaded 4 default templates. Click "Save All" to persist.', 'success');
+    toast(`Loaded ${defaults.length} default templates. Click "Save All" to persist.`, 'success');
   };
 
   const testWA = async () => {
@@ -1265,10 +1300,16 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                               <option value="">None</option>
                               <option value="name">Customer Name</option>
                               <option value="service">Service/Product</option>
-                              <option value="date">Date/Time</option>
-                              <option value="amount">Total Amount</option>
-                              <option value="orderId">Order/ID</option>
+                              <option value="date">Date/Time (General)</option>
+                              <option value="amount">Amount (Total/General)</option>
+                              <option value="orderId">Order # / ID</option>
                               <option value="slug">Business Name</option>
+                              <option value="stage">Lead Stage</option>
+                              <option value="apptDate">Appt Date</option>
+                              <option value="apptTime">Appt Time</option>
+                              <option value="contractNo">AMC Contract #</option>
+                              <option value="orderStatus">Order Status</option>
+                              <option value="orderAmount">Order Amount</option>
                             </select>
                           </div>
                         ))}

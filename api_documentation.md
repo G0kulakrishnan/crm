@@ -60,10 +60,11 @@ This document outlines the API structure and data models for TechCRM, to assist 
 - **Body**: `{ "to": "...", "subject": "...", "body": "...", "ownerId": "...", "fromName": "..." }`
 - **Note**: Connects via the SMTP settings stored in the owner's `userProfiles`.
 
-### Send WhatsApp (Meta Cloud API)
-- **Endpoint**: `POST /api/send-whatsapp`
-- **Body**: `{ "to": "...", "message": "...", "ownerId": "..." }`
-- **Note**: Uses the WhatsApp Token and Phone Number ID from the owner's `userProfiles`.
+### Send WhatsApp (Waprochat API)
+- **Endpoint**: `POST /api/notify` (recommended) or `POST /api/send-whatsapp` (legacy)
+- **Body (Text)**: `{ "to": "...", "message": "...", "ownerId": "..." }`
+- **Body (Template)**: `{ "to": "...", "templateId": "...", "variables": ["var1", "var2"], "ownerId": "..." }`
+- **Note**: Uses `waApiToken` and `waPhoneId` (Waprochat) from `userProfiles`. Templates must be pre-approved in the Waprochat portal.
 
 ---
 
@@ -127,8 +128,8 @@ Located in `userProfiles.roles`. The mobile app should hide modules where the us
     "total": 100
   }
   ```
+- **Security**: Strict uniqueness matching is enforced. If the provided `email` exists in the DB with a different `phone`, or vice versa, the request fails to prevent data corruption.
 - **Error (400)**: `{"success": false, "error": "Mail ID or phone number mismatch"}` 
-  *(Occurs if email exists but phone is different, or vice versa)*
 
 ### Appointment Booking
 - **Endpoint**: `POST /api/appointments/book`

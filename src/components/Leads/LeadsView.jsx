@@ -51,10 +51,13 @@ export default function LeadsView({ user, perms, ownerId }) {
 
   const { data, isLoading, error } = db.useQuery({
     leads: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     activityLogs: { $: { where: { userId: ownerId } } },
   });
+  const leads = data?.leads || [];
+  const customers = data?.customers || [];
   const team = data?.teamMembers || [];
   const activityLogs = data?.activityLogs || [];
   const customFields = data?.userProfiles?.[0]?.customFields || [];
@@ -64,12 +67,6 @@ export default function LeadsView({ user, perms, ownerId }) {
   const activeLabels = data?.userProfiles?.[0]?.labels || DEFAULT_LABELS;
   const productCats = data?.userProfiles?.[0]?.productCats || DEFAULT_PROD_CATS;
   const allStages = data?.userProfiles?.[0]?.stages || DEFAULT_STAGES;
-  
-  console.log("🔍 [LeadsView] Props - ownerId:", ownerId, "perms:", perms?.isOwner ? "Owner" : "Team");
-  console.log("📊 [LeadsView] Data - leadsRaw count:", data?.leads?.length || 0);
-  const leads = useMemo(() => {
-    return data?.leads || [];
-  }, [data?.leads]);
   
   useEffect(() => {
     const openId = localStorage.getItem('tc_open_lead');
@@ -245,6 +242,10 @@ export default function LeadsView({ user, perms, ownerId }) {
         }
         await db.transact(db.tx.leads[editData.id].update(updates));
         
+        if (isWon(form.stage) && editData.stage !== form.stage) {
+          await convertToCustomer({ ...editData, ...form }, true);
+        }
+
         if (changes.length > 0) {
           await logActivity(editData.id, changes.join(' | '));
         }
@@ -437,20 +438,35 @@ export default function LeadsView({ user, perms, ownerId }) {
   const bulkStage = async (newStage) => {
     if (!selectedIds.size || !newStage) return;
     await Promise.all([...selectedIds].map(async lid => {
+      const lead = leads.find(l => l.id === lid);
       await db.transact(db.tx.leads[lid].update({ 
         stage: newStage,
         stageChangedAt: Date.now()
       }));
       await logActivity(lid, `Bulk status changed to ${newStage}`);
+      if (isWon(newStage) && lead && lead.stage !== newStage) {
+        await convertToCustomer(lead, true);
+      }
     }));
     setSelectedIds(new Set());
     toast(`Moved ${selectedIds.size} leads to ${newStage}`, 'success');
   };
 
-  const convertToCustomer = async (l) => {
+  const convertToCustomer = async (l, skipConfirm = false) => {
     if (!canEdit) { toast('Permission denied: cannot convert leads', 'error'); return; }
-    if (!confirm(`Convert ${l.name} to a Customer?`)) return;
+    if (!skipConfirm && !confirm(`Convert ${l.name} to a Customer?`)) return;
     try {
+      // Check if already a customer by name or phone/email
+      const exists = customers.find(c => 
+        (l.email && c.email === l.email) || 
+        (l.phone && c.phone === l.phone) ||
+        (c.name.trim().toLowerCase() === l.name.trim().toLowerCase())
+      );
+      if (exists) {
+        if (!skipConfirm) toast(`${l.name} is already a customer!`, 'warning');
+        return;
+      }
+
       const payload = {
         name: l.name,
         email: l.email || '',
@@ -966,6 +982,9 @@ export default function LeadsView({ user, perms, ownerId }) {
                   if (!lead || lead.stage === stage) return;
                   await db.transact(db.tx.leads[lid].update({ stage }));
                   await logActivity(lid, `Stage changed from "${lead.stage}" to "${stage}" (drag & drop)`);
+                  if (isWon(stage)) {
+                    await convertToCustomer(lead, true);
+                  }
                   toast(`Moved to ${stage}`, 'success');
                 }}
               >
