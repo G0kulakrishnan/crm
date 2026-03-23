@@ -113,7 +113,32 @@ Located in `userProfiles.roles`. The mobile app should hide modules where the us
 
 ---
 
-## 5. Implementation Tips
-1. **Multi-Tenancy**: Always filter your queries: `db.useQuery({ leads: { $: { where: { userId: ownerId } } } })`.
-2. **Activity Logging**: Log every transaction in `activityLogs` to maintain an audit trail.
-3. **Magic Links**: InstantDB supports Magic Link auth. Use `db.auth.sendMagicCode` and `db.auth.verifyMagicCode` from the SDK.
+## 6. Public APIs (Store & Bookings)
+
+### Ecommerce Checkout
+- **Endpoint**: `POST /api/ecom/checkout`
+- **Body**: 
+  ```json
+  {
+    "ownerId": "WORKSPACE_ID",
+    "ecomName": "slug",
+    "customer": { "name": "...", "email": "...", "phone": "...", "address": "..." },
+    "items": [{ "name": "...", "qty": 1, "rate": 100 }],
+    "total": 100
+  }
+  ```
+- **Error (400)**: `{"success": false, "error": "Mail ID or phone number mismatch"}` 
+  *(Occurs if email exists but phone is different, or vice versa)*
+
+### Appointment Booking
+- **Endpoint**: `POST /api/appointments/book`
+- **Body**: 
+  ```json
+  {
+    "ownerId": "WORKSPACE_ID",
+    "serviceId": "...",
+    "slot": "ISO_DATE_STRING",
+    "customer": { "name": "...", "email": "...", "phone": "..." }
+  }
+  ```
+- **Error (400)**: `{"success": false, "error": "Mail ID or phone number mismatch"}`

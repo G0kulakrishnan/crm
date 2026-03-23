@@ -104,6 +104,57 @@ const API_LIST = [
       { name: 'Send Email', method: 'POST', body: { type: 'email', to: 'client@example.com', subject: 'Invoice #123', body: 'Hi, find attached...', ownerId: 'WORKSPACE_ID' }, resp: { success: true, msgId: '...' } },
       { name: 'Send WhatsApp', method: 'POST', body: { type: 'whatsapp', to: '919876543210', message: 'Your order is ready!', ownerId: 'WORKSPACE_ID' }, resp: { success: true, sid: '...' } }
     ]
+  },
+  {
+    group: 'Ecommerce (Public)',
+    path: '/api/ecom/checkout',
+    method: 'POST',
+    desc: 'Public endpoint for store checkouts, creating leads/orders automatically.',
+    actions: [
+      { 
+        name: 'Submit Order', 
+        method: 'POST', 
+        body: { 
+          ownerId: 'WORKSPACE_ID', 
+          ecomName: 'slug', 
+          customer: { name: 'Jane Doe', email: 'jane@example.com', phone: '9876543210', address: '123 Main St' },
+          items: [{ name: 'Product A', qty: 1, rate: 100 }],
+          total: 100
+        }, 
+        resp: { success: true, orderId: '...' } 
+      },
+      {
+        name: 'Error: Data Mismatch',
+        method: 'POST',
+        body: { customer: { email: 'existing@mail.com', phone: 'DIFFERENT_PHONE' } },
+        resp: { success: false, error: 'Mail ID or phone number mismatch' }
+      }
+    ]
+  },
+  {
+    group: 'Appointments (Public)',
+    path: '/api/appointments/book',
+    method: 'POST',
+    desc: 'Public booking endpoint for client appointments.',
+    actions: [
+      { 
+        name: 'Book Slot', 
+        method: 'POST', 
+        body: { 
+          ownerId: 'WORKSPACE_ID', 
+          serviceId: 'SERVICE_ID', 
+          slot: '2026-03-25T10:00:00Z',
+          customer: { name: 'Alice Smith', email: 'alice@example.com', phone: '9988776655' }
+        }, 
+        resp: { success: true, bookingId: '...' } 
+      },
+      {
+        name: 'Error: Data Mismatch',
+        method: 'POST',
+        body: { customer: { email: 'existing@mail.com', phone: 'DIFFERENT_PHONE' } },
+        resp: { success: false, error: 'Mail ID or phone number mismatch' }
+      }
+    ]
   }
 ];
 
