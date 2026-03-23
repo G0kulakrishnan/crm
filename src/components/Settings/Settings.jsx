@@ -459,11 +459,14 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   };
 
   const saveWA = async () => {
-    if (!waApiToken.trim()) return toast('API Token is required', 'error');
-    if (!waPhoneId.trim()) return toast('Phone Number ID is required', 'error');
     const payload = { waApiToken, waPhoneId, whatsappTemplates, userId: ownerId };
     if (profileId) { await db.transact(db.tx.userProfiles[profileId].update(payload)); }
-    toast('WhatsApp settings saved!', 'success');
+    
+    if (!waApiToken.trim() || !waPhoneId.trim()) {
+      toast('Templates saved! (Note: WhatsApp API info is still missing)', 'warning');
+    } else {
+      toast('WhatsApp settings saved successfully!', 'success');
+    }
   };
 
   const loadDefaultWATemplates = () => {
