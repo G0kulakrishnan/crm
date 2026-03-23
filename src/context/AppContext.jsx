@@ -16,7 +16,7 @@ export function AppProvider({ children, user }) {
     if (hash) return hash;
     return localStorage.getItem('tc_activeView') || 'dashboard';
   });
-  const [settingsTab, setSettingsTab] = useState('My Profile');
+  const [settingsTab, setSettingsTab] = useState('Business');
   const [sidebarExpanded, setSidebarExpanded] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);

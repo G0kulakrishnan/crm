@@ -35,7 +35,7 @@ const NAV_ITEMS = [
 ];
 
 export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, perms, settings }) {
-  const { activeView, setActiveView, sidebarExpanded, setSidebarExpanded, mobileSidebarOpen, setMobileSidebarOpen } = useApp();
+  const { activeView, setActiveView, setSettingsTab, sidebarExpanded, setSidebarExpanded, mobileSidebarOpen, setMobileSidebarOpen } = useApp();
 
   // Filter NAV_ITEMS based on permissions
   const filteredItems = NAV_ITEMS.filter(item => {
@@ -78,6 +78,7 @@ export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, 
               className={`nav-item${activeView === item.id ? ' active' : ''}`}
               onClick={() => {
                 setActiveView(item.id);
+                if (item.id === 'settings') setSettingsTab('Business');
                 setMobileSidebarOpen(false);
               }}
             >
