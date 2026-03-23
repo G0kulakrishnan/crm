@@ -61,11 +61,26 @@ export default function Reports({ user, perms, ownerId, profile }) {
   const filteredInvoicesAtSource = invoices.filter(i => canSeeAll || i.actorId === user.id);
   const filteredExpensesAtSource = expenses.filter(e => canSeeAll || e.actorId === user.id);
   const filteredLeadsAtSource = leads.filter(l => {
-    if (canSeeAll) return true;
-    const assignKey = (l.assign || '').toLowerCase().trim();
-    const userName = (perms.name || '').toLowerCase().trim();
-    const userEmail = (user.email || '').toLowerCase().trim();
-    return (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail) || l.actorId === user.id;
+    // 1. Check permissions/assignee
+    let allowed = false;
+    if (canSeeAll) {
+      allowed = true;
+    } else {
+      const assignKey = (l.assign || '').toLowerCase().trim();
+      const userName = (perms?.name || '').toLowerCase().trim();
+      const userEmail = (user.email || '').toLowerCase().trim();
+      allowed = (assignKey && userName && assignKey === userName) || (assignKey && userEmail && assignKey === userEmail) || l.actorId === user.id;
+    }
+    if (!allowed) return false;
+
+    // 2. Filter by profile settings (leadStages & disabledStages)
+    const savedLeadStages = profile?.leadStages || [];
+    const disabledStages = profile?.disabledStages || [];
+    
+    if (savedLeadStages.length > 0 && !savedLeadStages.includes(l.stage)) return false;
+    if (disabledStages.includes(l.stage)) return false;
+
+    return true;
   });
   const filteredTasksAtSource = tasks.filter(t => canSeeAll || t.actorId === user.id || t.assignTo === user.email || t.assignTo === perms.name);
 
@@ -107,9 +122,13 @@ export default function Reports({ user, perms, ownerId, profile }) {
   const profit = revenue - totalExp;
 
   // Lead pipeline
-  const STAGE_ORDER = profile?.stages || DEFAULT_STAGES;
+  const STAGE_ORDER = (profile?.leadStages?.length > 0 
+    ? (profile.stages || DEFAULT_STAGES).filter(s => profile.leadStages.includes(s)) 
+    : (profile.stages || DEFAULT_STAGES)
+  ).filter(s => !(profile?.disabledStages || []).includes(s));
+
   const wonStage = profile?.wonStage || STAGE_ORDER[STAGE_ORDER.length - 1];
-  const lostStage = profile?.lostStage || 'Lost'; // Assuming 'Lost' is a distinct stage not necessarily in STAGE_ORDER
+  const lostStage = profile?.lostStage || 'Lost'; 
   const stageCount = STAGE_ORDER.map(s => ({ stage: s, count: filteredLeadsAtSource.filter(l => l.stage === s).length }));
   const maxCount = Math.max(...stageCount.map(s => s.count), 1);
   const CHART_COLORS = ['#60a5fa', '#6ee7b7', '#fde68a', '#c4b5fd', '#86efac', '#fca5a5'];
@@ -422,14 +441,14 @@ export default function Reports({ user, perms, ownerId, profile }) {
           <div className="tw-head"><h3>Lead Distribution</h3></div>
           <div style={{ padding: '16px 20px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
-              <div className="stat-card"><div className="lbl">Total Leads</div><div className="val">{leads.length}</div></div>
-              <div className="stat-card sc-green"><div className="lbl">Won</div><div className="val">{leads.filter(l => l.stage === wonStage).length}</div></div>
-              <div className="stat-card sc-red"><div className="lbl">Lost</div><div className="val">{leads.filter(l => l.stage === lostStage).length}</div></div>
+              <div className="stat-card"><div className="lbl">Total Leads</div><div className="val">{filteredLeadsAtSource.length}</div></div>
+              <div className="stat-card sc-green"><div className="lbl">Won</div><div className="val">{filteredLeadsAtSource.filter(l => l.stage === wonStage).length}</div></div>
+              <div className="stat-card sc-red"><div className="lbl">Lost</div><div className="val">{filteredLeadsAtSource.filter(l => l.stage === lostStage).length}</div></div>
             </div>
             {stageCount.map(({ stage, count }, i) => (
               <div key={stage} className="chart-row">
-                <div className="chart-label">{stage.split(' ')[0]}</div>
-                <div className="chart-bar-wrap"><div className="chart-bar" style={{ width: `${(count / maxCount) * 100}%`, background: CHART_COLORS[i] }} /></div>
+                <div className="chart-label" style={{ minWidth: 120 }}>{stage}</div>
+                <div className="chart-bar-wrap"><div className="chart-bar" style={{ width: `${(count / maxCount) * 100}%`, background: CHART_COLORS[i % CHART_COLORS.length] }} /></div>
                 <div style={{ fontSize: 11, fontWeight: 700, minWidth: 25 }}>{count}</div>
               </div>
             ))}

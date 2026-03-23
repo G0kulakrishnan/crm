@@ -58,36 +58,68 @@ export default async function handler(req, res) {
       createdAt: now,
     }));
 
-    // 3. Auto-add to Leads if not already a lead (by email or phone)
-    if (customer.email || customer.phone) {
-      const existing = await db.query({ leads: { $: { where: { userId: ownerId } } } });
-      const matchLead = existing.leads?.find(l =>
-        (customer.email && l.email === customer.email) ||
-        (customer.phone && l.phone === customer.phone)
-      );
-      if (!matchLead) {
-        txs.push(tx.leads[id()].update({
-          userId: ownerId,
-          name: customer.name,
-          email: customer.email || '',
-          phone: customer.phone,
-          source: 'ecom',
-          stage: 'New Enquiry',
-          notes: `Ordered from e-com store: ${ecomName}`,
-          createdAt: now,
-        }));
-      } else {
-        // Update existing lead with new name and new note
-        const oldNotes = matchLead.notes || '';
-        const timestampedNote = `[${new Date().toLocaleDateString('en-IN')}] Ordered from e-com store: ${ecomName} (Total: ₹${total})`;
-        const newNotes = oldNotes ? `${oldNotes}\n${timestampedNote}` : timestampedNote;
-        
-        txs.push(tx.leads[matchLead.id].update({
-          name: customer.name, // Update to the newly provided name
-          notes: newNotes,
-          updatedAt: now,
-        }));
+    // 3. Lead/Customer Uniqueness & Matching
+    const { leads = [], customers = [] } = await db.query({
+      leads: { $: { where: { userId: ownerId } } },
+      customers: { $: { where: { userId: ownerId } } }
+    });
+    
+    const allEntities = [...leads, ...customers];
+    const pEmail = customer.email?.toLowerCase().trim();
+    const pPhone = customer.phone?.trim();
+    
+    // Find records that match EITHER email OR phone
+    const matches = allEntities.filter(e => 
+      (pEmail && e.email?.toLowerCase().trim() === pEmail) ||
+      (pPhone && e.phone?.trim() === pPhone)
+    );
+
+    let matchLead = null;
+    if (matches.length > 0) {
+      // Check for conflicts
+      const conflict = matches.some(m => {
+        const emailMatch = pEmail && m.email?.toLowerCase().trim() === pEmail;
+        const phoneMatch = pPhone && m.phone?.trim() === pPhone;
+        // Conflict if email matches but phone exists and is different, or vice versa
+        if (emailMatch && pPhone && m.phone && m.phone.trim() !== pPhone) return true;
+        if (phoneMatch && pEmail && m.email && m.email.toLowerCase().trim() !== pEmail) return true;
+        return false;
+      }) || (new Set(matches.map(m => m.id)).size > 1);
+
+      if (conflict) {
+        return res.status(400).json({ error: 'Mail ID or phone number mismatch with existing record' });
       }
+      
+      const found = matches[0];
+      // If it's a lead, we'll update it later if needed. If it's a customer, we just link it.
+      if (leads.find(l => l.id === found.id)) {
+        matchLead = found;
+      }
+    }
+
+    if (!matchLead && !customers.some(c => matches.some(m => m.id === c.id))) {
+      // Create new lead if no lead or customer matched
+      txs.push(tx.leads[id()].update({
+        userId: ownerId,
+        name: customer.name,
+        email: customer.email || '',
+        phone: customer.phone,
+        source: 'ecom',
+        stage: 'New Enquiry',
+        notes: `Ordered from e-com store: ${ecomName}`,
+        createdAt: now,
+      }));
+    } else if (matchLead) {
+      // Update existing lead
+      const oldNotes = matchLead.notes || '';
+      const timestampedNote = `[${new Date().toLocaleDateString('en-IN')}] Ordered from e-com store: ${ecomName} (Total: ₹${total})`;
+      const newNotes = oldNotes ? `${oldNotes}\n${timestampedNote}` : timestampedNote;
+      
+      txs.push(tx.leads[matchLead.id].update({
+        name: customer.name,
+        notes: newNotes,
+        updatedAt: now,
+      }));
     }
 
     // 4. Link order ID back to invoice

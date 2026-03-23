@@ -37,12 +37,15 @@ export default function Dashboard({ user, ownerId, perms }) {
 
   const { leads, quotes, invoices, projects, amc, orders, appts } = useMemo(() => {
     const savedLeadStages = profile.leadStages;
-    const filteredLeads = (!savedLeadStages || savedLeadStages.length === 0)
-      ? leadsRaw
-      : leadsRaw.filter(l => savedLeadStages.includes(l.stage));
+    const disabledStages = profile.disabledStages || [];
+    const filteredLeads = leadsRaw.filter(l => {
+      if (savedLeadStages?.length > 0 && !savedLeadStages.includes(l.stage)) return false;
+      if (disabledStages.includes(l.stage)) return false;
+      return true;
+    });
     
     return { leads: filteredLeads, quotes: quotesRaw, invoices: invoicesRaw, projects: projectsRaw, amc: amcRaw, orders: ordersRaw, appts: apptsRaw };
-  }, [leadsRaw, quotesRaw, invoicesRaw, projectsRaw, amcRaw, ordersRaw, apptsRaw, profile.leadStages]);
+  }, [leadsRaw, quotesRaw, invoicesRaw, projectsRaw, amcRaw, ordersRaw, apptsRaw, profile.leadStages, profile.disabledStages]);
   const now = new Date();
 
   const stats = useMemo(() => {
