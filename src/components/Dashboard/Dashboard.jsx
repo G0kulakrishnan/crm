@@ -106,10 +106,13 @@ export default function Dashboard({ user, ownerId, perms }) {
         total: 0
       });
     }
-    invoices.filter(inv => inv.status === 'Paid').forEach(inv => {
+    invoices.forEach(inv => {
       const idate = new Date(inv.date);
       const mIdx = months.findIndex(m => m.month === idate.getMonth() && m.year === idate.getFullYear());
-      if (mIdx !== -1) months[mIdx].total += (inv.total || 0);
+      if (mIdx !== -1) {
+        const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
+        months[mIdx].total += payments.reduce((s, p) => s + (p.amount || 0), 0);
+      }
     });
     return months;
   }, [invoices]);
@@ -118,14 +121,27 @@ export default function Dashboard({ user, ownerId, perms }) {
   // Profit & Loss
   const pnl = useMemo(() => {
     const prodMap = (data?.products || []).reduce((acc, p) => { acc[p.name] = p; return acc; }, {});
-    const revenue = invoices.filter(inv => inv.status === 'Paid').reduce((s, inv) => s + (inv.total || 0), 0);
+    let revenue = 0;
     let cogs = 0;
-    invoices.filter(inv => inv.status === 'Paid').forEach(inv => {
-      (inv.items || []).forEach(item => {
-        const prod = prodMap[item.name];
-        if (prod && prod.purchasePrice) cogs += (item.qty || 0) * prod.purchasePrice;
-      });
+
+    invoices.forEach(inv => {
+      const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
+      const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
+      
+      if (paidAmt > 0) {
+        revenue += paidAmt;
+        
+        let invCogs = 0;
+        const items = Array.isArray(inv.items) ? inv.items : (inv.items ? JSON.parse(inv.items) : []);
+        items.forEach(item => {
+          const prod = prodMap[item.name];
+          if (prod && prod.purchasePrice) invCogs += (item.qty || 0) * prod.purchasePrice;
+        });
+        
+        cogs += (inv.total > 0) ? (paidAmt / inv.total) * invCogs : 0;
+      }
     });
+
     const totalExpenses = (data?.expenses || []).filter(e => e.status === 'Approved').reduce((s, e) => s + (e.amount || 0), 0);
     const grossProfit = revenue - cogs;
     const netProfit = grossProfit - totalExpenses;

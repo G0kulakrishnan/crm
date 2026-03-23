@@ -80,15 +80,21 @@ export default function Reports({ user, perms, ownerId, profile }) {
 
   const getInvTax = (inv) => {
     if (typeof inv.taxAmt === 'number') return inv.taxAmt;
-    if (!inv.items) return 0;
-    return inv.items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0) * (it.taxRate || 0) / 100, 0);
+    const items = Array.isArray(inv.items) ? inv.items : (inv.items ? JSON.parse(inv.items) : []);
+    if (!items || items.length === 0) return 0;
+    return items.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0) * (it.taxRate || 0) / 100, 0);
   };
 
   const { revenue, gst, inputGst } = useMemo(() => {
     let revenue = 0, gst = 0, inputGst = 0;
-    filteredInv.filter(inv => inv.status === 'Paid').forEach(inv => {
-      revenue += (inv.total || 0);
-      gst += getInvTax(inv);
+    filteredInv.forEach(inv => {
+      const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
+      const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
+      if (paidAmt > 0) {
+        revenue += paidAmt;
+        const totalTax = getInvTax(inv);
+        gst += (inv.total > 0) ? (paidAmt / inv.total) * totalTax : 0;
+      }
     });
     filteredExp.filter(e => e.status === 'Approved').forEach(e => {
       inputGst += (e.taxAmt || 0);
@@ -140,13 +146,14 @@ export default function Reports({ user, perms, ownerId, profile }) {
   // Revenue by Source
   const revBySource = useMemo(() => {
     const srcMap = {};
-    filteredInv.filter(inv => inv.status === 'Paid').forEach(inv => {
-      // Find the lead associated with this client to get the source
-      // This is a bit of a placeholder since we'd need a robust relation, 
-      // but we'll try to match by client name for now or fallback to 'Other'
-      const lead = filteredLeadsAtSource.find(l => l.name === inv.client);
-      const src = lead?.source || 'Direct/Existing';
-      srcMap[src] = (srcMap[src] || 0) + (inv.total || 0);
+    filteredInv.forEach(inv => {
+      const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
+      const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
+      if (paidAmt > 0) {
+        const lead = filteredLeadsAtSource.find(l => l.name === inv.client);
+        const src = lead?.source || 'Direct/Existing';
+        srcMap[src] = (srcMap[src] || 0) + paidAmt;
+      }
     });
     return Object.entries(srcMap).sort((a, b) => b[1] - a[1]);
   }, [filteredInv, filteredLeadsAtSource]);
@@ -155,11 +162,16 @@ export default function Reports({ user, perms, ownerId, profile }) {
   // Monthly GST Breakdown
   const gstBreakdown = useMemo(() => {
     const months = {};
-    filteredInv.filter(inv => inv.status === 'Paid').forEach(inv => {
-      const d = new Date(inv.date);
-      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      if (!months[k]) months[k] = { out: 0, inp: 0 };
-      months[k].out += getInvTax(inv);
+    filteredInv.forEach(inv => {
+      const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
+      const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
+      if (paidAmt > 0) {
+        const d = new Date(inv.date);
+        const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (!months[k]) months[k] = { out: 0, inp: 0 };
+        const totalTax = getInvTax(inv);
+        months[k].out += (inv.total > 0) ? (paidAmt / inv.total) * totalTax : 0;
+      }
     });
     filteredExp.filter(e => e.status === 'Approved').forEach(e => {
       const d = new Date(e.date);
@@ -185,19 +197,29 @@ export default function Reports({ user, perms, ownerId, profile }) {
 
   const handleExport = () => {
     if (tab === 'pl') {
-      exportCSV(['Invoice No', 'Client', 'Date', 'Status', 'Amount'], filteredInv.map(inv => [inv.no, inv.client, fmtD(inv.date), inv.status, inv.total]), `PL_Report_${fromDate}_to_${toDate}`);
+      const plData = filteredInv.map(inv => {
+        const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
+        const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
+        return { ...inv, paidAmt };
+      }).filter(inv => inv.paidAmt > 0);
+      exportCSV(['Invoice No', 'Client', 'Date', 'Status', 'Paid Amount'], plData.map(inv => [inv.no, inv.client, fmtD(inv.date), inv.status, inv.paidAmt]), `PL_Report_${fromDate}_to_${toDate}`);
     } else if (tab === 'gst') {
+      const gstDetails = filteredInv.map(inv => {
+        const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
+        const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
+        const totalTax = getInvTax(inv);
+        const paidTax = (inv.total > 0) ? (paidAmt / inv.total) * totalTax : 0;
+        return { ...inv, paidAmt, paidTax };
+      }).filter(inv => inv.paidAmt > 0);
+
       const rows = [
         ['--- Monthly Summary ---'],
         ['Month', 'Output GST', 'Input GST', 'Net Payable'],
         ...gstBreakdown.map(([k, v]) => [k, v.out, v.inp, v.out - v.inp]),
         [''],
         ['--- Invoice Details ---'],
-        ['Invoice No', 'Client', 'Status', 'Taxable Amount', 'GST Amount'],
-        ...filteredInv.map(inv => {
-          const t = getInvTax(inv);
-          return [inv.no, inv.client, inv.status, (inv.total || 0) - t, t];
-        })
+        ['Invoice No', 'Client', 'Status', 'Paid Taxable Amt', 'Paid GST Amt'],
+        ...gstDetails.map(inv => [inv.no, inv.client, inv.status, inv.paidAmt - inv.paidTax, inv.paidTax])
       ];
       exportCSV(rows[0], rows.slice(1), `GST_Detailed_Report_${fromDate}_to_${toDate}`);
     } else if (tab === 'team') {
@@ -281,8 +303,25 @@ export default function Reports({ user, perms, ownerId, profile }) {
               <table>
                 <thead><tr><th>Invoice No.</th><th>Client</th><th>Date</th><th>Status</th><th>Amount</th></tr></thead>
                 <tbody>
-                  {filteredInv.length === 0 ? <tr><td colSpan={5} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No invoices in this period</td></tr>
-                    : filteredInv.map(inv => <tr key={inv.id}><td style={{ fontSize: 12 }}>{inv.no}</td><td>{inv.client}</td><td style={{ fontSize: 12 }}>{fmtD(inv.date)}</td><td><span className={`badge ${inv.status === 'Paid' ? 'bg-green' : inv.status === 'Overdue' ? 'bg-red' : 'bg-gray'}`}>{inv.status}</span></td><td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td></tr>)}
+                  {(() => {
+                    const plData = filteredInv.map(inv => {
+                      const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
+                      const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
+                      return { ...inv, paidAmt };
+                    }).filter(inv => inv.paidAmt > 0);
+
+                    if (plData.length === 0) return <tr><td colSpan={5} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No paid invoices in this period</td></tr>;
+                    
+                    return plData.map(inv => (
+                      <tr key={inv.id}>
+                        <td style={{ fontSize: 12 }}>{inv.no}</td>
+                        <td>{inv.client}</td>
+                        <td style={{ fontSize: 12 }}>{fmtD(inv.date)}</td>
+                        <td><span className={`badge ${inv.status === 'Paid' ? 'bg-green' : inv.status === 'Partially Paid' ? 'bg-blue' : inv.status === 'Overdue' ? 'bg-red' : 'bg-gray'}`}>{inv.status}</span></td>
+                        <td style={{ fontWeight: 700 }}>{fmt(inv.paidAmt)}</td>
+                      </tr>
+                    ));
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -349,18 +388,27 @@ export default function Reports({ user, perms, ownerId, profile }) {
                 <table className="li-table" style={{ width: '100%' }}>
                   <thead><tr><th>Invoice No.</th><th>Client</th><th>Status</th><th>Taxable Amount</th><th>GST Amount</th></tr></thead>
                   <tbody>
-                    {filteredInv.map(inv => {
-                      const t = getInvTax(inv);
-                      return (
+                    {(() => {
+                      const gstDetails = filteredInv.map(inv => {
+                        const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
+                        const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
+                        const totalTax = getInvTax(inv);
+                        const paidTax = (inv.total > 0) ? (paidAmt / inv.total) * totalTax : 0;
+                        return { ...inv, paidAmt, paidTax };
+                      }).filter(inv => inv.paidAmt > 0);
+
+                      if (gstDetails.length === 0) return <tr><td colSpan={5} style={{ textAlign: 'center', padding: 20 }}>No paid invoices in this period</td></tr>;
+
+                      return gstDetails.map(inv => (
                         <tr key={inv.id}>
                           <td>{inv.no}</td>
                           <td>{inv.client}</td>
-                          <td><span className={`badge ${inv.status === 'Paid' ? 'bg-green' : 'bg-gray'}`}>{inv.status}</span></td>
-                          <td style={{ textAlign: 'right' }}>{fmt((inv.total || 0) - t)}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>{fmt(t)}</td>
+                          <td><span className={`badge ${inv.status === 'Paid' ? 'bg-green' : inv.status === 'Partially Paid' ? 'bg-blue' : 'bg-gray'}`}>{inv.status}</span></td>
+                          <td style={{ textAlign: 'right' }}>{fmt(inv.paidAmt - inv.paidTax)}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#16a34a' }}>{fmt(inv.paidTax)}</td>
                         </tr>
-                      );
-                    })}
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>
