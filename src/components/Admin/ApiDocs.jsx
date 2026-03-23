@@ -187,7 +187,24 @@ export default function ApiDocs({ ownerId }) {
   );
 
   return (
-    <div style={{ paddingBottom: 60 }}>
+    <div className="reports-view api-docs-view">
+      <style>{`
+        @media print {
+          .no-print, .btn, .btn-sm, .sidebar, .topbar, .sh button, .btn-icon { display: none !important; }
+          body, .app, .main, .content, .api-docs-view { background: #fff !important; padding: 0 !important; margin: 0 !important; width: 100% !important; overflow: visible !important; }
+          .sh { padding: 0 !important; margin-bottom: 20px !important; border: none !important; box-shadow: none !important; }
+          .tw { border: none !important; box-shadow: none !important; background: #fff !important; }
+          .tw-head { border-bottom: 2px solid #eee !important; padding: 10px 0 !important; }
+          pre { white-space: pre-wrap !important; word-break: break-all !important; border: 1px solid #ddd !important; }
+          .badge { border: 1px solid #ddd !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          h2, h3, h4 { color: #000 !important; }
+          a { text-decoration: none !important; color: #000 !important; }
+          /* Ensure column layout in print */
+          .api-docs-view .tw pre { font-size: 10px !important; }
+        }
+        .api-docs-view .btn-icon { opacity: 0.6; transition: opacity 0.2s; }
+        .api-docs-view .btn-icon:hover { opacity: 1; }
+      `}</style>
       <div className="sh">
         <div>
           <h2>API Documentation</h2>
@@ -203,6 +220,9 @@ export default function ApiDocs({ ownerId }) {
           URL.revokeObjectURL(url);
         }}>
           📥 Export Full Specs (JSON)
+        </button>
+        <button className="btn btn-primary btn-sm" onClick={() => window.print()}>
+          📄 Download as PDF
         </button>
       </div>
 
