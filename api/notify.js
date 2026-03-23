@@ -23,19 +23,42 @@ export default async function handler(req, res) {
     const profile = (await db.query({ userProfiles: { $: { where: { userId: ownerId }, limit: 1 } } })).userProfiles?.[0];
 
     if (type === 'whatsapp') {
-      const waToken = profile?.waToken;
-      const waPhoneNumberId = profile?.waPhoneNumberId;
-      if (!waToken || !waPhoneNumberId) return res.status(400).json({ error: 'WhatsApp not configured' });
-      const cleanToken = waToken.trim().replace(/^Bearer\s+/i, '');
+      const waApiToken = profile?.waApiToken; // waprochat api token
+      const waPhoneId = profile?.waPhoneId;   // waprochat phone number id
+      const { templateId, variables } = req.body || {};
+
+      if (!waApiToken || !waPhoneId) return res.status(400).json({ error: 'WhatsApp not configured (API Token or Phone ID missing)' });
+      
       const phone = to.replace(/\D/g, '');
-      const response = await fetch(`https://graph.facebook.com/v21.0/${waPhoneNumberId}/messages`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${cleanToken}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: phone, type: 'text', text: { body: message || body } })
-      });
-      const data = await response.json();
-      if (response.ok) return res.status(200).json({ success: true, messageId: data.messages?.[0]?.id });
-      return res.status(400).json({ error: data.error?.message || 'WhatsApp fail', details: data });
+      const formattedPhone = phone.startsWith('91') ? `+${phone}` : phone.length === 10 ? `+91${phone}` : `+${phone}`;
+
+      if (templateId) {
+        // Waprochat Template API
+        const formData = new URLSearchParams();
+        formData.append('apiToken', waApiToken);
+        formData.append('phone_number_id', waPhoneId);
+        formData.append('template_id', templateId);
+        formData.append('phone_number', formattedPhone);
+        
+        if (variables && Array.isArray(variables)) {
+          variables.forEach(v => {
+            formData.append(`templateVariable-${v.field}-${v.index}`, v.value || '');
+          });
+        }
+
+        const response = await fetch('https://portal.waprochat.in/api/v1/whatsapp/send/template', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await response.json();
+        if (response.ok && data.status === 'success') return res.status(200).json({ success: true, messageId: data.message_id });
+        return res.status(400).json({ error: data.message || 'Waprochat template fail', details: data });
+      } else {
+        // Fallback or Generic Text (Old Meta style but using Waprochat credentials if they support it, 
+        // OR we just send a simple message via Waprochat if they have a non-template API)
+        // Waprochat usually requires templates. For now, we'll focus on templates as requested.
+        return res.status(400).json({ error: 'Template ID required for Waprochat integration' });
+      }
     }
 
     // Default: Email

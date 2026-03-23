@@ -25,7 +25,7 @@ const SETTINGS_GROUPS = [
   },
   {
     title: 'Comms & Alerts',
-    items: ['SMTP', 'WhatsApp', 'Reminders']
+    items: ['SMTP', 'WhatsApp', 'WhatsApp Templates', 'Reminders']
   }
 ];
 
@@ -91,8 +91,9 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   const [smtpPort, setSmtpPort] = useState(profile?.smtpPort || '587');
   const [smtpUser, setSmtpUser] = useState(profile?.smtpUser || '');
   const [smtpPass, setSmtpPass] = useState(profile?.smtpPass || '');
-  const [waToken, setWaToken] = useState(profile?.waToken || '');
-  const [waPhoneNumberId, setWaPhoneNumberId] = useState(profile?.waPhoneNumberId || '');
+  const [waApiToken, setWaApiToken] = useState(profile?.waApiToken || '');
+  const [waPhoneId, setWaPhoneId] = useState(profile?.waPhoneId || '');
+  const [whatsappTemplates, setWhatsappTemplates] = useState(profile?.whatsappTemplates || []);
   const [waTestNumber, setWaTestNumber] = useState('');
   const [newSource, setNewSource] = useState('');
   const [newStage, setNewStage] = useState('');
@@ -145,8 +146,9 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       setSmtpPort(profile.smtpPort || '587');
       setSmtpUser(profile.smtpUser || '');
       setSmtpPass(profile.smtpPass || '');
-      setWaToken(profile.waToken || '');
-      setWaPhoneNumberId(profile.waPhoneNumberId || '');
+      setWaApiToken(profile.waApiToken || '');
+      setWaPhoneId(profile.waPhoneId || '');
+      setWhatsappTemplates(profile.whatsappTemplates || []);
       setReminders(profile.reminders || {
         amc: { days: 30, msg: 'Hello {client}, your AMC contract is expiring on {date}. Please contact us for renewal.' },
         followup: { days: 1, msg: 'Reminder: Follow-up with {client} is scheduled for {date}.' }
@@ -456,38 +458,32 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   };
 
   const saveWA = async () => {
-    if (!waToken.trim()) return toast('Access Token is required', 'error');
-    if (!waPhoneNumberId.trim()) return toast('Phone Number ID is required', 'error');
-    const payload = { waToken, waPhoneNumberId, userId: ownerId };
+    if (!waApiToken.trim()) return toast('API Token is required', 'error');
+    if (!waPhoneId.trim()) return toast('Phone Number ID is required', 'error');
+    const payload = { waApiToken, waPhoneId, whatsappTemplates, userId: ownerId };
     if (profileId) { await db.transact(db.tx.userProfiles[profileId].update(payload)); }
     toast('WhatsApp settings saved!', 'success');
   };
 
   const testWA = async () => {
-    if (!waToken || !waPhoneNumberId) return toast('Please save WhatsApp settings first', 'error');
+    if (!waApiToken || !waPhoneId) return toast('Please save WhatsApp settings first', 'error');
     const testTo = waTestNumber || prompt('Send test message to (with country code e.g. +919876543210):');
     if (!testTo) return;
+    
+    // For manual test, we'll try to use the first template if available, or just a generic one
     const testMsg = `Hello! This is a test message from your TechCRM account. WhatsApp integration is working correctly! 🚀\n\nBusiness: ${biz.bizName || 'Your Business'}`;
+    
     try {
       toast('Sending test WhatsApp message...', 'info');
+      // Update sendWhatsApp to handle waprochat if possible
       const result = await sendWhatsApp(testTo, testMsg, ownerId, user.id);
       if (result === 'OK') {
         toast('✅ Test WhatsApp message sent successfully!', 'success');
       } else {
-        let errHint = result;
-        if (result.includes('access token') || result.includes('parse')) {
-          errHint = `Invalid Token! Please check your Meta Access Token and ensure it hasn't expired.`;
-        } else if (result.includes('15 characters') || result.includes('ID')) {
-          errHint = `Check your Phone Number ID. It should be a 15-digit number from Meta's API Setup page.`;
-        }
-        toast(`Error: ${errHint}`, 'warning');
+        toast(`Error: ${result}`, 'warning');
       }
     } catch (e) {
-      let msg = e.message;
-      if (msg.includes('parse access token')) {
-        msg = "Meta Error: Cannot parse Access Token. Please re-copy the token from Meta Dashboard and ensure no extra characters.";
-      }
-      toast(`Failed: ${msg}`, 'error');
+      toast(`Failed: ${e.message}`, 'error');
     }
   };
 
@@ -1134,83 +1130,173 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
 
           {active === 'WhatsApp' && (
             <div className="tw">
-              <div className="tw-head">
-                <h3>📱 WhatsApp Business API</h3>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button className="btn btn-secondary btn-sm" onClick={testWA}>Test Send</button>
-                  <button className="btn btn-primary btn-sm" onClick={saveWA}>Save</button>
-                </div>
-              </div>
+              <div className="tw-head"><h3>WhatsApp API (Waprochat)</h3><button className="btn btn-primary btn-sm" onClick={saveWA}>Save Settings</button></div>
               <div style={{ padding: '20px' }}>
-                <div className="sub" style={{ marginBottom: 18 }}>
-                  Connect your official Meta WhatsApp Business API to send messages directly from the CRM.
-                </div>
-
-                {/* Status indicator */}
-                {waToken && waPhoneNumberId ? (
+                <div className="sub" style={{ marginBottom: 20 }}>Configure your Waprochat API credentials to enable automated WhatsApp notifications.</div>
+                
+                {waApiToken && waPhoneId ? (
                   <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10, padding: '10px 14px', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                     <span style={{ color: '#16a34a', fontWeight: 700 }}>✓ Configured</span>
-                    <span style={{ color: '#166534' }}>— WhatsApp API credentials are on file. Use "Test Send" to verify.</span>
+                    <span style={{ color: '#166534' }}>— Waprochat API credentials are on file. Use "Test Send" to verify.</span>
                   </div>
                 ) : (
                   <div style={{ background: '#fefce8', border: '1px solid #fde047', borderRadius: 10, padding: '10px 14px', marginBottom: 18, fontSize: 13, color: '#854d0e' }}>
-                    ⚠ Not configured. Fill in your Meta API credentials below and click Save.
+                    ⚠ Not configured. Fill in your Waprochat API credentials below and click Save.
                   </div>
                 )}
 
                 <div className="fgrid">
                   <div className="fg span2">
-                    <label>Access Token *</label>
+                    <label>API Token *</label>
                     <input
                       type="password"
-                      value={waToken}
-                      onChange={e => setWaToken(e.target.value)}
-                      placeholder="EAAxxxxxxxxxx... (Permanent or Temporary Token)"
+                      value={waApiToken}
+                      onChange={e => setWaApiToken(e.target.value)}
+                      placeholder="e.g. 98745tokenkAWM9fev71ad4c47"
                     />
                   </div>
                   <div className="fg">
                     <label>Phone Number ID *</label>
                     <input
-                      value={waPhoneNumberId}
-                      onChange={e => setWaPhoneNumberId(e.target.value)}
-                      placeholder="e.g. 123456789012345"
+                      value={waPhoneId}
+                      onChange={e => setWaPhoneId(e.target.value)}
+                      placeholder="e.g. 667652836439455"
                     />
                   </div>
                   <div className="fg">
                     <label>Test Phone Number (for Test Send)</label>
-                    <input
-                      value={waTestNumber}
-                      onChange={e => setWaTestNumber(e.target.value)}
-                      placeholder="+919876543210"
-                    />
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <input
+                        value={waTestNumber}
+                        onChange={e => setWaTestNumber(e.target.value)}
+                        placeholder="+919876543210"
+                        style={{ flex: 1 }}
+                      />
+                      <button className="btn btn-secondary btn-sm" onClick={testWA}>Test Send</button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Setup Guide */}
                 <div style={{ marginTop: 20, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
                   <div style={{ padding: '10px 14px', background: 'var(--bg)', fontSize: 12, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid var(--border)' }}>📋 Setup Guide</div>
                   <div style={{ padding: '14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {[
-                      ['1', 'Go to', 'Meta Developer Portal', 'https://developers.facebook.com/apps', 'and create/select your App.'],
-                      ['2', 'Under', 'WhatsApp > API Setup', null, '— find your Phone Number ID and Temporary Access Token.'],
-                      ['3', 'For production, create a', 'System User Token', 'https://business.facebook.com/settings/system-users', 'with whatsapp_business_messaging permission.'],
-                      ['4', 'Paste your Token and Phone Number ID above, then click Save.'],
-                      ['5', 'Use "Test Send" to verify delivery to your registered test number.'],
+                      ['1', 'Login to your', 'Waprochat Portal', 'https://portal.waprochat.in', 'and navigate to API settings.'],
+                      ['2', 'Copy your', 'API Token', null, 'and', 'Phone Number ID', null, 'from the dashboard.'],
+                      ['3', 'Paste them into the fields above and click Save.'],
+                      ['4', 'Go to the "WhatsApp Templates" tab to configure your message templates.'],
+                      ['5', 'Ensure your templates are approved on the portal before using them here.'],
                     ].map(([num, ...parts]) => (
                       <div key={num} style={{ display: 'flex', gap: 10, fontSize: 12 }}>
-                        <span style={{ width: 20, height: 20, borderRadius: '50%', background: '#22c55e', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{num}</span>
+                        <span style={{ width: 20, height: 20, borderRadius: '50%', background: 'var(--accent)', color: '#fff', fontSize: 10, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{num}</span>
                         <span style={{ color: 'var(--text)', lineHeight: 1.5 }}>
-                          {parts.length === 4 ? (
-                            <>{parts[0]} <a href={parts[2]} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontWeight: 600 }}>{parts[1]}</a> {parts[3]}</>
+                          {parts.length === 5 ? (
+                            <>{parts[0]} <a href={parts[2]} target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontWeight: 600 }}>{parts[1]}</a> {parts[3]} {parts[4]}</>
                           ) : parts.join(' ')}
                         </span>
                       </div>
                     ))}
                   </div>
                 </div>
+              </div>
+            </div>
+          )}
 
-                <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: 12, fontSize: 12, marginTop: 12, color: '#1e40af' }}>
-                  💡 <strong>Note:</strong> Free tier allows sending to <strong>verified test numbers only</strong>. To message anyone, your WhatsApp Business account must be approved by Meta.
+          {active === 'WhatsApp Templates' && (
+            <div className="tw">
+              <div className="tw-head"><h3>WhatsApp Templates</h3><button className="btn btn-primary btn-sm" onClick={saveWA}>Save All Templates</button></div>
+              <div style={{ padding: '20px' }}>
+                <div className="sub" style={{ marginBottom: 20 }}>Manage your WhatsApp templates and map system fields to template variables.</div>
+
+                <div style={{ marginBottom: 24, padding: 16, background: 'var(--bg-soft)', borderRadius: 12, border: '1px solid var(--border)' }}>
+                  <h4 style={{ marginBottom: 12 }}>Add New Template</h4>
+                  <div className="fgrid">
+                    <div className="fg"><label>Template Name</label><input placeholder="e.g. Order Confirmation" id="new_wa_name" /></div>
+                    <div className="fg"><label>Waprochat Template ID</label><input placeholder="e.g. 329129" id="new_wa_id" /></div>
+                    <div className="fg span2"><label>Message Body (for reference)</label><textarea placeholder="Hi {{1}}, your order for {{2}} is confirmed!" id="new_wa_body" style={{ minHeight: 60 }} /></div>
+                    <div className="fg span2">
+                      <label>Variable Mapping {'{{1}}, {{2}}, ...'}</label>
+                      <div id="new_wa_vars" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+                        {[1, 2, 3, 4, 5].map(i => (
+                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, backgroundColor: '#fff', padding: '4px 10px', borderRadius: 8, border: '1px solid var(--border)' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>{'{{' + i + '}}'}</span>
+                            <select id={`wa_var_${i}`} style={{ fontSize: 11, padding: '2px 4px', border: 'none', backgroundColor: 'transparent' }}>
+                              <option value="">None</option>
+                              <option value="name">Customer Name</option>
+                              <option value="service">Service/Product</option>
+                              <option value="date">Date/Time</option>
+                              <option value="amount">Total Amount</option>
+                              <option value="orderId">Order/ID</option>
+                              <option value="slug">Business Name</option>
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => {
+                    const name = document.getElementById('new_wa_name').value;
+                    const templateId = document.getElementById('new_wa_id').value;
+                    const body = document.getElementById('new_wa_body').value;
+                    if (!name || !templateId) return toast('Name and Template ID required', 'error');
+                    
+                    const variables = [];
+                    for(let i=1; i<=5; i++) {
+                      const field = document.getElementById(`wa_var_${i}`).value;
+                      if (field) variables.push({ index: i, field });
+                    }
+
+                    setWhatsappTemplates([...whatsappTemplates, { id: id(), name, templateId, body, variables }]);
+                    document.getElementById('new_wa_name').value = '';
+                    document.getElementById('new_wa_id').value = '';
+                    document.getElementById('new_wa_body').value = '';
+                    [1,2,3,4,5].forEach(i => document.getElementById(`wa_var_${i}`).value = '');
+                    toast('Template added locally. Click "Save All Templates" to persist.', 'info');
+                  }}>Add Template</button>
+                </div>
+
+                <div className="tw-scroll">
+                  <table style={{ background: 'var(--bg)', borderRadius: 12, overflow: 'hidden' }}>
+                    <thead style={{ background: 'var(--bg-soft)' }}>
+                      <tr>
+                        <th>Template Name</th>
+                        <th>Template ID</th>
+                        <th>Mapping</th>
+                        <th style={{ textAlign: 'right' }}>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {whatsappTemplates.length === 0 ? (
+                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: 20, color: 'var(--muted)' }}>No templates added yet.</td></tr>
+                      ) : (
+                        whatsappTemplates.map((t, idx) => (
+                          <tr key={t.id}>
+                            <td style={{ verticalAlign: 'top' }}>
+                              <div style={{ fontWeight: 700 }}>{t.name}</div>
+                              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, whiteSpace: 'pre-wrap', maxWidth: 200 }}>{t.body}</div>
+                            </td>
+                            <td style={{ verticalAlign: 'top' }}><code>{t.templateId}</code></td>
+                            <td style={{ verticalAlign: 'top' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                                {t.variables.map(v => (
+                                  <div key={v.index} style={{ fontSize: 11 }}>
+                                    <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{`{{${v.index}}}`}</span> → {v.field}
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'right', verticalAlign: 'top' }}>
+                              <button className="btn-icon" style={{ color: '#ef4444' }} onClick={() => {
+                                if (window.confirm('Delete this template?')) {
+                                  setWhatsappTemplates(whatsappTemplates.filter((_, i) => i !== idx));
+                                }
+                              }}>🗑</button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>

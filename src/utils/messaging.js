@@ -107,23 +107,32 @@ export const sendWhatsApp = async (to, message, ownerId, userId) => {
   }
 
   try {
+    const payload = { to, message, ownerId, type: 'whatsapp' };
+    if (typeof message === 'object' && message.templateId) {
+      payload.templateId = message.templateId;
+      payload.variables = message.variables;
+      payload.message = message.body || 'Template Message';
+    }
+
     const resp = await fetch('/api/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to, message, ownerId, type: 'whatsapp' })
+      body: JSON.stringify(payload)
     });
 
     const data = await resp.json();
 
     if (resp.ok && data.success) {
-      if (userId) await logToOutbox(userId, 'whatsapp', to, message, { status: 'Sent' });
+      const content = typeof message === 'object' ? `Template: ${message.name || message.templateId}\nBody: ${message.body}` : message;
+      if (userId) await logToOutbox(userId, 'whatsapp', to, content, { status: 'Sent', templateId: message?.templateId });
       return 'OK';
     } else {
       throw new Error(data.error || 'Failed to send WhatsApp message');
     }
   } catch (err) {
     const errMsg = err.message || JSON.stringify(err);
-    if (userId) await logToOutbox(userId, 'whatsapp', to, message, { status: 'Failed', error: errMsg });
+    const content = typeof message === 'object' ? `Template: ${message.name || message.templateId}` : message;
+    if (userId) await logToOutbox(userId, 'whatsapp', to, content, { status: 'Failed', error: errMsg });
     throw new Error(errMsg);
   }
 };

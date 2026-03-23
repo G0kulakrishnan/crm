@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import db from '../instant';
 import { id } from '@instantdb/react';
-import { renderTemplate, sendEmailMock, sendWhatsAppMock, sendEmail } from '../utils/messaging';
+import { renderTemplate, sendEmailMock, sendWhatsAppMock, sendWhatsApp, sendEmail } from '../utils/messaging';
 
 /**
  * Calculates the delay offset in milliseconds from a delay config object.
@@ -201,7 +201,25 @@ export default function useAutomationEngine(user, ownerId) {
             }
 
             if (actionId === 'act-wa') {
-              await sendWhatsAppMock(ownerId, target.phone, body, { entityId: logEntityId, entityType: logEntityType });
+              console.log(`[Automation] 📱 Sending WhatsApp to ${target.phone} for flow: ${flow.name}`);
+              const selectedTemplate = profile.whatsappTemplates?.find(t => t.id === flow.whatsappTemplateId);
+              
+              if (selectedTemplate) {
+                const variables = selectedTemplate.variables.map(v => ({
+                  index: v.index,
+                  field: v.field,
+                  value: templateData[v.field] || ''
+                }));
+                await sendWhatsApp(target.phone, {
+                  templateId: selectedTemplate.templateId,
+                  name: selectedTemplate.name,
+                  body: renderTemplate(selectedTemplate.body, templateData),
+                  variables
+                }, ownerId, ownerId);
+              } else {
+                // Fallback to plain text body if no template selected
+                await sendWhatsApp(target.phone, body, ownerId, ownerId);
+              }
               await logAutoActivity(logEntityId, logEntityType, `Sent WhatsApp to ${target.phone}`);
             }
 

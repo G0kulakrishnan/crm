@@ -203,6 +203,7 @@ async function executeAutomation(flow, entity, profile, processedKey) {
 
   const templateData = {
     client:      entity.name || entity.client || '',
+    name:        entity.name || entity.client || '',
     email:       entity.email || '',
     phone:       entity.phone || '',
     stage:       entity.stage || '',
@@ -213,6 +214,9 @@ async function executeAutomation(flow, entity, profile, processedKey) {
     date:        new Date().toLocaleDateString('en-IN'),
     contractNo:  entity.contractNo || '',
     amount:      entity.amount || '',
+    // Appointment/Order fields if available
+    service:     entity.service || '',
+    orderId:     entity.id?.slice(0, 8) || '',
   };
 
   const subject = renderTemplate(flow.subject || 'Reminder', templateData);
@@ -232,6 +236,50 @@ async function executeAutomation(flow, entity, profile, processedKey) {
         }
       }
     }
+
+    if (actionId === 'act-wa' && profile.waApiToken && profile.waPhoneId) {
+      for (const target of targets) {
+        try {
+          const phone = target.phone || entity.phone || '';
+          if (!phone) continue;
+          const cleanPhone = phone.replace(/\D/g, '');
+          const formattedPhone = cleanPhone.startsWith('91') ? `+${cleanPhone}` : cleanPhone.length === 10 ? `+91${cleanPhone}` : `+${cleanPhone}`;
+          
+          const selectedTemplate = profile.whatsappTemplates?.find(t => t.id === flow.whatsappTemplateId);
+          console.log(`[CRON]     📱 Attempting WhatsApp to ${formattedPhone} (Template: ${selectedTemplate?.name || 'Manual'})...`);
+
+          if (selectedTemplate) {
+            const formData = new URLSearchParams();
+            formData.append('apiToken', profile.waApiToken);
+            formData.append('phone_number_id', profile.waPhoneId);
+            formData.append('template_id', selectedTemplate.templateId);
+            formData.append('phone_number', formattedPhone);
+            
+            if (selectedTemplate.variables) {
+              selectedTemplate.variables.forEach(v => {
+                formData.append(`templateVariable-${v.field}-${v.index}`, templateData[v.field] || '');
+              });
+            }
+
+            const response = await fetch('https://portal.waprochat.in/api/v1/whatsapp/send/template', {
+              method: 'POST',
+              body: formData
+            });
+            const data = await response.json();
+            if (response.ok && data.status === 'success') {
+              console.log(`[CRON]     ✅ WhatsApp sent via Waprochat: ${data.message_id}`);
+            } else {
+              console.error(`[CRON]     ❌ WhatsApp Fail: ${data.message}`, data);
+            }
+          } else {
+            console.warn(`[CRON]     ⚠️ WhatsApp skipped: No template ID found for automation "${flow.name}"`);
+          }
+        } catch (err) {
+          console.error(`[CRON]     ❌ WhatsApp Error:`, err);
+        }
+      }
+    }
+
     // Handle other actions (stage, notif, etc.) if needed on server
     if (actionId === 'act-stage' && entity.id && flow.targetStage) {
       await db.transact(db.tx.leads[entity.id].update({ stage: flow.targetStage, stageChangedAt: Date.now() }));

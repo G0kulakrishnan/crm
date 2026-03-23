@@ -238,6 +238,7 @@ export default function AutomationView({ user, ownerId }) {
   const [showSaveTpl, setShowSaveTpl]   = useState(false);
   const [loadTplOpen, setLoadTplOpen]   = useState(false);
   const [editingFlowId, setEditingFlowId] = useState(null); // null = create, string = edit
+  const [whatsappTemplateId, setWhatsappTemplateId] = useState('');
 
   const toast = useToast();
 
@@ -276,7 +277,7 @@ export default function AutomationView({ user, ownerId }) {
     setConditions([]); setDelayValue(0); setDelayUnit('minutes'); setDelayDir('immediately');
     setRecipient('customer'); setEmailSubject(''); setTemplate('');
     setSaveTplName(''); setShowSaveTpl(false); setLoadTplOpen(false); setStep(1);
-    setEditingFlowId(null);
+    setEditingFlowId(null); setWhatsappTemplateId('');
   };
 
   const openCreate = () => { resetForm(); setModal(true); };
@@ -297,6 +298,7 @@ export default function AutomationView({ user, ownerId }) {
     setRecipient(a.recipient || 'customer');
     setEmailSubject(a.subject || '');
     setTemplate(a.template || '');
+    setWhatsappTemplateId(a.whatsappTemplateId || '');
     setStep(1);
     setModal(true);
   };
@@ -356,6 +358,7 @@ export default function AutomationView({ user, ownerId }) {
       targetStage,
       conditions, delay: { value: Number(delayValue), unit: delayUnit, dir: delayDir },
       recipient, subject: emailSubject, template,
+      whatsappTemplateId,
       userId: ownerId,
     };
     if (editingFlowId) {
@@ -391,6 +394,7 @@ export default function AutomationView({ user, ownerId }) {
     setDelayValue(tpl.delay.value); setDelayUnit(tpl.delay.unit);
     setDelayDir(tpl.delay.dir || (tpl.delay.value > 0 ? 'after' : 'immediately'));
     setRecipient(tpl.recipient); setEmailSubject(tpl.subject || ''); setTemplate(tpl.template || tpl.body || '');
+    setWhatsappTemplateId(tpl.whatsappTemplateId || '');
     setStep(1); setModal(true);
   };
 
@@ -819,6 +823,39 @@ export default function AutomationView({ user, ownerId }) {
                         </select>
                       ) : (
                         <div style={{fontSize:12,color:'var(--muted)',padding:'8px 0'}}>⚠ No stages configured. Add stages in Settings → Lead Stages first.</div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* WhatsApp Template picker */}
+                  {selectedActs.includes('act-wa') && (
+                    <div className="fg" style={{marginBottom:18, padding: 12, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-soft)'}}>
+                      <label style={{fontWeight:700, display: 'flex', alignItems: 'center', gap: 6}}>
+                        <span style={{fontSize:18}}>💬</span> Select WhatsApp Template
+                      </label>
+                      <div style={{fontSize: 11, color: 'var(--muted)', marginBottom: 10}}>Waprochat requires a template for automated messages. Add templates in Settings first.</div>
+                      {profile.whatsappTemplates?.length > 0 ? (
+                        <select value={whatsappTemplateId} onChange={e=>setWhatsappTemplateId(e.target.value)}
+                          style={{padding:'8px 10px',borderRadius:7,border:'1.5px solid var(--border)',fontSize:13, width: '100%', background: '#fff'}}>
+                          <option value="">Select template...</option>
+                          {profile.whatsappTemplates.map(t => (
+                            <option key={t.id} value={t.id}>{t.name} ({t.templateId})</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div style={{fontSize:12, color:'#991b1b', background: '#fee2e2', padding:'10px', borderRadius: 8, border: '1px solid #fecaca'}}>
+                          ⚠ No WhatsApp templates configured. <br/>
+                          <span style={{fontSize: 11}}>Go to <strong>Settings → WhatsApp Templates</strong> to add one.</span>
+                        </div>
+                      )}
+                      
+                      {whatsappTemplateId && profile.whatsappTemplates?.find(t => t.id === whatsappTemplateId) && (
+                        <div style={{marginTop: 10, padding: 10, background: '#fff', borderRadius: 7, border: '1px solid var(--border)', fontSize: 11}}>
+                          <div style={{fontWeight: 700, color: 'var(--muted)', marginBottom: 4}}>Preview:</div>
+                          <div style={{color: 'var(--text)', whiteSpace: 'pre-wrap'}}>
+                            {profile.whatsappTemplates.find(t => t.id === whatsappTemplateId).body}
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
