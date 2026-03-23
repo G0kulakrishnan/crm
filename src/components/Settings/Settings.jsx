@@ -465,6 +465,41 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     toast('WhatsApp settings saved!', 'success');
   };
 
+  const loadDefaultWATemplates = () => {
+    const defaults = [
+      {
+        id: 'tpl_welcome',
+        name: 'Welcome Message',
+        templateId: 'welcome_msg_01',
+        body: 'Hi {{1}}, welcome to {{2}}! We are glad to connect with you.',
+        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'slug' }]
+      },
+      {
+        id: 'tpl_order',
+        name: 'Order Confirmation',
+        templateId: 'order_conf_01',
+        body: 'Hi {{1}}, your order for {{2}} is confirmed! Order ID: {{3}}',
+        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'orderId' }]
+      },
+      {
+        id: 'tpl_appt',
+        name: 'Appointment Confirmed',
+        templateId: 'appt_conf_01',
+        body: 'Hi {{1}}, your appointment for {{2}} on {{3}} is confirmed! See you at {{4}}.',
+        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'date' }, { index: 4, field: 'bizPhone' }]
+      },
+      {
+        id: 'tpl_status',
+        name: 'Lead Status Update',
+        templateId: 'status_update_01',
+        body: 'Hi {{1}}, your status has been updated to {{2}}. Contact {{3}} for more info.',
+        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'stage' }, { index: 3, field: 'bizPhone' }]
+      }
+    ];
+    setWhatsappTemplates(defaults);
+    toast('Loaded 4 default templates. Click "Save All" to persist.', 'success');
+  };
+
   const testWA = async () => {
     if (!waApiToken || !waPhoneId) return toast('Please save WhatsApp settings first', 'error');
     const testTo = waTestNumber || prompt('Send test message to (with country code e.g. +919876543210):');
@@ -1204,7 +1239,13 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
 
           {active === 'WhatsApp Templates' && (
             <div className="tw">
-              <div className="tw-head"><h3>WhatsApp Templates</h3><button className="btn btn-primary btn-sm" onClick={saveWA}>Save All Templates</button></div>
+              <div className="tw-head">
+                <h3>WhatsApp Templates</h3>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="btn btn-secondary btn-sm" onClick={loadDefaultWATemplates}>Load Default Templates</button>
+                  <button className="btn btn-primary btn-sm" onClick={saveWA}>Save All Templates</button>
+                </div>
+              </div>
               <div style={{ padding: '20px' }}>
                 <div className="sub" style={{ marginBottom: 20 }}>Manage your WhatsApp templates and map system fields to template variables.</div>
 
