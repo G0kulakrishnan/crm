@@ -22,12 +22,7 @@ export default async function handler(req, res) {
     const existing = await db.query({
       appointments: { 
         $: { 
-          where: { 
-            userId: ownerId, 
-            date, 
-            time,
-            status: { not: ['Cancelled', 'No Show'] } 
-          } 
+          where: { userId: ownerId, date, time } 
         } 
       },
       appointmentSettings: { $: { where: { userId: ownerId } } },
@@ -35,7 +30,9 @@ export default async function handler(req, res) {
 
     const settings = existing.appointmentSettings?.[0];
     const maxPerSlot = settings?.maxPerSlot || 1;
-    const currentCount = existing.appointments?.length || 0;
+    // Filter active appointments in JS to avoid "coerced-query" validation issues
+    const activeAppointments = (existing.appointments || []).filter(a => !['Cancelled', 'No Show'].includes(a.status));
+    const currentCount = activeAppointments.length;
 
     if (currentCount >= maxPerSlot) {
       return res.status(409).json({ error: `This time slot is fully booked (max ${maxPerSlot} per slot)` });
