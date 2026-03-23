@@ -174,7 +174,7 @@ export default function useAutomationEngine(user, ownerId) {
       const body    = renderTemplate(flow.template || 'Hello {client}, this is an automated message from {bizName}.', templateData);
       const subject = renderTemplate(flow.subject  || `Message from ${profile.bizName || 'your CRM'}`, templateData);
 
-      const recipients = resolveRecipients(flow, lead || { email: amc_entry?.email, phone: amc_entry?.phone, name: amc_entry?.client });
+      const recipients = resolveRecipients(flow, entity || { email: amc_entry?.email, phone: amc_entry?.phone, name: amc_entry?.client });
 
       // Support both new actions[] array and legacy action string
       const actionList = Array.isArray(flow.actions) && flow.actions.length > 0

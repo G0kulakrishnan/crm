@@ -146,18 +146,18 @@ export default function Customers({ user, perms, ownerId }) {
     const cName = c.name.toLowerCase();
     
     // Safety check in case the client field doesn't exist
-    const cReq = (x) => (x.client || x.customer || '').toLowerCase() === cName;
+    const cReq = (x) => (x?.client || x?.customer || '').toLowerCase() === cName;
     
     const relProjects = projects.filter(cReq);
     const relQuotes = quotes.filter(cReq);
     const relInvoices = invoices.filter(cReq);
-    const relTasks = tasks.filter(t => (t.client || '').toLowerCase() === cName || (t.customer || '').toLowerCase() === cName);
+    const relTasks = tasks.filter(t => (t?.client || '').toLowerCase() === cName || (t?.customer || '').toLowerCase() === cName);
     
     // CRM entities matching client name
     const relAmc = amcList.filter(cReq);
     
     // Sort logs newest first
-    const cLogs = activityLogs.filter(l => l.entityId === c.id).sort((a,b) => b.createdAt - a.createdAt);
+    const cLogs = (activityLogs || []).filter(l => l.entityId === c.id).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     const addNote = async () => {
     if (!canEdit) { toast('Permission denied: cannot add notes', 'error'); return; }
@@ -380,9 +380,9 @@ export default function Customers({ user, perms, ownerId }) {
                         <div key={field.name} className="fg">
                           <label>{field.name}</label>
                           {field.type === 'dropdown' ? (
-                            <select value={form.custom[field.name] || ''} onChange={cf(field.name)}>
+                            <select value={(form.custom || {})[field.name] || ''} onChange={cf(field.name)}>
                               <option value="">Select...</option>
-                              {field.options.split(',').map(o => <option key={o.trim()}>{o.trim()}</option>)}
+                              {(field.options || '').split(',').map(o => <option key={o.trim()}>{o.trim()}</option>)}
                             </select>
                           ) : (
                             <input type={field.type === 'number' ? 'number' : 'text'} value={form.custom[field.name] || ''} onChange={cf(field.name)} />
@@ -403,6 +403,8 @@ export default function Customers({ user, perms, ownerId }) {
       </div>
     );
   }
+
+  if (!data) return <div className="p-xl" style={{ textAlign: 'center', color: 'var(--muted)' }}><div className="spinner" style={{ margin: '0 auto 10px' }}></div>Loading Customers...</div>;
 
   return (
     <div>
@@ -526,9 +528,9 @@ export default function Customers({ user, perms, ownerId }) {
                       <div key={field.name} className="fg">
                         <label>{field.name}</label>
                         {field.type === 'dropdown' ? (
-                          <select value={form.custom[field.name] || ''} onChange={cf(field.name)}>
+                          <select value={(form.custom || {})[field.name] || ''} onChange={cf(field.name)}>
                             <option value="">Select...</option>
-                            {field.options.split(',').map(o => <option key={o.trim()}>{o.trim()}</option>)}
+                            {(field.options || '').split(',').map(o => <option key={o.trim()}>{o.trim()}</option>)}
                           </select>
                         ) : (
                           <input type={field.type === 'number' ? 'number' : 'text'} value={form.custom[field.name] || ''} onChange={cf(field.name)} />
