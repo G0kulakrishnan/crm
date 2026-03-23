@@ -163,6 +163,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     followup: { days: 1, msg: 'Reminder: Follow-up with {client} is scheduled for {date}.' }
   });
   const [editingCFIndex, setEditingCFIndex] = useState(null);
+  const [editingWA, setEditingWA] = useState(null);
   const toast = useToast();
 
   const { data } = db.useQuery({ 
@@ -1321,20 +1322,36 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                     const templateId = document.getElementById('new_wa_id').value;
                     const body = document.getElementById('new_wa_body').value;
                     if (!name || !templateId) return toast('Name and Template ID required', 'error');
-                    
+
                     const variables = [];
                     for(let i=1; i<=5; i++) {
                       const field = document.getElementById(`wa_var_${i}`).value;
                       if (field) variables.push({ index: i, field });
                     }
 
-                    setWhatsappTemplates([...whatsappTemplates, { id: id(), name, templateId, body, variables }]);
+                    if (editingWA) {
+                      setWhatsappTemplates(whatsappTemplates.map(t => 
+                        t.id === editingWA.id ? { ...t, name, templateId, body, variables } : t
+                      ));
+                      setEditingWA(null);
+                      toast('Template updated locally.', 'success');
+                    } else {
+                      setWhatsappTemplates([...whatsappTemplates, { id: id(), name, templateId, body, variables }]);
+                      toast('Template added locally.', 'info');
+                    }
+                    
                     document.getElementById('new_wa_name').value = '';
                     document.getElementById('new_wa_id').value = '';
                     document.getElementById('new_wa_body').value = '';
                     [1,2,3,4,5].forEach(i => document.getElementById(`wa_var_${i}`).value = '');
-                    toast('Template added locally. Click "Save All Templates" to persist.', 'info');
-                  }}>Add Template</button>
+                  }}>{editingWA ? 'Update Template' : 'Add Template'}</button>
+                  {editingWA && <button className="btn btn-secondary" style={{ marginTop: 16, marginLeft: 10 }} onClick={() => {
+                    setEditingWA(null);
+                    document.getElementById('new_wa_name').value = '';
+                    document.getElementById('new_wa_id').value = '';
+                    document.getElementById('new_wa_body').value = '';
+                    [1,2,3,4,5].forEach(i => document.getElementById(`wa_var_${i}`).value = '');
+                  }}>Cancel Edit</button>}
                 </div>
 
                 <div className="tw-scroll">
@@ -1368,11 +1385,25 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                               </div>
                             </td>
                             <td style={{ textAlign: 'right', verticalAlign: 'top' }}>
-                              <button className="btn-icon" style={{ color: '#ef4444' }} onClick={() => {
-                                if (window.confirm('Delete this template?')) {
-                                  setWhatsappTemplates(whatsappTemplates.filter((_, i) => i !== idx));
-                                }
-                              }}>🗑</button>
+                              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                <button className="btn-icon" onClick={() => {
+                                  setEditingWA(t);
+                                  document.getElementById('new_wa_name').value = t.name;
+                                  document.getElementById('new_wa_id').value = t.templateId;
+                                  document.getElementById('new_wa_body').value = t.body;
+                                  [1,2,3,4,5].forEach(i => {
+                                    const v = t.variables.find(v => v.index === i);
+                                    document.getElementById(`wa_var_${i}`).value = v ? v.field : '';
+                                  });
+                                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                                }}>✏️</button>
+                                <button className="btn-icon" style={{ color: '#ef4444' }} onClick={() => {
+                                  if (window.confirm('Delete this template?')) {
+                                    setWhatsappTemplates(whatsappTemplates.filter((_, i) => i !== idx));
+                                    if (editingWA?.id === t.id) setEditingWA(null);
+                                  }
+                                }}>🗑</button>
+                              </div>
                             </td>
                           </tr>
                         ))

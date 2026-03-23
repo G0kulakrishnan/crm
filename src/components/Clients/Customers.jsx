@@ -135,6 +135,48 @@ export default function Customers({ user, perms, ownerId }) {
     toast('Customer deleted', 'error');
   };
 
+  const syncWonLeads = async () => {
+    const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
+    const wonLeads = leads.filter(l => l.stage === wonStage);
+    if (wonLeads.length === 0) return toast('No "Won" leads found to sync.', 'info');
+
+    const txs = [];
+    let count = 0;
+
+    wonLeads.forEach(l => {
+      // Check if already a customer
+      const exists = customers.find(c => 
+        (l.email && c.email === l.email) || 
+        (l.phone && c.phone === l.phone) ||
+        (c.name.trim().toLowerCase() === l.name.trim().toLowerCase())
+      );
+      if (!exists) {
+        const newId = id();
+        txs.push(db.tx.customers[newId].update({
+          name: l.name,
+          email: l.email || '',
+          phone: l.phone || '',
+          address: l.address || '',
+          userId: ownerId,
+          actorId: user.id,
+          createdAt: Date.now()
+        }));
+        txs.push(db.tx.activityLogs[id()].update({
+          entityId: newId, entityType: 'customer', text: `Customer created via Sync from Lead "${l.name}"`,
+          userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+        }));
+        count++;
+      }
+    });
+
+    if (txs.length > 0) {
+      await db.transact(txs);
+      toast(`Synced ${count} leads to customers!`, 'success');
+    } else {
+      toast('All "Won" leads are already customers.', 'info');
+    }
+  };
+
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
   const cf = (k) => (e) => setForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
 
@@ -411,7 +453,10 @@ export default function Customers({ user, perms, ownerId }) {
       {/* Header */}
       <div className="sh">
         <div><h2>Customers</h2><div className="sub">Manage converted leads and clients</div></div>
-        {canCreate && <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Create Customer</button>}
+        <div style={{ display: 'flex', gap: 10 }}>
+          {canEdit && <button className="btn btn-secondary btn-sm" onClick={syncWonLeads}>Sync Won Leads</button>}
+          {canCreate && <button className="btn btn-primary btn-sm" onClick={openCreate}>+ Create Customer</button>}
+        </div>
       </div>
 
       {/* Table */}
