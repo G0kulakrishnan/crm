@@ -88,7 +88,6 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                   <div style={{ display: 'grid', gridTemplateColumns: '100px 10px 1fr', gap: '4px', fontSize: '11px', lineHeight: '1.5' }}>
                     <span style={{ fontWeight: '500' }}>#</span><span>:</span><strong>{data.no}</strong>
                     <span style={{ fontWeight: '500' }}>{type} Date</span><span>:</span><strong>{fmtD(data.date)}</strong>
-                    {(data.terms || data.notes) && <><span style={{ fontWeight: '500' }}>Terms</span><span>:</span><strong>{data.terms || data.notes}</strong></>}
                     {type === 'Invoice' ? (
                       <><span style={{ fontWeight: '500' }}>Due Date</span><span>:</span><strong>{fmtD(data.dueDate) || '-'}</strong></>
                     ) : (
