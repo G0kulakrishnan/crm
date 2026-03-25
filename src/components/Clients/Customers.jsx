@@ -138,7 +138,7 @@ export default function Customers({ user, perms, ownerId }) {
   const syncWonLeads = async () => {
     const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
     const wonLeads = leads.filter(l => l.stage === wonStage);
-    if (wonLeads.length === 0) return toast('No "Won" leads found to sync.', 'info');
+    if (wonLeads.length === 0) return;
 
     const txs = [];
     let count = 0;
