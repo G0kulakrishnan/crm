@@ -250,9 +250,25 @@ export default function Quotations({ user, perms, ownerId, settings }) {
 
   const del = async (qid) => { 
     if (!canDelete) { toast('Permission denied: cannot delete quotations', 'error'); return; }
-    if (!confirm('Delete?')) return; 
-    await db.transact(db.tx.quotes[qid].delete()); 
-    toast('Deleted', 'error'); 
+    if (!confirm('Delete this quotation? All associated records and activity logs will be removed.')) return;
+    try {
+      const res = await fetch('/api/data', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          module: 'quotations',
+          ownerId,
+          actorId: user.id,
+          userName: user.email,
+          id: qid,
+          logText: `Quotation ${quotes.find(q => q.id === qid)?.no} deleted`
+        })
+      });
+      if (!res.ok) throw new Error('Failed to delete quotation');
+      toast('Quotation deleted', 'error');
+    } catch (e) {
+      toast('Error deleting quotation', 'error');
+    }
   };
 
   const updateItem = (i, k, v) => {

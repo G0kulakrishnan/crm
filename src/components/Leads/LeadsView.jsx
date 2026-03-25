@@ -263,9 +263,25 @@ export default function LeadsView({ user, perms, ownerId }) {
 
   const deleteLead = async (leadId) => {
     if (!canDelete) { toast('Permission denied: cannot delete leads', 'error'); return; }
-    if (!confirm('Delete this lead?')) return;
-    await db.transact(db.tx.leads[leadId].delete());
-    toast('Lead deleted', 'error');
+    if (!confirm('Delete this lead? All associated activity logs and tasks will be removed permanently.')) return;
+    try {
+      const res = await fetch('/api/data', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          module: 'leads',
+          ownerId,
+          actorId: user.id,
+          userName: user.email,
+          id: leadId,
+          logText: 'Lead deleted from CRM'
+        })
+      });
+      if (!res.ok) throw new Error('Failed to delete lead');
+      toast('Lead deleted', 'error');
+    } catch (e) {
+      toast('Error deleting lead', 'error');
+    }
   };
 
   const handleBulkImport = async (e) => {
@@ -419,10 +435,27 @@ export default function LeadsView({ user, perms, ownerId }) {
   };
 
   const bulkDelete = async () => {
-    if (!selectedIds.size || !confirm(`Delete ${selectedIds.size} leads?`)) return;
-    await Promise.all([...selectedIds].map(lid => db.transact(db.tx.leads[lid].delete())));
-    setSelectedIds(new Set());
-    toast(`${selectedIds.size} leads deleted`, 'error');
+    if (!selectedIds.size || !confirm(`Delete ${selectedIds.size} leads? This will also remove all their activity logs and tasks.`)) return;
+    try {
+      await Promise.all([...selectedIds].map(lid => 
+        fetch('/api/data', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            module: 'leads',
+            ownerId,
+            actorId: user.id,
+            userName: user.email,
+            id: lid,
+            logText: 'Bulk lead deletion'
+          })
+        })
+      ));
+      setSelectedIds(new Set());
+      toast(`${selectedIds.size} leads deleted`, 'error');
+    } catch (e) {
+      toast('Error during bulk deletion', 'error');
+    }
   };
 
   const bulkAssign = async (memberName) => {

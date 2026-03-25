@@ -131,22 +131,27 @@ export default async function handler(req, res) {
       if (!targetId) return res.status(400).json({ error: 'Record ID is required for deletion' });
 
       const txs = [
-        tx[collection][targetId].delete(),
-        tx.activityLogs[id()].update({
-          entityId: targetId,
-          entityType: module,
-          text: logText || `Deleted ${module} via API.`,
-          userId: ownerId,
-          actorId: actorId || ownerId,
-          userName: userName || 'API System',
-          projectId: projectId || null,
-          createdAt: Date.now()
-        })
+        tx[collection][targetId].delete()
       ];
 
-      // Cascading delete for projects
+      // 1. Cascading delete for Projects (Delete tasks)
       if (module === 'projects') {
         const { tasks } = await db.query({ tasks: { $: { where: { projectId: targetId } } } });
+        if (tasks && tasks.length > 0) {
+          tasks.forEach(t => txs.push(tx.tasks[t.id].delete()));
+        }
+      }
+
+      // 2. Universal Cascading delete for Activity Logs
+      // Ensure all logs linked to this specific entity are purged
+      const { activityLogs } = await db.query({ activityLogs: { $: { where: { entityId: targetId } } } });
+      if (activityLogs && activityLogs.length > 0) {
+        activityLogs.forEach(log => txs.push(tx.activityLogs[log.id].delete()));
+      }
+
+      // 3. Optional: Delete linked tasks for Leads/Customers
+      if (module === 'leads' || module === 'customers') {
+        const { tasks } = await db.query({ tasks: { $: { where: { entityId: targetId } } } });
         if (tasks && tasks.length > 0) {
           tasks.forEach(t => txs.push(tx.tasks[t.id].delete()));
         }

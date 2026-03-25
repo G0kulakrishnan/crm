@@ -297,20 +297,25 @@ export default function Invoices({ user, perms, ownerId, settings }) {
 
   const del = async (iid) => {
     if (!canDelete) { toast('Permission denied: cannot delete invoices', 'error'); return; }
-    if (!confirm('Delete?')) return;
-    const inv = invoices.find(x => x.id === iid);
-    const txs = [db.tx.invoices[iid].delete()];
-    if (inv) {
-      const lMatch = leads.find(l => l.name === inv.client);
-      if (lMatch) {
-         txs.push(db.tx.activityLogs[id()].update({
-           entityId: lMatch.id, entityType: 'lead', text: `Invoice ${inv.no} was deleted.`,
-           userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
-         }));
-      }
+    if (!confirm('Delete this invoice? All associated records and activity logs will be removed.')) return;
+    try {
+      const res = await fetch('/api/data', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          module: 'invoices',
+          ownerId,
+          actorId: user.id,
+          userName: user.email,
+          id: iid,
+          logText: `Invoice ${invoices.find(v => v.id === iid)?.no} deleted`
+        })
+      });
+      if (!res.ok) throw new Error('Failed to delete invoice');
+      toast('Invoice deleted', 'error');
+    } catch (e) {
+      toast('Error deleting invoice', 'error');
     }
-    await db.transact(txs);
-    toast('Deleted', 'error');
   };
 
   const updateItem = (i, k, v) => {

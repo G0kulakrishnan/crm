@@ -130,9 +130,25 @@ export default function Customers({ user, perms, ownerId }) {
 
   const deleteCustomer = async (cId) => {
     if (!canDelete) { toast('Permission denied: cannot delete customers', 'error'); return; }
-    if (!confirm('Delete customer?')) return;
-    await db.transact(db.tx.customers[cId].delete());
-    toast('Customer deleted', 'error');
+    if (!confirm('Delete customer? All associated activity logs and records will be removed.')) return;
+    try {
+      const res = await fetch('/api/data', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          module: 'customers',
+          ownerId,
+          actorId: user.id,
+          userName: user.email,
+          id: cId,
+          logText: 'Customer deleted from CRM'
+        })
+      });
+      if (!res.ok) throw new Error('Failed to delete customer');
+      toast('Customer deleted', 'error');
+    } catch (e) {
+      toast('Error deleting customer', 'error');
+    }
   };
 
   const syncWonLeads = async () => {
