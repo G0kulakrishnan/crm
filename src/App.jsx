@@ -94,11 +94,7 @@ function AppInner() {
   return (
     <ErrorBoundary>
       <AppProvider user={user}>
-        {activeView === 'manual' ? (
-          <UserManual settings={settings} />
-        ) : (
-          <MainApp user={user} settings={settings} />
-        )}
+        <MainApp user={user} settings={settings} />
       </AppProvider>
     </ErrorBoundary>
   );

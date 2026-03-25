@@ -33,7 +33,7 @@ const SECTIONS = [
     - **Booking Link**: Share your public URL in your WhatsApp bio or website.
     - **Availability**: Set your working hours and holidays.
     - **Management**: View your "Today" count and "Overdue" pending bookings.`,
-    example: 'Example: Share your link "crm.t2gcrm.in/ttg/book". A client picks Monday 10:00 AM. You instantly see it in your dashboard.'
+    example: 'Example: Share your link (e.g., crm.t2gcrm.in/your-slug/book). A client picks Monday 10:00 AM. You instantly see it in your dashboard.'
   },
   {
     id: 'ecommerce',
