@@ -17,7 +17,7 @@ class ErrorBoundary extends React.Component {
     return { hasError: true, error };
   }
   componentDidCatch(error, errorInfo) {
-    console.error("TechCRM Crash:", error, errorInfo);
+    console.error("T2GCRM Crash:", error, errorInfo);
   }
   render() {
     if (this.state.hasError) {
@@ -53,7 +53,7 @@ function AppInner() {
   };
 
   React.useEffect(() => {
-    document.title = settings.title || settings.brandName || 'TechCRM';
+    document.title = settings.title || settings.brandName || 'T2GCRM';
     let link = document.querySelector("link[rel~='icon']");
     if (!link) {
       link = document.createElement('link');
@@ -68,9 +68,9 @@ function AppInner() {
   if (isLoading) {
     return (
       <div className="loading-screen">
-        <div className="logo">{settings.brandShort || 'TC'}</div>
+        <div className="logo">{settings.brandShort || 'T2G'}</div>
         <div className="spinner" />
-        <p>Loading {settings.brandName || 'TechCRM'}...</p>
+        <p>Loading {settings.brandName || 'T2GCRM'}...</p>
       </div>
     );
   }

@@ -360,7 +360,7 @@ export default function Integrations({ user, ownerId }) {
       <div className="tw" style={{ marginTop: 30, padding: 24, background: '#f8fafc', borderStyle: 'dashed' }}>
         <h4 style={{ margin: '0 0 12px 0' }}>💡 How it works</h4>
         <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.6 }}>
-          Once you connect an integration, TechCRM will periodically check for new leads. 
+          Once you connect an integration, T2GCRM will periodically check for new leads. 
           New entries will automatically appear in your <strong>Leads</strong> dashboard with the source tag set (e.g., "FB Ads").
           You can also set up <strong>Automations</strong> to trigger follow-up emails as soon as a lead is fetched.
         </p>

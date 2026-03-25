@@ -4,7 +4,7 @@ const APP_ID = import.meta.env.VITE_INSTANT_APP_ID;
 
 if (!APP_ID || APP_ID === 'your-instantdb-app-id-here') {
   console.error(
-    '⚠️ TechCRM: InstantDB App ID not configured!\n' +
+    '⚠️ T2GCRM: InstantDB App ID not configured!\n' +
     'Please open the .env file and set VITE_INSTANT_APP_ID to your app ID from https://instantdb.com/dash'
   );
 }

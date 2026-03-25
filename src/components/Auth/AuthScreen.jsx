@@ -47,7 +47,7 @@ export default function AuthScreen({ settings }) {
     setLoading(true);
     try {
       await db.auth.signInWithMagicCode({ email: email.trim(), code: code.trim() });
-      toast(`Welcome to ${settings?.brandName || 'TechCRM'}! 👋`, 'success');
+      toast(`Welcome to ${settings?.brandName || 'T2GCRM'}! 👋`, 'success');
     } catch (err) {
       toast(err?.body?.message || 'Invalid code. Try again.', 'error');
       setCode('');
@@ -162,8 +162,8 @@ export default function AuthScreen({ settings }) {
       {/* LEFT PANEL */}
       <div className="auth-left">
         <div style={{ textAlign: 'center', marginBottom: 12 }}>
-          <div style={{ width: 52, height: 52, background: 'var(--accent)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontWeight: 800, fontSize: 18, color: '#fff' }}>{settings?.brandShort || 'TC'}</div>
-          <h1>{settings?.brandName || 'TechCRM'}</h1>
+          <div style={{ width: 52, height: 52, background: 'var(--accent)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontWeight: 800, fontSize: 18, color: '#fff' }}>{settings?.brandShort || 'T2G'}</div>
+          <h1>{settings?.brandName || 'T2GCRM'}</h1>
           <p>All-in-one SaaS CRM to manage leads,<br />invoices, projects &amp; automation.</p>
         </div>
         <div style={{ marginTop: 20, width: '100%' }}>
@@ -192,7 +192,7 @@ export default function AuthScreen({ settings }) {
           <h2>{step === 'email' ? 'Welcome 👋' : step === 'reset' ? 'Reset Password 🔑' : 'Check Your Email 📧'}</h2>
           <p className="sub">
             {step === 'email'
-              ? `Sign in to your ${settings?.brandName || 'TechCRM'} workspace`
+              ? `Sign in to your ${settings?.brandName || 'T2GCRM'} workspace`
               : step === 'reset'
               ? 'Enter the 6-digit code and a new password'
               : `We sent a 6-digit code to ${email}`}

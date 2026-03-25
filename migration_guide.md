@@ -1,6 +1,6 @@
 # Hostinger Migration Guide
 
-This guide describes how to move your TechCRM application from Vercel to **Hostinger Business Web Hosting**.
+This guide describes how to move your T2GCRM application from Vercel to **Hostinger Business Web Hosting**.
 
 ## 1. Prerequisites
 - Ensure your Hostinger plan supports **Node.js**. (Usually found in the *Advanced* or *Node.js* section of hPanel).

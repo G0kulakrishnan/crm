@@ -562,7 +562,8 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     if (!testTo) return;
     
     // For manual test, we'll try to use the first template if available, or just a generic one
-    const testMsg = `Hello! This is a test message from your TechCRM account. WhatsApp integration is working correctly! 🚀\n\nBusiness: ${biz.bizName || 'Your Business'}`;
+    const testMsg = `Hello! This is a test message from your T2GCRM
+ account. WhatsApp integration is working correctly! 🚀\n\nBusiness: ${biz.bizName || 'Your Business'}`;
     
     try {
       toast('Sending test WhatsApp message...', 'info');

@@ -185,7 +185,7 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
           <div style={{ textAlign: 'center', marginTop: 20, fontSize: 10 }}>
             <div>Thank you! Visit Again.</div>
             {settings?.showBranding !== false && (
-              <div style={{ marginTop: 5, fontSize: 8 }}>Powered by TechCRM</div>
+              <div style={{ marginTop: 5, fontSize: 8 }}>Powered by T2GCRM</div>
             )}
           </div>
         </div>

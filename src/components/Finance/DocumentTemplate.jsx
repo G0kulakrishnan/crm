@@ -273,7 +273,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
           <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '10px', fontWeight: '600', color: '#666', padding: '0 5px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
               {settings?.showBranding !== false && (
-                <>POWERED BY <strong style={{ color: '#000', marginLeft: '4px' }}>{settings?.brandName || 'TechCRM'}</strong></>
+                <>POWERED BY <strong style={{ color: '#000', marginLeft: '4px' }}>{settings?.brandName || 'T2GCRM'}</strong></>
               )}
             </div>
             <div>1</div>
