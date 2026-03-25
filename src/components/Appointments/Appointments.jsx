@@ -291,6 +291,9 @@ export default function Appointments({ ownerId, perms, initialTab, settings }) {
     if (dateFilter === 'today') list = list.filter(a => a.date === todayStr);
     else if (dateFilter === 'tomorrow') list = list.filter(a => a.date === tomorrowStr);
     else if (dateFilter === 'week') list = list.filter(a => a.date >= todayStr && a.date <= weekEnd);
+    else if (dateFilter === 'overdue') {
+      list = list.filter(a => a.date < todayStr && a.status === 'Pending');
+    }
     else if (dateFilter === 'custom') list = list.filter(a => a.date >= customRange.start && a.date <= customRange.end);
     if (statusFilter !== 'All') list = list.filter(a => a.status === statusFilter);
     if (search) {
@@ -299,6 +302,8 @@ export default function Appointments({ ownerId, perms, initialTab, settings }) {
     }
     return list;
   }, [appointments, dateFilter, statusFilter, search, todayStr, tomorrowStr, weekEnd, customRange.start, customRange.end]);
+
+  const overdueCount = appointments.filter(a => a.date < todayStr && a.status === 'Pending').length;
 
   const todayCount = appointments.filter(a => a.date === todayStr).length;
   const tomorrowCount = appointments.filter(a => a.date === tomorrowStr).length;
@@ -313,7 +318,23 @@ export default function Appointments({ ownerId, perms, initialTab, settings }) {
           <h2>📅 Appointments</h2>
           <div className="sub" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <span>Manage bookings for your services</span>
-            <button className="btn btn-secondary btn-sm" onClick={copyLink} style={{ padding: '4px 10px', fontSize: 11, background: '#f0fdf4', borderColor: '#86efac', color: '#166534' }}>🔗 Copy Booking Link</button>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', background: '#f8fafc', padding: '10px 14px', borderRadius: 10, border: '1.5px solid var(--border)', boxShadow: '0 2px 4px rgba(0,0,0,0.02)', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 9, fontWeight: 800, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 2 }}>🔗 PUBLIC BOOKING URL</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <a href={`${(settings?.crmDomain || window.location.origin).replace(/\/$/, '')}/${settingsForm?.slug || profile?.slug || ownerId}/book`} target="_blank" rel="noopener noreferrer" 
+                    style={{ fontSize: 13, fontWeight: 700, color: '#16a34a', textDecoration: 'none', fontFamily: 'var(--font-mono, monospace)', background: '#f0fdf4', padding: '2px 6px', borderRadius: 4 }}>
+                    {(settings?.crmDomain || window.location.origin).replace(/\/$/, '')}/{settingsForm?.slug || profile?.slug || ownerId}/book
+                  </a>
+                  <button className="btn-icon" style={{ padding: '6px', background: '#fff', borderRadius: 6, border: '1px solid #e2e8f0', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.05)', fontSize: 14 }} 
+                    title="Copy Link" onClick={() => {
+                    const lnk = `${(settings?.crmDomain || window.location.origin).replace(/\/$/, '')}/${settingsForm?.slug || profile?.slug || ownerId}/book`;
+                    navigator.clipboard.writeText(lnk);
+                    toast('Booking link copied!', 'success');
+                  }}>📋</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -336,6 +357,7 @@ export default function Appointments({ ownerId, perms, initialTab, settings }) {
               {[
                 ['all', `All (${appointments.length})`],
                 ['today', `Today (${todayCount})`],
+                ['overdue', `Overdue (${overdueCount})`],
                 ['tomorrow', `Tomorrow (${tomorrowCount})`],
                 ['week', `This Week (${weekCount})`],
                 ['custom', 'Custom Range']
