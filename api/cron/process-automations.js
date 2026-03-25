@@ -109,7 +109,7 @@ export default async function handler(req, res) {
           const processedKey = `${flow.id}-${triggerKeyBase}-${triggerTimestamp}`;
           const isExecuted = executedKeys.has(processedKey);
 
-          const STALE_THRESHOLD = 24 * 60 * 60 * 1000; // Skip if due more than 24h ago
+          const STALE_THRESHOLD = 6 * 60 * 60 * 1000; // Skip if due more than 6h ago
           const isStale = (nowStamp - fireAt) > STALE_THRESHOLD;
 
           console.log(`[CRON]     → Flow "${flow.name}": Now=${new Date(nowStamp).toLocaleTimeString()} | FireAt=${new Date(fireAt).toLocaleTimeString()} | Exists=${isExecuted} | Stale=${isStale}`);
