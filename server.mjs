@@ -19,6 +19,9 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+console.log('🔧 Initializing T2GCRM...');
+console.log('📍 App ID:', process.env.VITE_INSTANT_APP_ID ? 'Configured ✅' : 'NOT FOUND ❌');
+
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
@@ -59,8 +62,8 @@ app.get('/:slug/orders', (req, res) => res.sendFile(path.join(__dirname, 'dist',
 app.get('/:slug/appointment', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 app.get('/:slug/book', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 
-// Catch-all for React Router
-app.get('/*', (req, res) => {
+// Catch-all for React Router (Express 5.x compatible)
+app.get('/:path*', (req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'API not found' });
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
