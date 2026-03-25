@@ -1,6 +1,9 @@
 # TechCRM API Documentation
 
 This document outlines the API structure and data models for TechCRM, to assist in independent mobile app development.
+# T2GCRM API Documentation
+
+This document provides a structured reference for the T2GCRM API endpoints to assist in mobile and third-party integrations.
 
 ## InstantDB Configuration
 - **App ID**: `19c240f7-1ba0-486a-95b4-adb651f63cfd`
@@ -9,137 +12,175 @@ This document outlines the API structure and data models for TechCRM, to assist 
 
 ---
 
-## 1. Authentication & RBAC
+### `POST` **Login API**
+Authenticate user and get access token for InstantDB session.
 
-### Login
-- **Endpoint**: `POST /api/auth/login` (Full URL: `https://mycrm.t2gcrm.in/api/auth/login`)
-- **Body**: `{ "email": "...", "password": "..." }`
-- **Response**: 
-  ```json
-  {
-    "success": true, 
-    "token": "...", 
-    "isTeamMember": boolean, 
-    "role": "Owner|Sales|...", 
-    "perms": { "Module": ["list", "edit"] },
-    "ownerUserId": "...",
-    "teamMemberId": "..."
-  }
-  ```
-- **Action**: Use the returned `token` with `db.auth.signInWithToken(token)`.
+#### **Endpoint**
+> `https://crm.t2gcrm.in/api/auth/login`
 
-### Register
-- **Endpoint**: `POST /api/auth/register`
-- **Body**: `{ "email": "...", "password": "...", "fullName": "...", "bizName": "...", "phone": "...", "selectedPlan": "Trial" }`
-- **Response**: `{ "success": true, "token": "...", "message": "Registered successfully" }`
-
-### Roles Check
-- **Endpoint**: `GET/POST /api/auth/roles`
-- **Auth**: Use the logged-in email.
-- **Purpose**: Dynamically check permissions for a user across different businesses.
-
-### Password Reset
-- **Action 'request'**: `POST /api/auth/reset-password` with `{ "action": "request", "email": "..." }`.
-- **Action 'verify'**: `POST /api/auth/reset-password` with `{ "action": "verify", "email": "...", "code": "...", "newPassword": "..." }`.
-
-### Change Password
-- **Endpoint**: `POST /api/auth/change-password`
-- **Body**: `{ "email": "...", "newPassword": "...", "userId": "..." }`
-
-### Set Team Password (First-time setup)
-- **Endpoint**: `POST /api/auth/set-team-password`
-- **Body**: `{ "email": "...", "password": "...", "ownerUserId": "...", "teamMemberId": "..." }`
-- **Purpose**: Used for team members to set their initial password after being invited.
-
----
-
-## 2. Communications
-
-### Send Email (SMTP)
-- **Endpoint**: `POST /api/send-email`
-- **Body**: `{ "to": "...", "subject": "...", "body": "...", "ownerId": "...", "fromName": "..." }`
-- **Note**: Connects via the SMTP settings stored in the owner's `userProfiles`.
-
-### Send WhatsApp (Waprochat API)
-- **Endpoint**: `POST /api/notify` (recommended) or `POST /api/send-whatsapp` (legacy)
-- **Body (Text)**: `{ "to": "...", "message": "...", "ownerId": "..." }`
-- **Body (Template)**: `{ "to": "...", "templateId": "...", "variables": ["var1", "var2"], "ownerId": "..." }`
-- **Note**: Uses `waApiToken` and `waPhoneId` (Waprochat) from `userProfiles`. Templates must be pre-approved in the Waprochat portal.
-
----
-
-## 3. Data Model (Namespaces)
-
-### `userProfiles` (App Configuration)
-**CRITICAL**: Fetch this first to get dynamic settings.
-- `userId`: Owner ID.
-- `stages`, `sources`, `labels`: Lists for Leads.
-- `taskStatuses`: List for Tasks.
-- `expCats`: Expense categories.
-- `taxRates`: `{ label, rate }` objects.
-- `customFields`: `{ name, type, options, required }`.
-- `businessSettings`: Company info (Address, Email, Phone, Logo, etc.).
-
-### `leads`
-- `name`, `email`, `phone`, `source`, `stage`, `label`, `notes`, `assign`, `followup`, `custom` (Map).
-
-### `invoices` & `quotations`
-- `no`: Document number (e.g., INV/2025/001).
-- `client`: Customer name matching a `leads` or `customers` record.
-- `items`: `List<{ name, desc, qty, rate, taxRate }>`.
-- `disc`, `discType`, `adj`, `total`, `taxAmt`.
-- `payments`: `List<{ date, amount }>` (Invoices only).
-- **AMC Integration**: `isAmc`, `amcPlan`, `amcAmount`, `amcTaxRate`, `amcCycle`, `amcStart`, `amcEnd`.
-- `shipTo`: Shipping address.
-
-### `expenses`
-- `desc`, `category`, `amount`, `date`, `status`, `taxRate`, `taxAmt`.
-
-### `activityLogs`
-- `entityId`, `entityType`, `text`, `userName`, `createdAt`.
-
----
-
-## 4. Permissions Schema
-Located in `userProfiles.roles`. The mobile app should hide modules where the user has an empty array or missing key.
+#### **Request Body**
 ```json
 {
-  "name": "Sales",
-  "perms": {
-    "Leads": ["list", "create", "edit"],
-    "Invoices": ["list"]
-  }
+  "email": "user@example.com",
+  "password": "your_password"
+}
+```
+
+#### **Response (Success)**
+```json
+{
+  "success": true, 
+  "token": "1|xxxxxxxxxxxx", 
+  "isTeamMember": false, 
+  "role": "Owner", 
+  "perms": { "Leads": ["list", "create", "edit", "delete"], "Invoices": ["list", "create"] },
+  "ownerUserId": "uuid-123-456",
+  "teamMemberId": null,
+  "status_code": 200,
+  "status": true
+}
+```
+
+#### **Response (Error)**
+```json
+{
+  "message": "Invalid credentials",
+  "status_code": 401,
+  "status": false
 }
 ```
 
 ---
 
-## 6. Public APIs (Store & Bookings)
+### `POST` **Data Module API (Universal)**
+Create, Update, or Delete records in any module (Leads, Invoices, Projects, etc.) with automatic activity logging and cascading cleanup.
 
-### Ecommerce Checkout
-- **Endpoint**: `POST /api/ecom/checkout`
-- **Body**: 
-  ```json
-  {
-    "ownerId": "WORKSPACE_ID",
-    "ecomName": "slug",
-    "customer": { "name": "...", "email": "...", "phone": "...", "address": "..." },
-    "items": [{ "name": "...", "qty": 1, "rate": 100 }],
-    "total": 100
-  }
-  ```
-- **Security**: Strict uniqueness matching is enforced. If the provided `email` exists in the DB with a different `phone`, or vice versa, the request fails to prevent data corruption.
-- **Error (400)**: `{"success": false, "error": "Mail ID or phone number mismatch"}` 
+#### **Endpoint**
+> `https://crm.t2gcrm.in/api/data`
 
-### Appointment Booking
-- **Endpoint**: `POST /api/appointments/book`
-- **Body**: 
-  ```json
-  {
-    "ownerId": "WORKSPACE_ID",
-    "serviceId": "...",
-    "slot": "ISO_DATE_STRING",
-    "customer": { "name": "...", "email": "...", "phone": "..." }
-  }
-  ```
-- **Error (400)**: `{"success": false, "error": "Mail ID or phone number mismatch"}`
+#### **Request Body (Create Lead)**
+```json
+{
+  "module": "leads",
+  "ownerId": "WORKSPACE_ID",
+  "actorId": "USER_ID",
+  "userName": "John Doe",
+  "name": "New Prospect",
+  "phone": "9988776655",
+  "stage": "New",
+  "logText": "Lead created via Mobile App"
+}
+```
+
+#### **Response (Success)**
+```json
+{
+  "success": true,
+  "id": "new-record-uuid",
+  "message": "Record created successfully",
+  "status_code": 200,
+  "status": true
+}
+```
+
+---
+
+### `DELETE` **Data Module API**
+Delete a record and all its associated activity logs/tasks (Cascading Delete).
+
+#### **Endpoint**
+> `https://crm.t2gcrm.in/api/data`
+
+#### **Request Body**
+```json
+{
+  "method": "DELETE",
+  "module": "leads",
+  "ownerId": "WORKSPACE_ID",
+  "id": "record-uuid-to-delete",
+  "logText": "Deleted via Mobile App"
+}
+```
+
+#### **Response (Success)**
+```json
+{
+  "success": true,
+  "message": "Record and associated data deleted successfully",
+  "status_code": 200,
+  "status": true
+}
+```
+
+---
+
+### `POST` **WhatsApp / Notification API**
+Send automated WhatsApp messages or emails to leads and customers.
+
+#### **Endpoint**
+> `https://crm.t2gcrm.in/api/notify`
+
+#### **Request Body (WhatsApp Text)**
+```json
+{
+  "to": "919988776655",
+  "message": "Hello, your appointment is confirmed!",
+  "ownerId": "WORKSPACE_ID"
+}
+```
+
+#### **Response (Success)**
+```json
+{
+  "success": true,
+  "message": "Notification sent successfully",
+  "status_code": 200,
+  "status": true
+}
+```
+
+---
+
+### `POST` **E-commerce Checkout API**
+Place a public order and link it to a customer/lead.
+
+#### **Endpoint**
+> `https://crm.t2gcrm.in/api/ecom/checkout`
+
+#### **Request Body**
+```json
+{
+  "ownerId": "WORKSPACE_ID",
+  "ecomName": "your-store-slug",
+  "customer": { "name": "Buyer", "email": "buyer@email.com", "phone": "9911223344", "address": "123 Street" },
+  "items": [{ "name": "Product A", "qty": 1, "rate": 500 }],
+  "total": 500
+}
+```
+
+#### **Response (Error - Email/Phone Mismatch)**
+```json
+{
+  "success": false,
+  "error": "Mail ID or phone number mismatch with existing record",
+  "status_code": 400,
+  "status": false
+}
+```
+
+---
+
+## **Module Reference (Collection Names)**
+When using the `/api/data` endpoint, use these keys for the `module` parameter:
+
+| Module Key | Description |
+| :--- | :--- |
+| `leads` | Lead Management |
+| `customers` | Converted Clients |
+| `quotations` | Proposals & Quotes |
+| `invoices` | Billing & Payments |
+| `projects` | Work & Projects |
+| `tasks` | Task Management |
+| `expenses` | Business Expenses |
+| `products` | Inventory / Services |
+| `logs` | Activity Timeline |
