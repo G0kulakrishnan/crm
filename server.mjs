@@ -12,6 +12,7 @@ import notifyHandler from './api/notify.js';
 import bookHandler from './api/appointments/book.js';
 import checkoutHandler from './api/ecom/checkout.js';
 import cronHandler from './api/cron/process-automations.js';
+import gsheetsHandler from './api/webhook/gsheets.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,6 +52,7 @@ app.all('/api/notify', wrap(notifyHandler));
 app.all('/api/appointments/book', wrap(bookHandler));
 app.all('/api/ecom/checkout', wrap(checkoutHandler));
 app.all('/api/cron/process-automations', wrap(cronHandler));
+app.all('/api/webhook/gsheets', wrap(gsheetsHandler));
 
 // 2. STATIC FILES (Frontend)
 app.use(express.static(path.join(__dirname, 'dist')));
