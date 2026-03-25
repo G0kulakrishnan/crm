@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -59,7 +60,7 @@ app.get('/:slug/appointment', (req, res) => res.sendFile(path.join(__dirname, 'd
 app.get('/:slug/book', (req, res) => res.sendFile(path.join(__dirname, 'dist', 'index.html')));
 
 // Catch-all for React Router
-app.get('*', (req, res) => {
+app.get('/*', (req, res) => {
   if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'API not found' });
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
