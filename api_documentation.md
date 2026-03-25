@@ -3,17 +3,14 @@
 This document outlines the API structure and data models for TechCRM, to assist in independent mobile app development.
 # T2GCRM API Documentation
 
-This document provides a structured reference for the T2GCRM API endpoints to assist in mobile and third-party integrations.
-
-## InstantDB Configuration
-- **App ID**: `19c240f7-1ba0-486a-95b4-adb651f63cfd`
-- **SDK**: Use the InstantDB SDK for Flutter.
-- **Filtering**: Every query MUST include `.where({ userId: ownerId })`.
+This document provides a comprehensive technical reference for the T2GCRM API endpoints. All requests should include the appropriate headers and follow the structure outlined below.
 
 ---
 
+## **1. Authentication APIs**
+
 ### `POST` **Login API**
-Authenticate user and get access token for InstantDB session.
+Authenticate a user and retrieve a JWT token for session authorization.
 
 #### **Endpoint**
 > `https://crm.t2gcrm.in/api/auth/login`
@@ -22,20 +19,26 @@ Authenticate user and get access token for InstantDB session.
 ```json
 {
   "email": "user@example.com",
-  "password": "your_password"
+  "password": "your_secure_password"
 }
 ```
 
 #### **Response (Success)**
 ```json
 {
-  "success": true, 
-  "token": "1|xxxxxxxxxxxx", 
-  "isTeamMember": false, 
-  "role": "Owner", 
-  "perms": { "Leads": ["list", "create", "edit", "delete"], "Invoices": ["list", "create"] },
-  "ownerUserId": "uuid-123-456",
-  "teamMemberId": null,
+  "message": "Login successfully!",
+  "token": "1|abc123tokenXYZ",
+  "user": {
+    "id": "user-uuid-1",
+    "name": "John Doe",
+    "email": "user@example.com"
+  },
+  "perms": {
+    "Leads": ["list", "create", "edit", "delete"],
+    "Invoices": ["list", "create"]
+  },
+  "isTeamMember": false,
+  "role": "Owner",
   "status_code": 200,
   "status": true
 }
@@ -44,7 +47,7 @@ Authenticate user and get access token for InstantDB session.
 #### **Response (Error)**
 ```json
 {
-  "message": "Invalid credentials",
+  "message": "Invalid email or password",
   "status_code": 401,
   "status": false
 }
@@ -52,41 +55,92 @@ Authenticate user and get access token for InstantDB session.
 
 ---
 
-### `POST` **Data Module API (Universal)**
-Create, Update, or Delete records in any module (Leads, Invoices, Projects, etc.) with automatic activity logging and cascading cleanup.
+### `POST` **Register API**
+Create a new business workspace and owner account.
 
 #### **Endpoint**
-> `https://crm.t2gcrm.in/api/data`
+> `https://crm.t2gcrm.in/api/auth/register`
 
-#### **Request Body (Create Lead)**
+#### **Request Body**
 ```json
 {
-  "module": "leads",
-  "ownerId": "WORKSPACE_ID",
-  "actorId": "USER_ID",
-  "userName": "John Doe",
-  "name": "New Prospect",
-  "phone": "9988776655",
-  "stage": "New",
-  "logText": "Lead created via Mobile App"
+  "email": "newuser@example.com",
+  "password": "strongpassword123",
+  "fullName": "Jane Smith",
+  "bizName": "Smith Solutions",
+  "phone": "9876543210",
+  "selectedPlan": "Trial"
 }
 ```
 
 #### **Response (Success)**
 ```json
 {
-  "success": true,
-  "id": "new-record-uuid",
-  "message": "Record created successfully",
+  "message": "Registered successfully!",
+  "token": "1|newuser-token-789",
   "status_code": 200,
   "status": true
 }
 ```
 
+#### **Response (Error)**
+```json
+{
+  "message": "Email already registered",
+  "status_code": 409,
+  "status": false
+}
+```
+
 ---
 
-### `DELETE` **Data Module API**
-Delete a record and all its associated activity logs/tasks (Cascading Delete).
+## **2. Core Data APIs (Universal)**
+
+### `POST` **Create/Update Record**
+Create or update entries in any module (Leads, Customers, Expenses, etc.). Automatic activity logs are created.
+
+#### **Endpoint**
+> `https://crm.t2gcrm.in/api/data`
+
+#### **Request Body (New Lead)**
+```json
+{
+  "module": "leads",
+  "ownerId": "WORKSPACE_ID",
+  "actorId": "USER_ID",
+  "userName": "John Admin",
+  "name": "Alex Prospect",
+  "phone": "9123456780",
+  "email": "alex@prospect.com",
+  "source": "Facebook Ads",
+  "stage": "New",
+  "logText": "Lead captured via mobile app"
+}
+```
+
+#### **Response (Success)**
+```json
+{
+  "message": "Record saved successfully!",
+  "id": "new-lead-uuid-444",
+  "status_code": 200,
+  "status": true
+}
+```
+
+#### **Response (Error - Missing Payload)**
+```json
+{
+  "message": "Payload name is required for this module",
+  "status_code": 400,
+  "status": false
+}
+```
+
+---
+
+### `DELETE` **Delete Record (Cascading)**
+Permanently remove a record AND its associated activity logs/tasks.
 
 #### **Endpoint**
 > `https://crm.t2gcrm.in/api/data`
@@ -97,16 +151,15 @@ Delete a record and all its associated activity logs/tasks (Cascading Delete).
   "method": "DELETE",
   "module": "leads",
   "ownerId": "WORKSPACE_ID",
-  "id": "record-uuid-to-delete",
-  "logText": "Deleted via Mobile App"
+  "id": "lead-uuid-to-delete",
+  "logText": "User initiated delete via mobile"
 }
 ```
 
 #### **Response (Success)**
 ```json
 {
-  "success": true,
-  "message": "Record and associated data deleted successfully",
+  "message": "Record and associated logs/tasks deleted",
   "status_code": 200,
   "status": true
 }
@@ -114,17 +167,19 @@ Delete a record and all its associated activity logs/tasks (Cascading Delete).
 
 ---
 
-### `POST` **WhatsApp / Notification API**
-Send automated WhatsApp messages or emails to leads and customers.
+## **3. Communication APIs**
+
+### `POST` **WhatsApp Notification**
+Send a manual or automated WhatsApp message via Waprochat.
 
 #### **Endpoint**
 > `https://crm.t2gcrm.in/api/notify`
 
-#### **Request Body (WhatsApp Text)**
+#### **Request Body**
 ```json
 {
-  "to": "919988776655",
-  "message": "Hello, your appointment is confirmed!",
+  "to": "919123456789",
+  "message": "Your project status is updated to: In Progress.",
   "ownerId": "WORKSPACE_ID"
 }
 ```
@@ -132,8 +187,53 @@ Send automated WhatsApp messages or emails to leads and customers.
 #### **Response (Success)**
 ```json
 {
-  "success": true,
-  "message": "Notification sent successfully",
+  "message": "Message sent successfully!",
+  "status_code": 200,
+  "status": true
+}
+```
+
+#### **Response (Error - Invalid Token)**
+```json
+{
+  "message": "WhatsApp API token is missing or invalid in settings",
+  "status_code": 500,
+  "status": false
+}
+```
+
+---
+
+## **4. Finance APIs (Invoices/Quotes)**
+
+### `POST` **Create Invoice**
+Generate a new invoice with line items and customer link.
+
+#### **Endpoint**
+> `https://crm.t2gcrm.in/api/data` (Module: `invoices`)
+
+#### **Request Body**
+```json
+{
+  "module": "invoices",
+  "ownerId": "WORKSPACE_ID",
+  "client": "John Customer",
+  "no": "INV/2026/05",
+  "date": "2026-03-25",
+  "items": [
+    { "name": "Consulting", "qty": 1, "rate": 5000, "taxRate": 18 },
+    { "name": "Travel", "qty": 2, "rate": 500, "taxRate": 5 }
+  ],
+  "total": 6100,
+  "logText": "Invoice #05 generated"
+}
+```
+
+#### **Response (Success)**
+```json
+{
+  "message": "Invoice generated successfully",
+  "id": "inv-uuid-888",
   "status_code": 200,
   "status": true
 }
@@ -141,8 +241,10 @@ Send automated WhatsApp messages or emails to leads and customers.
 
 ---
 
-### `POST` **E-commerce Checkout API**
-Place a public order and link it to a customer/lead.
+## **5. Public Store & Booking APIs**
+
+### `POST` **Ecommerce Checkout**
+Place an order from the public store side.
 
 #### **Endpoint**
 > `https://crm.t2gcrm.in/api/ecom/checkout`
@@ -151,18 +253,22 @@ Place a public order and link it to a customer/lead.
 ```json
 {
   "ownerId": "WORKSPACE_ID",
-  "ecomName": "your-store-slug",
-  "customer": { "name": "Buyer", "email": "buyer@email.com", "phone": "9911223344", "address": "123 Street" },
-  "items": [{ "name": "Product A", "qty": 1, "rate": 500 }],
-  "total": 500
+  "ecomName": "my-cool-store",
+  "customer": {
+    "name": "Sarah Buyer",
+    "email": "sarah@gmail.com",
+    "phone": "9988776655",
+    "address": "456 Park Avenue, NY"
+  },
+  "items": [{ "name": "Gadget X", "qty": 2, "rate": 200 }],
+  "total": 400
 }
 ```
 
-#### **Response (Error - Email/Phone Mismatch)**
+#### **Response (Error - Mismatch)**
 ```json
 {
-  "success": false,
-  "error": "Mail ID or phone number mismatch with existing record",
+  "message": "Mail ID or phone number mismatch with an existing record found in the CRM",
   "status_code": 400,
   "status": false
 }
@@ -170,17 +276,17 @@ Place a public order and link it to a customer/lead.
 
 ---
 
-## **Module Reference (Collection Names)**
-When using the `/api/data` endpoint, use these keys for the `module` parameter:
+## **Module Keys Table**
+When calling the `/api/data` endpoint, use these keys for the `"module"` property.
 
-| Module Key | Description |
-| :--- | :--- |
-| `leads` | Lead Management |
-| `customers` | Converted Clients |
-| `quotations` | Proposals & Quotes |
-| `invoices` | Billing & Payments |
-| `projects` | Work & Projects |
-| `tasks` | Task Management |
-| `expenses` | Business Expenses |
-| `products` | Inventory / Services |
-| `logs` | Activity Timeline |
+| Module Key | Database Table | Actions |
+| :--- | :--- | :--- |
+| `leads` | `leads` | Create, Update, Delete |
+| `customers` | `customers` | Create, Update, Delete |
+| `quotations` | `quotes` | Create, Update, Delete |
+| `invoices` | `invoices` | Create, Update, Delete |
+| `projects` | `projects` | Create, Update, Delete |
+| `tasks` | `tasks` | Create, Update, Delete |
+| `expenses` | `expenses` | Create, Update, Delete |
+| `products` | `products` | Create, Update, Delete |
+| `logs` | `activityLogs` | Create, Delete |
