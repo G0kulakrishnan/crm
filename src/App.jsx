@@ -7,6 +7,7 @@ import MainApp from './components/Layout/MainApp';
 import StorePage from './components/Ecommerce/StorePage';
 import TrackingPage from './components/Ecommerce/TrackingPage';
 import BookingPage from './components/Appointments/BookingPage';
+import UserManual from './components/System/UserManual';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -79,7 +80,9 @@ function AppInner() {
   const isPublicStore = path.endsWith('/store');
   const isPublicOrders = path.endsWith('/orders');
   const isPublicBooking = path.endsWith('/book') || path.endsWith('/appointment');
+  const isPublicManual = path.endsWith('/manual');
 
+  if (isPublicManual) return <UserManual isPublic={true} settings={settings} />;
   if (isPublicStore) return <StorePage />;
   if (isPublicOrders) return <TrackingPage />;
   if (isPublicBooking) return <BookingPage />;
@@ -91,7 +94,11 @@ function AppInner() {
   return (
     <ErrorBoundary>
       <AppProvider user={user}>
-        <MainApp user={user} settings={settings} />
+        {activeView === 'manual' ? (
+          <UserManual settings={settings} />
+        ) : (
+          <MainApp user={user} settings={settings} />
+        )}
       </AppProvider>
     </ErrorBoundary>
   );
