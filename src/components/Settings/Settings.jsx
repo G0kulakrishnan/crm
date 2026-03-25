@@ -652,7 +652,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                     <div style={{ fontWeight: 700, fontSize: 16 }}>{p.name}</div>
                     <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 10 }}>{p.desc}</div>
                     <div style={{ fontSize: 24, fontWeight: 800, margin: '10px 0', color: 'var(--accent)' }}>
-                      {p.price === 0 ? 'Free' : `₹${p.price.toLocaleString()}`}
+                      {(p.price || 0) === 0 ? 'Free' : `₹${(p.price || 0).toLocaleString()}`}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 15 }}>per {p.duration} days</div>
                     

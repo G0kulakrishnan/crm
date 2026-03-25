@@ -341,7 +341,7 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
             </div>
 
             <button className="btn btn-primary" style={{ width: '100%', padding: '15px', fontSize: 16, fontWeight: 700, marginTop: 15, borderRadius: 12 }} onClick={handleCheckout}>
-              Checkout ₹{totals.total.toLocaleString()}
+              Checkout ₹{(totals.total || 0).toLocaleString()}
             </button>
           </div>
         </div>

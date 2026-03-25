@@ -176,7 +176,7 @@ export default function AuthScreen({ settings }) {
                 onClick={() => { setSelectedPlan(p.name); }}
               >
                 <div className="plan-name">{p.name}</div>
-                <div className="plan-price">{p.duration} days · {p.sale === 0 ? 'Free' : `₹${p.sale.toLocaleString()}/period`}</div>
+                <div className="plan-price">{p.duration} days · {(p.sale || 0) === 0 ? 'Free' : `₹${(p.sale || 0).toLocaleString()}/period`}</div>
               </div>
             ))}
           </div>

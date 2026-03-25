@@ -268,7 +268,7 @@ export default function AdminPanel({ user }) {
                   {i === 1 && <div className="plan-badge">Popular</div>}
                   <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 5 }}>{p.name}</div>
                   <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent)', marginBottom: 4 }}>
-                    {+p.price === 0 ? 'Free' : `₹${(+p.price).toLocaleString()}`}
+                    {+(p.price || 0) === 0 ? 'Free' : `₹${(+(p.price || 0)).toLocaleString()}`}
                   </div>
                   <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>per {p.duration} days</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
