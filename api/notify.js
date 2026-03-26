@@ -9,7 +9,6 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
   try {
     const env = req.env || process.env;
     const APP_ID = env.VITE_INSTANT_APP_ID;
@@ -18,8 +17,29 @@ export default async function handler(req, res) {
 
     if (!to || (!body && !message) || !ownerId) return res.status(400).json({ error: 'Missing required fields' });
 
-    const { init } = require('@instantdb/admin');
+    const { init, tx, id: generateId } = require('@instantdb/admin');
+    const crypto = require('crypto');
     const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
+
+    // --- DEDUPLICATION GUARD (Architecture level) ---
+    // Generate a stable key for this specific message in a 1-minute window.
+    // This prevents race conditions from multiple browser tabs/retries.
+    const minuteWindow = Math.floor(Date.now() / (60 * 1000));
+    const contentBody = body || message || '';
+    const dedupeHash = crypto.createHash('sha256').update(`${to}|${subject}|${contentBody}`).digest('hex').slice(0, 16);
+    const dedupeKey = `notify-dedupe-${ownerId}-${dedupeHash}-${minuteWindow}`;
+
+    // Check if this exact message was already sent in this minute
+    const { executedAutomations } = await db.query({ 
+      executedAutomations: { $: { where: { key: dedupeKey, userId: ownerId } } } 
+    });
+
+    if (executedAutomations?.length > 0) {
+      console.log(`[NOTIFY] 🛡️ Dedupe: Skipping duplicate notification for ${to} (Key: ${dedupeKey})`);
+      return res.status(200).json({ success: true, skipped: true, message: 'Duplicate detected within 1-minute window' });
+    }
+    // ------------------------------------------------
+
     const profile = (await db.query({ userProfiles: { $: { where: { userId: ownerId }, limit: 1 } } })).userProfiles?.[0];
 
     if (type === 'whatsapp') {
@@ -72,6 +92,14 @@ export default async function handler(req, res) {
 
     const transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass }, tls: { rejectUnauthorized: false } });
     const info = await transporter.sendMail({ from: biz ? `"${biz}" <${user}>` : user, to, subject: subject || 'Notification', text: body || message, html: (body || message).replace(/\n/g, '<br/>') });
+    
+    // Record execution for deduplication
+    await db.transact(tx.executedAutomations[dedupeKey].update({
+      key: dedupeKey,
+      userId: ownerId,
+      createdAt: Date.now()
+    }));
+
     return res.status(200).json({ success: true, messageId: info.messageId });
 
   } catch (err) {

@@ -81,11 +81,13 @@ export default async function handler(req, res) {
       const ownerEmail = profile.bizEmail || profile.email || 'N/A';
       
       console.log(`[CRON] 👤 Processing User: ${ownerEmail} (${ownerId})`);
-      const { leads, amc, automations, executedAutomations } = await db.query({
+      const { leads, amc, automations, executedAutomations, appointments, orders } = await db.query({
         leads: { $: { where: { userId: ownerId } } },
         amc:   { $: { where: { userId: ownerId } } },
         automations: { $: { where: { userId: ownerId } } },
         executedAutomations: { $: { where: { userId: ownerId } } },
+        appointments: { $: { where: { userId: ownerId } } },
+        orders: { $: { where: { userId: ownerId } } },
       });
 
       const activeFlows = (automations || []).filter(f => f.active !== false);
@@ -162,6 +164,40 @@ export default async function handler(req, res) {
         if (!lead.paymentDue) continue;
         const payTs = new Date(lead.paymentDue).getTime();
         await processFlows(lead, 'trig-payment', `lead-payment-${lead.id}-${payTs}`, payTs);
+      }
+
+      // 5. Stage Changed (trig-stage)
+      for (const lead of leads) {
+        if (!lead.stageChangedAt) continue;
+        const isRecent = (nowStamp - lead.stageChangedAt) < 60 * 60 * 1000; // 1h threshold
+        if (!isRecent) continue;
+        await processFlows(lead, 'trig-stage', `lead-stage-${lead.id}-${lead.stageChangedAt}`, lead.stageChangedAt);
+      }
+
+      // 6. Appointments (trig-appt-*)
+      for (const appt of (appointments || [])) {
+        // trig-appt-new
+        await processFlows(appt, 'trig-appt-new', `appt-new-${appt.id}`, appt.createdAt);
+        // trig-appt-status
+        if (appt.updatedAt) {
+          const isRecent = (nowStamp - appt.updatedAt) < 60 * 60 * 1000;
+          if (isRecent) {
+             await processFlows(appt, 'trig-appt-status', `appt-status-${appt.id}-${appt.status}-${appt.updatedAt}`, appt.updatedAt);
+          }
+        }
+      }
+
+      // 7. Orders (trig-order-*)
+      for (const order of (orders || [])) {
+        // trig-order-new
+        await processFlows(order, 'trig-order-new', `order-new-${order.id}`, order.createdAt);
+        // trig-order-status
+        if (order.updatedAt) {
+          const isRecent = (nowStamp - order.updatedAt) < 60 * 60 * 1000;
+          if (isRecent) {
+             await processFlows(order, 'trig-order-status', `order-status-${order.id}-${order.status}-${order.updatedAt}`, order.updatedAt);
+          }
+        }
       }
     }
 
@@ -297,8 +333,8 @@ async function executeAutomation(flow, entity, profile, processedKey) {
   }));
 
   // 2. Persist execution
-  await db.transact(db.tx.executedAutomations[crypto.randomUUID()].update({
-    key: processedKey,
+  await db.transact(db.tx.executedAutomations[processedKey].update({
+    key: processedKey, // Keep the key field for easier querying/migration if needed
     userId: ownerId,
     createdAt: Date.now(),
   }));
