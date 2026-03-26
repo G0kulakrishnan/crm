@@ -103,10 +103,40 @@ export default async function handler(req, res) {
     const transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass }, tls: { rejectUnauthorized: false } });
     const info = await transporter.sendMail({ from: biz ? `"${biz}" <${user}>` : user, to, subject: subject || 'Notification', text: body || message, html: (body || message).replace(/\n/g, '<br/>') });
     
+    // Log to Outbox for UI visibility
+    await db.transact(tx.outbox[generateId()].update({
+      userId: ownerId,
+      recipient: to,
+      type: 'email',
+      subject: subject || 'Notification',
+      content: body || message,
+      status: 'Sent',
+      sentAt: Date.now()
+    }));
+
     return res.status(200).json({ success: true, messageId: info.messageId });
 
   } catch (err) {
     console.error('Notify API error:', err);
+    
+    // Attempt to log failure to outbox if we have enough info
+    try {
+      if (db && ownerId && to) {
+        await db.transact(tx.outbox[generateId()].update({
+          userId: ownerId,
+          recipient: to,
+          type: 'email',
+          subject: subject || 'Notification',
+          content: body || message,
+          status: 'Failed',
+          error: err.message,
+          sentAt: Date.now()
+        }));
+      }
+    } catch (logErr) {
+      console.error('Failed to log error to outbox:', logErr);
+    }
+
     return res.status(500).json({ error: err.message });
   }
 }
