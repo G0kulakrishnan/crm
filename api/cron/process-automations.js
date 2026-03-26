@@ -13,6 +13,12 @@ const renderTemplate = (template, data) => {
 };
 
 export default async function handler(req, res) {
+  // --- MASTER SERVER SHIELD ---
+  if (process.env.VITE_BLOCK_AUTOMATIONS === 'true') {
+    console.log('[CRON] 🛡️ Automations are BLOCKED on this environment.');
+    return res.status(200).json({ success: true, message: 'Automations blocked' });
+  }
+
   try {
     const { userProfiles, automations } = await db.query({
       userProfiles: {},
@@ -109,8 +115,8 @@ async function executeAutomation(flow, entity, profile, processedKey) {
   // --- ATOMIC LOCK (Architecture Level) ---
   const dedupeId = crypto.createHash('md5').update(processedKey).digest('hex');
   const dedupeUUID = `${dedupeId.slice(0,8)}-${dedupeId.slice(8,12)}-${dedupeId.slice(12,16)}-${dedupeId.slice(16,20)}-${dedupeId.slice(20,32)}`;
-
-  await db.transact(db.tx.executedAutomations[dedupeUUID].update({
+  // Claim this execution in the DB.
+  await db.transact(tx.executedAutomations[dedupeUUID].update({
     key: processedKey,
     userId: ownerId,
     createdAt: Date.now(),
