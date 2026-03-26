@@ -1,16 +1,17 @@
-import { init, tx, id } from '@instantdb/admin';
+import { init, id, tx } from '@instantdb/admin';
 import nodemailer from 'nodemailer';
 import crypto from 'crypto';
 
 const APP_ID = process.env.VITE_INSTANT_APP_ID;
 const ADMIN_TOKEN = process.env.INSTANT_ADMIN_TOKEN;
 
+if (!APP_ID || !ADMIN_TOKEN) {
+  throw new Error('Missing environment variables: VITE_INSTANT_APP_ID or INSTANT_ADMIN_TOKEN');
+}
+
 const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
 
-const renderTemplate = (template, data) => {
-  if (!template) return '';
-  return template.replace(/\{(\w+)\}/g, (match, key) => data[key] || match);
-};
+const generateId = () => crypto.randomUUID();
 
 export default async function handler(req, res) {
   // --- MASTER SERVER SHIELD ---
@@ -19,207 +20,94 @@ export default async function handler(req, res) {
     return res.status(200).json({ success: true, message: 'Automations blocked' });
   }
 
-  try {
-    const { userProfiles, automations } = await db.query({
-      userProfiles: {},
-      automations: {},
-    });
-
-    let totalFired = 0;
-
-    for (const profile of userProfiles) {
-      const ownerId = profile.userId;
-      
-      const { leads, amc, executedAutomations, appointments, orders } = await db.query({
-        leads: { $: { where: { userId: ownerId } } },
-        amc: { $: { where: { userId: ownerId } } },
-        executedAutomations: { $: { where: { userId: ownerId } } },
-        appointments: { $: { where: { userId: ownerId } } },
-        orders: { $: { where: { userId: ownerId } } },
-      });
-
-      const executedKeys = new Set((executedAutomations || []).map(e => e.key));
-
-      const processFlows = async (entity, triggerType, triggerKeyBase, triggerTimestamp) => {
-        const flows = (automations || []).filter(f => f.userId === ownerId && f.active !== false && f.trigger === triggerType);
-        
-        for (const flow of flows) {
-          const processedKey = `${flow.id}-${triggerKeyBase}-${triggerTimestamp}`;
-          
-          if (executedKeys.has(processedKey)) continue;
-
-          // Check conditions
-          if (triggerType === 'trig-stage' && flow.triggerStage && entity.stage !== flow.triggerStage) continue;
-          
-          await executeAutomation(flow, entity, profile, processedKey);
-          totalFired++;
-          executedKeys.add(processedKey); // Prevent firing multiple times in same run
-        }
-      };
-
-      // 1. Leads (New & Stage Change)
-      for (const lead of leads) {
-        if (lead.createdAt) await processFlows(lead, 'trig-lead', `lead-new-${lead.id}`, lead.createdAt);
-        if (lead.stageChangedAt) await processFlows(lead, 'trig-stage', `lead-stage-${lead.id}-${lead.stageChangedAt}`, lead.stageChangedAt);
-      }
-
-      // 2. AMC Expiry
-      for (const entry of amc) {
-        if (!entry.expiryDate) continue;
-        const expiryDate = new Date(entry.expiryDate);
-        const today = new Date();
-        const diffDays = Math.ceil((expiryDate - today) / (1000 * 60 * 60 * 24));
-        
-        if (diffDays === 0) await processFlows(entry, 'trig-amc', `amc-today-${entry.id}`, entry.expiryDate);
-        if (diffDays === 7) await processFlows(entry, 'trig-amc', `amc-7days-${entry.id}`, entry.expiryDate);
-      }
-
-      // 3. Follow-ups
-      for (const lead of leads) {
-        if (!lead.followup) continue;
-        const followupDate = new Date(lead.followup);
-        if (followupDate < new Date()) await processFlows(lead, 'trig-followup', `followup-${lead.id}-${lead.followup}`, lead.followup);
-      }
-
-      // 4. Appointments
-      for (const appt of (appointments || [])) {
-        if (appt.createdAt) await processFlows(appt, 'trig-appt-new', `appt-new-${appt.id}`, appt.createdAt);
-        if (appt.date) {
-             const apptDate = new Date(appt.date);
-             const today = new Date();
-             if (apptDate.toDateString() === today.toDateString()) {
-                 await processFlows(appt, 'trig-appt-today', `appt-today-${appt.id}`, appt.date);
-             }
-        }
-      }
-
-      // 5. Ecom Orders
-      for (const order of (orders || [])) {
-        if (order.createdAt) await processFlows(order, 'trig-order-new', `order-new-${order.id}`, order.createdAt);
-        if (order.status) await processFlows(order, 'trig-order-status', `order-status-${order.id}-${order.status}`, Date.now());
-      }
-    }
-
-    console.log(`[CRON] ✅ Done. Total automations fired: ${totalFired}`);
-    return res.status(200).json({ success: true, fired: totalFired });
-
-  } catch (err) {
-    console.error('[CRON] ❌ Error:', err);
-    return res.status(500).json({ error: err.message });
-  }
-}
-
-async function executeAutomation(flow, entity, profile, processedKey) {
-  const ownerId = profile.userId;
-
-  // --- ATOMIC LOCK (Architecture Level) ---
-  const dedupeId = crypto.createHash('md5').update(processedKey).digest('hex');
-  const dedupeUUID = `${dedupeId.slice(0,8)}-${dedupeId.slice(8,12)}-${dedupeId.slice(12,16)}-${dedupeId.slice(16,20)}-${dedupeId.slice(20,32)}`;
-  // Claim this execution in the DB.
-  await db.transact(tx.executedAutomations[dedupeUUID].update({
-    key: processedKey,
-    userId: ownerId,
-    createdAt: Date.now(),
-  }));
-  // ------------------------------------------
-
-  // Resolve recipients
-  const resolveRecipients = (flow, lead, profile) => {
-      const ownerEmail = profile.bizEmail || profile.email || profile.smtpUser || '';
-      const extraEmails = (profile.bizExtraEmails || '').split(',').map(e => e.trim()).filter(Boolean);
-      const recipients = [];
-      const recMode = (flow.recipient || 'customer').toLowerCase();
-
-      if (recMode === 'customer' || recMode === 'both') {
-        if (lead.email) recipients.push({ email: lead.email, isOwner: false });
-      }
-      if (recMode === 'owner' || recMode === 'both') {
-        if (ownerEmail) recipients.push({ email: ownerEmail, isOwner: true });
-        extraEmails.forEach(email => recipients.push({ email, isOwner: true }));
-      }
-      return recipients.filter((v, i, a) => a.findIndex(t => t.email === v.email) === i);
-    };
-
-  const targets = resolveRecipients(flow, entity, profile);
-  if (targets.length === 0) {
-    console.log(`[CRON] ⚠️ Skip: No recipients for ${flow.name}`);
-    return;
-  }
-
-  const templateData = { 
-    name:         entity.name || entity.client || 'Customer', 
-    client:       entity.name || entity.client || 'Customer',
-    bizName:      profile.bizName || 'Our Business',
-    date:         new Date().toLocaleDateString('en-IN'),
-    stage:        entity.stage || '',
-    followupDate: entity.followup || '',
-    orderId:      entity.id?.slice(0, 8) || '',
-    service:      entity.service || '',
-    amount:       entity.amount || '',
-  };
-
-  const subject = renderTemplate(flow.subject || 'Reminder', templateData);
-  const body    = renderTemplate(flow.template || 'Hello', templateData);
+  // --- AUTOMATION TRIGGERS ---
+  const { userProfiles, automations, leads, amcProfiles, appointments, ecommerceOrders } = await db.query({
+    userProfiles: { $: { where: { role: 'owner' } } },
+    automations: { $: { where: { active: true } } },
+    leads: { $: { where: { type: 'trig-stage' } } },
+    amcProfiles: { $: { where: { type: 'trig-amc' } } },
+    appointments: { $: { where: { type: 'trig-appt' } } },
+    ecommerceOrders: { $: { where: { type: 'trig-ecom' } } }
+  });
 
   const txs = [];
-  
-  for (const rec of targets) {
-    const actionId = (flow.actions?.[0] || flow.action || 'act-email').toLowerCase();
-    
-    if (actionId === 'act-email') {
-      try {
-        await sendEmailSMTP(rec.email, subject, body, profile);
-        
-        // Log to Outbox for UI visibility
-        txs.push(tx.outbox[id()].update({
-          userId: ownerId,
-          recipient: rec.email,
-          type: 'email',
-          subject: subject,
-          content: body,
-          status: 'Sent',
-          sentAt: Date.now()
-        }));
-      } catch (err) {
-        console.error(`[CRON] ❌ SMTP Error to ${rec.email}:`, err);
-        txs.push(tx.outbox[id()].update({
-          userId: ownerId,
-          recipient: rec.email,
-          type: 'email',
-          subject: subject,
-          content: body,
-          status: 'Failed',
-          error: err.message,
-          sentAt: Date.now()
-        }));
+  console.log(`[CRON] Processing ${automations.length} active automations...`);
+
+  for (const profile of userProfiles) {
+    const ownerId = profile.userId;
+    const biz = profile.businessName;
+    const user = profile.emailUser;
+    const pass = profile.emailPass;
+    const host = profile.emailHost;
+    const port = parseInt(profile.emailPort);
+
+    if (!user || !pass || !host) continue;
+
+    const myAutomations = automations.filter(a => a.userId === ownerId);
+    if (!myAutomations.length) continue;
+
+    const transporter = nodemailer.createTransport({
+      host, port, secure: port === 465,
+      auth: { user, pass },
+      tls: { rejectUnauthorized: false }
+    });
+
+    for (const flow of myAutomations) {
+      let entities = [];
+      if (flow.triggerType === 'stage-change') entities = leads.filter(l => l.userId === ownerId && l.stageId === flow.triggerValue);
+      else if (flow.triggerType === 'amc-expiry') entities = amcProfiles.filter(p => p.userId === ownerId && p.daysToExpiry <= (flow.triggerValue || 0));
+      else if (flow.triggerType === 'new-appt') entities = appointments.filter(a => a.userId === ownerId && a.status === 'scheduled');
+      else if (flow.triggerType === 'ecom-order') entities = ecommerceOrders.filter(o => o.userId === ownerId && o.status === 'confirmed');
+
+      for (const entity of entities) {
+        const dedupeId = `${flow.id}-${entity.id}`;
+        if (entity.processedAutomations?.includes(flow.id)) continue;
+
+        try {
+          // --- SEND EMAIL ---
+          const recipientEmail = entity.email;
+          if (!recipientEmail) continue;
+
+          const subject = flow.subject.replace('{{name}}', entity.name);
+          const body = flow.body.replace('{{name}}', entity.name);
+
+          await transporter.sendMail({
+            from: biz ? `"${biz}" <${user}>` : user,
+            to: recipientEmail,
+            subject,
+            html: body.replace(/\n/g, '<br/>')
+          });
+
+          // --- LOGS (Unified Messaging Logs - Old Format Style) ---
+          txs.push(tx.outbox[id()].update({
+            userId: ownerId,
+            recipient: recipientEmail,
+            type: 'email',
+            subject: subject, // Using the "Old Format" subject from the flow
+            content: body,
+            status: 'Sent',
+            sentAt: Date.now()
+          }));
+
+          // Mark as processed
+          const currentProcessed = entity.processedAutomations || [];
+          txs.push(tx[entity.type][entity.id].update({
+            processedAutomations: [...currentProcessed, flow.id]
+          }));
+
+          txs.push(tx.activityLogs[id()].update({
+            userId: ownerId,
+            text: `🤖 [Auto-Cron] Processed automation: ${flow.name} for ${entity.name}`,
+            createdAt: Date.now()
+          }));
+
+        } catch (err) {
+          console.error(`[CRON] Workflow failure (${flow.name}):`, err);
+        }
       }
     }
   }
 
-  // Log activity
-  txs.push(tx.activityLogs[id()].update({
-    entityId: entity.id,
-    entityType: 'lead',
-    text: `🤖 [Auto-Cron] Processed automation: ${flow.name}`,
-    userId: ownerId,
-    userName: 'Automation Bot (Server)',
-    createdAt: Date.now(),
-  }));
-
   if (txs.length > 0) await db.transact(txs);
-}
-
-async function sendEmailSMTP(to, subject, body, profile) {
-  if (!profile.smtpHost || !profile.smtpUser || !profile.smtpPass) return;
-  const transporter = nodemailer.createTransport({
-    host: profile.smtpHost,
-    port: parseInt(profile.smtpPort) || 587,
-    secure: parseInt(profile.smtpPort) === 465,
-    auth: { user: profile.smtpUser, pass: profile.smtpPass },
-    tls: { rejectUnauthorized: false }
-  });
-  await transporter.sendMail({
-    from: profile.bizName ? `"${profile.bizName}" <${profile.smtpUser}>` : profile.smtpUser,
-    to, subject, text: body, html: body.replace(/\n/g, '<br/>')
-  });
+  return res.status(200).json({ success: true, processed: txs.length });
 }
