@@ -141,9 +141,14 @@ async function executeAutomation(flow, entity, profile, processedKey) {
     };
 
   const targets = resolveRecipients(flow, entity, profile);
+  if (targets.length === 0) {
+    console.log(`[CRON] ⚠️ Skip: No recipients for ${flow.name}`);
+    return;
+  }
+
   const templateData = { 
     name:         entity.name || entity.client || 'Customer', 
-    client:       entity.name || entity.client || 'Customer', // Fix for {client}
+    client:       entity.name || entity.client || 'Customer',
     bizName:      profile.bizName || 'Our Business',
     date:         new Date().toLocaleDateString('en-IN'),
     stage:        entity.stage || '',
@@ -156,23 +161,52 @@ async function executeAutomation(flow, entity, profile, processedKey) {
   const subject = renderTemplate(flow.subject || 'Reminder', templateData);
   const body    = renderTemplate(flow.template || 'Hello', templateData);
 
+  const txs = [];
+  
   for (const rec of targets) {
     const actionId = (flow.actions?.[0] || flow.action || 'act-email').toLowerCase();
     
     if (actionId === 'act-email') {
-      await sendEmailSMTP(rec.email, subject, body, profile);
+      try {
+        await sendEmailSMTP(rec.email, subject, body, profile);
+        
+        // Log to Outbox for UI visibility
+        txs.push(tx.outbox[id()].update({
+          userId: ownerId,
+          recipient: rec.email,
+          type: 'email',
+          subject: subject,
+          content: body,
+          status: 'Sent',
+          sentAt: Date.now()
+        }));
+      } catch (err) {
+        console.error(`[CRON] ❌ SMTP Error to ${rec.email}:`, err);
+        txs.push(tx.outbox[id()].update({
+          userId: ownerId,
+          recipient: rec.email,
+          type: 'email',
+          subject: subject,
+          content: body,
+          status: 'Failed',
+          error: err.message,
+          sentAt: Date.now()
+        }));
+      }
     }
   }
 
   // Log activity
-  await db.transact(tx.activityLogs[id()].update({
+  txs.push(tx.activityLogs[id()].update({
     entityId: entity.id,
     entityType: 'lead',
-    text: `🤖 [Auto-Cron] Sent automation: ${flow.name}`,
+    text: `🤖 [Auto-Cron] Processed automation: ${flow.name}`,
     userId: ownerId,
     userName: 'Automation Bot (Server)',
     createdAt: Date.now(),
   }));
+
+  if (txs.length > 0) await db.transact(txs);
 }
 
 async function sendEmailSMTP(to, subject, body, profile) {
