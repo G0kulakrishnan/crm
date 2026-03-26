@@ -16,17 +16,24 @@ export default async function handler(req, res) {
     const env = req.env || process.env;
     const APP_ID = env.VITE_INSTANT_APP_ID;
     const ADMIN_TOKEN = env.INSTANT_ADMIN_TOKEN;
-    const { type, to, subject, body, message, ownerId, fromName, smtpConfig } = req.body || {};
+    const { type, to, subject, body, message, ownerId, fromName, smtpConfig, processedKey } = req.body || {};
 
     if (!to || (!body && !message) || !ownerId) return res.status(400).json({ error: 'Missing required fields' });
 
+    // --- LEGACY BLOCK & DEDUPLICATION GUARD ---
+    // If the request doesn't have a processedKey, it's from an OLD UNREFRESHED TAB.
+    // We strictly block these to stop the "Duplicate Storm".
+    if (!processedKey && !type) {
+      console.log(`[NOTIFY] 🛡️ Blocked Legacy Request from unrefreshed tab (Recipient: ${to})`);
+      return res.status(200).json({ success: true, skipped: true, message: 'Legacy request blocked. Please refresh your browser tabs.' });
+    }
+
     const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
 
-    // --- DEDUPLICATION GUARD (Architecture level) ---
+    // Generate a stable UUID from the processedKey (if provided) or a hash of content
+    const baseKey = processedKey || `${ownerId}-${to}-${subject}`;
     const minuteWindow = Math.floor(Date.now() / (60 * 1000));
-    const contentBody = body || message || '';
-    const dedupeHash = crypto.createHash('sha256').update(`${to}|${subject}|${contentBody}`).digest('hex').slice(0, 16);
-    const dedupeKeyString = `notify-dedupe-${ownerId}-${dedupeHash}-${minuteWindow}`;
+    const dedupeKeyString = `notify-v2-${baseKey}-${minuteWindow}`;
     
     const dedupeId = crypto.createHash('md5').update(dedupeKeyString).digest('hex');
     const dedupeUUID = `${dedupeId.slice(0,8)}-${dedupeId.slice(8,12)}-${dedupeId.slice(12,16)}-${dedupeId.slice(16,20)}-${dedupeId.slice(20,32)}`;

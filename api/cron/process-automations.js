@@ -136,10 +136,15 @@ async function executeAutomation(flow, entity, profile, processedKey) {
 
   const targets = resolveRecipients(flow, entity, profile);
   const templateData = { 
-    name: entity.name || entity.client || 'Customer', 
-    bizName: profile.bizName || 'Our Business',
-    date: new Date().toLocaleDateString('en-IN'),
-    stage: entity.stage || ''
+    name:         entity.name || entity.client || 'Customer', 
+    client:       entity.name || entity.client || 'Customer', // Fix for {client}
+    bizName:      profile.bizName || 'Our Business',
+    date:         new Date().toLocaleDateString('en-IN'),
+    stage:        entity.stage || '',
+    followupDate: entity.followup || '',
+    orderId:      entity.id?.slice(0, 8) || '',
+    service:      entity.service || '',
+    amount:       entity.amount || '',
   };
 
   const subject = renderTemplate(flow.subject || 'Reminder', templateData);
