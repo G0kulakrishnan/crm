@@ -79,12 +79,17 @@ export default async function handler(req, res) {
           });
 
           // --- LOGS (Unified Messaging Logs - Old Format Style) ---
+          // Format based on User Screenshot Step 998 & Ground Truth Logs:
+          // 🤖 [Auto] 🔄 Name has moved to stage: Stage. Assigned to: .
+          const detail = `🔄 ${lead.name} has moved to stage: ${flow.type.split(': ')[1] || flow.type}. Assigned to: ${lead.assignedTo || '.'}`;
+          const cleanSubject = `Lead Status Changed: ${detail.split('. ')[0]}`;
+
           txs.push(tx.outbox[id()].update({
             userId: ownerId,
             recipient: recipientEmail,
             type: 'email',
-            subject: subject, // Using the "Old Format" subject from the flow
-            content: body,
+            subject: cleanSubject, 
+            content: `Subject: ${cleanSubject}\n\n${detail}`,
             status: 'Sent',
             sentAt: Date.now()
           }));
