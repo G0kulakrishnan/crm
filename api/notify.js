@@ -1,6 +1,8 @@
 import { createRequire } from 'module';
 const require = createRequire(import.meta.url);
-const nodemailer = require('nodemailer');
+import { init, tx, id as generateId } from '@instantdb/admin';
+import nodemailer from 'nodemailer';
+import crypto from 'crypto';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -18,22 +20,17 @@ export default async function handler(req, res) {
 
     if (!to || (!body && !message) || !ownerId) return res.status(400).json({ error: 'Missing required fields' });
 
-    const { init, tx, id: generateId } = require('@instantdb/admin');
-    const crypto = require('crypto');
     const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
 
     // --- DEDUPLICATION GUARD (Architecture level) ---
-    // Generate a stable key for this specific message in a 1-minute window.
     const minuteWindow = Math.floor(Date.now() / (60 * 1000));
     const contentBody = body || message || '';
     const dedupeHash = crypto.createHash('sha256').update(`${to}|${subject}|${contentBody}`).digest('hex').slice(0, 16);
     const dedupeKeyString = `notify-dedupe-${ownerId}-${dedupeHash}-${minuteWindow}`;
     
-    // InstantDB requires IDs to be UUIDs. We hash our key string into a stable UUID format.
     const dedupeId = crypto.createHash('md5').update(dedupeKeyString).digest('hex');
     const dedupeUUID = `${dedupeId.slice(0,8)}-${dedupeId.slice(8,12)}-${dedupeId.slice(12,16)}-${dedupeId.slice(16,20)}-${dedupeId.slice(20,32)}`;
 
-    // Check if this exact message was already sent in this minute
     const { executedAutomations } = await db.query({ 
       executedAutomations: { $: { where: { id: dedupeUUID } } } 
     });
@@ -43,8 +40,6 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, skipped: true, message: 'Duplicate blocked by server-side guard' });
     }
     
-    // ATOMIC LOCK: We reserve this notification ID BEFORE sending.
-    // This is the "Defense in Depth" that stops race conditions from browser tabs.
     await db.transact(tx.executedAutomations[dedupeUUID].update({
       key: dedupeKeyString,
       userId: ownerId,

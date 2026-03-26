@@ -1,6 +1,6 @@
 import { init, tx, id } from '@instantdb/admin';
-const nodemailer = require('nodemailer');
-const crypto = require('crypto');
+import nodemailer from 'nodemailer';
+import crypto from 'crypto';
 
 const APP_ID = process.env.VITE_INSTANT_APP_ID;
 const ADMIN_TOKEN = process.env.INSTANT_ADMIN_TOKEN;
@@ -107,13 +107,9 @@ async function executeAutomation(flow, entity, profile, processedKey) {
   const ownerId = profile.userId;
 
   // --- ATOMIC LOCK (Architecture Level) ---
-  // Create a predictable UUID for this specific execution. 
-  // If multiple instances try to fire this simultaneously, they will all target this same UUID.
   const dedupeId = crypto.createHash('md5').update(processedKey).digest('hex');
   const dedupeUUID = `${dedupeId.slice(0,8)}-${dedupeId.slice(8,12)}-${dedupeId.slice(12,16)}-${dedupeId.slice(16,20)}-${dedupeId.slice(20,32)}`;
 
-  // Claim this execution in the DB. This will fail if the ID is invalid (UUID check) 
-  // or succeed even if it's already there (idempotent update).
   await db.transact(db.tx.executedAutomations[dedupeUUID].update({
     key: processedKey,
     userId: ownerId,
