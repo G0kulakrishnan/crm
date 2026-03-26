@@ -9,6 +9,7 @@ export default async function handler(req, res) {
 
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+
   try {
     const env = req.env || process.env;
     const APP_ID = env.VITE_INSTANT_APP_ID;
@@ -23,37 +24,47 @@ export default async function handler(req, res) {
 
     // --- DEDUPLICATION GUARD (Architecture level) ---
     // Generate a stable key for this specific message in a 1-minute window.
-    // This prevents race conditions from multiple browser tabs/retries.
     const minuteWindow = Math.floor(Date.now() / (60 * 1000));
     const contentBody = body || message || '';
     const dedupeHash = crypto.createHash('sha256').update(`${to}|${subject}|${contentBody}`).digest('hex').slice(0, 16);
-    const dedupeKey = `notify-dedupe-${ownerId}-${dedupeHash}-${minuteWindow}`;
+    const dedupeKeyString = `notify-dedupe-${ownerId}-${dedupeHash}-${minuteWindow}`;
+    
+    // InstantDB requires IDs to be UUIDs. We hash our key string into a stable UUID format.
+    const dedupeId = crypto.createHash('md5').update(dedupeKeyString).digest('hex');
+    const dedupeUUID = `${dedupeId.slice(0,8)}-${dedupeId.slice(8,12)}-${dedupeId.slice(12,16)}-${dedupeId.slice(16,20)}-${dedupeId.slice(20,32)}`;
 
     // Check if this exact message was already sent in this minute
     const { executedAutomations } = await db.query({ 
-      executedAutomations: { $: { where: { key: dedupeKey, userId: ownerId } } } 
+      executedAutomations: { $: { where: { id: dedupeUUID } } } 
     });
 
     if (executedAutomations?.length > 0) {
-      console.log(`[NOTIFY] 🛡️ Dedupe: Skipping duplicate notification for ${to} (Key: ${dedupeKey})`);
-      return res.status(200).json({ success: true, skipped: true, message: 'Duplicate detected within 1-minute window' });
+      console.log(`[NOTIFY] 🛡️ Dedupe: Skipping duplicate notification (ID: ${dedupeUUID})`);
+      return res.status(200).json({ success: true, skipped: true, message: 'Duplicate blocked by server-side guard' });
     }
+    
+    // ATOMIC LOCK: We reserve this notification ID BEFORE sending.
+    // This is the "Defense in Depth" that stops race conditions from browser tabs.
+    await db.transact(tx.executedAutomations[dedupeUUID].update({
+      key: dedupeKeyString,
+      userId: ownerId,
+      createdAt: Date.now()
+    }));
     // ------------------------------------------------
 
     const profile = (await db.query({ userProfiles: { $: { where: { userId: ownerId }, limit: 1 } } })).userProfiles?.[0];
 
     if (type === 'whatsapp') {
-      const waApiToken = profile?.waApiToken; // waprochat api token
-      const waPhoneId = profile?.waPhoneId;   // waprochat phone number id
+      const waApiToken = profile?.waApiToken;
+      const waPhoneId = profile?.waPhoneId;
       const { templateId, variables } = req.body || {};
 
-      if (!waApiToken || !waPhoneId) return res.status(400).json({ error: 'WhatsApp not configured (API Token or Phone ID missing)' });
+      if (!waApiToken || !waPhoneId) return res.status(400).json({ error: 'WhatsApp not configured' });
       
       const phone = to.replace(/\D/g, '');
       const formattedPhone = phone.startsWith('91') ? `+${phone}` : phone.length === 10 ? `+91${phone}` : `+${phone}`;
 
       if (templateId) {
-        // Waprochat Template API
         const formData = new URLSearchParams();
         formData.append('apiToken', waApiToken);
         formData.append('phone_number_id', waPhoneId);
@@ -72,12 +83,9 @@ export default async function handler(req, res) {
         });
         const data = await response.json();
         if (response.ok && data.status === 'success') return res.status(200).json({ success: true, messageId: data.message_id });
-        return res.status(400).json({ error: data.message || 'Waprochat template fail', details: data });
+        return res.status(400).json({ error: data.message || 'Waprochat template fail' });
       } else {
-        // Fallback or Generic Text (Old Meta style but using Waprochat credentials if they support it, 
-        // OR we just send a simple message via Waprochat if they have a non-template API)
-        // Waprochat usually requires templates. For now, we'll focus on templates as requested.
-        return res.status(400).json({ error: 'Template ID required for Waprochat integration' });
+        return res.status(400).json({ error: 'Template ID required for WhatsApp' });
       }
     }
 
@@ -93,13 +101,6 @@ export default async function handler(req, res) {
     const transporter = nodemailer.createTransport({ host, port, secure: port === 465, auth: { user, pass }, tls: { rejectUnauthorized: false } });
     const info = await transporter.sendMail({ from: biz ? `"${biz}" <${user}>` : user, to, subject: subject || 'Notification', text: body || message, html: (body || message).replace(/\n/g, '<br/>') });
     
-    // Record execution for deduplication
-    await db.transact(tx.executedAutomations[dedupeKey].update({
-      key: dedupeKey,
-      userId: ownerId,
-      createdAt: Date.now()
-    }));
-
     return res.status(200).json({ success: true, messageId: info.messageId });
 
   } catch (err) {
