@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { sendEmail, sendEmailMock, renderTemplate } from '../../utils/messaging';
 import SearchableSelect from '../UI/SearchableSelect';
 
-const EMPTY = { client: '', email: '', phone: '', contractNo: '', cycle: 'Yearly', startDate: '', endDate: '', amount: '', taxRate: 0, plan: '', status: 'Active', notes: '', assign: '' };
+const EMPTY = { client: '', email: '', phone: '', contractNo: '', cycle: 'Yearly', startDate: '', endDate: '', amount: '', taxRate: 0, plan: '', productId: '', sku: '', status: 'Active', notes: '', assign: '' };
 
 export default function AMC({ user, perms, ownerId }) {
   const canCreate = perms?.can('AMC', 'create') === true;
@@ -365,14 +365,14 @@ export default function AMC({ user, perms, ownerId }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', cycle: a.cycle || 'Yearly', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, taxRate: a.taxRate || 0, plan: a.plan, status: a.status, notes: a.notes || '' }); setModal(true); }}>Edit</button>}
+            {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', cycle: a.cycle || 'Yearly', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, taxRate: a.taxRate || 0, plan: a.plan, productId: a.productId || '', sku: a.sku || '', status: a.status, notes: a.notes || '' }); setModal(true); }}>Edit</button>}
             {canEdit && <button className="btn btn-primary btn-sm" onClick={() => openRenewModal(a)}>🔄 Renew AMC</button>}
           </div>
         </div>
 
         {/* Contract Stats */}
         <div className="stat-grid" style={{ marginBottom: 22 }}>
-          <div className="stat-card sc-blue"><div className="lbl">Plan</div><div className="val" style={{ fontSize: 16 }}>{a.plan || '-'}</div></div>
+          <div className="stat-card sc-blue"><div className="lbl">Plan</div><div className="val" style={{ fontSize: 16 }}>{products.find(p => p.id === a.productId)?.name || a.plan || '-'}</div></div>
           <div className="stat-card sc-green"><div className="lbl">Current Amount</div><div className="val" style={{ fontSize: 16 }}>{fmt(a.amount)}</div></div>
           <div className="stat-card sc-yellow"><div className="lbl">Renewals</div><div className="val">{(a.renewals || []).length}</div></div>
           <div className="stat-card sc-teal"><div className="lbl">Total Paid</div><div className="val" style={{ fontSize: 16 }}>{fmt(totalPaid + (a.amount || 0))}</div></div>
@@ -544,7 +544,10 @@ export default function AMC({ user, perms, ownerId }) {
                         <div style={{ fontSize: 10, color: 'var(--muted)' }}>{a.email}</div>
                       </td>
                       <td style={{ fontSize: 12 }}>{a.contractNo || '-'}</td>
-                      <td>{a.plan}</td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{products.find(p => p.id === a.productId)?.name || a.plan}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{a.contractNo}</div>
+                      </td>
                       <td style={{ fontSize: 12 }}>{fmtD(a.startDate)}</td>
                       <td style={{ fontSize: 12, fontWeight: 600 }}>{fmtD(a.endDate)}</td>
                       <td style={{ fontWeight: 700 }}>{fmt(a.amount)}</td>
@@ -609,7 +612,24 @@ export default function AMC({ user, perms, ownerId }) {
                 <div className="fg"><label>End Date (Expiry)</label><input type="date" value={form.endDate} readOnly={form.cycle !== 'Custom'} onChange={e => form.cycle === 'Custom' && f('endDate')(e)} style={{ border: form.cycle !== 'Custom' ? 'none' : '', background: form.cycle !== 'Custom' ? '#f1f5f9' : '#fff' }} /></div>
                 <div className="fg" style={{ zIndex: 9 }}>
                   <label>Plan / Service</label>
-                  <SearchableSelect options={products} displayKey="name" returnKey="name" value={form.plan} onChange={val => { const pMatch = products.find(p => p.name === val); setForm(prev => ({ ...prev, plan: val, amount: pMatch ? pMatch.rate : prev.amount, taxRate: pMatch ? (pMatch.tax || 0) : prev.taxRate })); }} placeholder="e.g. Server AMC" />
+                                    <SearchableSelect 
+                    options={products} 
+                    displayKey="name" 
+                    returnKey="id" 
+                    value={form.productId || form.plan} 
+                    onChange={val => { 
+                      const pMatch = products.find(p => p.id === val || p.name === val); 
+                      setForm(prev => ({ 
+                        ...prev, 
+                        productId: pMatch?.id || '',
+                        sku: pMatch?.code || '',
+                        plan: pMatch?.name || val, 
+                        amount: pMatch ? pMatch.rate : prev.amount, 
+                        taxRate: pMatch ? (pMatch.tax || 0) : prev.taxRate 
+                      })); 
+                    }} 
+                    placeholder="e.g. Server AMC" 
+                  />
                 </div>
                 <div className="fg"><label>Tax (GST %)</label>
                   <select value={form.taxRate} onChange={f('taxRate')}>{taxRates.map(t => <option key={t.label} value={t.rate}>{t.label}</option>)}</select>

@@ -187,6 +187,8 @@ export default function Quotations({ user, perms, ownerId, settings }) {
         userId: ownerId,
         actorId: user.id,
         client: payload.client,
+        productId: form.amcProductId || '',
+        sku: form.amcSku || '',
         plan: form.amcPlan,
         amount: parseFloat(form.amcAmount) || 0,
         taxRate: parseFloat(form.amcTaxRate) || 0,
@@ -330,6 +332,10 @@ export default function Quotations({ user, perms, ownerId, settings }) {
     const clientMatch = customers.find(c => c.name === printing.client);
     const dataWithContext = {
       ...printing,
+      items: (Array.isArray(printing.items) ? printing.items : JSON.parse(printing.items || '[]')).map(it => ({
+        ...it,
+        name: products.find(p => p.id === it.productId || p.name === it.name)?.name || it.name
+      })),
       clientDetails: clientMatch,
       template: printing.template || profile?.quotationTemplate || 'Classic'
     };
@@ -534,9 +540,22 @@ export default function Quotations({ user, perms, ownerId, settings }) {
                           <SearchableSelect 
                             options={products}
                             displayKey="name"
-                            returnKey="name"
-                            value={it.name}
-                            onChange={val => updateItem(i, 'name', val)}
+                            returnKey="id"
+                            value={it.productId || it.name}
+                            onChange={val => {
+                              const pMatch = products.find(p => p.id === val || p.name === val);
+                              const updates = { 
+                                productId: pMatch?.id || '', 
+                                sku: pMatch?.code || '',
+                                name: pMatch?.name || val 
+                              };
+                              if (pMatch) {
+                                updates.rate = pMatch.rate || 0;
+                                updates.taxRate = pMatch.tax || 0;
+                              }
+                              const its = form.items.map((x, idx) => idx === i ? { ...x, ...updates } : x);
+                              setForm(prev => ({ ...prev, items: its }));
+                            }}
                             placeholder="Select Product"
                           />
                         </div>

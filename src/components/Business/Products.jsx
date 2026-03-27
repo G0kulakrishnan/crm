@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import StockLog from './StockLog';
 
 const EMPTY = { name: '', code: '', type: 'Product', category: 'General', unit: 'Nos', rate: '', purchasePrice: '', tax: 18, desc: '', stock: 0, lowStockThreshold: 5, trackStock: true, listInEcom: false, imageUrl: '', description: '' };
+const generateSKU = () => 'P-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
 const CSV_HEADERS = ['Name', 'Code', 'Category', 'Type', 'Unit', 'Rate', 'PurchasePrice', 'Tax', 'Stock', 'LowStockThreshold', 'TrackStock', 'Description', 'ListInEcom', 'ImageUrl', 'FullDescription'];
 
@@ -53,6 +54,10 @@ export default function Products({ user, perms, ownerId }) {
 
   const { data } = db.useQuery({ 
     products: { $: { where: { userId: ownerId } } },
+    amcs: { $: { where: { userId: ownerId } } },
+    invoices: { $: { where: { userId: ownerId } } },
+    quotes: { $: { where: { userId: ownerId } } },
+    purchaseOrders: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } }
   });
   const products = data?.products || [];
@@ -77,6 +82,75 @@ export default function Products({ user, perms, ownerId }) {
   }, [filtered, currentPage, pageSize]);
 
   useEffect(() => { setCurrentPage(1); }, [search, pageSize]);
+  
+  // Migration: Ensure all products have a SKU/Code & Link existing records by ID
+  useEffect(() => {
+    if (!data?.products) return;
+    const txs = [];
+    
+    // 1. Backfill Products SKUs
+    const productsWithoutCode = products.filter(p => !p.code);
+    productsWithoutCode.forEach(p => txs.push(db.tx.products[p.id].update({ code: generateSKU() })));
+
+    // 2. Backfill AMCs
+    (data.amcs || []).filter(a => !a.productId).forEach(a => {
+      const pMatch = products.find(p => p.name === a.plan);
+      if (pMatch) txs.push(db.tx.amcs[a.id].update({ productId: pMatch.id, sku: pMatch.code }));
+    });
+
+    // 3. Backfill Invoices
+    (data.invoices || []).forEach(inv => {
+      let changed = false;
+      const rawItems = Array.isArray(inv.items) ? inv.items : JSON.parse(inv.items || '[]');
+      const items = rawItems.map(it => {
+        if (!it.productId) {
+          const pMatch = products.find(p => p.name === it.name);
+          if (pMatch) { changed = true; return { ...it, productId: pMatch.id, sku: pMatch.code }; }
+        }
+        return it;
+      });
+      if (changed) txs.push(db.tx.invoices[inv.id].update({ items: Array.isArray(inv.items) ? items : JSON.stringify(items) }));
+    });
+
+    // 4. Backfill Quotes
+    (data.quotes || []).forEach(q => {
+      let changed = false;
+      const rawItems = Array.isArray(q.items) ? q.items : JSON.parse(q.items || '[]');
+      const items = rawItems.map(it => {
+        if (!it.productId) {
+          const pMatch = products.find(p => p.name === it.name);
+          if (pMatch) { changed = true; return { ...it, productId: pMatch.id, sku: pMatch.code }; }
+        }
+        return it;
+      });
+      if (changed) txs.push(db.tx.quotes[q.id].update({ items: Array.isArray(q.items) ? items : JSON.stringify(items) }));
+    });
+
+    // 5. Backfill Purchase Orders
+    (data.purchaseOrders || []).forEach(po => {
+      let changed = false;
+      const items = (po.items || []).map(it => {
+        if (!it.productId) {
+          const pMatch = products.find(p => p.name === it.name);
+          if (pMatch) { changed = true; return { ...it, productId: pMatch.id, sku: pMatch.code }; }
+        }
+        return it;
+      });
+      if (changed) txs.push(db.tx.purchaseOrders[po.id].update({ items }));
+    });
+
+    if (txs.length > 0) {
+      // Avoid infinite loop by only running if we actually have changes
+      const runId = txs.length; 
+      if (window._lastMigRun === runId) return;
+      window._lastMigRun = runId;
+      
+      console.log(`Running migration for ${txs.length} records...`);
+      for (let i = 0; i < txs.length; i += 25) {
+        db.transact(txs.slice(i, i + 25));
+      }
+    }
+  }, [data]);
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -100,6 +174,7 @@ export default function Products({ user, perms, ownerId }) {
       lowStockThreshold: parseFloat(form.lowStockThreshold) || 5,
       userId: ownerId 
     };
+    if (!payload.code) payload.code = generateSKU();
     if (editData) { await db.transact(db.tx.products[editData.id].update(payload)); toast('Updated', 'success'); }
     else { await db.transact(db.tx.products[id()].update(payload)); toast('Product created', 'success'); }
     setModal(false);
@@ -183,7 +258,8 @@ export default function Products({ user, perms, ownerId }) {
           listInEcom: String(row['ListInEcom']).toLowerCase() === 'true',
           imageUrl: row['ImageUrl'] || '',
           description: row['FullDescription'] || '',
-          userId: ownerId
+          userId: ownerId,
+          code: row['Code'] || generateSKU()
         });
       });
       // Batch in chunks of 25

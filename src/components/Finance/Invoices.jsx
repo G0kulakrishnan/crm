@@ -340,6 +340,10 @@ export default function Invoices({ user, perms, ownerId, settings }) {
     const clientMatch = customers.find(c => c.name === printing.client);
     const dataWithContext = {
       ...printing,
+      items: (Array.isArray(printing.items) ? printing.items : JSON.parse(printing.items || '[]')).map(it => ({
+        ...it,
+        name: products.find(p => p.id === it.productId)?.name || it.name
+      })),
       clientDetails: clientMatch,
       template: printing.template || profile?.invoiceTemplate || 'Classic'
     };
@@ -589,9 +593,16 @@ export default function Invoices({ user, perms, ownerId, settings }) {
                         displayKey="name" 
                         returnKey="name"
                         value={form.amcPlan} 
-                        onChange={val => {
-                           const pMatch = products.find(p => p.name === val);
-                           setForm(prev => ({ ...prev, amcPlan: val, amcAmount: pMatch ? pMatch.rate : prev.amcAmount, amcTaxRate: pMatch ? (pMatch.tax || 0) : prev.amcTaxRate }));
+                         onChange={val => {
+                           const pMatch = products.find(p => p.id === val || p.name === val);
+                           setForm(prev => ({ 
+                             ...prev, 
+                             amcPlan: pMatch?.name || val, 
+                             amcProductId: pMatch?.id || '',
+                             amcSku: pMatch?.code || '',
+                             amcAmount: pMatch ? pMatch.rate : prev.amcAmount, 
+                             amcTaxRate: pMatch ? (pMatch.tax || 0) : prev.amcTaxRate 
+                           }));
                         }} 
                         placeholder="e.g. Hosting, Maintenance..." 
                       />
@@ -631,11 +642,24 @@ export default function Invoices({ user, perms, ownerId, settings }) {
                       <td>
                         <div style={{ position: 'relative', minWidth: 200 }}>
                           <SearchableSelect 
-                            options={[...products, { name: it.name }]} // Allow raw typed names by just giving it options
+                            options={products} 
                             displayKey="name"
-                            returnKey="name"
-                            value={it.name}
-                            onChange={val => updateItem(i, 'name', val)}
+                            returnKey="id"
+                            value={it.productId || it.name}
+                            onChange={val => {
+                              const pMatch = products.find(p => p.id === val || p.name === val);
+                              const updates = { 
+                                productId: pMatch?.id || '', 
+                                sku: pMatch?.code || '',
+                                name: pMatch?.name || val 
+                              };
+                              if (pMatch) {
+                                updates.rate = pMatch.rate || 0;
+                                updates.taxRate = pMatch.tax || 0;
+                              }
+                              const its = form.items.map((x, idx) => idx === i ? { ...x, ...updates } : x);
+                              setForm(prev => ({ ...prev, items: its }));
+                            }}
                             placeholder="Select Product"
                           />
                         </div>

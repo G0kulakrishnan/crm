@@ -81,7 +81,7 @@ export default function PurchaseOrders({ user, perms, ownerId }) {
         const items = prev.items.map((it, i) => {
           if (i !== idx) return it;
           const rate = prod.purchasePrice || prod.rate || 0;
-          return { ...it, name: prod.name, rate, tax: prod.tax || 0, total: (it.qty || 1) * rate * (1 + (prod.tax || 0) / 100) };
+          return { ...it, name: prod.name, productId: prod.id, sku: prod.code, rate, tax: prod.tax || 0, total: (it.qty || 1) * rate * (1 + (prod.tax || 0) / 100) };
         });
         return { ...prev, items };
       });
@@ -120,7 +120,7 @@ export default function PurchaseOrders({ user, perms, ownerId }) {
       // Update stock for each tracked product in the PO
       const txs = [db.tx.purchaseOrders[po.id].update({ status: newStatus, receivedAt: Date.now() })];
       for (const item of (po.items || [])) {
-        const prod = products.find(p => p.name === item.name);
+        const prod = products.find(p => p.id === item.productId || p.name === item.name);
         if (prod && prod.trackStock) {
           const newStock = (prod.stock || 0) + (item.qty || 0);
           txs.push(db.tx.products[prod.id].update({ stock: newStock }));
@@ -209,7 +209,7 @@ export default function PurchaseOrders({ user, perms, ownerId }) {
                     <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
                     <td><strong style={{ fontFamily: 'monospace', cursor: 'pointer', color: 'var(--accent)' }} onClick={() => setViewPO(po)}>{po.poNo}</strong></td>
                     <td>
-                      <div>{po.vendor}</div>
+                      <div>{products.find(p => p.id === po.items?.[0]?.productId)?.name || po.vendor}</div>
                       {po.vendorEmail && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{po.vendorEmail}</div>}
                     </td>
                     <td style={{ fontSize: 12 }}>{fmtD(po.date)}</td>
@@ -360,7 +360,7 @@ export default function PurchaseOrders({ user, perms, ownerId }) {
                 <tbody>
                   {(viewPO.items || []).map((it, i) => (
                     <tr key={i} style={{ borderTop: '1px solid var(--bg-soft)' }}>
-                      <td style={{ padding: '8px 12px' }}>{it.name}</td>
+                      <td style={{ padding: '8px 12px' }}>{products.find(p => p.id === it.productId)?.name || it.name}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right' }}>{it.qty}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right' }}>₹{it.rate}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right' }}>{it.tax}%</td>
