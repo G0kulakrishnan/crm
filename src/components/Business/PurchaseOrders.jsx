@@ -361,7 +361,7 @@ export default function PurchaseOrders({ user, perms, ownerId }) {
                   {(viewPO.items || []).map((it, i) => (
                     <tr key={i} style={{ borderTop: '1px solid var(--bg-soft)' }}>
                       <td style={{ padding: '8px 12px' }}>{products.find(p => p.id === it.productId)?.name || it.name}</td>
-                      <td style={{ padding: '8px 12px', textAlign: 'right' }}>{it.qty}</td>
+                      <td style={{ padding: '8px 12px', textAlign: 'right' }}>{it.qty} {products.find(p => p.id === it.productId)?.unit || ''}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right' }}>₹{it.rate}</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right' }}>{it.tax}%</td>
                       <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 600 }}>₹{Math.round((it.qty || 0) * (it.rate || 0) * (1 + (it.tax || 0) / 100))}</td>

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
-import { fmt, stageBadgeClass } from '../../utils/helpers';
+import { fmt, stageBadgeClass, DEFAULT_UNITS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import StockLog from './StockLog';
 
@@ -64,6 +64,7 @@ export default function Products({ user, perms, ownerId }) {
   const profile = data?.userProfiles?.[0] || {};
   const productCats = profile.productCats || ['Electronics', 'Home Appliances', 'Services', 'Furniture', 'General'];
   const taxRates = profile.taxRates || [{ label: 'None (0%)', rate: 0 }, { label: 'GST @ 5%', rate: 5 }, { label: 'GST @ 12%', rate: 12 }, { label: 'GST @ 18%', rate: 18 }, { label: 'GST @ 28%', rate: 28 }];
+  const productUnits = profile.productUnits || DEFAULT_UNITS;
   
   const [search, setSearch] = useState('');
   const filtered = useMemo(() => {
@@ -484,7 +485,7 @@ export default function Products({ user, perms, ownerId }) {
                   </select>
                 </div>
                 <div className="fg"><label>Type</label><select value={form.type} onChange={f('type')}>{['Service', 'Product'].map(s => <option key={s}>{s}</option>)}</select></div>
-                <div className="fg"><label>Unit</label><select value={form.unit} onChange={f('unit')}>{['Nos', 'Hours', 'Days', 'Months', 'Kgs', 'Ltrs', 'Meters', 'Other'].map(s => <option key={s}>{s}</option>)}</select></div>
+                <div className="fg"><label>Unit</label><select value={form.unit} onChange={f('unit')}>{productUnits.map(s => <option key={s}>{s}</option>)}</select></div>
                 <div className="fg"><label>Purchase Price (₹)</label><input type="number" value={form.purchasePrice} onChange={f('purchasePrice')} placeholder="Cost price" /></div>
                 <div className="fg"><label>Selling Rate (₹)</label><input type="number" value={form.rate} onChange={f('rate')} /></div>
                 {form.purchasePrice && form.rate && (() => { const m = margin(form.rate, form.purchasePrice); return m !== null ? <div className="fg" style={{ background: m >= 0 ? '#f0fdf4' : '#fff5f5', borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'center' }}><span style={{ fontSize: 13, color: m >= 0 ? '#16a34a' : '#dc2626', fontWeight: 700 }}>{m >= 0 ? '▲' : '▼'} Margin: {Math.abs(m)}%</span></div> : null; })()}

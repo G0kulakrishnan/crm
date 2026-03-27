@@ -3,7 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { renderTemplate, sendEmailMock, sendEmail, sendWhatsApp } from '../../utils/messaging';
-import { fmtD, INDIAN_STATES, COUNTRIES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, SYSTEM_STAGES } from '../../utils/helpers';
+import { fmtD, INDIAN_STATES, COUNTRIES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, SYSTEM_STAGES, DEFAULT_UNITS } from '../../utils/helpers';
 import DocumentTemplate from '../Finance/DocumentTemplate';
 
 const SETTINGS_GROUPS = [
@@ -17,7 +17,7 @@ const SETTINGS_GROUPS = [
   },
   {
     title: 'Finance & Products',
-    items: ['Finance', 'Templates', 'Taxes', 'Product Categories', 'Expense Categories']
+    items: ['Finance', 'Templates', 'Taxes', 'Product Categories', 'Product Units', 'Expense Categories']
   },
   {
     title: 'Operations',
@@ -103,6 +103,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   const [newLabel, setNewLabel] = useState('');
   const [newExpCat, setNewExpCat] = useState('');
   const [newProdCat, setNewProdCat] = useState('');
+  const [newUnit, setNewUnit] = useState('');
 
   // Sync state with profile prop when it loads
   useEffect(() => {
@@ -206,6 +207,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   const taskStatuses = data?.userProfiles?.[0]?.taskStatuses || DEFAULT_TASK_STATUSES;
   const orderStatuses = data?.userProfiles?.[0]?.orderStatuses || DEFAULT_ORDER_STATUSES;
   const taxRates = data?.userProfiles?.[0]?.taxRates || DEFAULT_TAX_OPTIONS;
+  const productUnits = data?.userProfiles?.[0]?.productUnits || DEFAULT_UNITS;
 
   const [newOrderStatus, setNewOrderStatus] = useState('');
 
@@ -1127,6 +1129,29 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                     </span>
                   ))}
                 </div>
+              </div>
+            </div>
+          )}
+          
+          {active === 'Product Units' && (
+            <div className="tw">
+              <div className="tw-head"><h3>Product Units</h3></div>
+              <div style={{ padding: '16px 20px' }}>
+                <div className="sub" style={{ marginBottom: 15 }}>Manage units of measurement (e.g. Nos, Kgs, Hours) used for products and line items.</div>
+                <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                  <input value={newUnit} onChange={e => setNewUnit(e.target.value)} placeholder="New unit (e.g. Boxes)..." style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }} />
+                  <button className="btn btn-primary btn-sm" onClick={() => addItem('productUnits', productUnits, newUnit, setNewUnit)}>Add Unit</button>
+                </div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {productUnits.map((u, i) => (
+                    <span key={i} className="badge bg-teal" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 10px' }}>
+                      {u} 
+                      <span style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => editItem('productUnits', productUnits, i, u)}>✎</span>
+                      <span style={{ cursor: 'pointer' }} onClick={() => removeItem('productUnits', productUnits, i)}>✕</span>
+                    </span>
+                  ))}
+                </div>
+                {productUnits.length === 0 && <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: 20 }}>No units added. Default units will be used.</div>}
               </div>
             </div>
           )}
