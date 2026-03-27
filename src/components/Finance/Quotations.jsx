@@ -431,7 +431,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
               <button className="btn-icon" onClick={() => setModal(false)}>✕</button>
             </div>
             <div className="mo-body">
-              <div className="fgrid" style={{ gridTemplateColumns: 'minmax(120px, 1fr) 2fr 1fr 1fr 1fr' }}>
+              <div className="fgrid" style={{ gridTemplateColumns: '1fr 2fr 1fr 1fr 1fr' }}>
                 <div className="fg">
                   <label>Quote No.</label>
                   <input value={form.no} onChange={e => setForm(p => ({ ...p, no: e.target.value }))} placeholder="QUOTE/..." />

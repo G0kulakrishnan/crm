@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
-import { fmtD, stageBadgeClass, uid, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, DEFAULT_PROD_CATS } from '../../utils/helpers';
+import { fmtD, fmtDT, stageBadgeClass, uid, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, DEFAULT_PROD_CATS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
 const EMPTY_LEAD = { name: '', email: '', phone: '', source: '', stage: '', assign: '', followup: '', label: '', notes: '', productCat: '', remWA: false, remEmail: true, remSMS: false, custom: {} };
@@ -221,8 +221,12 @@ export default function LeadsView({ user, perms, ownerId }) {
         const fields = { name: 'Name', phone: 'Phone', email: 'Email', source: 'Source', stage: 'Stage', assign: 'Assignee', followup: 'Follow Up', label: 'Label', notes: 'Notes', productCat: 'Product Category' };
         Object.entries(fields).forEach(([k, label]) => {
           if (editData[k] !== form[k]) {
-            const oldVal = editData[k] || 'None';
-            const newVal = form[k] || 'None';
+            let oldVal = editData[k] || 'None';
+            let newVal = form[k] || 'None';
+            if (k === 'followup') {
+              oldVal = oldVal === 'None' ? 'None' : fmtDT(oldVal);
+              newVal = newVal === 'None' ? 'None' : fmtDT(newVal);
+            }
             changes.push(`${label} changed from "${oldVal}" to "${newVal}"`);
           }
         });
@@ -254,7 +258,7 @@ export default function LeadsView({ user, perms, ownerId }) {
       } else {
         const newId = id();
         await db.transact(db.tx.leads[newId].update({ ...form, userId: ownerId, actorId: user.id, createdAt: Date.now() }));
-        await logActivity(newId, 'Lead created');
+        await logActivity(newId, `Lead created${form.followup ? ` | Follow Up set to ${fmtDT(form.followup)}` : ''}`);
         toast(`Lead "${form.name}" created!`, 'success');
       }
       setModal(false);
@@ -613,7 +617,7 @@ export default function LeadsView({ user, perms, ownerId }) {
           <div className="stat-card sc-blue"><div className="lbl">Source</div><div className="val" style={{ fontSize: 16 }}>{l.source}</div></div>
           <div className="stat-card sc-green"><div className="lbl">Assigned To</div><div className="val" style={{ fontSize: 16 }}>{l.assign || 'Unassigned'}</div></div>
           <div className="stat-card sc-yellow"><div className="lbl">Label</div><div className="val" style={{ fontSize: 16 }}>{l.label}</div></div>
-          <div className="stat-card sc-purple"><div className="lbl">Follow Up</div><div className="val" style={{ fontSize: 14 }}>{l.followup ? fmtD(l.followup) : 'None'}</div></div>
+          <div className="stat-card sc-purple"><div className="lbl">Follow Up</div><div className="val" style={{ fontSize: 13 }}>{l.followup ? fmtDT(l.followup) : 'None'}</div></div>
           <div className="stat-card sc-teal"><div className="lbl">Product Category</div><div className="val" style={{ fontSize: 14 }}>{l.productCat || 'None'}</div></div>
         </div>
 
@@ -913,7 +917,7 @@ export default function LeadsView({ user, perms, ownerId }) {
                     {activeCols.includes('Source') && <td><span style={{ fontSize: 11 }}>{l.source}</span></td>}
                     {activeCols.includes('Stage') && <td><span className={`badge ${stageBadgeClass(l.stage, wonStage)}`}>{l.stage}</span></td>}
                     {activeCols.includes('Assigned') && <td style={{ fontSize: 12 }}>{l.assign || <span style={{ color: 'var(--muted)' }}>-</span>}</td>}
-                    {activeCols.includes('Follow Up') && <td style={{ fontSize: 11 }}>{l.followup ? fmtD(l.followup) : '-'}</td>}
+                    {activeCols.includes('Follow Up') && <td style={{ fontSize: 11 }}>{l.followup ? fmtDT(l.followup) : '-'}</td>}
                     {activeCols.includes('Label') && <td><span className="badge bg-gray" style={{ fontSize: 10 }}>{l.label || '-'}</span></td>}
                     {activeCols.includes('Reminder') && <td>
                       <div style={{ display: 'flex', gap: 3 }}>
@@ -1069,7 +1073,7 @@ export default function LeadsView({ user, perms, ownerId }) {
       {/* MODAL */}
       {modal && (
         <div className="mo open">
-          <div className="mo-box">
+          <div className="mo-box wide">
             <div className="mo-head">
               <h3>{editData ? 'Edit Lead' : 'Create Lead'}</h3>
               <button className="btn-icon" onClick={() => setModal(false)}>✕</button>

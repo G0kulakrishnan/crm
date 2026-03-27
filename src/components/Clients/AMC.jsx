@@ -463,7 +463,7 @@ export default function AMC({ user, perms, ownerId }) {
         {/* Edit Modal (reused) */}
         {modal && (
           <div className="mo open">
-            <div className="mo-box">
+            <div className="mo-box wide">
               <div className="mo-head"><h3>Edit AMC Contract</h3><button className="btn-icon" onClick={() => setModal(false)}>✕</button></div>
               <div className="mo-body">
                 <div className="fgrid">
@@ -588,7 +588,7 @@ export default function AMC({ user, perms, ownerId }) {
       {/* CREATE/EDIT MODAL */}
       {modal && (
         <div className="mo open">
-          <div className="mo-box">
+          <div className="mo-box wide">
             <div className="mo-head"><h3>{editData ? 'Edit' : 'Create'} AMC Contract</h3><button className="btn-icon" onClick={() => setModal(false)}>✕</button></div>
             <div className="mo-body">
               <div className="fgrid">

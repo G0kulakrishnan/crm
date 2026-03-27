@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import db from '../../instant';
 import { useApp } from '../../context/AppContext';
-import { fmt, fmtD, daysLeft, stageBadgeClass } from '../../utils/helpers';
+import { fmt, fmtD, fmtDT, daysLeft, stageBadgeClass } from '../../utils/helpers';
 
 export default function Dashboard({ user, ownerId, perms }) {
   const { setActiveView } = useApp();
@@ -313,7 +313,7 @@ export default function Dashboard({ user, ownerId, perms }) {
                     <div style={{ textAlign: 'right' }}>
                       <span className={`badge ${stageBadgeClass(l.stage, wonStage)}`} style={{ fontSize: 10 }}>{l.stage}</span>
                       <div style={{ fontSize: 10, color: 'var(--accent)', fontWeight: 700, marginTop: 4 }}>
-                        {l.followup ? `Next: ${fmtD(l.followup)}` : 'Hot Label'}
+                        {l.followup ? `Next: ${fmtDT(l.followup)}` : 'Hot Label'}
                       </div>
                     </div>
                   </div>

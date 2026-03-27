@@ -215,8 +215,8 @@ tr:hover td { background: #f8faf9; }
 /* MODAL */
 .mo { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 500; align-items: center; justify-content: center; }
 .mo.open { display: flex; }
-.mo-box { background: var(--surface); border-radius: 14px; width: 520px; max-width: 95vw; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
-.mo-box.wide { width: 720px; }
+.mo-box { background: var(--surface); border-radius: 14px; width: 520px; max-width: 95vw; max-height: 90vh; overflow-y: auto; overflow-x: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
+.mo-box.wide { width: 900px; }
 .mo-head { padding: 18px 22px 14px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
 .mo-head h3 { font-size: 14px; font-weight: 700; }
 .mo-body { padding: 22px; }

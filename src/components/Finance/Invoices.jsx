@@ -517,7 +517,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
           <div className="mo-box wide">
             <div className="mo-head"><h3>{editData ? 'Edit Invoice' : 'Create Invoice'}</h3><button className="btn-icon" onClick={() => setModal(false)}>✕</button></div>
             <div className="mo-body">
-              <div className="fgrid" style={{ gridTemplateColumns: 'minmax(120px, 1fr) 2fr 1fr 1fr 1fr' }}>
+              <div className="fgrid" style={{ gridTemplateColumns: '1fr 2fr 1fr 1fr 1fr' }}>
                 <div className="fg">
                   <label>Invoice No.</label>
                   <input value={form.no} onChange={e => setForm(p => ({ ...p, no: e.target.value }))} placeholder="INV/..." />
