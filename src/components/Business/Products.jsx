@@ -252,7 +252,6 @@ export default function Products({ user, perms, ownerId }) {
         const newId = id();
         return db.tx.products[newId].update({
           name: row['Name'] || '',
-          code: row['Code'] || '',
           category: row['Category'] || 'General',
           type: row['Type'] || 'Product',
           unit: row['Unit'] || 'Nos',
