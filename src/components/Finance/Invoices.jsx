@@ -16,7 +16,7 @@ function calcTotals(items, disc, discType, adj) {
 }
 
 const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [], assign: '' };
-const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
+const EMPTY_CUSTOMER = { name: '', companyName: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 export default function Invoices({ user, perms, ownerId, settings }) {
   const canCreate = perms?.can('Invoices', 'create') === true;
   const canEdit = perms?.can('Invoices', 'edit') === true;
@@ -67,8 +67,8 @@ export default function Invoices({ user, perms, ownerId, settings }) {
       return isVisible && l.stage !== wonStage;
     });
     return [
-      ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
-      ...filteredLeads.map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+      ...customers.map(c => ({ ...c, isLead: false, displayName: c.companyName ? `${c.companyName} (${c.name})` : c.name })),
+      ...filteredLeads.map(l => ({ ...l, isLead: true, displayName: l.companyName ? `${l.companyName} (${l.name}) (Lead)` : `${l.name} (Lead)` }))
     ];
   }, [customers, leads, profile?.leadStages, wonStage]);
   
@@ -239,7 +239,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
         }));
       } else if (payload.status === 'Paid' || payload.status === 'Partially Paid') {
         txs.push(db.tx.customers[id()].update({
-          name: lMatch.name, email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
+          name: lMatch.name, companyName: lMatch.companyName || '', email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
         }));
         txs.push(db.tx.leads[lMatch.id].update({ 
            stage: wonStage,
@@ -345,6 +345,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
         name: products.find(p => p.id === it.productId)?.name || it.name
       })),
       clientDetails: clientMatch,
+      companyName: clientMatch?.companyName || '',
       template: printing.template || profile?.invoiceTemplate || 'Classic'
     };
 
@@ -388,7 +389,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
       const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (payModal.client || '').trim().toLowerCase() && l.stage !== wonStage);
       if (lMatch) {
          txs.push(db.tx.customers[id()].update({
-            name: lMatch.name, email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
+            name: lMatch.name, companyName: lMatch.companyName || '', email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
          }));
          txs.push(db.tx.leads[lMatch.id].update({ 
             stage: wonStage,
@@ -761,7 +762,8 @@ export default function Invoices({ user, perms, ownerId, settings }) {
             <div className="mo-head"><h3>Quick Add Customer</h3><button className="btn-icon" onClick={() => setCustModal(false)}>✕</button></div>
             <div className="mo-body">
               <div className="fgrid">
-                <div className="fg span2"><label>Name *</label><input value={newCustForm.name} onChange={ncf('name')} placeholder="Full name" /></div>
+                <div className="fg"><label>Name *</label><input value={newCustForm.name} onChange={ncf('name')} placeholder="Full name" /></div>
+                <div className="fg"><label>Company Name (Optional)</label><input value={newCustForm.companyName} onChange={ncf('companyName')} placeholder="Business name" /></div>
                 <div className="fg"><label>Email *</label><input type="email" value={newCustForm.email} onChange={ncf('email')} /></div>
                 <div className="fg"><label>Phone</label><input value={newCustForm.phone} onChange={ncf('phone')} placeholder="+91..." /></div>
                 <div className="fg span2"><label>Address</label><textarea value={newCustForm.address} onChange={ncf('address')} placeholder="Full address" style={{ minHeight: 60 }} /></div>

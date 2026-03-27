@@ -23,12 +23,13 @@ export default function AMC({ user, perms, ownerId }) {
   const [renewForm, setRenewForm] = useState({ paidOn: '', amount: '', cycle: 'Yearly', genInvoice: true, taxRate: 0, plan: '' });
   
   const [custModal, setCustModal] = useState(false);
-  const [newCustForm, setNewCustForm] = useState({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+  const [newCustForm, setNewCustForm] = useState(EMPTY_CUSTOMER);
   
   const toast = useToast();
   
   
   const ncf = (k) => (e) => setNewCustForm(p => ({ ...p, [k]: e.target.value }));
+  const handleNewCustChange = (k, v) => setNewCustForm(p => ({ ...p, [k]: v }));
   const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
 
   const createCustomer = async () => {
@@ -39,7 +40,7 @@ export default function AMC({ user, perms, ownerId }) {
     await db.transact(db.tx.customers[newId].update(custPayload));
     setForm(p => ({ ...p, client: custPayload.name, email: custPayload.email, phone: custPayload.phone }));
     setCustModal(false);
-    setNewCustForm({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+    setNewCustForm(EMPTY_CUSTOMER);
     toast('Customer created!', 'success');
   };
 
@@ -121,6 +122,13 @@ export default function AMC({ user, perms, ownerId }) {
     }
     setForm(p => ({ ...p, cycle: val, endDate }));
   };
+
+  const clientOptions = useMemo(() => {
+    return [
+      ...customers.map(c => ({ ...c, isLead: false, displayName: c.companyName ? `${c.companyName} (${c.name})` : c.name })),
+      ...leads.map(l => ({ ...l, isLead: true, displayName: l.companyName ? `${l.companyName} (${l.name}) (Lead)` : `${l.name} (Lead)` }))
+    ];
+  }, [customers, leads]);
 
   const handleClientSelect = (cName) => {
     const cust = customers.find(c => c.name === cName);
@@ -784,7 +792,8 @@ export default function AMC({ user, perms, ownerId }) {
             <div className="mo-head"><h3>Quick Add Customer</h3><button className="btn-icon" onClick={() => setCustModal(false)}>✕</button></div>
             <div className="mo-body">
               <div className="fgrid">
-                <div className="fg span2"><label>Full Name *</label><input value={newCustForm.name} onChange={ncf('name')} placeholder="e.g. John Doe" /></div>
+                <div className="fg"><label>Name *</label><input value={newCustForm.name} onChange={e => handleNewCustChange('name', e.target.value)} placeholder="Full name" /></div>
+                <div className="fg"><label>Company Name (Optional)</label><input value={newCustForm.companyName} onChange={e => handleNewCustChange('companyName', e.target.value)} placeholder="Business name" /></div>
                 <div className="fg"><label>Email *</label><input value={newCustForm.email} onChange={ncf('email')} placeholder="john@example.com" /></div>
                 <div className="fg"><label>Phone</label><input value={newCustForm.phone} onChange={ncf('phone')} placeholder="+91..." /></div>
                 <div className="fg span2"><label>Address</label><textarea value={newCustForm.address} onChange={ncf('address')} placeholder="Full address..." /></div>

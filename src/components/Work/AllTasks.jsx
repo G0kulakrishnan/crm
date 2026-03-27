@@ -73,16 +73,38 @@ export default function AllTasks({ user, perms, ownerId }) {
 
   const [viewData, setViewData] = useState(null);
 
+  const logActivity = async (taskId, text) => {
+    await db.transact(db.tx.activityLogs[id()].update({
+      entityId: taskId,
+      entityType: 'task',
+      text,
+      userId: ownerId,
+      actorId: user.id,
+      userName: user.email,
+      createdAt: Date.now()
+    }));
+  };
+
   const save = async () => {
     if (!form.title.trim()) { toast('Title required', 'error'); return; }
     try {
       if (editData) {
+        const changes = [];
+        if (editData.title !== form.title) changes.push(`Title changed to "${form.title}"`);
+        if (editData.status !== form.status) changes.push(`Status changed from "${editData.status}" to "${form.status}"`);
+        if (editData.assignTo !== form.assignTo) changes.push(`Assigned to "${form.assignTo || 'Unassigned'}"`);
+        
         const res = await fetch('/api/data', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, id: editData.id, ...form })
         });
         if (!res.ok) throw new Error('Failed to update');
+        
+        if (changes.length > 0) {
+          await logActivity(editData.id, changes.join(' | '));
+        }
+        
         toast('Updated', 'success');
       } else {
         const res = await fetch('/api/data', {
@@ -91,6 +113,8 @@ export default function AllTasks({ user, perms, ownerId }) {
           body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, ...form })
         });
         if (!res.ok) throw new Error('Failed to create');
+        const result = await res.json();
+        await logActivity(result.id, `Task created: "${form.title}"`);
         toast('Task created', 'success');
       }
       setModal(false);

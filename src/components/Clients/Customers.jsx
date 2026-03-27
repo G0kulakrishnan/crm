@@ -5,7 +5,7 @@ import { fmtD } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import { INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
 
-const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
+const EMPTY_CUSTOMER = { name: '', companyName: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 
 export default function Customers({ user, perms, ownerId }) {
   const canCreate = perms?.can('Customers', 'create') === true;
@@ -54,7 +54,7 @@ export default function Customers({ user, perms, ownerId }) {
   }, [customers, search]);
 
   const openCreate = () => { setEditData(null); setForm(EMPTY_CUSTOMER); setModal(true); };
-  const openEdit = (c) => { setEditData(c); setForm({ name: c.name, email: c.email || '', phone: c.phone || '', address: c.address || '', state: c.state || '', country: c.country || 'India', pincode: c.pincode || '', gstin: c.gstin || '', custom: c.custom || {} }); setModal(true); };
+  const openEdit = (c) => { setEditData(c); setForm({ name: c.name, companyName: c.companyName || '', email: c.email || '', phone: c.phone || '', address: c.address || '', state: c.state || '', country: c.country || 'India', pincode: c.pincode || '', gstin: c.gstin || '', custom: c.custom || {} }); setModal(true); };
 
   const logActivity = async (customerId, text) => {
     await db.transact(db.tx.activityLogs[id()].update({
@@ -77,7 +77,7 @@ export default function Customers({ user, perms, ownerId }) {
       const txs = [];
       if (editData) {
         const changes = [];
-        const fields = { name: 'Name', phone: 'Phone', email: 'Email', address: 'Address', state: 'State', country: 'Country', pincode: 'Pincode', gstin: 'GSTIN' };
+        const fields = { name: 'Name', companyName: 'Company Name', phone: 'Phone', email: 'Email', address: 'Address', state: 'State', country: 'Country', pincode: 'Pincode', gstin: 'GSTIN' };
         Object.entries(fields).forEach(([k, label]) => {
           if (editData[k] !== form[k]) {
             const oldVal = editData[k] || 'None';
@@ -99,7 +99,7 @@ export default function Customers({ user, perms, ownerId }) {
         // Sync to Lead if name matches (case-insensitive & trimmed)
         const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (editData.name || '').trim().toLowerCase());
         if (lMatch) {
-          txs.push(db.tx.leads[lMatch.id].update({ name: form.name, email: form.email, phone: form.phone }));
+          txs.push(db.tx.leads[lMatch.id].update({ name: form.name, companyName: form.companyName, email: form.email, phone: form.phone }));
           txs.push(db.tx.activityLogs[id()].update({
             entityId: lMatch.id, entityType: 'lead', text: `Contact details synced from Customer update (${form.name}).`,
             userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
@@ -170,6 +170,7 @@ export default function Customers({ user, perms, ownerId }) {
         const newId = id();
         txs.push(db.tx.customers[newId].update({
           name: l.name,
+          companyName: l.companyName || '',
           email: l.email || '',
           phone: l.phone || '',
           address: l.address || '',
@@ -244,7 +245,8 @@ export default function Customers({ user, perms, ownerId }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button className="btn-icon" onClick={() => setViewCustomer(null)}>← Back</button>
             <div>
-              <h2 style={{ fontSize: 24, margin: 0 }}>{c.name}</h2>
+              <h2 style={{ fontSize: 24, margin: 0 }}>{c.companyName || c.name}</h2>
+              {c.companyName && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>Contact: {c.name}</div>}
               <div className="sub" style={{ fontSize: 13, marginTop: 4 }}>
                 {c.email && <span style={{ marginRight: 15 }}>✉ {c.email}</span>}
                 {c.phone && <span style={{ marginRight: 15 }}>☏ {c.phone}</span>}
@@ -419,7 +421,8 @@ export default function Customers({ user, perms, ownerId }) {
               </div>
               <div className="mo-body">
                 <div className="fgrid">
-                  <div className="fg span2"><label>Name *</label><input value={form.name} onChange={f('name')} placeholder="Full name" /></div>
+                  <div className="fg"><label>Name *</label><input value={form.name} onChange={f('name')} placeholder="Full name" /></div>
+                  <div className="fg"><label>Company Name (Optional)</label><input value={form.companyName} onChange={f('companyName')} placeholder="Business name" /></div>
                   <div className="fg"><label>Email *</label><input type="email" value={form.email} onChange={f('email')} /></div>
                   <div className="fg"><label>Phone</label><input value={form.phone} onChange={f('phone')} placeholder="+91..." /></div>
                   <div className="fg span2"><label>Address</label><textarea value={form.address} onChange={f('address')} placeholder="Full address" style={{ minHeight: 60 }} /></div>
@@ -567,7 +570,8 @@ export default function Customers({ user, perms, ownerId }) {
             </div>
             <div className="mo-body">
               <div className="fgrid">
-                <div className="fg span2"><label>Name *</label><input value={form.name} onChange={f('name')} placeholder="Full name" /></div>
+                <div className="fg"><label>Name *</label><input value={form.name} onChange={f('name')} placeholder="Full name" /></div>
+                <div className="fg"><label>Company Name (Optional)</label><input value={form.companyName} onChange={f('companyName')} placeholder="Business name" /></div>
                 <div className="fg"><label>Email *</label><input type="email" value={form.email} onChange={f('email')} /></div>
                 <div className="fg"><label>Phone</label><input value={form.phone} onChange={f('phone')} placeholder="+91..." /></div>
                 <div className="fg span2"><label>Address</label><textarea value={form.address} onChange={f('address')} placeholder="Full address" style={{ minHeight: 60 }} /></div>

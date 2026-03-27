@@ -24,6 +24,7 @@ import Campaigns from '../Marketing/Campaigns';
 import Projects from '../Work/Projects';
 import AllTasks from '../Work/AllTasks';
 import Teams from '../Work/Teams';
+import TeamReports from '../Work/TeamReports';
 import AutomationView from '../Automation/AutomationView';
 import Reports from '../Reports/Reports';
 import Settings from '../Settings/Settings';
@@ -286,6 +287,7 @@ export default function MainApp({ user, settings }) {
     projects: { component: <Projects user={user} perms={perms} ownerId={targetUserId} />, label: 'Projects' },
     alltasks: { component: <AllTasks user={user} perms={perms} ownerId={targetUserId} />, label: 'Tasks' },
     teams: { component: <Teams user={user} ownerId={targetUserId} perms={perms} />, label: 'Teams' }, 
+    performance: { component: <TeamReports user={user} ownerId={targetUserId} perms={perms} />, label: 'Reports' },
     automation: { component: <AutomationView user={user} perms={perms} ownerId={targetUserId} />, label: 'Automation' },
     integrations: { component: <Integrations user={user} ownerId={targetUserId} />, label: 'Integrations' },
     'messaging-logs': { component: <MessagingLogs user={user} ownerId={targetUserId} />, label: 'MessagingLogs' },

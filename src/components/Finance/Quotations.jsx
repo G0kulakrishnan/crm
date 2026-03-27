@@ -7,7 +7,7 @@ import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
 
 const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, assign: '' };
-const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
+const EMPTY_CUSTOMER = { name: '', companyName: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 
 function calcTotals(items, disc, tdsRate, adj) {
   const its = Array.isArray(items) ? items : (items ? JSON.parse(items) : []);
@@ -65,8 +65,8 @@ export default function Quotations({ user, perms, ownerId, settings }) {
       return isVisible && l.stage !== wonStage;
     });
     return [
-      ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
-      ...filteredLeads.map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+      ...customers.map(c => ({ ...c, isLead: false, displayName: c.companyName ? `${c.companyName} (${c.name})` : c.name })),
+      ...filteredLeads.map(l => ({ ...l, isLead: true, displayName: l.companyName ? `${l.companyName} (${l.name}) (Lead)` : `${l.name} (Lead)` }))
     ];
   }, [customers, leads, profile?.leadStages, wonStage]);
 
@@ -337,6 +337,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
         name: products.find(p => p.id === it.productId || p.name === it.name)?.name || it.name
       })),
       clientDetails: clientMatch,
+      companyName: clientMatch?.companyName || '',
       template: printing.template || profile?.quotationTemplate || 'Classic'
     };
 
@@ -643,7 +644,8 @@ export default function Quotations({ user, perms, ownerId, settings }) {
             <div className="mo-head"><h3>Quick Add Customer</h3><button className="btn-icon" onClick={() => setCustModal(false)}>✕</button></div>
             <div className="mo-body">
               <div className="fgrid">
-                <div className="fg span2"><label>Name *</label><input value={newCustForm.name} onChange={ncf('name')} placeholder="Full name" /></div>
+                <div className="fg"><label>Name *</label><input value={newCustForm.name} onChange={ncf('name')} placeholder="Full name" /></div>
+                <div className="fg"><label>Company Name (Optional)</label><input value={newCustForm.companyName} onChange={ncf('companyName')} placeholder="Business name" /></div>
                 <div className="fg"><label>Email *</label><input type="email" value={newCustForm.email} onChange={ncf('email')} /></div>
                 <div className="fg"><label>Phone</label><input value={newCustForm.phone} onChange={ncf('phone')} placeholder="+91..." /></div>
                 <div className="fg span2"><label>Address</label><textarea value={newCustForm.address} onChange={ncf('address')} placeholder="Full address" style={{ minHeight: 60 }} /></div>
@@ -687,7 +689,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
                 if (!newCustForm.name.trim()) return toast('Name required', 'error');
                 if (!newCustForm.email.trim()) return toast('Email is mandatory for clients', 'error');
                 const newId = id();
-                await db.transact(db.tx.customers[newId].update({ ...newCustForm, name: newCustForm.name.trim(), userId: ownerId, actorId: user.id, createdAt: Date.now() }));
+                await db.transact(db.tx.customers[newId].update({ ...newCustForm, name: newCustForm.name.trim(), companyName: newCustForm.companyName || '', userId: ownerId, actorId: user.id, createdAt: Date.now() }));
                 setForm(p => ({ ...p, client: newCustForm.name.trim() }));
                 setCustModal(false);
                 setNewCustForm(EMPTY_CUSTOMER);

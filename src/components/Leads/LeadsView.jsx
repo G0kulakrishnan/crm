@@ -4,7 +4,7 @@ import { id } from '@instantdb/react';
 import { fmtD, fmtDT, stageBadgeClass, uid, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, DEFAULT_PROD_CATS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 
-const EMPTY_LEAD = { name: '', email: '', phone: '', source: '', stage: '', assign: '', followup: '', label: '', notes: '', productCat: '', remWA: false, remEmail: true, remSMS: false, custom: {} };
+const EMPTY_LEAD = { name: '', companyName: '', email: '', phone: '', source: '', stage: '', assign: '', followup: '', label: '', notes: '', productCat: '', remWA: false, remEmail: true, remSMS: false, custom: {} };
 
 const DEFAULT_IMPORT_MAPPING = {
   name: { type: 'column', value: '' },
@@ -582,7 +582,8 @@ export default function LeadsView({ user, perms, ownerId }) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <button className="btn-icon" onClick={() => setViewLead(null)}>← Back</button>
             <div>
-              <h2 style={{ fontSize: 24, margin: 0 }}>{l.name}</h2>
+              <h2 style={{ fontSize: 24, margin: 0 }}>{l.companyName || l.name}</h2>
+              {l.companyName && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 2 }}>Contact: {l.name}</div>}
               <div className="sub" style={{ fontSize: 13, marginTop: 4 }}>
                 {l.email && <span style={{ marginRight: 15 }}>✉ {l.email}</span>}
                 {l.phone && <span>☏ {l.phone}</span>}
@@ -683,7 +684,8 @@ export default function LeadsView({ user, perms, ownerId }) {
               </div>
               <div className="mo-body">
                 <div className="fgrid">
-                  <div className="fg"><label>Name *</label><input value={form.name} onChange={f('name')} placeholder="Full name" /></div>
+                  <div className="fg"><label>Name *</label><input value={form.name} onChange={f('name')} placeholder="Lead name" /></div>
+                  <div className="fg"><label>Company Name (Optional)</label><input value={form.companyName} onChange={f('companyName')} placeholder="Business name" /></div>
                   <div className="fg"><label>Phone</label><input value={form.phone} onChange={f('phone')} placeholder="+91..." /></div>
                   <div className="fg"><label>Email</label><input type="email" value={form.email} onChange={f('email')} /></div>
                   <div className="fg"><label>Source</label>
@@ -889,8 +891,8 @@ export default function LeadsView({ user, perms, ownerId }) {
                     <td><input type="checkbox" checked={selectedIds.has(l.id)} onChange={e => { const s = new Set(selectedIds); e.target.checked ? s.add(l.id) : s.delete(l.id); setSelectedIds(s); }} style={{ width: 14, height: 14, accentColor: 'var(--accent)' }} /></td>
                     <td style={{ color: 'var(--muted)', fontSize: 11 }}>{(currentPage - 1) * (pageSize === 'all' ? 0 : pageSize) + i + 1}</td>
                     <td>
-                      <strong>{l.name}</strong>
-                      <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>{l.email}</div>
+                      <strong style={{ cursor: 'pointer', color: 'var(--accent2)', textDecoration: 'underline' }} onClick={() => setViewLead(l)}>{l.companyName || l.name}</strong>
+                      {l.companyName && <div style={{ fontSize: 10, color: 'var(--muted)' }}>Contact: {l.name}</div>}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {l.phone && (
                           <>
@@ -1035,7 +1037,8 @@ export default function LeadsView({ user, perms, ownerId }) {
                     onDragEnd={() => { dragLeadId.current = null; setDragOverStage(null); }}
                     style={{ cursor: 'grab' }}
                   >
-                    <div className="nm" onClick={() => openEdit(l)} style={{ cursor: 'pointer' }}>{l.name}</div>
+                    <div className="nm" onClick={() => openEdit(l)} style={{ cursor: 'pointer' }}>{l.companyName || l.name}</div>
+                    {l.companyName && <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 4 }}>Contact: {l.name}</div>}
                     <div className="mt" style={{ marginBottom: 4 }}>{l.source} · {l.phone || '-'}</div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       {l.phone && (
@@ -1080,7 +1083,8 @@ export default function LeadsView({ user, perms, ownerId }) {
             </div>
             <div className="mo-body">
               <div className="fgrid">
-                <div className="fg"><label>Name *</label><input value={form.name} onChange={f('name')} placeholder="Full name" /></div>
+                <div className="fg"><label>Name *</label><input value={form.name} onChange={f('name')} placeholder="Lead name" /></div>
+                <div className="fg"><label>Company Name (Optional)</label><input value={form.companyName} onChange={f('companyName')} placeholder="Business name" /></div>
                 <div className="fg"><label>Phone</label><input value={form.phone} onChange={f('phone')} placeholder="+91..." /></div>
                 <div className="fg"><label>Email</label><input type="email" value={form.email} onChange={f('email')} /></div>
                 <div className="fg"><label>Source</label>
@@ -1162,6 +1166,7 @@ export default function LeadsView({ user, perms, ownerId }) {
 
               {[
                 { label: 'Name', icon: '👤', field: 'name' },
+                { label: 'Company Name', icon: '🏢', field: 'companyName' },
                 { label: 'Email', icon: '📧', field: 'email' },
                 { label: 'Phone', icon: '📱', field: 'phone' },
                 { label: 'Source', icon: '🔗', field: 'source', options: activeSources },
