@@ -91,7 +91,7 @@ export default function Products({ user, perms, ownerId }) {
     
     // 1. Backfill Products SKUs
     const productsWithoutCode = products.filter(p => !p.code);
-    productsWithoutCode.forEach(p => txs.push(db.tx.products[p.id].update({ code: generateSKU() })));
+    // productsWithoutCode.forEach(p => txs.push(db.tx.products[p.id].update({ code: generateSKU() })));
 
     // 2. Backfill AMCs
     (data.amcs || []).filter(a => !a.productId).forEach(a => {
@@ -182,7 +182,7 @@ export default function Products({ user, perms, ownerId }) {
       lowStockThreshold: parseFloat(form.lowStockThreshold) || 5,
       userId: ownerId 
     };
-    if (!payload.code) payload.code = generateSKU();
+    if (!payload.code) payload.code = '';
     if (editData) { await db.transact(db.tx.products[editData.id].update(payload)); toast('Updated', 'success'); }
     else { await db.transact(db.tx.products[id()].update(payload)); toast('Product created', 'success'); }
     setModal(false);
@@ -266,7 +266,7 @@ export default function Products({ user, perms, ownerId }) {
           imageUrl: row['ImageUrl'] || '',
           description: row['FullDescription'] || '',
           userId: ownerId,
-          code: row['Code'] || generateSKU()
+          code: row['Code'] || ''
         });
       });
       // Batch in chunks of 25
