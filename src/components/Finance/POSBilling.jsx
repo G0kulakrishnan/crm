@@ -153,9 +153,6 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
           <div style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', padding: '5px 0', marginBottom: 10, fontSize: 11 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Bill: {printing.no}</span><span>{printing.date}</span></div>
             <div>Cust: {printing.customer?.companyName || printing.client}</div>
-            {printing.customer?.companyName && printing.client && (printing.customer.companyName !== printing.client) && (
-              <div style={{ fontSize: 9, color: '#444' }}>Contact: {printing.client}</div>
-            )}
             <div>Mode: {printing.payMode}</div>
           </div>
 
