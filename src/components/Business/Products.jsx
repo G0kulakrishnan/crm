@@ -89,9 +89,11 @@ export default function Products({ user, perms, ownerId }) {
     if (!data?.products) return;
     const txs = [];
     
-    // 1. Backfill Products SKUs
-    const productsWithoutCode = products.filter(p => !p.code);
-    // productsWithoutCode.forEach(p => txs.push(db.tx.products[p.id].update({ code: generateSKU() })));
+    // 1. Cleanup auto-generated SKUs (starting with P-)
+    const productsToCleanup = products.filter(p => p.code?.startsWith('P-'));
+    if (productsToCleanup.length > 0) {
+      productsToCleanup.forEach(p => txs.push(db.tx.products[p.id].update({ code: '' })));
+    }
 
     // 2. Backfill AMCs
     (data.amcs || []).filter(a => !a.productId).forEach(a => {
