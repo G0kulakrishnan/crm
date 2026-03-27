@@ -106,7 +106,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                     <div style={{ marginTop: data.shipTo ? '8px' : '0' }}>
                       {data.amcDetails && <div>
                         <span style={{ fontWeight: '700', fontSize: '10px', textTransform: 'uppercase' }}>AMC Plan:</span>
-                        <span style={{ fontSize: '11px', marginLeft: '5px' }}>{data.amcDetails}</span>
+                        <span style={{ fontSize: '11px', marginLeft: '5px' }}>{data.amcDetails}{data.unit ? ` (${data.unit})` : ''}</span>
                       </div>}
                       {(data.amcStart && data.amcEnd) && (
                         <div style={{ fontSize: '11px', fontWeight: '700', color: '#000', marginTop: '2px' }}>
@@ -166,7 +166,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                           {it.sku && <div style={{ fontSize: '9px', fontWeight: '500', color: '#444', marginBottom: '2px' }}>Code: {it.sku}</div>}
                           {it.desc && <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px', whiteSpace: 'pre-wrap' }}>{it.desc}</div>}
                         </td>
-                        <td style={{ textAlign: 'center' }}>{it.qty.toFixed(2)}</td>
+                        <td style={{ textAlign: 'center' }}>{it.qty.toFixed(2)} {it.unit || ''}</td>
                         <td style={{ textAlign: 'right', fontSize: getDynFS(it.rate) }}>{fmt(it.rate).replace('₹', '')}</td>
                         <td style={{ textAlign: 'center' }}>{isInterState ? 0 : (taxRate / 2)}%</td>
                         <td style={{ textAlign: 'right', fontSize: getDynFS(taxAmt / 2) }}>{isInterState ? '-' : fmt(taxAmt / 2).replace('₹', '')}</td>
@@ -370,7 +370,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                   {it.sku && <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>Code: {it.sku}</div>}
                   {it.desc && <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{it.desc}</div>}
                 </td>
-                <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'center' }}>{it.qty}</td>
+                <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'center' }}>{it.qty} {it.unit || ''}</td>
                 <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'right' }}>{fmt(it.rate)}</td>
                 <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'right' }}>{it.taxRate}%</td>
                 <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'right', fontWeight: 600 }}>{fmt(it.qty * it.rate)}</td>

@@ -6,7 +6,7 @@ import DocumentTemplate from './DocumentTemplate';
 import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
 
-const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, assign: '' };
+const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, assign: '' };
 const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 
 function calcTotals(items, disc, tdsRate, adj) {
@@ -92,7 +92,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
     d.setDate(d.getDate() + 14);
     const defDue = d.toISOString().split('T')[0];
     
-    setForm({ ...EMPTY, no: nextNo, validUntil: defDue, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: defTax }] }); 
+    setForm({ ...EMPTY, no: nextNo, validUntil: defDue, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: defTax }] }); 
     setModal(true); 
   };
   const openEdit = (q) => {
@@ -277,12 +277,12 @@ export default function Quotations({ user, perms, ownerId, settings }) {
     let newIt = { ...form.items[i], [k]: k === 'name' || k === 'desc' ? v : parseFloat(v) || 0 };
     if (k === 'name') {
       const pMatch = products.find(p => p.name === v);
-      if (pMatch) newIt = { ...newIt, rate: pMatch.rate || 0, taxRate: pMatch.tax || 0 };
+      if (pMatch) newIt = { ...newIt, rate: pMatch.rate || 0, taxRate: pMatch.tax || 0, unit: pMatch.unit || 'Nos' };
     }
     const items = form.items.map((it, idx) => idx === i ? newIt : it);
     setForm(p => ({ ...p, items }));
   };
-  const addItem = () => setForm(p => ({ ...p, items: [...p.items, { name: '', desc: '', qty: 1, rate: 0, taxRate: profile?.defaultTaxRate || 0 }] }));
+  const addItem = () => setForm(p => ({ ...p, items: [...p.items, { name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: profile?.defaultTaxRate || 0 }] }));
   const removeItem = (i) => setForm(p => ({ ...p, items: p.items.filter((_, idx) => idx !== i) }));
 
   const convertToInvoice = async (q) => {
@@ -531,7 +531,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
                   <button className="btn btn-secondary btn-sm" onClick={addItem}>+ Add Row</button>
                 </div>
                 <table className="li-table">
-                  <thead><tr><th>Item</th><th style={{ width: 60, textAlign: 'center' }}>Qty</th><th style={{ width: 90, textAlign: 'right' }}>Rate</th><th style={{ width: 160 }}>Tax</th><th style={{ width: 80, textAlign: 'right' }}>Amount</th><th style={{ width: 28 }}></th></tr></thead>
+                  <thead><tr><th>Item</th><th style={{ width: 60, textAlign: 'center' }}>Qty</th><th style={{ width: 80 }}>Unit</th><th style={{ width: 90, textAlign: 'right' }}>Rate</th><th style={{ width: 160 }}>Tax</th><th style={{ width: 80, textAlign: 'right' }}>Amount</th><th style={{ width: 28 }}></th></tr></thead>
                   <tbody>
                     {form.items.map((it, i) => (
                       <tr key={i}>
@@ -552,6 +552,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
                               if (pMatch) {
                                 updates.rate = pMatch.rate || 0;
                                 updates.taxRate = pMatch.tax || 0;
+                                updates.unit = pMatch.unit || 'Nos';
                               }
                               const its = form.items.map((x, idx) => idx === i ? { ...x, ...updates } : x);
                               setForm(prev => ({ ...prev, items: its }));
@@ -561,7 +562,12 @@ export default function Quotations({ user, perms, ownerId, settings }) {
                         </div>
                       </td>
                         <td><input className="li-input" type="number" value={it.qty} onChange={e => updateItem(i, 'qty', e.target.value)} style={{ width: 55, textAlign: 'center' }} /></td>
-                        <td><input className="li-input" type="number" value={it.rate} onChange={e => updateItem(i, 'rate', e.target.value)} style={{ textAlign: 'right' }} /></td>
+                      <td>
+                        <select className="li-input" value={it.unit || 'Nos'} onChange={e => updateItem(i, 'unit', e.target.value)}>
+                          {(profile?.productUnits || ['Nos', 'Kgs', 'Ltrs', 'Mtrs', 'Pkt', 'Box', 'Set']).map(u => <option key={u}>{u}</option>)}
+                        </select>
+                      </td>
+                      <td><input className="li-input" type="number" value={it.rate} onChange={e => updateItem(i, 'rate', e.target.value)} style={{ textAlign: 'right' }} /></td>
                         <td>
                           <select className="li-input" value={it.taxRate} onChange={e => updateItem(i, 'taxRate', e.target.value)}>
                             {taxRates.map(t => <option key={t.label} value={t.rate}>{t.label}</option>)}

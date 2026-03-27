@@ -6,7 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { sendEmail, sendEmailMock, renderTemplate } from '../../utils/messaging';
 import SearchableSelect from '../UI/SearchableSelect';
 
-const EMPTY = { client: '', email: '', phone: '', contractNo: '', cycle: 'Yearly', startDate: '', endDate: '', amount: '', taxRate: 0, plan: '', productId: '', sku: '', status: 'Active', notes: '', assign: '' };
+const EMPTY = { client: '', email: '', phone: '', contractNo: '', cycle: 'Yearly', startDate: '', endDate: '', amount: '', taxRate: 0, plan: '', unit: 'Nos', productId: '', sku: '', status: 'Active', notes: '', assign: '' };
 
 export default function AMC({ user, perms, ownerId }) {
   const canCreate = perms?.can('AMC', 'create') === true;
@@ -186,7 +186,8 @@ export default function AMC({ user, perms, ownerId }) {
       cycle: a.cycle || 'Yearly',
       genInvoice: true,
       taxRate: a.taxRate || 0,
-      plan: a.plan || ''
+      plan: a.plan || '',
+      unit: a.unit || 'Nos'
     });
     setRenewModal(a);
   };
@@ -220,6 +221,7 @@ export default function AMC({ user, perms, ownerId }) {
       toDate: newEndStr,
       cycle: renewForm.cycle,
       renewalNo: existingRenewals.length + 1,
+      unit: renewForm.unit || 'Nos',
     };
 
     const txs = [
@@ -228,7 +230,8 @@ export default function AMC({ user, perms, ownerId }) {
         endDate: newEndStr,
         amount: paidAmount,
         taxRate: parseFloat(renewForm.taxRate) || 0,
-        plan: renewForm.plan || a.plan,
+        plan: renewForm.plan,
+        unit: renewForm.unit || 'Nos',
         status: 'Active',
         renewedAt: Date.now(),
         renewals: [...existingRenewals, newRenewal],
@@ -365,7 +368,7 @@ export default function AMC({ user, perms, ownerId }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', cycle: a.cycle || 'Yearly', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, taxRate: a.taxRate || 0, plan: a.plan, productId: a.productId || '', sku: a.sku || '', status: a.status, notes: a.notes || '' }); setModal(true); }}>Edit</button>}
+            {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', cycle: a.cycle || 'Yearly', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, taxRate: a.taxRate || 0, plan: a.plan, productId: a.productId || '', sku: a.sku || '', status: a.status, notes: a.notes || '', unit: a.unit || 'Nos' }); setModal(true); }}>Edit</button>}
             {canEdit && <button className="btn btn-primary btn-sm" onClick={() => openRenewModal(a)}>🔄 Renew AMC</button>}
           </div>
         </div>
@@ -484,7 +487,12 @@ export default function AMC({ user, perms, ownerId }) {
                   <div className="fg"><label>End Date (Expiry)</label><input type="date" value={form.endDate} readOnly={form.cycle !== 'Custom'} onChange={e => form.cycle === 'Custom' && f('endDate')(e)} style={{ border: form.cycle !== 'Custom' ? 'none' : '', background: form.cycle !== 'Custom' ? '#f1f5f9' : '#fff' }} /></div>
                   <div className="fg" style={{ zIndex: 9 }}>
                     <label>Plan / Service</label>
-                    <SearchableSelect options={products} displayKey="name" returnKey="name" value={form.plan} onChange={val => { const pMatch = products.find(p => p.name === val); setForm(prev => ({ ...prev, plan: val, amount: pMatch ? pMatch.rate : prev.amount, taxRate: pMatch ? (pMatch.tax || 0) : prev.taxRate })); }} placeholder="e.g. Server AMC" />
+                    <SearchableSelect options={products} displayKey="name" returnKey="name" value={form.plan} onChange={val => { const pMatch = products.find(p => p.name === val); setForm(prev => ({ ...prev, plan: val, amount: pMatch ? pMatch.rate : prev.amount, taxRate: pMatch ? (pMatch.tax || 0) : prev.taxRate, unit: pMatch ? (pMatch.unit || 'Nos') : prev.unit })); }} placeholder="e.g. Server AMC" />
+                  </div>
+                  <div className="fg"><label>Unit</label>
+                    <select value={form.unit || 'Nos'} onChange={f('unit')}>
+                      {(profile?.productUnits || ['Nos', 'Kgs', 'Ltrs', 'Mtrs', 'Pkt', 'Box', 'Set']).map(u => <option key={u}>{u}</option>)}
+                    </select>
                   </div>
                   <div className="fg"><label>Tax (GST %)</label>
                     <select value={form.taxRate} onChange={f('taxRate')}>{taxRates.map(t => <option key={t.label} value={t.rate}>{t.label}</option>)}</select>
@@ -576,7 +584,7 @@ export default function AMC({ user, perms, ownerId }) {
                           <div className="dd-menu" style={{ display: 'none', position: 'absolute', right: 0, top: 28, background: '#fff', border: '1px solid var(--border)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 10, minWidth: 160, overflow: 'hidden' }}>
                             {canEdit && <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { handleGenerateInvoice(a); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>💳 Generate Invoice</div>}
                             {canEdit && <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer', borderBottom: '1px solid var(--border)' }} onClick={() => { handleSendReminder(a); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>📧 Send Reminder</div>}
-                            {canEdit && <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer' }} onClick={() => { setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', cycle: a.cycle || 'Yearly', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, taxRate: a.taxRate || 0, plan: a.plan, status: a.status, notes: a.notes || '' }); setModal(true); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>✎ Edit</div>}
+                            {canEdit && <div style={{ padding: '8px 12px', fontSize: 12, cursor: 'pointer' }} onClick={() => { setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', cycle: a.cycle || 'Yearly', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, taxRate: a.taxRate || 0, plan: a.plan, unit: a.unit || 'Nos', status: a.status, notes: a.notes || '' }); setModal(true); document.querySelectorAll('.dd-menu').forEach(el => el.style.display = 'none'); }}>✎ Edit</div>}
                           </div>
                         </div>
                       </td>

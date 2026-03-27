@@ -15,7 +15,7 @@ function calcTotals(items, disc, discType, adj) {
   return { sub, taxTotal, discAmt, total };
 }
 
-const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [], assign: '' };
+const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [], assign: '' };
 const EMPTY_CUSTOMER = { name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 export default function Invoices({ user, perms, ownerId, settings }) {
   const canCreate = perms?.can('Invoices', 'create') === true;
@@ -98,7 +98,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
     d.setDate(d.getDate() + 14);
     const defDue = d.toISOString().split('T')[0];
     
-    setForm({ ...EMPTY, no: nextNo, dueDate: defDue, items: [{ name: '', desc: '', qty: 1, rate: 0, taxRate: defTax }] }); 
+    setForm({ ...EMPTY, no: nextNo, dueDate: defDue, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: defTax }] }); 
     setModal(true); 
   };
   const openEdit = (inv) => {
@@ -632,10 +632,10 @@ export default function Invoices({ user, perms, ownerId, settings }) {
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 7 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Line Items</label>
-                <button className="btn btn-secondary btn-sm" onClick={() => setForm(p => ({ ...p, items: [...p.items, { name: '', desc: '', qty: 1, rate: 0, taxRate: profile?.defaultTaxRate || 0 }] }))}>+ Add Row</button>
+                <button className="btn btn-secondary btn-sm" onClick={() => setForm(p => ({ ...p, items: [...p.items, { name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: profile?.defaultTaxRate || 0 }] }))}>+ Add Row</button>
               </div>
               <table className="li-table">
-                <thead><tr><th>Item</th><th style={{ width: 60 }}>Qty</th><th style={{ width: 90 }}>Rate</th><th style={{ width: 160 }}>Tax</th><th style={{ width: 80 }}>Amount</th><th></th></tr></thead>
+                <thead><tr><th>Item</th><th style={{ width: 60 }}>Qty</th><th style={{ width: 80 }}>Unit</th><th style={{ width: 90 }}>Rate</th><th style={{ width: 160 }}>Tax</th><th style={{ width: 80 }}>Amount</th><th></th></tr></thead>
                 <tbody>
                   {form.items.map((it, i) => (
                     <tr key={i}>
@@ -656,6 +656,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
                               if (pMatch) {
                                 updates.rate = pMatch.rate || 0;
                                 updates.taxRate = pMatch.tax || 0;
+                                updates.unit = pMatch.unit || 'Nos';
                               }
                               const its = form.items.map((x, idx) => idx === i ? { ...x, ...updates } : x);
                               setForm(prev => ({ ...prev, items: its }));
@@ -665,6 +666,11 @@ export default function Invoices({ user, perms, ownerId, settings }) {
                         </div>
                       </td>
                       <td><input className="li-input" type="number" value={it.qty} onChange={e => updateItem(i, 'qty', e.target.value)} style={{ width: 55, textAlign: 'center' }} /></td>
+                      <td>
+                        <select className="li-input" value={it.unit || 'Nos'} onChange={e => updateItem(i, 'unit', e.target.value)}>
+                          {(profile?.productUnits || ['Nos', 'Kgs', 'Ltrs', 'Mtrs', 'Pkt', 'Box', 'Set']).map(u => <option key={u}>{u}</option>)}
+                        </select>
+                      </td>
                       <td><input className="li-input" type="number" value={it.rate} onChange={e => updateItem(i, 'rate', e.target.value)} style={{ textAlign: 'right' }} /></td>
                       <td><select className="li-input" value={it.taxRate} onChange={e => updateItem(i, 'taxRate', e.target.value)}>{TAX_OPTIONS.map(t => <option key={t.label} value={t.rate}>{t.label}</option>)}</select></td>
                       <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 12 }}>{((it.qty || 0) * (it.rate || 0)).toFixed(2)}</td>

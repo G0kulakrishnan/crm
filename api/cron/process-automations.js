@@ -54,10 +54,10 @@ export default async function handler(req, res) {
 
     for (const flow of myAutomations) {
       let entities = [];
-      if (flow.triggerType === 'stage-change') entities = leads.filter(l => l.userId === ownerId && l.stageId === flow.triggerValue);
-      else if (flow.triggerType === 'amc-expiry') entities = amcProfiles.filter(p => p.userId === ownerId && p.daysToExpiry <= (flow.triggerValue || 0));
-      else if (flow.triggerType === 'new-appt') entities = appointments.filter(a => a.userId === ownerId && a.status === 'scheduled');
-      else if (flow.triggerType === 'ecom-order') entities = ecommerceOrders.filter(o => o.userId === ownerId && o.status === 'confirmed');
+      if (flow.triggerType === 'stage-change') entities = leads.filter(l => l.userId === ownerId && l.stageId === flow.triggerValue).map(e => ({ ...e, _table: 'leads' }));
+      else if (flow.triggerType === 'amc-expiry') entities = amcProfiles.filter(p => p.userId === ownerId && p.daysToExpiry <= (flow.triggerValue || 0)).map(e => ({ ...e, _table: 'amcs' }));
+      else if (flow.triggerType === 'new-appt') entities = appointments.filter(a => a.userId === ownerId && a.status === 'scheduled').map(e => ({ ...e, _table: 'appointments' }));
+      else if (flow.triggerType === 'ecom-order') entities = ecommerceOrders.filter(o => o.userId === ownerId && o.status === 'confirmed').map(e => ({ ...e, _table: 'ecommerceOrders' }));
 
       for (const entity of entities) {
         const dedupeId = `${flow.id}-${entity.id}`;
@@ -81,8 +81,8 @@ export default async function handler(req, res) {
           // --- LOGS (Unified Messaging Logs - Old Format Style) ---
           // Format based on User Screenshot Step 998 & Ground Truth Logs:
           // 🤖 [Auto] 🔄 Name has moved to stage: Stage. Assigned to: .
-          const detail = `🔄 ${lead.name} has moved to stage: ${flow.type.split(': ')[1] || flow.type}. Assigned to: ${lead.assignedTo || '.'}`;
-          const cleanSubject = `Lead Status Changed: ${detail.split('. ')[0]}`;
+          const detail = `🔄 ${entity.name || 'Entity'} has moved to stage: ${flow.triggerValue}. Assigned to: ${entity.assignedTo || '.'}`;
+          const cleanSubject = `Status Changed: ${entity.name || 'Entity'}`;
 
           txs.push(tx.outbox[id()].update({
             userId: ownerId,
@@ -96,7 +96,7 @@ export default async function handler(req, res) {
 
           // Mark as processed
           const currentProcessed = entity.processedAutomations || [];
-          txs.push(tx[entity.type][entity.id].update({
+          txs.push(tx[entity._table][entity.id].update({
             processedAutomations: [...currentProcessed, flow.id]
           }));
 
