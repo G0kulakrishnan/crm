@@ -337,7 +337,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
       }
     }
   }, [form.client, customers, editData, profile?.reqShipping]);  if (printing) {
-    const clientMatch = customers.find(c => c.name === printing.client);
+    const clientMatch = customers.find(c => c.name === printing.client) || leads.find(l => l.name === printing.client);
     const dataWithContext = {
       ...printing,
       items: (Array.isArray(printing.items) ? printing.items : JSON.parse(printing.items || '[]')).map(it => ({

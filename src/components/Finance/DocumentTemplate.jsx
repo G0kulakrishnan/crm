@@ -122,7 +122,10 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               {/* Billing Info Box */}
               <div style={{ border: '1px solid #000', backgroundColor: '#f9fafb', padding: '5px 12px', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase' }}>Bill To</div>
               <div style={{ border: '1px solid #000', borderTop: 'none', padding: '12px' }}>
-                <div style={{ fontWeight: '900', fontSize: '15px', textTransform: 'uppercase' }}>{data.client}</div>
+                <div style={{ fontWeight: '900', fontSize: '15px', textTransform: 'uppercase' }}>{clientMatch.companyName || data.companyName || data.client}</div>
+                {(clientMatch.companyName || data.companyName) && data.client && (clientMatch.companyName !== data.client) && (
+                  <div style={{ fontWeight: '600', fontSize: '12px', marginTop: '2px', color: '#333' }}>Contact: {data.client}</div>
+                )}
                 {clientMatch.gstin && <div style={{ fontWeight: '700', marginTop: '5px' }}>GSTIN: {clientMatch.gstin}</div>}
                 {clientMatch.address && <div style={{ marginTop: '10px', fontSize: '12px', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{clientMatch.address}</div>}
               </div>
@@ -338,7 +341,12 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
           <div style={{ display: 'flex', gap: 60 }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Billed To</div>
-              <div style={{ fontSize: t === 'Modern' ? 20 : 16, fontWeight: 700, marginTop: 4 }}>{data.client}</div>
+              <div style={{ fontSize: t === 'Modern' ? 20 : 16, fontWeight: 700, marginTop: 4 }}>
+                {clientMatch.companyName || data.companyName || data.client}
+              </div>
+              {(clientMatch.companyName || data.companyName) && data.client && (clientMatch.companyName !== data.client) && (
+                <div style={{ fontSize: 12, fontWeight: 600, marginTop: 2, color: '#444' }}>Contact: {data.client}</div>
+              )}
               {clientMatch?.address && <div style={{ fontSize: 12, color: '#666', marginTop: 10, whiteSpace: 'pre-wrap' }}>{clientMatch.address}</div>}
               {clientMatch?.gstin && <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>GSTIN: {clientMatch.gstin}</div>}
             </div>

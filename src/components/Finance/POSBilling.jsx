@@ -29,7 +29,7 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
   const [payMode, setPayMode] = useState('Cash');
   const [custModal, setCustModal] = useState(false);
   const [showCartMobile, setShowCartMobile] = useState(false);
-  const [newCustForm, setNewCustForm] = useState({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+  const [newCustForm, setNewCustForm] = useState({ name: '', companyName: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
 
   // 3. Derived Data
   const products = data?.products || [];
@@ -80,7 +80,7 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
     await db.transact(db.tx.customers[newId].update(custPayload));
     setSelectedCust({ id: newId, ...custPayload });
     setCustModal(false);
-    setNewCustForm({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+    setNewCustForm({ name: '', companyName: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
     toast('Customer created!', 'success');
   };
 
@@ -152,7 +152,10 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
           
           <div style={{ borderTop: '1px dashed #000', borderBottom: '1px dashed #000', padding: '5px 0', marginBottom: 10, fontSize: 11 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Bill: {printing.no}</span><span>{printing.date}</span></div>
-            <div>Cust: {printing.client}</div>
+            <div>Cust: {printing.customer?.companyName || printing.client}</div>
+            {printing.customer?.companyName && printing.client && (printing.customer.companyName !== printing.client) && (
+              <div style={{ fontSize: 9, color: '#444' }}>Contact: {printing.client}</div>
+            )}
             <div>Mode: {printing.payMode}</div>
           </div>
 
@@ -437,7 +440,8 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
             <div className="mo-head"><h3>Quick Add Customer</h3><button className="btn-icon" onClick={() => setCustModal(false)}>✕</button></div>
             <div className="mo-body" style={{ textAlign: 'left' }}>
               <div className="fgrid">
-                <div className="fg span2"><label>Full Name *</label><input value={newCustForm.name} onChange={ncf('name')} placeholder="e.g. John Doe" /></div>
+                <div className="fg"><label>Full Name *</label><input value={newCustForm.name} onChange={ncf('name')} placeholder="e.g. John Doe" /></div>
+                <div className="fg"><label>Company Name (Optional)</label><input value={newCustForm.companyName} onChange={ncf('companyName')} placeholder="Business Name" /></div>
                 <div className="fg"><label>Email *</label><input value={newCustForm.email} onChange={ncf('email')} placeholder="john@example.com" /></div>
                 <div className="fg"><label>Phone</label><input value={newCustForm.phone} onChange={ncf('phone')} placeholder="+91..." /></div>
                 <div className="fg span2"><label>Address</label><textarea value={newCustForm.address} onChange={ncf('address')} placeholder="Full address..." /></div>
