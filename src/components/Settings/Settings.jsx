@@ -44,7 +44,6 @@ const DEFAULT_TAX_OPTIONS = [
 ];
 
 export default function Settings({ user, profile, isExpired, initialTab, ownerId, perms, teamInfo, memberProfile, settings }) {
-  console.log("DEBUG: Settings Component Mounted V1");
   const groups = SETTINGS_GROUPS;
 
   const [active, setActive] = useState(initialTab || 'Business');
@@ -608,7 +607,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       <div className="sh"><div><h2>Settings</h2></div></div>
       <div className="sg">
         {/* Sidebar */}
-        <div className="sn" style={{ backgroundColor: 'red !important' }}>
+        <div className="sn">
           {groups.map(group => (
             <div key={group.title} className="sng">
               <div className="snh">{group.title}</div>
