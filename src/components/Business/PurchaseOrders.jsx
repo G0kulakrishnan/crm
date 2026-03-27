@@ -209,7 +209,7 @@ export default function PurchaseOrders({ user, perms, ownerId }) {
                     <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
                     <td><strong style={{ fontFamily: 'monospace', cursor: 'pointer', color: 'var(--accent)' }} onClick={() => setViewPO(po)}>{po.poNo}</strong></td>
                     <td>
-                      <div>{products.find(p => p.id === po.items?.[0]?.productId)?.name || po.vendor}</div>
+                      <div>{profile.bizName || po.vendor}</div>
                       {po.vendorEmail && <div style={{ fontSize: 10, color: 'var(--muted)' }}>{po.vendorEmail}</div>}
                     </td>
                     <td style={{ fontSize: 12 }}>{fmtD(po.date)}</td>
@@ -294,7 +294,7 @@ export default function PurchaseOrders({ user, perms, ownerId }) {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                               <select value={it.name} onChange={e => fillFromProduct(idx, e.target.value)}>
                                 <option value="">— Select Product —</option>
-                                {products.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                                {products.map(p => <option key={p.id} value={p.name}>{p.name} {p.code ? `(${p.code})` : ''}</option>)}
                                 <option value={it.name !== '' && !products.find(p => p.name === it.name) ? it.name : '__manual__'}>Manual entry...</option>
                               </select>
                               {(!products.find(p => p.name === it.name) || it.name === '') && (

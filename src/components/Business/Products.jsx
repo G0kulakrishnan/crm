@@ -165,6 +165,13 @@ export default function Products({ user, perms, ownerId }) {
     if (editData && !canEdit) { toast('Permission denied: cannot edit products', 'error'); return; }
     if (!editData && !canCreate) { toast('Permission denied: cannot create products', 'error'); return; }
     if (!form.name.trim()) { toast('Name required', 'error'); return; }
+
+    const sku = form.code?.trim();
+    if (sku) {
+      const isDuplicate = products.some(p => p.code?.trim().toLowerCase() === sku.toLowerCase() && p.id !== editData?.id);
+      if (isDuplicate) { toast(`Item Code "${sku}" is already in use in your business`, 'error'); return; }
+    }
+
     const payload = { 
       ...form, 
       rate: parseFloat(form.rate) || 0, 

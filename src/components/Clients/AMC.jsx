@@ -546,7 +546,7 @@ export default function AMC({ user, perms, ownerId }) {
                       <td style={{ fontSize: 12 }}>{a.contractNo || '-'}</td>
                       <td>
                         <div style={{ fontWeight: 600 }}>{products.find(p => p.id === a.productId)?.name || a.plan}</div>
-                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{a.contractNo}</div>
+                        <div style={{ fontSize: 10, color: 'var(--muted)' }}>{products.find(p => p.id === a.productId)?.code || a.sku || '-'}</div>
                       </td>
                       <td style={{ fontSize: 12 }}>{fmtD(a.startDate)}</td>
                       <td style={{ fontSize: 12, fontWeight: 600 }}>{fmtD(a.endDate)}</td>

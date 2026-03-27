@@ -163,6 +163,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                         <td style={{ textAlign: 'center' }}>{i + 1}</td>
                         <td style={{ textAlign: 'center' }}>
                           <div style={{ fontWeight: '700' }}>{it.name}</div>
+                          {it.sku && <div style={{ fontSize: '9px', fontWeight: '500', color: '#444', marginBottom: '2px' }}>Code: {it.sku}</div>}
                           {it.desc && <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px', whiteSpace: 'pre-wrap' }}>{it.desc}</div>}
                         </td>
                         <td style={{ textAlign: 'center' }}>{it.qty.toFixed(2)}</td>
@@ -364,7 +365,11 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
           <tbody>
             {items.map((it, i) => (
               <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: '14px 8px', fontSize: 13 }}><strong>{it.name}</strong>{it.desc && <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{it.desc}</div>}</td>
+                <td style={{ padding: '14px 8px', fontSize: 13 }}>
+                  <div><strong>{it.name}</strong></div>
+                  {it.sku && <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>Code: {it.sku}</div>}
+                  {it.desc && <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{it.desc}</div>}
+                </td>
                 <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'center' }}>{it.qty}</td>
                 <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'right' }}>{fmt(it.rate)}</td>
                 <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'right' }}>{it.taxRate}%</td>

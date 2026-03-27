@@ -29,8 +29,11 @@ export default function SearchableSelect({ options, value, onChange, placeholder
     if (!search) return options;
     const s = search.toLowerCase();
     return options.filter(opt => {
-      const text = typeof opt === 'object' ? String(opt[displayKey]) : String(opt);
-      return text.toLowerCase().includes(s);
+      if (typeof opt !== 'object') return String(opt).toLowerCase().includes(s);
+      const text = String(opt[displayKey] || '').toLowerCase();
+      const code = String(opt.code || '').toLowerCase();
+      const extra = String(opt.sku || '').toLowerCase();
+      return text.includes(s) || code.includes(s) || extra.includes(s);
     });
   }, [options, search, displayKey]);
 
@@ -128,14 +131,21 @@ export default function SearchableSelect({ options, value, onChange, placeholder
                       color: isSelected ? '#1d4ed8' : '#334155',
                       fontWeight: isSelected ? 600 : 400,
                       display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between'
+                      flexDirection: 'column',
+                      gap: 2
                     }}
                     onMouseEnter={(e) => { if(!isSelected) e.currentTarget.style.background = '#f8fafc'; }}
                     onMouseLeave={(e) => { if(!isSelected) e.currentTarget.style.background = 'transparent'; }}
                   >
-                    <span>{text}</span>
-                    {isSelected && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                      <span>{text}</span>
+                      {isSelected && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                    </div>
+                    {typeof opt === 'object' && (opt.code || opt.sku) && (
+                      <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>
+                        {opt.code || opt.sku}
+                      </div>
+                    )}
                   </div>
                 );
               })
