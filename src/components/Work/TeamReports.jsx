@@ -25,10 +25,10 @@ export default function TeamReports({ user, ownerId, perms }) {
     userProfiles: { $: { where: { userId: ownerId } } }
   });
 
-  // Lazy load activity logs only when a member is selected
-  const { data: logData } = db.useQuery(selectedId ? {
-    activityLogs: { $: { where: { userId: ownerId, actorId: selectedId }, limit: 1000 } }
-  } : null);
+  // Fetch activity logs for all team members at once
+  const { data: logData } = db.useQuery({
+    activityLogs: { $: { where: { userId: ownerId }, limit: 5000 } }
+  });
 
   const stats = data?.memberStats || [];
   const logs = logData?.activityLogs || [];
@@ -135,7 +135,7 @@ export default function TeamReports({ user, ownerId, perms }) {
 
   const activeMemberLogs = useMemo(() => {
     if (!selectedMember) return [];
-    let lgs = logs || [];
+    let lgs = (logs || []).filter(l => l.actorId === selectedId);
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       lgs = lgs.filter(l => {
@@ -158,7 +158,8 @@ export default function TeamReports({ user, ownerId, perms }) {
   const dayWiseActivity = useMemo(() => {
     if (!selectedMember || !logs) return [];
     const groups = {};
-    logs.forEach(l => {
+    const memberLogs = logs.filter(l => l.actorId === selectedId);
+    memberLogs.forEach(l => {
       // Only group logs that fall within the current filter range
       if (l.createdAt < dateRange.start || l.createdAt > dateRange.end) return;
       
@@ -190,9 +191,9 @@ export default function TeamReports({ user, ownerId, perms }) {
     try {
       toast('Preparing report...', 'info');
       
-      // Filter the already-loaded logs by the currently selected date range
+      // Filter the already-loaded logs by the currently selected member and date range
       const allUserLogs = logs
-        .filter(l => l.createdAt >= dateRange.start && l.createdAt <= dateRange.end)
+        .filter(l => l.actorId === selectedId && l.createdAt >= dateRange.start && l.createdAt <= dateRange.end)
         .sort((a,b) => b.createdAt - a.createdAt);
       
       if (allUserLogs.length === 0) return toast('No logs found for selected dates', 'info');
@@ -228,28 +229,55 @@ export default function TeamReports({ user, ownerId, perms }) {
     }
   };
 
-  const downloadSummaryCSV = () => {
+  const downloadTeamLogsCSV = () => {
     try {
-      toast('Preparing summary...', 'info');
+      toast('Preparing team activity report...', 'info');
       
-      const headers = ['Member', 'Activity', 'Leads Assg.', 'Leads Work.', 'Leads Won', 'Tasks Assg.', 'Tasks Work.', 'Tasks Comp.', 'Other Work'];
-      const rows = performanceData.map(s => [
-        s.name, s.totalActivities, s.leadsAssigned, s.leadsWorked, s.leadsWon, s.tasksAssigned, s.tasksWorked, s.tasksCompleted, s.otherWorks
-      ].map(v => `"${v}"`).join(','));
+      const members = [
+        { id: ownerId, name: 'Business Owner' },
+        ...team.map(m => ({ id: m.id, name: m.name }))
+      ];
+      const memberMap = {};
+      members.forEach(m => { memberMap[m.id] = m.name; });
+
+      const allFilteredLogs = logs
+        .filter(l => l.createdAt >= dateRange.start && l.createdAt <= dateRange.end)
+        .sort((a,b) => b.createdAt - a.createdAt);
       
+      if (allFilteredLogs.length === 0) return toast('No logs found for selected dates', 'info');
+      
+      const headers = ['Member', 'Date', 'Type', 'Activity', 'Reference', 'Project', 'Client'];
+      const rows = allFilteredLogs.map(l => {
+        const task = l.entityType === 'task' ? taskMap[l.entityId] : null;
+        const entName = l.entityType === 'lead' ? leadMap[l.entityId] : (task?.title || l.entityName);
+        const projectName = task ? projectMap[task.projectId] : '';
+        const clientName = task ? (task.client || (task.customerId ? customerMap[task.customerId] : '')) : '';
+        const memberName = memberMap[l.actorId] || l.userName || 'Unknown';
+
+        return [
+          memberName,
+          fmtDT(l.createdAt),
+          (l.entityType || '').toUpperCase(),
+          (l.text || '').replace(/"/g, '""'),
+          (entName || '').replace(/"/g, '""'),
+          (projectName || '').replace(/"/g, '""'),
+          (clientName || '').replace(/"/g, '""')
+        ].map(v => `"${v}"`).join(',');
+      });
+
       const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Team_Performance_Summary_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `Team_Activity_Report_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      toast('Summary CSV Downloaded', 'success');
+      toast('Team Report Downloaded', 'success');
     } catch (err) {
       console.error(err);
-      toast('Error generating summary', 'error');
+      toast('Error generating team report', 'error');
     }
   };
 
@@ -263,8 +291,8 @@ export default function TeamReports({ user, ownerId, perms }) {
           <div className="sub" style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Analyze member productivity and activity</div>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button className="btn btn-secondary btn-sm" onClick={selectedId ? downloadCSV : downloadSummaryCSV}>
-            Export {selectedId ? 'Logs' : 'Summary'} CSV
+          <button className="btn btn-secondary btn-sm" onClick={selectedId ? downloadCSV : downloadTeamLogsCSV}>
+            Export {selectedId ? 'Logs' : 'Team Activity'} CSV
           </button>
           <div className="tabs" style={{ marginBottom: 0, border: 'none' }}>
             {DATE_FILTERS.map(f => (

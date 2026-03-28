@@ -118,7 +118,7 @@ export default function Customers({ user, perms, ownerId }) {
         const newId = id();
         txs.push(db.tx.customers[newId].update({ ...form, userId: ownerId, actorId: user.id, createdAt: Date.now() }));
         txs.push(db.tx.activityLogs[id()].update({
-          entityId: newId, entityType: 'customer', text: 'Customer created',
+          entityId: newId, entityType: 'customer', text: 'Customer created [Other Work]',
           userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
         }));
         await db.transact(txs);
@@ -179,7 +179,7 @@ export default function Customers({ user, perms, ownerId }) {
           createdAt: Date.now()
         }));
         txs.push(db.tx.activityLogs[id()].update({
-          entityId: newId, entityType: 'customer', text: `Customer created via Sync from Lead "${l.name}"`,
+          entityId: newId, entityType: 'customer', text: `Customer created via Sync from Lead "${l.name}" [Other Work]`,
           userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
         }));
         count++;
