@@ -172,6 +172,35 @@ export default function TeamReports({ user, ownerId, perms }) {
     }
   };
 
+  const downloadCSV = () => {
+    if (activeMemberLogs.length === 0) return toast('No logs to export', 'info');
+    const headers = ['Date', 'Type', 'Activity', 'Reference', 'Project', 'Client'];
+    const rows = activeMemberLogs.map(l => {
+      const task = l.entityType === 'task' ? taskMap[l.entityId] : null;
+      const entName = l.entityType === 'lead' ? leadMap[l.entityId] : (task?.title || l.entityName);
+      const projectName = task ? projectMap[task.projectId] : '';
+      const clientName = task ? (task.client || (task.customerId ? customerMap[task.customerId] : '')) : '';
+      return [
+        fmtDT(l.createdAt),
+        l.entityType.toUpperCase(),
+        (l.text || '').replace(/"/g, '""'),
+        (entName || '').replace(/"/g, '""'),
+        (projectName || '').replace(/"/g, '""'),
+        (clientName || '').replace(/"/g, '""')
+      ].map(v => `"${v}"`).join(',');
+    });
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Activity_Log_${selectedMember.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast('CSV Downloaded', 'success');
+  };
+
   if (isLoading) return <div className="p-xl">Loading Performance Data...</div>;
 
   return (
@@ -297,12 +326,15 @@ export default function TeamReports({ user, ownerId, perms }) {
 
         {selectedMember && (
           <div className="tw log-detail-view">
-            <div className="tw-head" style={{ justifyContent: 'space-between', padding: '15px 20px' }}>
+            <div className="sh" style={{ borderBottom: '1px solid var(--border)', padding: '15px 20px', background: '#f8fafc', position: 'sticky', top: 0, zIndex: 10 }}>
               <div>
-                <h3 style={{ margin: 0 }}>Activity Logs: {selectedMember.name}</h3>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>{filter} activity details</div>
+                <h3 style={{ margin: 0, fontSize: 16 }}>Activity Logs: {selectedMember.name}</h3>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{filter} activity details</div>
               </div>
-              <button className="btn-icon" onClick={() => { setSelectedId(null); setSelectedDay(null); }}>×</button>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn btn-secondary btn-sm" onClick={downloadCSV}>Export CSV</button>
+                <button className="btn-icon" onClick={() => setSelectedId(null)}>✕</button>
+              </div>
             </div>
             
             <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, background: '#fff' }}>
