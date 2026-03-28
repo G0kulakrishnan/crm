@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import db from '../../instant';
 import { fmt, fmtD, fmtDT } from '../../utils/helpers';
+import { useToast } from '../../context/ToastContext';
 
 const DATE_FILTERS = ['Today', 'Yesterday', 'This Month', 'This Year', 'Custom'];
 
@@ -12,6 +13,7 @@ export default function TeamReports({ user, ownerId, perms }) {
   const [selectedId, setSelectedId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedDay, setSelectedDay] = useState(null);
+  const toast = useToast();
 
   const { data, isLoading } = db.useQuery({
     memberStats: { $: { where: { userId: ownerId } } },
@@ -259,7 +261,7 @@ export default function TeamReports({ user, ownerId, perms }) {
     const rows = fullStats.map(s => [
       s.name, s.activityCount, s.leadsAssigned, s.leadsWorked, s.leadsWon, s.tasksAssigned, s.tasksWorked, s.tasksCompleted, s.otherWorks
     ].map(v => `"${v}"`).join(','));
-    const csvContent = [headers.join(','), ...rows].join('\n');
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -417,7 +419,6 @@ export default function TeamReports({ user, ownerId, perms }) {
                 <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, fontWeight: 500 }}>Only 30 days logs available, for historical data, select Export Logs CSV</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <button className="btn btn-secondary btn-sm" onClick={downloadCSV}>Export Logs CSV</button>
                 <button className="btn-icon" onClick={() => { setSelectedId(null); setSelectedDay(null); }}>✕</button>
               </div>
             </div>
