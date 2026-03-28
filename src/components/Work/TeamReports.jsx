@@ -201,16 +201,36 @@ export default function TeamReports({ user, ownerId, perms }) {
     toast('CSV Downloaded', 'success');
   };
 
+  const downloadSummaryCSV = () => {
+    const headers = ['Member', 'Activity', 'Leads Assg.', 'Leads Work.', 'Leads Won', 'Tasks Assg.', 'Tasks Work.', 'Tasks Comp.'];
+    const rows = teamStats.map(s => [
+      s.name, s.activityCount, s.leadsAssigned, s.leadsWorked, s.leadsWon, s.tasksAssigned, s.tasksWorked, s.tasksCompleted
+    ].map(v => `"${v}"`).join(','));
+    const csvContent = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Team_Performance_Summary_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast('Summary CSV Downloaded', 'success');
+  };
+
   if (isLoading) return <div className="p-xl">Loading Performance Data...</div>;
 
   return (
     <div className="reports-container">
       <div className="sh" style={{ marginBottom: 20 }}>
         <div>
-          <h2 style={{ fontSize: 24 }}>Team Performance</h2>
-          <div className="sub">Analyze member productivity and activity</div>
+          <h2 style={{ fontSize: 24, margin: 0, fontWeight: 700 }}>Team Performance</h2>
+          <div className="sub" style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Analyze member productivity and activity</div>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button className="btn btn-secondary btn-sm" onClick={selectedId ? downloadCSV : downloadSummaryCSV}>
+            Export {selectedId ? 'Logs' : 'Summary'} CSV
+          </button>
           <div className="tabs" style={{ marginBottom: 0, border: 'none' }}>
             {DATE_FILTERS.map(f => (
               <div 
@@ -331,10 +351,7 @@ export default function TeamReports({ user, ownerId, perms }) {
                 <h3 style={{ margin: 0, fontSize: 16 }}>Activity Logs: {selectedMember.name}</h3>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{filter} activity details</div>
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-secondary btn-sm" onClick={downloadCSV}>Export CSV</button>
-                <button className="btn-icon" onClick={() => setSelectedId(null)}>✕</button>
-              </div>
+              <button className="btn-icon" onClick={() => { setSelectedId(null); setSelectedDay(null); }}>✕</button>
             </div>
             
             <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, background: '#fff' }}>
@@ -504,6 +521,8 @@ export default function TeamReports({ user, ownerId, perms }) {
         .meta-block { display: flex; align-items: center; gap: 5px; }
         .meta-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; }
         .meta-val { font-size: 11px; color: var(--accent); font-weight: 600; }
+        .meta-link { cursor: pointer; }
+        .meta-link:hover { text-decoration: underline; }
 
         @keyframes slideIn {
           from { opacity: 0; transform: translateX(30px); }
