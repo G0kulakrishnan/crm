@@ -54,18 +54,47 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
         <div className="spreadsheet-template" style={{ fontSize: '11px', lineHeight: '1.4', fontFamily: '"Inter", sans-serif', letterSpacing: '0.01em' }}>
           <style>{`
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-            @media print {
-              @page { size: A4; margin: 0; }
-              body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; }
-              .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 15mm !important; }
-              .no-print { display: none !important; }
-            }
+            
             .s-table { width: 100%; border-collapse: collapse; border: none; }
             .s-table th { border: 1px solid #000; padding: 7px 4px; background: #f9fafb; font-weight: 700; color: #111; text-transform: uppercase; letter-spacing: 0.03em; font-size: 10px; }
             .s-table td { border-left: 1px solid #000; border-right: 1px solid #000; padding: 10px 8px; vertical-align: top; border-bottom: none; color: #000; }
+
+            .main-wrapper { 
+              border: 2px solid #000; 
+              box-sizing: border-box; 
+              display: flex; 
+              flex-direction: column; 
+              min-height: 280mm; 
+            }
+            .filler { 
+              flex: 1; 
+              border-left: 1px solid #000; 
+              border-right: 1px solid #000; 
+              margin: 0 20px;
+            }
+
+            @media print {
+              @page { size: A4; margin: 10mm; }
+              body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; }
+              .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 0 !important; height: auto !important; min-height: auto !important; }
+              .no-print { display: none !important; }
+              
+              /* Break Flexbox for Printing to enable Pagination */
+              .main-wrapper { 
+                display: block; 
+                min-height: 0; 
+                height: auto; 
+                border-bottom: none; /* We will cap it at the end normally */
+              }
+              .filler { display: none; }
+              .footer-box { page-break-inside: avoid; border-top: 1px solid #000; }
+              .s-table { page-break-inside: auto; }
+              .s-table tr { page-break-inside: avoid; page-break-after: auto; }
+              .s-table-container { border-bottom: 1px solid #000; }
+            }
           `}</style>
           
-          <div style={{ border: '2px solid #000', minHeight: '280mm', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
+          <div className="main-wrapper">
             {/* Header Section */}
             <div style={{ padding: '20px 20px 0 20px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
@@ -180,15 +209,14 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               </table>
             </div>
 
-            {/* Filler Spacer - Grows to push everything down */}
-            <div style={{ flex: 1, padding: '0 20px', display: 'flex', flexDirection: 'column' }}>
-               <div style={{ flex: 1, borderLeft: '1px solid #000', borderRight: '1px solid #000' }}>
-               </div>
-            </div>
+            {/* Filler Spacer - Grows to push everything down on screen preview */}
+            <div className="filler"></div>
 
-            {/* Terms & Notes - Placed exactly above the Bank Details/Totals Box */}
-            {(data.terms || data.notes) && (
-              <div style={{ margin: '0 20px', padding: '15px 20px', borderLeft: '1px solid #000', borderRight: '1px solid #000' }}>
+            {/* Terms, Notes, and Footer Box wrapped to avoid page break inside */}
+            <div className="footer-box" style={{ borderBottom: '2px solid #000' }}>
+              {/* Terms & Notes - Placed exactly above the Bank Details/Totals Box */}
+              {(data.terms || data.notes) && (
+                <div style={{ padding: '15px 20px', borderLeft: '1px solid #000', borderRight: '1px solid #000' }}>
                 {data.terms && (
                   <div style={{ marginBottom: '12px' }}>
                     <div style={{ fontWeight: '800', fontSize: '13px', marginBottom: '4px' }}>Terms:</div>
@@ -264,8 +292,9 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                   </div>
                 </div>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px', fontSize: '9px', opacity: 0.5 }}>
-                This is a computer generated document.
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px', fontSize: '9px', opacity: 0.5 }}>
+                  This is a computer generated document.
+                </div>
               </div>
             </div>
           </div>
@@ -288,9 +317,9 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
       <div style={{ fontFamily: t === 'Modern' ? 'Outfit, sans-serif' : 'sans-serif' }}>
         <style>{`
           @media print {
-            @page { size: A4; margin: 0; }
+            @page { size: A4; margin: 10mm; }
             body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; }
-            .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 15mm !important; }
+            .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 0 !important; height: auto !important; min-height: auto !important; }
             .no-print { display: none !important; }
           }
         `}</style>
