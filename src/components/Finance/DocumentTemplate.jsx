@@ -84,13 +84,18 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                 display: block; 
                 min-height: 0; 
                 height: auto; 
-                border-bottom: none; /* We will cap it at the end normally */
+                border: none !important;
+                margin: 0 !important;
+                padding: 0 !important;
               }
               .filler { display: none; }
-              .footer-box { page-break-inside: avoid; border-top: 1px solid #000; }
-              .s-table { page-break-inside: auto; }
+              .footer-box { border-top: 1px solid #000; }
+              .avoid-break { page-break-inside: avoid; }
+              .s-table { page-break-inside: auto; width: 100%; border-collapse: collapse; }
+              .s-table thead { display: table-header-group; }
               .s-table tr { page-break-inside: avoid; page-break-after: auto; }
               .s-table-container { border-bottom: 1px solid #000; }
+              .s-table td, .s-table th { border: 1px solid #000; }
             }
           `}</style>
           
@@ -212,8 +217,8 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             {/* Filler Spacer - Grows to push everything down on screen preview */}
             <div className="filler"></div>
 
-            {/* Terms, Notes, and Footer Box wrapped to avoid page break inside */}
-            <div className="footer-box" style={{ borderBottom: '2px solid #000' }}>
+            {/* Terms, Notes, and Footer Box - Terms/Notes can break, Totals are kept together */}
+            <div className="footer-box">
               {/* Terms & Notes - Placed exactly above the Bank Details/Totals Box */}
               {(data.terms || data.notes) && (
                 <div style={{ padding: '15px 20px', borderLeft: '1px solid #000', borderRight: '1px solid #000' }}>
@@ -232,8 +237,8 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               </div>
             )}
 
-            {/* Footer Box */}
-            <div style={{ padding: '0 20px 20px 20px' }}>
+            {/* Final Totals & Bank Details Box - Kept together on one page if possible */}
+            <div className="avoid-break" style={{ padding: '0 20px 20px 20px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', border: '1px solid #000' }}>
                 {/* Left Side: Detail & Bank */}
                 <div style={{ borderRight: '1px solid #000', padding: '15px' }}>
