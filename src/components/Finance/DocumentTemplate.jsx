@@ -72,20 +72,23 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               .no-print { display: none !important; }
               
               /* Print Frame Box - Print Mode (Unbroken Repeating Borders) */
-              .print-frame-head td { height: 12mm !important; border-top: 2px solid #000 !important; border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; }
-              .print-frame-foot td { height: 12mm !important; border-bottom: 2px solid #000 !important; border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; }
-              .print-frame-body > td { border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; padding: 0 15mm !important; }
+              .print-frame { width: calc(100% - 20mm) !important; margin: 10mm auto !important; }
+              .print-frame-head td { height: 10mm !important; border-top: 2px solid #000 !important; border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; }
+              .print-frame-foot td { height: 10mm !important; border-bottom: 2px solid #000 !important; border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; }
+              .print-frame-body > td { border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; padding: 0 10mm !important; }
 
-              .z-table { page-break-inside: auto; border-bottom: 1px solid #000; }
+              .z-table { page-break-inside: auto; border-bottom: 2px solid #000; }
               .z-table tr { page-break-inside: avoid; page-break-after: auto; }
-              .z-table th { background: #f0f0f0 !important; color: #000 !important; border-bottom: 2px solid #000 !important; border-top: 1px solid #000 !important; }
-              .z-table td { border-bottom: 1px solid #aaa !important; }
+              .z-table th { background: #f0f0f0 !important; color: #000 !important; border-bottom: 2px solid #000 !important; border-top: 2px solid #000 !important; }
+              .z-table td { border-bottom: 1px solid #000 !important; }
               .z-table thead { display: table-header-group; }
               
               .z-summary td { color: #111 !important; }
               .z-summary tr.z-total td { border-top: 2px solid #000 !important; border-bottom: 2px solid #000 !important; }
               
               .avoid-break { page-break-inside: avoid; }
+              .print-border-split { border-top: 2px solid #000 !important; }
+              .print-border-right { border-right: 2px solid #000 !important; }
             }
           `}</style>
 
@@ -95,9 +98,9 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             </thead>
             <tbody className="print-frame-body">
               <tr>
-                <td>
+                <td style={{ padding: '0 20px' }}>
             {/* Header: Logo and Title */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '40px', alignItems: 'flex-start' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', alignItems: 'flex-start', paddingTop: '15px' }}>
               <div style={{ width: '55%' }}>
                 {profile.logo && <img src={profile.logo} alt="Logo" style={{ height: '70px', maxWidth: '200px', objectFit: 'contain', marginBottom: '15px' }} />}
                 <div style={{ fontSize: '18px', fontWeight: '800', color: '#111', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '-0.5px' }}>{profile.bizName}</div>
@@ -132,7 +135,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             </div>
 
             {/* Bill To & Ship To */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', paddingTop: '20px', borderTop: '1px solid #eee' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', paddingTop: '15px', borderTop: '1px solid #eee' }}>
               <div style={{ width: '45%' }}>
                 <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.5px' }}>Bill To</div>
                 <div style={{ fontSize: '16px', fontWeight: '800', color: '#111', marginBottom: '6px' }}>{clientMatch.companyName || data.companyName || data.client}</div>
@@ -205,75 +208,6 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               </tbody>
             </table>
             
-            {/* Totals & Footer Grid - Kept together on page break */}
-            <div className="avoid-break" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '40px', marginTop: '10px', paddingTop: '10px' }}>
-              
-              {/* Left Side: Notes, Terms, Bank */}
-              <div>
-                <div style={{ marginBottom: '25px' }}>
-                  <div style={{ fontSize: '10px', color: '#666', textTransform: 'uppercase', fontWeight: '700', marginBottom: '6px' }}>Total In Words</div>
-                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#111', fontStyle: 'italic' }}>{numberToWords(ptots.total)}</div>
-                </div>
-
-                {profile.accHolder && (
-                  <div style={{ marginBottom: '25px' }}>
-                    <div style={{ fontSize: '10px', fontWeight: '700', color: '#666', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bank Details</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', gap: '6px', fontSize: '11px', color: '#333' }}>
-                      <span style={{ color: '#666' }}>Bank Name</span><span>:</span><strong style={{ color: '#111' }}>{profile.bankName}</strong>
-                      <span style={{ color: '#666' }}>Account Name</span><span>:</span><strong style={{ color: '#111' }}>{profile.accHolder}</strong>
-                      <span style={{ color: '#666' }}>Account No.</span><span>:</span><strong style={{ color: '#111' }}>{profile.accountNo}</strong>
-                      <span style={{ color: '#666' }}>IFSC Code</span><span>:</span><strong style={{ color: '#111' }}>{profile.ifsc}</strong>
-                      {profile.accType && <><span style={{ color: '#666' }}>Account Type</span><span>:</span><strong>{profile.accType}</strong></>}
-                    </div>
-                    {profile.bankExtra && <div style={{ marginTop: '10px', fontSize: '10px', color: '#555', borderTop: '1px solid #eee', paddingTop: '10px' }}>{profile.bankExtra}</div>}
-                  </div>
-                )}
-
-                {data.notes && (
-                  <div style={{ marginBottom: '20px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px', textTransform: 'uppercase' }}>Notes</div>
-                    <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.notes}</div>
-                  </div>
-                )}
-                
-                {data.terms && (
-                  <div style={{ marginBottom: '15px' }}>
-                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px', textTransform: 'uppercase' }}>Terms & Conditions</div>
-                    <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.terms}</div>
-                  </div>
-                )}
-              </div>
-
-              {/* Right Side: Totals */}
-              <div>
-                <table className="z-summary">
-                  <tbody>
-                    <tr><td>Sub Total</td><td>{fmt(ptots.sub).replace('₹', '')}</td></tr>
-                    {ptots.discAmt > 0 && <tr><td>Discount ({data.discType === '₹' ? 'Flat' : `${data.disc}%`})</td><td style={{ color: '#d97706' }}>- {fmt(ptots.discAmt).replace('₹', '')}</td></tr>}
-                    {ptots.taxTotal > 0 && (
-                      isInterState ? (
-                        <tr><td>IGST</td><td>{fmt(ptots.taxTotal).replace('₹', '')}</td></tr>
-                      ) : (
-                        <>
-                          <tr><td>CGST</td><td>{fmt(ptots.taxTotal / 2).replace('₹', '')}</td></tr>
-                          <tr><td>SGST</td><td>{fmt(ptots.taxTotal / 2).replace('₹', '')}</td></tr>
-                        </>
-                      )
-                    )}
-                    {data.adj !== 0 && <tr><td>Adjustment</td><td>{data.adj > 0 ? '+' : ''}{fmt(data.adj).replace('₹', '')}</td></tr>}
-                    <tr className="z-total"><td>Total</td><td style={{ whiteSpace: 'nowrap' }}>{fmt(ptots.total)}</td></tr>
-                    {type === 'Invoice' && (
-                      <tr><td style={{ paddingTop: '15px', color: '#111', fontWeight: '800' }}>Balance Due</td><td style={{ paddingTop: '15px', color: '#111', fontWeight: '800', fontSize: '14px' }}>{fmt(ptots.total)}</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div style={{ textAlign: 'center', marginTop: 'auto', fontSize: '10px', color: '#888', paddingTop: '40px' }}>
-              This is a computer-generated document.
-            </div>
-
             {/* External Footer Branding Props */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px', fontSize: '10px', fontWeight: '600', color: '#666', borderTop: '1px solid #eee', paddingTop: '15px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
