@@ -66,24 +66,48 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               .no-print { display: none !important; }
               .zoho-template { min-height: 0 !important; display: block !important; }
               
-              .z-table { page-break-inside: auto; border: 1px solid #000 !important; }
+              /* The Box Grid Master Structure */
+              .print-master-box { border: 2px solid #000 !important; display: flex !important; flex-direction: column !important; }
+              .print-header-section, .print-bill-section { 
+                margin-bottom: 0 !important; 
+                padding: 15px !important; 
+                border-bottom: 2px solid #000 !important; 
+              }
+              
+              .print-footer-grid {
+                margin-top: 0 !important;
+                gap: 0 !important;
+                padding: 0 !important;
+                border-top: 2px solid #000 !important;
+              }
+              .print-footer-grid > div:first-child {
+                padding: 15px !important;
+                border-right: 2px solid #000 !important; /* Vertical separator */
+              }
+              .print-footer-grid > div:last-child {
+                padding: 0 !important;
+              }
+
+              .z-table { page-break-inside: auto; border: none !important; margin-bottom: 0 !important; }
               .z-table tr { page-break-inside: avoid; page-break-after: auto; }
               .z-table th { background: #f3f4f6 !important; color: #000 !important; font-weight: 800 !important; border: 1px solid #000 !important; }
-              .z-table td { border: 1px solid #000 !important; }
-              .z-table thead { display: table-header-group; }
+              .z-table td { border: 1px solid #000 !important; border-bottom: none !important; }
+              .z-table thead { display: table-header-group; border-bottom: 2px solid #000 !important; }
               
               .z-summary td { border: 1px solid #000 !important; color: #111 !important; }
-              .z-summary td:first-child { font-weight: 600 !important; }
-              .z-summary tr.z-total td { background: #f3f4f6 !important; border: 1px solid #000 !important; }
+              .z-summary td:first-child { font-weight: 600 !important; border-left: none !important; }
+              .z-summary td:last-child { border-right: none !important; }
+              .z-summary tr.z-total td { background: #f3f4f6 !important; border: 1px solid #000 !important; border-bottom: none !important; }
+              .z-summary tr:last-child td { border-bottom: none !important; }
               .print-border-none { border: none !important; }
               
               .avoid-break { page-break-inside: avoid; }
             }
           `}</style>
 
-          <div style={{ display: 'flex', flexDirection: 'column', minHeight: '260mm' }}>
+          <div className="print-master-box" style={{ display: 'flex', flexDirection: 'column', minHeight: '260mm' }}>
             {/* Header: Logo and Title */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '35px', alignItems: 'flex-start' }}>
+            <div className="print-header-section" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '35px', alignItems: 'flex-start' }}>
               <div style={{ width: '50%' }}>
                 {profile.logo && <img src={profile.logo} alt="Logo" style={{ height: '70px', maxWidth: '200px', objectFit: 'contain', marginBottom: '15px' }} />}
                 <div style={{ fontSize: '15px', fontWeight: '800', color: '#111', marginBottom: '4px', textTransform: 'uppercase' }}>{profile.bizName}</div>
@@ -118,7 +142,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             </div>
 
             {/* Bill To & Ship To */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '35px' }}>
+            <div className="print-bill-section" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '35px' }}>
               <div style={{ width: '45%' }}>
                 <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.05em' }}>Bill To</div>
                 <div style={{ fontSize: '15px', fontWeight: '800', color: '#111', marginBottom: '4px' }}>{clientMatch.companyName || data.companyName || data.client}</div>
@@ -192,7 +216,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             </table>
             
             {/* Totals & Footer Grid - Kept together on page break */}
-            <div className="avoid-break" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '30px', marginTop: '30px', paddingTop: '10px' }}>
+            <div className="avoid-break print-footer-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: '30px', marginTop: '30px', paddingTop: '10px' }}>
               
               {/* Left Side: Notes, Terms, Bank */}
               <div>
@@ -257,20 +281,20 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                 </table>
               </div>
             </div>
+            </div> {/* End of print-master-box */}
 
-            <div style={{ textAlign: 'center', marginTop: '40px', fontSize: '10px', color: '#888' }}>
+            <div style={{ textAlign: 'center', marginTop: '20px', fontSize: '10px', color: '#888' }}>
               This is a computer-generated document.
             </div>
 
             {/* External Footer Branding Props */}
-            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px', fontSize: '10px', fontWeight: '600', color: '#666', borderTop: '1px solid #eee', paddingTop: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px', fontSize: '10px', fontWeight: '600', color: '#666', borderTop: '1px solid #eee', paddingTop: '15px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 {settings?.showBranding !== false && (
                   <>POWERED BY <strong style={{ color: '#000', marginLeft: '4px' }}>{settings?.brandName || 'T2GCRM'}</strong></>
                 )}
               </div>
             </div>
-          </div>
         </div>
       );
     }
