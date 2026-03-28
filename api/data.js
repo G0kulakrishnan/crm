@@ -67,14 +67,22 @@ export default async function handler(req, res) {
     /* ──────────── CREATE (POST) ──────────── */
     if (method === 'POST') {
       const newId = id();
-      const payload = { ...data, userId: ownerId, actorId: actorId || ownerId, createdAt: Date.now() };
+      let payload = { ...data, userId: ownerId, actorId: actorId || ownerId, createdAt: Date.now() };
+
+      // Handle Task Numbering
+      if (module === 'tasks') {
+        const { tasks } = await db.query({ tasks: { $: { where: { userId: ownerId } } } });
+        const maxNum = tasks?.reduce((max, t) => Math.max(max, t.taskNumber || 0), 0) || 0;
+        const nextNum = maxNum < 100 ? 101 : maxNum + 1;
+        payload.taskNumber = nextNum;
+      }
       
       const txs = [
         tx[collection][newId].update(payload),
         tx.activityLogs[id()].update({
           entityId: newId,
           entityType: module,
-          text: logText || `Created new ${module} via API.`,
+          text: (module === 'tasks' && !logText) ? `Task T-${payload.taskNumber} created: "${payload.title}"` : (logText || `Created new ${module} via API.`),
           userId: ownerId,
           actorId: actorId || ownerId,
           userName: userName || 'API System',

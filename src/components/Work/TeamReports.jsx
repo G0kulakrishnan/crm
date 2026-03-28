@@ -9,6 +9,7 @@ export default function TeamReports({ user, ownerId, perms }) {
   const [customRange, setCustomRange] = useState({ start: '', end: '' });
   const [selectedId, setSelectedId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedDay, setSelectedDay] = useState(null);
 
   const { data, isLoading } = db.useQuery({
     activityLogs: { $: { where: { userId: ownerId } } },
@@ -136,6 +137,9 @@ export default function TeamReports({ user, ownerId, perms }) {
         const cliMatch = task && (task.client || customerMap[task.customerId] || '').toLowerCase().includes(q);
         return textMatch || nameMatch || refMatch || projMatch || cliMatch;
       });
+    }
+    if (selectedDay) {
+      lgs = lgs.filter(l => new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) === selectedDay);
     }
     return lgs.sort((a,b) => b.createdAt - a.createdAt);
   }, [selectedMember, searchQuery, leadMap, taskMap, projectMap, customerMap]);
@@ -280,7 +284,7 @@ export default function TeamReports({ user, ownerId, perms }) {
                 <h3 style={{ margin: 0 }}>Activity Logs: {selectedMember.name}</h3>
                 <div style={{ fontSize: 11, color: 'var(--muted)' }}>{filter} activity details</div>
               </div>
-              <button className="btn-icon" onClick={() => setSelectedId(null)}>×</button>
+              <button className="btn-icon" onClick={() => { setSelectedId(null); setSelectedDay(null); }}>×</button>
             </div>
             
             <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, background: '#fff' }}>
@@ -302,8 +306,21 @@ export default function TeamReports({ user, ownerId, perms }) {
               <div style={{ borderRight: '1px solid var(--border)', overflowY: 'auto', background: '#fcfdfe' }}>
                 <div style={{ padding: '12px 15px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Timeline</div>
                 {dayWiseActivity.map(d => (
-                  <div key={d.date} style={{ padding: '12px 15px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>{d.date.split(',')[0]}</div>
+                  <div 
+                    key={d.date} 
+                    onClick={() => setSelectedDay(selectedDay === d.date ? null : d.date)}
+                    style={{ 
+                      padding: '12px 15px', 
+                      borderBottom: '1px solid #f1f5f9', 
+                      display: 'flex', 
+                      justifyContent: 'space-between', 
+                      alignItems: 'center',
+                      cursor: 'pointer',
+                      background: selectedDay === d.date ? '#eff6ff' : 'transparent',
+                      borderLeft: selectedDay === d.date ? '3px solid var(--accent)' : 'none'
+                    }}
+                  >
+                    <div style={{ fontSize: 11, fontWeight: 600, color: selectedDay === d.date ? 'var(--accent)' : '#475569' }}>{d.date.split(',')[0]}</div>
                     <div className="badge bg-gray" style={{ fontSize: 10, minWidth: 20, textAlign: 'center' }}>{d.count}</div>
                   </div>
                 ))}
