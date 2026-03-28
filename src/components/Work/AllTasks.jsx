@@ -61,7 +61,7 @@ export default function AllTasks({ user, perms, ownerId }) {
     if (savedPageSize) setPageSize(savedPageSize);
   }, [savedPageSize]);
 
-  const allPossibleCols = ['Task #', 'Title', 'Client', 'Project', 'Assigned To', 'Due Date', 'Priority', 'Status', ...customFields.map(c => c.name)];
+  const allPossibleCols = ['Task #', 'Title', 'Client', 'Project', 'Assigned To', 'Due Date', 'Priority', 'Status', ...customFields.map(c => c.name).filter(n => !['Retailer', 'Distributor'].includes(n))];
   const activeCols = savedCols || allPossibleCols;
   const activeStages = savedStages || taskStatuses;
 
@@ -209,6 +209,8 @@ export default function AllTasks({ user, perms, ownerId }) {
     setColModal(false);
     toast('View saved', 'success');
   };
+
+  const resetViewConfig = () => saveViewConfig(allPossibleCols, taskStatuses, 25);
 
   const cycleStatus = async (t) => {
     if (!canEdit) return;
