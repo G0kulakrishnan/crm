@@ -337,10 +337,12 @@ export default function TeamReports({ user, ownerId, perms }) {
                   <div className="activity-timeline">
                     {activeMemberLogs.map((l, i) => {
                       const task = l.entityType === 'task' ? taskMap[l.entityId] : null;
-                      const entName = l.entityType === 'lead' ? leadMap[l.entityId] : task?.title || l.entityName;
+                      const entName = l.entityType === 'lead' ? leadMap[l.entityId] : (task?.title || l.entityName);
                       const projectName = task ? projectMap[task.projectId] : null;
                       const clientName = task ? (task.client || (task.customerId ? customerMap[task.customerId] : null)) : null;
                       
+                      const refLabel = l.entityType === 'task' ? 'Task' : l.entityType === 'lead' ? 'Lead' : 'Ref';
+
                       return (
                         <div key={l.id || i} className="activity-item">
                           <div className="activity-header">
@@ -351,7 +353,7 @@ export default function TeamReports({ user, ownerId, perms }) {
                           <div className="activity-meta">
                             {entName && (
                               <div className="meta-block">
-                                <span className="meta-label">Ref:</span>
+                                <span className="meta-label">{refLabel}:</span>
                                 <span className="meta-val">{task?.taskNumber ? `T-${task.taskNumber}: ` : ''}{entName}</span>
                               </div>
                             )}
@@ -359,12 +361,6 @@ export default function TeamReports({ user, ownerId, perms }) {
                               <div className="meta-block">
                                 <span className="meta-label">Project:</span>
                                 <span className="meta-val">{projectName}</span>
-                              </div>
-                            )}
-                            {entName && (
-                              <div className="meta-block">
-                                <span className="meta-label">Ref:</span>
-                                <span className="meta-val">{task?.taskNumber ? `T-${task.taskNumber}: ` : ''}{entName}</span>
                               </div>
                             )}
                             {clientName && (
