@@ -241,7 +241,7 @@ export default function TeamReports({ user, ownerId, perms }) {
       members.forEach(m => { memberMap[m.id] = m.name; });
 
       const allFilteredLogs = logs
-        .filter(l => l.createdAt >= dateRange.start && l.createdAt <= dateRange.end)
+        .filter(l => l.createdAt >= dateRange.start && l.createdAt <= dateRange.end && !!memberMap[l.actorId])
         .sort((a,b) => b.createdAt - a.createdAt);
       
       if (allFilteredLogs.length === 0) return toast('No logs found for selected dates', 'info');
@@ -292,7 +292,7 @@ export default function TeamReports({ user, ownerId, perms }) {
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           <button className="btn btn-secondary btn-sm" onClick={selectedId ? downloadCSV : downloadTeamLogsCSV}>
-            Export {selectedId ? 'Logs' : 'Team Activity'} CSV
+            Export Activity Report
           </button>
           <div className="tabs" style={{ marginBottom: 0, border: 'none' }}>
             {DATE_FILTERS.map(f => (
