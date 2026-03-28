@@ -217,72 +217,31 @@ export default function TeamReports({ user, ownerId, perms }) {
     }
   };
 
-  const downloadCSV = () => {
+  const exportActivityCSV = () => {
     try {
-      toast('Preparing report...', 'info');
-      
-      // Filter the already-loaded logs by the currently selected member and date range
-      const allUserLogs = logs
-        .filter(l => isLogByMember(l, selectedMember) && isHumanLog(l) && l.createdAt >= dateRange.start && l.createdAt <= dateRange.end)
-        .sort((a,b) => b.createdAt - a.createdAt);
-      
-      if (allUserLogs.length === 0) return toast('No logs found for selected dates', 'info');
-      
-      const headers = ['Date', 'Type', 'Activity', 'Reference', 'Project', 'Client'];
-      const rows = allUserLogs.map(l => {
-        const task = l.entityType === 'task' ? taskMap[l.entityId] : null;
-        const entName = l.entityType === 'lead' ? leadMap[l.entityId] : (task?.title || l.entityName);
-        const projectName = task ? projectMap[task.projectId] : '';
-        const clientName = task ? (task.client || (task.customerId ? customerMap[task.customerId] : '')) : '';
-        return [
-          fmtDT(l.createdAt),
-          l.entityType.toUpperCase(),
-          (l.text || '').replace(/"/g, '""'),
-          (entName || '').replace(/"/g, '""'),
-          (projectName || '').replace(/"/g, '""'),
-          (clientName || '').replace(/"/g, '""')
-        ].map(v => `"${v}"`).join(',');
-      });
-      const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.setAttribute('download', `Activity_Log_${selectedMember.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast('CSV Downloaded', 'success');
-    } catch (err) {
-      console.error(err);
-      toast('Error generating CSV', 'error');
-    }
-  };
+      toast('Preparing activity report...', 'info');
 
-  const downloadTeamLogsCSV = () => {
-    try {
-      toast('Preparing team activity report...', 'info');
-      
-      const members = [
-        { id: ownerId, name: 'Business Owner' },
-        ...team.map(m => ({ id: m.id, name: m.name }))
-      ];
-      const memberMap = {};
-      members.forEach(m => { memberMap[m.id] = m.name; });
-
+      // Use the global members list (includes emails for correct attribution)
       const allFilteredLogs = logs
-        .filter(l => l.createdAt >= dateRange.start && l.createdAt <= dateRange.end && isHumanLog(l) && (memberMap[l.actorId] || memberMap[l.userName]))
-        .sort((a,b) => b.createdAt - a.createdAt);
-      
+        .filter(l =>
+          l.createdAt >= dateRange.start &&
+          l.createdAt <= dateRange.end &&
+          isHumanLog(l) &&
+          members.some(m => isLogByMember(l, m))
+        )
+        .sort((a, b) => b.createdAt - a.createdAt);
+
       if (allFilteredLogs.length === 0) return toast('No logs found for selected dates', 'info');
-      
+
       const headers = ['Member', 'Date', 'Type', 'Activity', 'Reference', 'Project', 'Client'];
       const rows = allFilteredLogs.map(l => {
         const task = l.entityType === 'task' ? taskMap[l.entityId] : null;
         const entName = l.entityType === 'lead' ? leadMap[l.entityId] : (task?.title || l.entityName);
         const projectName = task ? projectMap[task.projectId] : '';
         const clientName = task ? (task.client || (task.customerId ? customerMap[task.customerId] : '')) : '';
-        const memberName = memberMap[l.actorId] || memberMap[l.userName] || l.userName || 'Unknown';
+        // Resolve member name using email fallback
+        const matchedMember = members.find(m => isLogByMember(l, m));
+        const memberName = matchedMember?.name || l.userName || 'Unknown';
 
         return [
           memberName,
@@ -304,10 +263,10 @@ export default function TeamReports({ user, ownerId, perms }) {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      toast('Team Report Downloaded', 'success');
+      toast('Activity Report Downloaded', 'success');
     } catch (err) {
       console.error(err);
-      toast('Error generating team report', 'error');
+      toast('Error generating report', 'error');
     }
   };
 
@@ -321,7 +280,7 @@ export default function TeamReports({ user, ownerId, perms }) {
           <div className="sub" style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Analyze member productivity and activity</div>
         </div>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button className="btn btn-secondary btn-sm" onClick={selectedId ? downloadCSV : downloadTeamLogsCSV}>
+          <button className="btn btn-secondary btn-sm" onClick={exportActivityCSV}>
             Export Activity Report
           </button>
           <div className="tabs" style={{ marginBottom: 0, border: 'none' }}>
