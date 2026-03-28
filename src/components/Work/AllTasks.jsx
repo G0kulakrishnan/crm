@@ -108,7 +108,8 @@ export default function AllTasks({ user, perms, ownerId }) {
     if (openId && tasks.length > 0) {
       const target = tasks.find(t => t.id === openId);
       if (target) {
-        setEditData(target);
+        setViewData(target);
+        setEditData(null);
         setForm({
           title: target.title || '',
           assignTo: target.assignTo || '',
