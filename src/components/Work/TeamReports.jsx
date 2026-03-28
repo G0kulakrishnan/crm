@@ -106,6 +106,7 @@ export default function TeamReports({ user, ownerId, perms }) {
       const tasksWorked = new Set(userLogs.filter(l => l.entityType === 'task' && l.entityId).map(l => l.entityId)).size;
       const leadsWorked = new Set(userLogs.filter(l => l.entityType === 'lead' && l.entityId).map(l => l.entityId)).size;
       const leadsWon = userLogs.filter(l => l.entityType === 'lead' && (l.text.includes(`to "${wonStage}"`) || l.text.toLowerCase().includes('converted to customer'))).length;
+      const otherWorks = userLogs.filter(l => l.entityType !== 'task' && l.entityType !== 'lead').length;
       const totalActivities = userLogs.length;
 
       return {
@@ -116,6 +117,7 @@ export default function TeamReports({ user, ownerId, perms }) {
         tasksWorked,
         leadsWorked,
         leadsWon,
+        otherWorks,
         totalActivities,
         userLogs
       };
@@ -202,9 +204,9 @@ export default function TeamReports({ user, ownerId, perms }) {
   };
 
   const downloadSummaryCSV = () => {
-    const headers = ['Member', 'Activity', 'Leads Assg.', 'Leads Work.', 'Leads Won', 'Tasks Assg.', 'Tasks Work.', 'Tasks Comp.'];
+    const headers = ['Member', 'Activity', 'Leads Assg.', 'Leads Work.', 'Leads Won', 'Tasks Assg.', 'Tasks Work.', 'Tasks Comp.', 'Other Work'];
     const rows = teamStats.map(s => [
-      s.name, s.activityCount, s.leadsAssigned, s.leadsWorked, s.leadsWon, s.tasksAssigned, s.tasksWorked, s.tasksCompleted
+      s.name, s.activityCount, s.leadsAssigned, s.leadsWorked, s.leadsWon, s.tasksAssigned, s.tasksWorked, s.tasksCompleted, s.otherWorks
     ].map(v => `"${v}"`).join(','));
     const csvContent = [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -277,6 +279,10 @@ export default function TeamReports({ user, ownerId, perms }) {
           <div className="lbl">Leads Won</div>
           <div className="val">{performanceData.reduce((s, m) => s + m.leadsWon, 0)}</div>
         </div>
+        <div className="stat-card sc-blue" style={{ borderLeftColor: '#8b5cf6' }}>
+          <div className="lbl">Other Activities</div>
+          <div className="val">{performanceData.reduce((s, m) => s + m.otherWorks, 0)}</div>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: selectedId ? '450px 1fr' : '1fr', gap: 20, transition: 'all 0.3s' }}>
@@ -296,6 +302,7 @@ export default function TeamReports({ user, ownerId, perms }) {
                   <th>Tasks Assg.</th>
                   <th>Tasks Work.</th>
                   <th>Tasks Comp.</th>
+                  <th>Other Work</th>
                 </tr>
               </thead>
               <tbody>
@@ -331,10 +338,13 @@ export default function TeamReports({ user, ownerId, perms }) {
                         <span className="badge bg-gray" style={{ fontSize: 11 }}>{m.tasksAssigned}</span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className="badge bg-blue" style={{ fontSize: 11 }}>{m.tasksWorked}</span>
+                        <div className={`badge ${m.tasksWorked > 0 ? 'bg-blue' : 'bg-gray'}`}>{m.tasksWorked}</div>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className="badge bg-green" style={{ fontSize: 11 }}>{m.tasksCompleted}</span>
+                        <div className={`badge ${m.tasksCompleted > 0 ? 'bg-green' : 'bg-gray'}`}>{m.tasksCompleted}</div>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <div className={`badge ${m.otherWorks > 0 ? 'bg-teal' : 'bg-gray'}`}>{m.otherWorks}</div>
                       </td>
                     </tr>
                   );
