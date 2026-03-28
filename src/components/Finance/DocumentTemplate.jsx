@@ -41,277 +41,222 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
 
   const renderContent = () => {
     if (t === 'Spreadsheet') {
-      const colNo = '30px', colQty = '50px', colRate = '85px', colGst = '40px', colAmt = '110px';
-      const getDynFS = (val, def = '11px', lg = '11px') => {
-        const s = String(val || '').replace(/[^\d.-]/g, '');
-        if (s.length > 12) return '8px';
-        if (s.length > 10) return '9px';
-        return def;
-      };
-
+      const colNo = '40px', colQty = '60px', colRate = '100px', colGst = '80px', colAmt = '120px';
       
       return (
-        <div className="spreadsheet-template" style={{ fontSize: '11px', lineHeight: '1.4', fontFamily: '"Inter", sans-serif', letterSpacing: '0.01em' }}>
+        <div className="zoho-template" style={{ fontSize: '11px', color: '#111', fontFamily: '"Inter", sans-serif' }}>
           <style>{`
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-            
-            .s-table { width: 100%; border-collapse: collapse; border: none; }
-            .s-table th { border: 1px solid #000; padding: 7px 4px; background: #f9fafb; font-weight: 700; color: #111; text-transform: uppercase; letter-spacing: 0.03em; font-size: 10px; }
-            .s-table td { border-left: 1px solid #000; border-right: 1px solid #000; padding: 10px 8px; vertical-align: top; border-bottom: none; color: #000; }
-
-            .main-wrapper { 
-              border: 2px solid #000; 
-              box-sizing: border-box; 
-              display: flex; 
-              flex-direction: column; 
-              min-height: 280mm; 
-            }
-            .filler { 
-              flex: 1; 
-              border-left: 1px solid #000; 
-              border-right: 1px solid #000; 
-              margin: 0 20px;
-            }
-
             @media print {
-              @page { size: A4; margin: 10mm; }
-              body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; }
-              .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 0 !important; width: auto !important; height: auto !important; min-height: auto !important; }
+              @page { size: A4; margin: 15mm; }
+              body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
+              .a4-container { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; min-height: 0 !important; }
               .no-print { display: none !important; }
-              
-              /* Break Flexbox for Printing to enable Pagination */
-              .main-wrapper { 
-                display: block; 
-                min-height: 0; 
-                height: auto; 
-                border: none !important;
-                margin: 0 !important;
-                padding: 0 !important;
-              }
-              .filler { display: none; }
-              .footer-box { border-top: 1px solid #000; }
+              .zoho-template { min-height: 0 !important; display: block !important; }
+              .z-table { page-break-inside: auto; }
+              .z-table tr { page-break-inside: avoid; page-break-after: auto; border-bottom: 1px solid #e5e7eb; }
+              .z-table thead { display: table-header-group; }
               .avoid-break { page-break-inside: avoid; }
-              .s-table { page-break-inside: auto; width: 100%; border-collapse: collapse; }
-              .s-table thead { display: table-header-group; }
-              .s-table tr { page-break-inside: avoid; page-break-after: auto; }
-              .s-table-container { border-bottom: 1px solid #000; }
-              .s-table td, .s-table th { border: 1px solid #000; }
             }
+            .z-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            .z-table th { background: #3c3d3a; color: #fff; padding: 10px 12px; text-transform: uppercase; font-size: 10px; font-weight: 700; text-align: left; }
+            .z-table td { padding: 12px; border-bottom: 1px solid #e5e7eb; vertical-align: top; color: #111; font-size: 12px; }
+            
+            .z-summary { width: 100%; border-collapse: collapse; }
+            .z-summary td { padding: 6px 10px; font-size: 12px; text-align: right; border: none; }
+            .z-summary td:first-child { color: #555; }
+            .z-summary tr.z-total td { font-weight: 800; font-size: 16px; color: #000; border-top: 1px solid #000; padding: 12px 10px; }
           `}</style>
-          
-          <div className="main-wrapper">
-            {/* Header Section */}
-            <div style={{ padding: '20px 20px 0 20px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-                <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-                  {profile.logo && <img src={profile.logo} alt="Logo" style={{ height: '100px', width: '100px', objectFit: 'contain' }} />}
-                  <div>
-                    <h1 style={{ margin: '0', fontSize: '22px', fontWeight: '900', textTransform: 'uppercase', lineHeight: '1.2' }}>{profile.bizName}</h1>
-                    <div style={{ whiteSpace: 'pre-wrap', fontSize: '11px', marginTop: '6px', maxWidth: '400px', fontWeight: '500', lineHeight: '1.4' }}>{profile.address}</div>
-                    {profile.gstin && <div style={{ fontWeight: '700', marginTop: '8px', fontSize: '11px' }}>GSTIN: {profile.gstin}</div>}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right' }}>
-                  <h1 style={{ margin: '0', fontSize: '28px', fontWeight: '500', color: '#000' }}>{type === 'Invoice' ? 'TAX INVOICE' : 'QUOTATION'}</h1>
-                </div>
-              </div>
 
-              {/* Document Detail Box */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', border: '1px solid #000', borderBottom: 'none' }}>
-                <div style={{ borderRight: '1px solid #000', padding: '10px 12px' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '100px 10px 1fr', gap: '4px', fontSize: '11px', lineHeight: '1.5' }}>
-                    <span style={{ fontWeight: '500' }}>#</span><span>:</span><strong>{data.no}</strong>
-                    <span style={{ fontWeight: '500' }}>{type} Date</span><span>:</span><strong>{fmtD(data.date)}</strong>
-                    {type === 'Invoice' ? (
-                      <><span style={{ fontWeight: '500' }}>Due Date</span><span>:</span><strong>{fmtD(data.dueDate) || '-'}</strong></>
-                    ) : (
-                      <><span style={{ fontWeight: '500' }}>Valid Until</span><span>:</span><strong>{fmtD(data.validUntil) || '-'}</strong></>
-                    )}
+          <div style={{ display: 'flex', flexDirection: 'column', minHeight: '260mm' }}>
+            {/* Header: Logo and Title */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '35px', alignItems: 'flex-start' }}>
+              <div style={{ width: '50%' }}>
+                {profile.logo && <img src={profile.logo} alt="Logo" style={{ height: '70px', maxWidth: '200px', objectFit: 'contain', marginBottom: '15px' }} />}
+                <div style={{ fontSize: '15px', fontWeight: '800', color: '#111', marginBottom: '4px', textTransform: 'uppercase' }}>{profile.bizName}</div>
+                <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6', maxWidth: '250px' }}>{profile.address}</div>
+                {profile.gstin && <div style={{ fontSize: '11px', marginTop: '6px', fontWeight: '600' }}>GSTIN: {profile.gstin}</div>}
+              </div>
+              <div style={{ width: '45%', textAlign: 'right' }}>
+                <h1 style={{ fontSize: '32px', fontWeight: '300', margin: '0 0 15px 0', color: '#000', textTransform: 'uppercase', letterSpacing: '-0.5px' }}>{type === 'Invoice' ? 'TAX INVOICE' : 'QUOTATION'}</h1>
+                <div style={{ display: 'inline-block', textAlign: 'left', minWidth: '220px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ color: '#666', fontSize: '11px', fontWeight: '500' }}>#</span>
+                    <strong style={{ fontSize: '12px' }}>{data.no}</strong>
                   </div>
-                </div>
-                <div style={{ padding: '10px 12px' }}>
-                  {data.shipTo && (
-                    <div>
-                      <div style={{ fontWeight: '700', fontSize: '10px', textTransform: 'uppercase', marginBottom: '2px' }}>Ship To</div>
-                      <div style={{ fontSize: '11px', whiteSpace: 'pre-wrap', lineHeight: '1.3' }}>{data.shipTo}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f1f5f9' }}>
+                    <span style={{ color: '#666', fontSize: '11px', fontWeight: '500' }}>Date</span>
+                    <strong style={{ fontSize: '12px' }}>{fmtD(data.date)}</strong>
+                  </div>
+                  {(type === 'Invoice' && data.dueDate) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f1f5f9' }}>
+                      <span style={{ color: '#666', fontSize: '11px', fontWeight: '500' }}>Due Date</span>
+                      <strong style={{ fontSize: '12px' }}>{fmtD(data.dueDate)}</strong>
                     </div>
                   )}
-                  {(data.amcDetails || (data.amcStart && data.amcEnd)) && (
-                    <div style={{ marginTop: data.shipTo ? '8px' : '0' }}>
-                      {data.amcDetails && <div>
-                        <span style={{ fontWeight: '700', fontSize: '10px', textTransform: 'uppercase' }}>AMC Plan:</span>
-                        <span style={{ fontSize: '11px', marginLeft: '5px' }}>{data.amcDetails}{data.unit ? ` (${data.unit})` : ''}</span>
-                      </div>}
-                      {(data.amcStart && data.amcEnd) && (
-                        <div style={{ fontSize: '11px', fontWeight: '700', color: '#000', marginTop: '2px' }}>
-                          <span style={{ fontSize: '10px', textTransform: 'uppercase', color: '#666', marginRight: '5px' }}>AMC Period:</span>
-                          {fmtD(data.amcStart)} To {fmtD(data.amcEnd)}
-                        </div>
-                      )}
+                  {(type !== 'Invoice' && data.validUntil) && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderBottom: '1px solid #f1f5f9' }}>
+                      <span style={{ color: '#666', fontSize: '11px', fontWeight: '500' }}>Valid Until</span>
+                      <strong style={{ fontSize: '12px' }}>{fmtD(data.validUntil)}</strong>
                     </div>
                   )}
                 </div>
               </div>
+            </div>
 
-              {/* Billing Info Box */}
-              <div style={{ border: '1px solid #000', backgroundColor: '#f9fafb', padding: '5px 12px', fontWeight: '700', fontSize: '10px', textTransform: 'uppercase' }}>Bill To</div>
-              <div style={{ border: '1px solid #000', borderTop: 'none', padding: '12px' }}>
-                <div style={{ fontWeight: '900', fontSize: '15px', textTransform: 'uppercase' }}>{clientMatch.companyName || data.companyName || data.client}</div>
-                {clientMatch.gstin && <div style={{ fontWeight: '700', marginTop: '5px' }}>GSTIN: {clientMatch.gstin}</div>}
-                {clientMatch.address && <div style={{ marginTop: '10px', fontSize: '12px', whiteSpace: 'pre-wrap', lineHeight: '1.4' }}>{clientMatch.address}</div>}
+            {/* Bill To & Ship To */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '35px' }}>
+              <div style={{ width: '45%' }}>
+                <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.05em' }}>Bill To</div>
+                <div style={{ fontSize: '15px', fontWeight: '800', color: '#111', marginBottom: '4px' }}>{clientMatch.companyName || data.companyName || data.client}</div>
+                {clientMatch.address && <div style={{ fontSize: '12px', color: '#444', whiteSpace: 'pre-wrap', lineHeight: '1.6', marginTop: '6px' }}>{clientMatch.address}</div>}
+                {clientMatch.gstin && <div style={{ fontSize: '11px', marginTop: '8px', fontWeight: '700' }}>GSTIN: {clientMatch.gstin}</div>}
               </div>
+              {data.shipTo ? (
+                <div style={{ width: '45%' }}>
+                  <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.05em' }}>Ship To</div>
+                  <div style={{ fontSize: '12px', color: '#444', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.shipTo}</div>
+                </div>
+              ) : null}
             </div>
 
-            {/* Spacer to connect lines */}
-            <div style={{ padding: '0 20px' }}>
-              <div style={{ height: '20px', borderLeft: '1px solid #000', borderRight: '1px solid #000' }}></div>
-            </div>
-
-            {/* Items Table Area */}
-            <div style={{ display: 'flex', flexDirection: 'column', padding: '0 20px' }}>
-              <table className="s-table" style={{ borderBottom: '1px solid #000' }}>
-                <thead>
-                  <tr style={{ fontSize: '11px' }}>
-                    <th style={{ width: colNo }} rowSpan="2">#</th>
-                    <th style={{ textAlign: 'center' }} rowSpan="2">ITEM & DESCRIPTION</th>
-                    <th style={{ width: colQty, textAlign: 'center' }} rowSpan="2">QTY</th>
-                    <th style={{ width: colRate, textAlign: 'center' }} rowSpan="2">RATE</th>
-                    <th style={{ width: `calc(${colGst} * 2)`, textAlign: 'center' }} colSpan="2">CGST</th>
-                    <th style={{ width: `calc(${colGst} * 2)`, textAlign: 'center' }} colSpan="2">SGST</th>
-                    <th style={{ width: colAmt, textAlign: 'center' }} rowSpan="2">AMOUNT</th>
-                  </tr>
-                  <tr style={{ fontSize: '10px' }}>
-                    <th style={{ width: colGst, textAlign: 'center' }}>%</th>
-                    <th style={{ width: colGst, textAlign: 'center' }}>AMT</th>
-                    <th style={{ width: colGst, textAlign: 'center' }}>%</th>
-                    <th style={{ width: colGst, textAlign: 'center' }}>AMT</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map((it, i) => {
-                    const itemTotal = (it.qty || 0) * (it.rate || 0);
-                    const taxRate = it.taxRate || 0;
-                    const taxAmt = itemTotal * taxRate / 100;
-                    return (
-                      <tr key={i}>
-                        <td style={{ textAlign: 'center' }}>{i + 1}</td>
-                        <td style={{ textAlign: 'center' }}>
-                          <div style={{ fontWeight: '700' }}>{it.name}</div>
-                          {it.sku && <div style={{ fontSize: '9px', fontWeight: '500', color: '#444', marginBottom: '2px' }}>Code: {it.sku}</div>}
-                          {it.desc && <div style={{ fontSize: '10px', opacity: 0.8, marginTop: '2px', whiteSpace: 'pre-wrap' }}>{it.desc}</div>}
+            {/* Items Table */}
+            <table className="z-table">
+              <thead>
+                <tr>
+                  <th style={{ width: colNo, textAlign: 'center' }}>#</th>
+                  <th>Item & Description</th>
+                  <th style={{ width: colQty, textAlign: 'center' }}>Qty</th>
+                  <th style={{ width: colRate, textAlign: 'right' }}>Rate</th>
+                  {isInterState ? (
+                    <th style={{ width: colGst, textAlign: 'right' }}>IGST</th>
+                  ) : (
+                    <>
+                      <th style={{ width: colGst, textAlign: 'right' }}>CGST</th>
+                      <th style={{ width: colGst, textAlign: 'right' }}>SGST</th>
+                    </>
+                  )}
+                  <th style={{ width: colAmt, textAlign: 'right' }}>Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((it, i) => {
+                  const itemTotal = (it.qty || 0) * (it.rate || 0);
+                  const taxRate = it.taxRate || 0;
+                  const taxAmt = itemTotal * taxRate / 100;
+                  return (
+                    <tr key={i}>
+                      <td style={{ textAlign: 'center', color: '#666' }}>{i + 1}</td>
+                      <td>
+                        <div style={{ fontWeight: '700', fontSize: '12px' }}>{it.name}</div>
+                        {it.sku && <div style={{ fontSize: '10px', fontWeight: '500', color: '#666', marginTop: '4px' }}>Code: {it.sku}</div>}
+                        {it.desc && <div style={{ fontSize: '11px', color: '#444', marginTop: '4px', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{it.desc}</div>}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>{it.qty.toFixed(2)} {it.unit || ''}</td>
+                      <td style={{ textAlign: 'right' }}>{fmt(it.rate).replace('₹', '')}</td>
+                      {isInterState ? (
+                        <td style={{ textAlign: 'right', color: '#555' }}>
+                          <div>{itemTotal === 0 ? '-' : fmt(taxAmt).replace('₹', '')}</div>
+                          <div style={{ fontSize: '9px', opacity: 0.7 }}>({taxRate}%)</div>
                         </td>
-                        <td style={{ textAlign: 'center' }}>{it.qty.toFixed(2)} {it.unit || ''}</td>
-                        <td style={{ textAlign: 'right', fontSize: getDynFS(it.rate) }}>{fmt(it.rate).replace('₹', '')}</td>
-                        <td style={{ textAlign: 'center' }}>{isInterState ? 0 : (taxRate / 2)}%</td>
-                        <td style={{ textAlign: 'right', fontSize: getDynFS(taxAmt / 2) }}>{isInterState ? '-' : fmt(taxAmt / 2).replace('₹', '')}</td>
-                        <td style={{ textAlign: 'center' }}>{isInterState ? 0 : (taxRate / 2)}%</td>
-                        <td style={{ textAlign: 'right', fontSize: getDynFS(taxAmt / 2) }}>{isInterState ? '-' : fmt(taxAmt / 2).replace('₹', '')}</td>
-                        <td style={{ textAlign: 'right', fontWeight: '700', fontSize: getDynFS(itemTotal) }}>{fmt(itemTotal).replace('₹', '')}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                      ) : (
+                        <>
+                          <td style={{ textAlign: 'right', color: '#555' }}>
+                            <div>{itemTotal === 0 ? '-' : fmt(taxAmt / 2).replace('₹', '')}</div>
+                            <div style={{ fontSize: '9px', opacity: 0.7 }}>({taxRate / 2}%)</div>
+                          </td>
+                          <td style={{ textAlign: 'right', color: '#555' }}>
+                            <div>{itemTotal === 0 ? '-' : fmt(taxAmt / 2).replace('₹', '')}</div>
+                            <div style={{ fontSize: '9px', opacity: 0.7 }}>({taxRate / 2}%)</div>
+                          </td>
+                        </>
+                      )}
+                      <td style={{ textAlign: 'right', fontWeight: '700' }}>{fmt(itemTotal).replace('₹', '')}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            
+            <div style={{ flex: 1 }}></div>
 
-            {/* Filler Spacer - Grows to push everything down on screen preview */}
-            <div className="filler"></div>
+            {/* Totals & Footer Grid - Kept together on page break */}
+            <div className="avoid-break" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px', marginTop: '30px', paddingTop: '10px' }}>
+              
+              {/* Left Side: Notes, Terms, Bank */}
+              <div>
+                <div style={{ marginBottom: '20px' }}>
+                  <div style={{ fontSize: '10px', color: '#666', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>Total In Words</div>
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: '#111', fontStyle: 'italic' }}>{numberToWords(ptots.total)}</div>
+                </div>
 
-            {/* Terms, Notes, and Footer Box - Terms/Notes can break, Totals are kept together */}
-            <div className="footer-box">
-              {/* Terms & Notes - Placed exactly above the Bank Details/Totals Box */}
-              {(data.terms || data.notes) && (
-                <div style={{ padding: '15px 20px', borderLeft: '1px solid #000', borderRight: '1px solid #000' }}>
-                {data.terms && (
-                  <div style={{ marginBottom: '12px' }}>
-                    <div style={{ fontWeight: '800', fontSize: '13px', marginBottom: '4px' }}>Terms:</div>
-                    <div style={{ fontSize: '11px', whiteSpace: 'pre-wrap', color: '#333' }}>{String(data.terms)}</div>
-                  </div>
-                )}
-                {data.notes && (
-                  <div>
-                    <div style={{ fontWeight: '800', fontSize: '13px', marginBottom: '4px' }}>Notes:</div>
-                    <div style={{ fontSize: '11px', whiteSpace: 'pre-wrap', color: '#333' }}>{String(data.notes)}</div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Final Totals & Bank Details Box - Kept together on one page if possible */}
-            <div className="avoid-break" style={{ padding: '0 20px 20px 20px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', border: '1px solid #000' }}>
-                {/* Left Side: Detail & Bank */}
-                <div style={{ borderRight: '1px solid #000', padding: '15px' }}>
-                  <div style={{ marginBottom: '15px' }}>
-                    <div style={{ fontSize: '10px', textTransform: 'uppercase', fontWeight: '700', color: '#666', marginBottom: '4px' }}>Total In Words</div>
-                    <div style={{ fontWeight: '900', fontStyle: 'italic', fontSize: '12px', color: '#000' }}>{numberToWords(ptots.total)}</div>
-                  </div>
-                  
-                  <div>
-                    <div style={{ fontWeight: '900', textTransform: 'uppercase', marginBottom: '10px', fontSize: '11px', textDecoration: 'underline' }}>Bank Details</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '130px 10px 1fr', gap: '6px', fontSize: '11px', lineHeight: '1.6' }}>
-                      {profile.accHolder && <><span style={{ fontWeight: '700' }}>ACCOUNT NAME</span><span>:</span><strong>{profile.accHolder}</strong></>}
-                      {profile.accountNo && <><span style={{ fontWeight: '700' }}>ACCOUNT NO</span><span>:</span><strong>{profile.accountNo}</strong></>}
-                      {profile.accType && <><span style={{ fontWeight: '700' }}>ACCOUNT TYPE</span><span>:</span><strong>{profile.accType}</strong></>}
-                      {profile.bankName && <><span style={{ fontWeight: '700' }}>BANK NAME</span><span>:</span><strong>{profile.bankName}</strong></>}
-                      {profile.branchName && <><span style={{ fontWeight: '700' }}>BRANCH NAME</span><span>:</span><strong>{profile.branchName}</strong></>}
-                      {profile.ifsc && <><span style={{ fontWeight: '700' }}>IFSC CODE</span><span>:</span><strong>{profile.ifsc}</strong></>}
+                {profile.accHolder && (
+                  <div style={{ marginBottom: '25px', padding: '15px', border: '1px solid #eee', borderRadius: '6px', background: '#fafafa' }}>
+                    <div style={{ fontSize: '10px', fontWeight: '700', color: '#666', marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bank Details</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '6px', fontSize: '11px', color: '#333' }}>
+                      <span style={{ color: '#666' }}>Bank Name:</span><strong style={{ color: '#111' }}>{profile.bankName}</strong>
+                      <span style={{ color: '#666' }}>Account Name:</span><strong style={{ color: '#111' }}>{profile.accHolder}</strong>
+                      <span style={{ color: '#666' }}>Account No.:</span><strong style={{ color: '#111' }}>{profile.accountNo}</strong>
+                      <span style={{ color: '#666' }}>IFSC Code:</span><strong style={{ color: '#111' }}>{profile.ifsc}</strong>
+                      {profile.accType && <><span style={{ color: '#666' }}>Account Type:</span><strong style={{ color: '#111' }}>{profile.accType}</strong></>}
                     </div>
-                    {profile.bankExtra && (
-                      <div style={{ marginTop: '10px', fontSize: '11px', whiteSpace: 'pre-wrap', color: '#000', borderTop: '0.5px solid #eee', paddingTop: '8px', fontWeight: '700' }}>
-                        {profile.bankExtra}
-                      </div>
-                    )}
+                    {profile.bankExtra && <div style={{ marginTop: '10px', fontSize: '10px', color: '#555', borderTop: '1px solid #eee', paddingTop: '10px' }}>{profile.bankExtra}</div>}
                   </div>
-                </div>
+                )}
 
-                {/* Right Side: Totals */}
-                <div style={{ padding: '0' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px', fontSize: '12px' }}>
-                    <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>Sub Total</div>
-                    <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right', fontSize: getDynFS(ptots.sub, '12px') }}>{fmt(ptots.sub).replace('₹', '')}</div>
-                    
-                    {!isInterState ? (
-                      <>
-                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>CGST ({items[0]?.taxRate / 2}%)</div>
-                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right', fontSize: getDynFS(ptots.taxTotal/2, '12px') }}>{fmt(ptots.taxTotal/2).replace('₹', '')}</div>
-                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>SGST ({items[0]?.taxRate / 2}%)</div>
-                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right', fontSize: getDynFS(ptots.taxTotal/2, '12px') }}>{fmt(ptots.taxTotal/2).replace('₹', '')}</div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', textAlign: 'right' }}>IGST ({items[0]?.taxRate}%)</div>
-                        <div style={{ padding: '10px 15px', borderBottom: '1px solid #000', borderLeft: '1px solid #000', textAlign: 'right', fontSize: getDynFS(ptots.taxTotal, '12px') }}>{fmt(ptots.taxTotal).replace('₹', '')}</div>
-                      </>
+                {data.notes && (
+                  <div style={{ marginBottom: '15px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px' }}>Notes</div>
+                    <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.notes}</div>
+                  </div>
+                )}
+                
+                {data.terms && (
+                  <div style={{ marginBottom: '15px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px' }}>Terms & Conditions</div>
+                    <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.terms}</div>
+                  </div>
+                )}
+              </div>
+
+              {/* Right Side: Totals */}
+              <div>
+                <table className="z-summary">
+                  <tbody>
+                    <tr><td>Sub Total</td><td>{fmt(ptots.sub).replace('₹', '')}</td></tr>
+                    {ptots.discAmt > 0 && <tr><td>Discount ({data.discType === '₹' ? 'Flat' : `${data.disc}%`})</td><td style={{ color: '#d97706' }}>- {fmt(ptots.discAmt).replace('₹', '')}</td></tr>}
+                    {ptots.taxTotal > 0 && (
+                      isInterState ? (
+                        <tr><td>IGST</td><td>{fmt(ptots.taxTotal).replace('₹', '')}</td></tr>
+                      ) : (
+                        <>
+                          <tr><td>CGST</td><td>{fmt(ptots.taxTotal / 2).replace('₹', '')}</td></tr>
+                          <tr><td>SGST</td><td>{fmt(ptots.taxTotal / 2).replace('₹', '')}</td></tr>
+                        </>
+                      )
                     )}
-
-                    <div style={{ padding: '12px 15px', fontWeight: '900', fontSize: '15px', textAlign: 'right', borderBottom: '1px solid #000' }}>Total</div>
-                    <div style={{ padding: '12px 15px', fontWeight: '900', fontSize: getDynFS(ptots.total, '15px'), borderLeft: '1px solid #000', textAlign: 'right', borderBottom: '1px solid #000' }}>{fmt(ptots.total).replace('₹', '')}</div>
-                    
+                    {data.adj !== 0 && <tr><td>Adjustment</td><td>{data.adj > 0 ? '+' : ''}{fmt(data.adj).replace('₹', '')}</td></tr>}
+                    <tr className="z-total"><td>Total</td><td style={{ whiteSpace: 'nowrap' }}>{fmt(ptots.total)}</td></tr>
                     {type === 'Invoice' && (
-                      <>
-                        <div style={{ padding: '12px 15px', textAlign: 'right', fontWeight: '900' }}>Balance Due</div>
-                        <div style={{ padding: '12px 15px', borderLeft: '1px solid #000', textAlign: 'right', fontWeight: '900', fontSize: getDynFS(ptots.total, '15px') }}>{fmt(ptots.total).replace('₹', '')}</div>
-                      </>
+                      <tr><td style={{ paddingTop: '15px', color: '#111', fontWeight: '700' }}>Balance Due</td><td style={{ paddingTop: '15px', color: '#111', fontWeight: '700', fontSize: '14px' }}>{fmt(ptots.total)}</td></tr>
                     )}
-                  </div>
-                </div>
-              </div>
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '10px', fontSize: '9px', opacity: 0.5 }}>
-                  This is a computer generated document.
-                </div>
+                  </tbody>
+                </table>
               </div>
             </div>
-          </div>
-          
-          {/* External Footer Props */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '10px', fontSize: '10px', fontWeight: '600', color: '#666', padding: '0 5px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-              {settings?.showBranding !== false && (
-                <>POWERED BY <strong style={{ color: '#000', marginLeft: '4px' }}>{settings?.brandName || 'T2GCRM'}</strong></>
-              )}
+            
+            <div style={{ textAlign: 'center', marginTop: '40px', fontSize: '10px', color: '#888' }}>
+              This is a computer-generated document.
             </div>
-            <div>1</div>
+
+            {/* External Footer Branding Props */}
+            <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px', fontSize: '10px', fontWeight: '600', color: '#666', borderTop: '1px solid #eee', paddingTop: '15px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                {settings?.showBranding !== false && (
+                  <>POWERED BY <strong style={{ color: '#000', marginLeft: '4px' }}>{settings?.brandName || 'T2GCRM'}</strong></>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       );
