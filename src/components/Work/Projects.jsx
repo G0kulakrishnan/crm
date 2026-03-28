@@ -309,7 +309,7 @@ export default function Projects({ user, perms, ownerId }) {
                 {filteredProjects.length === 0 ? <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No projects found</td></tr>
                   : filteredProjects.map((p, i) => {
                     const ptasks = tasks.filter(t => t.projectId === p.id);
-                    const done = ptasks.filter(t => t.status === taskStatuses[taskStatuses.length - 1]).length;
+                    const done = ptasks.filter(t => ['Completed', 'Done', 'Success', 'Approved'].includes(t.status) || t.status === taskStatuses[taskStatuses.length - 1]).length;
                     const pct = ptasks.length ? Math.round((done / ptasks.length) * 100) : 0;
                     return (
                       <tr key={p.id}>
