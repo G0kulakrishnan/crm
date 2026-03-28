@@ -62,7 +62,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             .print-frame { width: 100%; max-width: 210mm; margin: 0 auto; border-collapse: collapse; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif; font-size: 11px; color: #111; }
             .print-frame-head td { height: 15px; border-top: 1px solid #ddd; border-left: 1px solid #ddd; border-right: 1px solid #ddd; }
             .print-frame-foot td { height: 15px; border-bottom: 1px solid #ddd; border-left: 1px solid #ddd; border-right: 1px solid #ddd; }
-            .print-frame-body > td { border-left: 1px solid #ddd; border-right: 1px solid #ddd; padding: 15px 30px; }
+            .print-frame-body > tr > td { border-left: 1px solid #ddd; border-right: 1px solid #ddd; padding: 15px 30px; }
 
             /* Print-only Overrides (Rigid #000 Borders for perfect PDFs) */
             @media print {
@@ -75,7 +75,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               .print-frame { width: calc(100% - 20mm) !important; margin: 10mm auto !important; }
               .print-frame-head td { height: 10mm !important; border-top: 2px solid #000 !important; border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; }
               .print-frame-foot td { height: 10mm !important; border-bottom: 2px solid #000 !important; border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; }
-              .print-frame-body > td { border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; padding: 0 10mm !important; }
+              .print-frame-body > tr > td { border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; padding: 0 10mm !important; }
 
               .z-table { page-break-inside: auto; border-bottom: 2px solid #000; }
               .z-table tr { page-break-inside: avoid; page-break-after: auto; }
@@ -207,15 +207,87 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                 })}
               </tbody>
             </table>
+
+            {/* Terms and Notes Block (Above Footer) */}
+            <div style={{ padding: '10px 0 20px 0' }}>
+              <div style={{ marginBottom: '15px' }}>
+                <div style={{ fontSize: '10px', color: '#666', textTransform: 'uppercase', fontWeight: '700', marginBottom: '6px' }}>Total In Words</div>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: '#111', fontStyle: 'italic' }}>{numberToWords(ptots.total)}</div>
+              </div>
+
+              {data.notes && (
+                <div style={{ marginBottom: '15px' }}>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px', textTransform: 'uppercase' }}>Notes</div>
+                  <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.notes}</div>
+                </div>
+              )}
+              
+              {data.terms && (
+                <div>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px', textTransform: 'uppercase' }}>Terms & Conditions</div>
+                  <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.terms}</div>
+                </div>
+              )}
+            </div>
             
             {/* External Footer Branding Props */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px', fontSize: '10px', fontWeight: '600', color: '#666', borderTop: '1px solid #eee', paddingTop: '15px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px', fontSize: '10px', fontWeight: '600', color: '#666', borderTop: '1px solid #eee', paddingTop: '15px', paddingBottom: '15px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                 {settings?.showBranding !== false && (
                   <>POWERED BY <strong style={{ color: '#000', marginLeft: '4px' }}>{settings?.brandName || 'T2GCRM'}</strong></>
                 )}
               </div>
             </div>
+                </td>
+              </tr>
+              {/* The Strict Footer Grid (Bank Det | Amount) */}
+              <tr className="avoid-break print-border-split" style={{ borderTop: '2px solid #000' }}>
+                <td style={{ padding: 0 }}>
+                  <div style={{ display: 'flex', minHeight: '150px' }}>
+                    {/* Left Side: Bank Details */}
+                    <div className="print-border-right" style={{ width: '50%', padding: '20px', borderRight: '2px solid #000' }}>
+                      {profile.accHolder ? (
+                        <div>
+                          <div style={{ fontSize: '12px', fontWeight: '800', color: '#111', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bank Details</div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', gap: '8px', fontSize: '11px', color: '#333' }}>
+                            <span style={{ color: '#666' }}>Bank Name</span><span>:</span><strong style={{ color: '#111' }}>{profile.bankName}</strong>
+                            <span style={{ color: '#666' }}>Account Name</span><span>:</span><strong style={{ color: '#111' }}>{profile.accHolder}</strong>
+                            <span style={{ color: '#666' }}>Account No.</span><span>:</span><strong style={{ color: '#111' }}>{profile.accountNo}</strong>
+                            <span style={{ color: '#666' }}>IFSC Code</span><span>:</span><strong style={{ color: '#111' }}>{profile.ifsc}</strong>
+                            {profile.accType && <><span style={{ color: '#666' }}>Account Type</span><span>:</span><strong>{profile.accType}</strong></>}
+                          </div>
+                          {profile.bankExtra && <div style={{ marginTop: '12px', fontSize: '10px', color: '#555', borderTop: '1px solid #eee', paddingTop: '10px' }}>{profile.bankExtra}</div>}
+                        </div>
+                      ) : (
+                        <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: '11px' }}>No bank details configured.</div>
+                      )}
+                    </div>
+
+                    {/* Right Side: Totals Summary */}
+                    <div style={{ width: '50%', padding: '20px' }}>
+                      <table className="z-summary">
+                        <tbody>
+                          <tr><td>Sub Total</td><td style={{ fontWeight: '600' }}>{fmt(ptots.sub).replace('₹', '')}</td></tr>
+                          {ptots.discAmt > 0 && <tr><td>Discount ({data.discType === '₹' ? 'Flat' : `${data.disc}%`})</td><td style={{ color: '#d97706', fontWeight: '600' }}>- {fmt(ptots.discAmt).replace('₹', '')}</td></tr>}
+                          {ptots.taxTotal > 0 && (
+                            isInterState ? (
+                              <tr><td>IGST</td><td style={{ fontWeight: '600' }}>{fmt(ptots.taxTotal).replace('₹', '')}</td></tr>
+                            ) : (
+                              <>
+                                <tr><td>CGST</td><td style={{ fontWeight: '600' }}>{fmt(ptots.taxTotal / 2).replace('₹', '')}</td></tr>
+                                <tr><td>SGST</td><td style={{ fontWeight: '600' }}>{fmt(ptots.taxTotal / 2).replace('₹', '')}</td></tr>
+                              </>
+                            )
+                          )}
+                          {data.adj !== 0 && <tr><td>Adjustment</td><td style={{ fontWeight: '600' }}>{data.adj > 0 ? '+' : ''}{fmt(data.adj).replace('₹', '')}</td></tr>}
+                          <tr className="z-total"><td>Total</td><td style={{ whiteSpace: 'nowrap' }}>{fmt(ptots.total)}</td></tr>
+                          {type === 'Invoice' && (
+                            <tr><td style={{ paddingTop: '15px', color: '#111', fontWeight: '800' }}>Balance Due</td><td style={{ paddingTop: '15px', color: '#111', fontWeight: '800', fontSize: '16px' }}>{fmt(ptots.total)}</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </td>
               </tr>
             </tbody>
