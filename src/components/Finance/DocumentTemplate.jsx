@@ -44,7 +44,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
       const colNo = '40px', colQty = '60px', colRate = '100px', colGst = '80px', colAmt = '120px';
       
       return (
-        <div className="zoho-template" style={{ fontSize: '11px', color: '#111', fontFamily: '"Inter", sans-serif' }}>
+        <>
           <style>{`
             @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
             
@@ -58,14 +58,24 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             .z-summary td:first-child { color: #555; text-align: left; }
             .z-summary tr.z-total td { font-weight: 800; font-size: 16px; color: #000; border-top: 2px solid #000; border-bottom: 2px double #000; padding: 15px 10px; }
             
+            /* Print Frame Box - Screen Mode */
+            .print-frame { width: 100%; max-width: 210mm; margin: 0 auto; border-collapse: collapse; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif; font-size: 11px; color: #111; }
+            .print-frame-head td { height: 15px; border-top: 1px solid #ddd; border-left: 1px solid #ddd; border-right: 1px solid #ddd; }
+            .print-frame-foot td { height: 15px; border-bottom: 1px solid #ddd; border-left: 1px solid #ddd; border-right: 1px solid #ddd; }
+            .print-frame-body > td { border-left: 1px solid #ddd; border-right: 1px solid #ddd; padding: 15px 30px; }
+
             /* Print-only Overrides (Rigid #000 Borders for perfect PDFs) */
             @media print {
-              @page { size: A4; margin: 12mm 15mm; } 
+              @page { size: A4; margin: 0; } /* Forces removal of browser Data & URLs */
               body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
               .a4-container { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; min-height: 0 !important; }
               .no-print { display: none !important; }
-              .zoho-template { min-height: 0 !important; display: block !important; }
               
+              /* Print Frame Box - Print Mode (Unbroken Repeating Borders) */
+              .print-frame-head td { height: 12mm !important; border-top: 2px solid #000 !important; border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; }
+              .print-frame-foot td { height: 12mm !important; border-bottom: 2px solid #000 !important; border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; }
+              .print-frame-body > td { border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; padding: 0 15mm !important; }
+
               .z-table { page-break-inside: auto; border-bottom: 1px solid #000; }
               .z-table tr { page-break-inside: avoid; page-break-after: auto; }
               .z-table th { background: #f0f0f0 !important; color: #000 !important; border-bottom: 2px solid #000 !important; border-top: 1px solid #000 !important; }
@@ -79,7 +89,13 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             }
           `}</style>
 
-          <div style={{ display: 'flex', flexDirection: 'column', minHeight: '260mm' }}>
+          <table className="print-frame">
+            <thead className="print-frame-head">
+              <tr><td></td></tr>
+            </thead>
+            <tbody className="print-frame-body">
+              <tr>
+                <td>
             {/* Header: Logo and Title */}
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '40px', alignItems: 'flex-start' }}>
               <div style={{ width: '55%' }}>
@@ -266,8 +282,14 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                 )}
               </div>
             </div>
-          </div>
-        </div>
+                </td>
+              </tr>
+            </tbody>
+            <tfoot className="print-frame-foot">
+              <tr><td></td></tr>
+            </tfoot>
+          </table>
+        </>
       );
     }
 
