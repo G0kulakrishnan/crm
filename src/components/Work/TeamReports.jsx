@@ -180,97 +180,67 @@ export default function TeamReports({ user, ownerId, perms }) {
     }
   };
 
-  const downloadCSV = async () => {
+  const downloadCSV = () => {
     try {
       toast('Preparing report...', 'info');
-      // Fetch all logs for this member
-      const fullData = await db.query({ 
-        activityLogs: { $: { where: { userId: ownerId, actorId: selectedId } } } 
-      });
-      // Filter by the currently selected date range
-      const allUserLogs = fullData.activityLogs
+      
+      // Filter the already-loaded logs by the currently selected date range
+      const allUserLogs = logs
         .filter(l => l.createdAt >= dateRange.start && l.createdAt <= dateRange.end)
         .sort((a,b) => b.createdAt - a.createdAt);
       
       if (allUserLogs.length === 0) return toast('No logs found for selected dates', 'info');
-    const headers = ['Date', 'Type', 'Activity', 'Reference', 'Project', 'Client'];
-    const rows = allUserLogs.map(l => {
-      const task = l.entityType === 'task' ? taskMap[l.entityId] : null;
-      const entName = l.entityType === 'lead' ? leadMap[l.entityId] : (task?.title || l.entityName);
-      const projectName = task ? projectMap[task.projectId] : '';
-      const clientName = task ? (task.client || (task.customerId ? customerMap[task.customerId] : '')) : '';
-      return [
-        fmtDT(l.createdAt),
-        l.entityType.toUpperCase(),
-        (l.text || '').replace(/"/g, '""'),
-        (entName || '').replace(/"/g, '""'),
-        (projectName || '').replace(/"/g, '""'),
-        (clientName || '').replace(/"/g, '""')
-      ].map(v => `"${v}"`).join(',');
-    });
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Activity_Log_${selectedMember.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast('CSV Downloaded', 'success');
+      
+      const headers = ['Date', 'Type', 'Activity', 'Reference', 'Project', 'Client'];
+      const rows = allUserLogs.map(l => {
+        const task = l.entityType === 'task' ? taskMap[l.entityId] : null;
+        const entName = l.entityType === 'lead' ? leadMap[l.entityId] : (task?.title || l.entityName);
+        const projectName = task ? projectMap[task.projectId] : '';
+        const clientName = task ? (task.client || (task.customerId ? customerMap[task.customerId] : '')) : '';
+        return [
+          fmtDT(l.createdAt),
+          l.entityType.toUpperCase(),
+          (l.text || '').replace(/"/g, '""'),
+          (entName || '').replace(/"/g, '""'),
+          (projectName || '').replace(/"/g, '""'),
+          (clientName || '').replace(/"/g, '""')
+        ].map(v => `"${v}"`).join(',');
+      });
+      const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Activity_Log_${selectedMember.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast('CSV Downloaded', 'success');
     } catch (err) {
       console.error(err);
       toast('Error generating CSV', 'error');
     }
   };
 
-  const downloadSummaryCSV = async () => {
+  const downloadSummaryCSV = () => {
     try {
       toast('Preparing summary...', 'info');
-      const fullData = await db.query({
-        activityLogs: { $: { where: { userId: ownerId } } },
-        teamMembers: { $: { where: { userId: ownerId } } },
-        tasks: { $: { where: { userId: ownerId } } },
-        leads: { $: { where: { userId: ownerId } } }
-      });
       
-      const allLogs = fullData.activityLogs.filter(l => l.createdAt >= dateRange.start && l.createdAt <= dateRange.end);
-    const allTeams = fullData.teamMembers;
-    const allT = fullData.tasks;
-    const allL = fullData.leads;
-
-    const fullStats = [
-      { id: ownerId, name: 'Business Owner', email: profile.email || '' },
-      ...allTeams.map(m => ({ id: m.id, name: m.name, email: m.email }))
-    ].map(m => {
-      const uLogs = allLogs.filter(l => l.actorId === m.id || (m.email && l.userName && l.userName.toLowerCase() === m.email.toLowerCase()));
-      return {
-        name: m.name,
-        activityCount: uLogs.length,
-        leadsAssigned: allL.filter(l => l.assign === m.name).length,
-        leadsWorked: new Set(uLogs.filter(l => l.entityType === 'lead' && l.entityId).map(l => l.entityId)).size,
-        leadsWon: uLogs.filter(l => l.entityType === 'lead' && (l.text.includes(`to "${wonStage}"`) || l.text.toLowerCase().includes('converted to customer'))).length,
-        tasksAssigned: allT.filter(t => t.assignTo === m.name).length,
-        tasksWorked: new Set(uLogs.filter(l => l.entityType === 'task' && l.entityId).map(l => l.entityId)).size,
-        tasksCompleted: uLogs.filter(l => l.entityType === 'task' && l.text.includes('to "Completed"')).length,
-        otherWorks: uLogs.filter(l => l.entityType !== 'task' && l.entityType !== 'lead').length
-      };
-    });
-
-    const headers = ['Member', 'Activity', 'Leads Assg.', 'Leads Work.', 'Leads Won', 'Tasks Assg.', 'Tasks Work.', 'Tasks Comp.', 'Other Work'];
-    const rows = fullStats.map(s => [
-      s.name, s.activityCount, s.leadsAssigned, s.leadsWorked, s.leadsWon, s.tasksAssigned, s.tasksWorked, s.tasksCompleted, s.otherWorks
-    ].map(v => `"${v}"`).join(','));
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', `Team_Performance_Summary_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    toast('Summary CSV Downloaded', 'success');
+      const headers = ['Member', 'Activity', 'Leads Assg.', 'Leads Work.', 'Leads Won', 'Tasks Assg.', 'Tasks Work.', 'Tasks Comp.', 'Other Work'];
+      const rows = performanceData.map(s => [
+        s.name, s.totalActivities, s.leadsAssigned, s.leadsWorked, s.leadsWon, s.tasksAssigned, s.tasksWorked, s.tasksCompleted, s.otherWorks
+      ].map(v => `"${v}"`).join(','));
+      
+      const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Team_Performance_Summary_${new Date().toISOString().split('T')[0]}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast('Summary CSV Downloaded', 'success');
     } catch (err) {
       console.error(err);
       toast('Error generating summary', 'error');

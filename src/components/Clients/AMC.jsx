@@ -63,6 +63,7 @@ export default function AMC({ user, perms, ownerId }) {
   }, [data?.amc]);
 
   const customers = data?.customers || [];
+  const leads = data?.leads || [];
   const products = data?.products || [];
   const taxRates = profile.taxRates || [{ label: 'None (0%)', rate: 0 }, { label: 'GST @ 5%', rate: 5 }, { label: 'GST @ 12%', rate: 12 }, { label: 'GST @ 18%', rate: 18 }, { label: 'GST @ 28%', rate: 28 }];
 
