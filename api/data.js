@@ -27,6 +27,25 @@ const COLLECTION_MAP = {
   'memberStats': 'memberStats',
 };
 
+// Normalize module keys to singular entity types for activity logs
+const ENTITY_TYPE_MAP = {
+  'leads': 'lead',
+  'customers': 'customer',
+  'quotations': 'quotation',
+  'invoices': 'invoice',
+  'amc': 'amc',
+  'expenses': 'expense',
+  'products': 'product',
+  'vendors': 'vendor',
+  'purchase-orders': 'purchaseOrder',
+  'projects': 'project',
+  'tasks': 'task',
+  'teams': 'team',
+  'subs': 'sub',
+  'orders': 'order',
+  'appointments': 'appointment',
+};
+
 async function getStatsTx(db, ownerId, actorId, type) {
   const today = new Date().toISOString().split('T')[0];
   const { memberStats } = await db.query({ 
@@ -115,7 +134,7 @@ export default async function handler(req, res) {
         tx[collection][newId].update(payload),
         tx.activityLogs[id()].update({
           entityId: newId,
-          entityType: module,
+          entityType: ENTITY_TYPE_MAP[module] || module,
           text: (module === 'tasks' && !logText) ? `Task T-${payload.taskNumber} created: "${payload.title}"` : (logText || `Created new ${module} via API.`),
           userId: ownerId,
           actorId: actorId || ownerId,

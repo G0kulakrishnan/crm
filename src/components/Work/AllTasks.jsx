@@ -183,7 +183,8 @@ export default function AllTasks({ user, perms, ownerId }) {
             actorId: user.id, 
             userName: user.email, 
             id: editData.id, 
-            logText: changes.length > 0 ? changes.join(' | ') : null,
+            projectId: form.projectId || editData.projectId || '',
+            logText: changes.length > 0 ? `Task updated: ${changes.join(' | ')}` : null,
             ...form 
           })
         });
@@ -256,8 +257,9 @@ export default function AllTasks({ user, perms, ownerId }) {
           actorId: user.id, 
           userName: user.email, 
           id: t.id, 
+          projectId: t.projectId || '',
           status: nextStatus, 
-          logText: `Status changed from "${t.status}" to "${nextStatus}" (quick cycle)` 
+          logText: `Task updated: Status changed from "${t.status}" to "${nextStatus}"` 
         })
       });
       toast(`Status: ${nextStatus}`, 'success');

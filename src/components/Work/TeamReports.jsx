@@ -131,15 +131,18 @@ export default function TeamReports({ user, ownerId, perms }) {
       const totalActivities = userLogs.length;
 
       // Derive all metrics from activity logs (single source of truth)
-      const tasksWorked = userLogs.filter(l => l.entityType === 'task').length;
+      // Accept both 'task'/'tasks' and 'lead'/'leads' for backward compat with old log formats
+      const isTaskLog = (l) => l.entityType === 'task' || l.entityType === 'tasks';
+      const isLeadLog = (l) => l.entityType === 'lead' || l.entityType === 'leads';
+      const tasksWorked = userLogs.filter(isTaskLog).length;
       const tasksCompleted = userLogs.filter(l => 
-        l.entityType === 'task' && (l.text || '').toLowerCase().includes('completed')
+        isTaskLog(l) && (l.text || '').toLowerCase().includes('completed')
       ).length;
-      const leadsWorked = userLogs.filter(l => l.entityType === 'lead').length;
+      const leadsWorked = userLogs.filter(isLeadLog).length;
       const leadsWon = userLogs.filter(l => 
-        l.entityType === 'lead' && ((l.text || '').toLowerCase().includes('won') || (l.text || '').toLowerCase().includes('converted'))
+        isLeadLog(l) && ((l.text || '').toLowerCase().includes('won') || (l.text || '').toLowerCase().includes('converted'))
       ).length;
-      const otherWorks = userLogs.filter(l => l.entityType !== 'task' && l.entityType !== 'lead').length;
+      const otherWorks = userLogs.filter(l => !isTaskLog(l) && !isLeadLog(l)).length;
 
       return {
         ...m,
@@ -235,9 +238,10 @@ export default function TeamReports({ user, ownerId, perms }) {
 
       const headers = ['Member', 'Date', 'Type', 'Activity', 'Reference', 'Project', 'Client'];
       const rows = allFilteredLogs.map(l => {
-        const task = l.entityType === 'task' ? taskMap[l.entityId] : null;
-        const entName = l.entityType === 'lead' ? leadMap[l.entityId] : (task?.title || l.entityName);
-        const projectName = task ? projectMap[task.projectId] : '';
+        const eType = (l.entityType === 'tasks') ? 'task' : (l.entityType === 'leads') ? 'lead' : l.entityType;
+        const task = eType === 'task' ? taskMap[l.entityId] : null;
+        const entName = eType === 'lead' ? leadMap[l.entityId] : (task?.title || l.entityName);
+        const projectName = task ? projectMap[task.projectId] : (l.projectId ? projectMap[l.projectId] : '');
         const clientName = task ? (task.client || (task.customerId ? customerMap[task.customerId] : '')) : '';
         // Resolve member name using email fallback
         const matchedMember = members.find(m => isLogByMember(l, m));
@@ -246,7 +250,7 @@ export default function TeamReports({ user, ownerId, perms }) {
         return [
           memberName,
           fmtDT(l.createdAt),
-          (l.entityType || '').toUpperCase(),
+          (eType || '').toUpperCase(),
           (l.text || '').replace(/"/g, '""'),
           (entName || '').replace(/"/g, '""'),
           (projectName || '').replace(/"/g, '""'),
@@ -465,17 +469,18 @@ export default function TeamReports({ user, ownerId, perms }) {
                 ) : (
                   <div className="activity-timeline">
                     {activeMemberLogs.map((l, i) => {
-                      const task = l.entityType === 'task' ? taskMap[l.entityId] : null;
-                      const entName = l.entityType === 'lead' ? leadMap[l.entityId] : (task?.title || l.entityName);
-                      const projectName = task ? projectMap[task.projectId] : null;
+                      const eType = (l.entityType === 'tasks') ? 'task' : (l.entityType === 'leads') ? 'lead' : l.entityType;
+                      const task = eType === 'task' ? taskMap[l.entityId] : null;
+                      const entName = eType === 'lead' ? leadMap[l.entityId] : (task?.title || l.entityName);
+                      const projectName = task ? projectMap[task.projectId] : (l.projectId ? projectMap[l.projectId] : null);
                       const clientName = task ? (task.client || (task.customerId ? customerMap[task.customerId] : null)) : null;
                       
-                      const refLabel = l.entityType === 'task' ? 'Task' : l.entityType === 'lead' ? 'Lead' : 'Ref';
+                      const refLabel = eType === 'task' ? 'Task' : eType === 'lead' ? 'Lead' : 'Ref';
 
                       return (
                         <div key={l.id || i} className="activity-item">
                           <div className="activity-header">
-                            <span className={`type-tag tag-${l.entityType}`}>{l.entityType}</span>
+                            <span className={`type-tag tag-${eType}`}>{eType}</span>
                             <span className="activity-time">{fmtDT(l.createdAt)}</span>
                           </div>
                           <div className="activity-text">{l.text}</div>
