@@ -394,9 +394,11 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
         .pos-receipt { background: #fff; width: 280px; padding: 15px; box-shadow: 0 0 20px rgba(0,0,0,0.1); color: #000; font-family: monospace; }
         
         @media print {
+          @page { margin: 0; size: auto; }
           .app, .no-print { display: none !important; }
+          body { padding: 10mm; } /* Padding for testing on A4 if they don't use thermal */
           .pos-receipt-wrap { background: transparent !important; padding: 0 !important; }
-          .pos-receipt { box-shadow: none !important; width: 100% !important; padding: 0 !important; margin: 0 !important; }
+          .pos-receipt { box-shadow: none !important; width: 100% !important; padding: 0 !important; margin: 0 auto !important; max-width: 80mm; } /* Max width for standard thermal printer */
         }
 
         @media (max-width: 1024px) {
