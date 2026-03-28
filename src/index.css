@@ -428,10 +428,11 @@ tr:hover td { background: #f8faf9; }
 /* PRINT STYLES */
 @media print {
   .sidebar, .topbar, .no-print, .btn, .tabs, .sh button, .sidebar-logo { display: none !important; }
+  .app, .main { height: auto !important; overflow: visible !important; display: block !important; min-height: auto !important; }
   .main { margin: 0; padding: 0; width: 100%; border: none; }
-  .content { padding: 0; margin: 0; overflow: visible !important; }
-  .tw { border: 1px solid #ccc !important; box-shadow: none !important; break-inside: avoid; }
-  body { background: #fff !important; color: #000 !important; font-size: 10pt; }
+  .content { padding: 0; margin: 0; overflow: visible !important; height: auto !important; min-height: auto !important; }
+  .tw { border: none !important; box-shadow: none !important; break-inside: avoid; }
+  body, html { height: auto !important; min-height: auto !important; overflow: visible !important; background: #fff !important; color: #000 !important; font-size: 10pt; }
   .stat-grid { grid-template-columns: repeat(4, 1fr) !important; gap: 5pt; }
   .stat-card { border: 1px solid #eee; padding: 10pt; }
   h2, h3 { color: #000; }
