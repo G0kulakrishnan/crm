@@ -142,7 +142,7 @@ export default function TeamReports({ user, ownerId, perms }) {
       lgs = lgs.filter(l => new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) === selectedDay);
     }
     return lgs.sort((a,b) => b.createdAt - a.createdAt);
-  }, [selectedMember, searchQuery, leadMap, taskMap, projectMap, customerMap]);
+  }, [selectedMember, searchQuery, leadMap, taskMap, projectMap, customerMap, selectedDay]);
 
   const dayWiseActivity = useMemo(() => {
     if (!selectedMember) return [];
@@ -352,13 +352,19 @@ export default function TeamReports({ user, ownerId, perms }) {
                             {entName && (
                               <div className="meta-block">
                                 <span className="meta-label">Ref:</span>
-                                <span className="meta-val">{entName}</span>
+                                <span className="meta-val">{task?.taskNumber ? `T-${task.taskNumber}: ` : ''}{entName}</span>
                               </div>
                             )}
                             {projectName && (
                               <div className="meta-block">
                                 <span className="meta-label">Project:</span>
                                 <span className="meta-val">{projectName}</span>
+                              </div>
+                            )}
+                            {entName && (
+                              <div className="meta-block">
+                                <span className="meta-label">Ref:</span>
+                                <span className="meta-val">{task?.taskNumber ? `T-${task.taskNumber}: ` : ''}{entName}</span>
                               </div>
                             )}
                             {clientName && (
