@@ -73,9 +73,11 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               
               /* Print Frame Box - Print Mode (Unbroken Repeating Borders) */
               .print-frame { width: calc(100% - 20mm) !important; margin: 10mm auto !important; }
-              .print-frame-head td { height: 10mm !important; border-top: 2px solid #000 !important; border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; }
-              .print-frame-foot td { height: 10mm !important; border-bottom: 2px solid #000 !important; border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; }
-              .print-frame-body > tr > td { border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; padding: 0 10mm !important; }
+              .print-frame-head td, .print-frame-foot td { height: 10mm !important; }
+              .print-frame-head td { border-top: 2px solid #000 !important; border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; }
+              .print-frame-foot td { border-bottom: 2px solid #000 !important; border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; }
+              .print-frame-body > tr > td.print-content-cell { border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; padding: 0 10mm !important; }
+              .print-frame-body > tr > td.print-footer-cell { border-left: 2px solid #000 !important; border-right: 2px solid #000 !important; padding: 0 !important; border-top: 2px solid #000 !important; }
 
               .z-table { page-break-inside: auto; border-bottom: 2px solid #000; }
               .z-table tr { page-break-inside: avoid; page-break-after: auto; }
@@ -86,213 +88,220 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               .z-summary td { color: #111 !important; }
               .z-summary tr.z-total td { border-top: 2px solid #000 !important; border-bottom: 2px solid #000 !important; }
               
+              .print-content-row { page-break-inside: auto; }
               .avoid-break { page-break-inside: avoid; }
-              .print-border-split { border-top: 2px solid #000 !important; }
               .print-border-right { border-right: 2px solid #000 !important; }
             }
           `}</style>
 
           <table className="print-frame">
             <thead className="print-frame-head">
-              <tr><td></td></tr>
+              <tr><td>&nbsp;</td></tr>
             </thead>
             <tbody className="print-frame-body">
-              <tr>
-                <td style={{ padding: '0 20px' }}>
-            {/* Header: Logo and Title */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', alignItems: 'flex-start', paddingTop: '15px' }}>
-              <div style={{ width: '55%' }}>
-                {profile.logo && <img src={profile.logo} alt="Logo" style={{ height: '70px', maxWidth: '200px', objectFit: 'contain', marginBottom: '15px' }} />}
-                <div style={{ fontSize: '18px', fontWeight: '800', color: '#111', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '-0.5px' }}>{profile.bizName}</div>
-                <div style={{ fontSize: '12px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6', maxWidth: '300px' }}>{profile.address}</div>
-                {profile.gstin && <div style={{ fontSize: '11px', marginTop: '8px', fontWeight: '700', color: '#333' }}>GSTIN: {profile.gstin}</div>}
-              </div>
-              <div style={{ width: '40%', textAlign: 'right' }}>
-                <h1 style={{ fontSize: '36px', fontWeight: '200', margin: '0 0 20px 0', color: '#000', textTransform: 'uppercase', letterSpacing: '1px' }}>{type === 'Invoice' ? 'TAX INVOICE' : 'QUOTATION'}</h1>
-                <div style={{ display: 'inline-block', textAlign: 'left', minWidth: '240px', borderTop: '2px solid #111', paddingTop: '10px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-                    <span style={{ color: '#555', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Reference</span>
-                    <strong style={{ fontSize: '12px', color: '#111' }}>{data.no}</strong>
+              
+              {/* Header Row */}
+              <tr className="print-content-row"><td className="print-content-cell" style={{ padding: '0 20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', alignItems: 'flex-start', paddingTop: '15px' }}>
+                  <div style={{ width: '55%' }}>
+                    {profile.logo && <img src={profile.logo} alt="Logo" style={{ height: '70px', maxWidth: '200px', objectFit: 'contain', marginBottom: '15px' }} />}
+                    <div style={{ fontSize: '18px', fontWeight: '800', color: '#111', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '-0.5px' }}>{profile.bizName}</div>
+                    <div style={{ fontSize: '12px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6', maxWidth: '300px' }}>{profile.address}</div>
+                    {profile.gstin && <div style={{ fontSize: '11px', marginTop: '8px', fontWeight: '700', color: '#333' }}>GSTIN: {profile.gstin}</div>}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-                    <span style={{ color: '#555', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Date</span>
-                    <strong style={{ fontSize: '12px', color: '#111' }}>{fmtD(data.date)}</strong>
+                  <div style={{ width: '40%', textAlign: 'right' }}>
+                    <h1 style={{ fontSize: '36px', fontWeight: '200', margin: '0 0 20px 0', color: '#000', textTransform: 'uppercase', letterSpacing: '1px' }}>{type === 'Invoice' ? 'TAX INVOICE' : 'QUOTATION'}</h1>
+                    <div style={{ display: 'inline-block', textAlign: 'left', minWidth: '240px', borderTop: '2px solid #111', paddingTop: '10px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
+                        <span style={{ color: '#555', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Reference</span>
+                        <strong style={{ fontSize: '12px', color: '#111' }}>{data.no}</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
+                        <span style={{ color: '#555', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Date</span>
+                        <strong style={{ fontSize: '12px', color: '#111' }}>{fmtD(data.date)}</strong>
+                      </div>
+                      {(type === 'Invoice' && data.dueDate) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
+                          <span style={{ color: '#555', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Due Date</span>
+                          <strong style={{ fontSize: '12px', color: '#111' }}>{fmtD(data.dueDate)}</strong>
+                        </div>
+                      )}
+                      {(type !== 'Invoice' && data.validUntil) && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
+                          <span style={{ color: '#555', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Valid Until</span>
+                          <strong style={{ fontSize: '12px', color: '#111' }}>{fmtD(data.validUntil)}</strong>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  {(type === 'Invoice' && data.dueDate) && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-                      <span style={{ color: '#555', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Due Date</span>
-                      <strong style={{ fontSize: '12px', color: '#111' }}>{fmtD(data.dueDate)}</strong>
-                    </div>
-                  )}
-                  {(type !== 'Invoice' && data.validUntil) && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-                      <span style={{ color: '#555', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Valid Until</span>
-                      <strong style={{ fontSize: '12px', color: '#111' }}>{fmtD(data.validUntil)}</strong>
-                    </div>
-                  )}
                 </div>
-              </div>
-            </div>
+              </td></tr>
 
-            {/* Bill To & Ship To */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', paddingTop: '15px', borderTop: '1px solid #eee' }}>
-              <div style={{ width: '45%' }}>
-                <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.5px' }}>Bill To</div>
-                <div style={{ fontSize: '16px', fontWeight: '800', color: '#111', marginBottom: '6px' }}>{clientMatch.companyName || data.companyName || data.client}</div>
-                {clientMatch.address && <div style={{ fontSize: '12px', color: '#444', whiteSpace: 'pre-wrap', lineHeight: '1.6', marginTop: '6px' }}>{clientMatch.address}</div>}
-                {clientMatch.gstin && <div style={{ fontSize: '11px', marginTop: '10px', fontWeight: '700', color: '#333' }}>GSTIN: {clientMatch.gstin}</div>}
-              </div>
-              {data.shipTo ? (
-                <div style={{ width: '45%' }}>
-                  <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.5px' }}>Ship To</div>
-                  <div style={{ fontSize: '13px', color: '#444', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.shipTo}</div>
+              {/* Bill To Row */}
+              <tr className="print-content-row"><td className="print-content-cell" style={{ padding: '0 20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', paddingTop: '15px', borderTop: '1px solid #eee' }}>
+                  <div style={{ width: '45%' }}>
+                    <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.5px' }}>Bill To</div>
+                    <div style={{ fontSize: '16px', fontWeight: '800', color: '#111', marginBottom: '6px' }}>{clientMatch.companyName || data.companyName || data.client}</div>
+                    {clientMatch.address && <div style={{ fontSize: '12px', color: '#444', whiteSpace: 'pre-wrap', lineHeight: '1.6', marginTop: '6px' }}>{clientMatch.address}</div>}
+                    {clientMatch.gstin && <div style={{ fontSize: '11px', marginTop: '10px', fontWeight: '700', color: '#333' }}>GSTIN: {clientMatch.gstin}</div>}
+                  </div>
+                  {data.shipTo ? (
+                    <div style={{ width: '45%' }}>
+                      <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.5px' }}>Ship To</div>
+                      <div style={{ fontSize: '13px', color: '#444', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.shipTo}</div>
+                    </div>
+                  ) : null}
                 </div>
-              ) : null}
-            </div>
+              </td></tr>
 
-            {/* Items Table */}
-            <table className="z-table">
-              <thead>
-                <tr>
-                  <th style={{ width: colNo, textAlign: 'center' }}>#</th>
-                  <th>Item & Description</th>
-                  <th style={{ width: colQty, textAlign: 'center' }}>Qty</th>
-                  <th style={{ width: colRate, textAlign: 'right' }}>Rate</th>
-                  {isInterState ? (
-                    <th style={{ width: colGst, textAlign: 'right' }}>IGST</th>
-                  ) : (
-                    <>
-                      <th style={{ width: colGst, textAlign: 'right' }}>CGST</th>
-                      <th style={{ width: colGst, textAlign: 'right' }}>SGST</th>
-                    </>
-                  )}
-                  <th style={{ width: colAmt, textAlign: 'right' }}>Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((it, i) => {
-                  const itemTotal = (it.qty || 0) * (it.rate || 0);
-                  const taxRate = it.taxRate || 0;
-                  const taxAmt = itemTotal * taxRate / 100;
-                  return (
-                    <tr key={i}>
-                      <td style={{ textAlign: 'center', color: '#666' }}>{i + 1}</td>
-                      <td>
-                        <div style={{ fontWeight: '700', fontSize: '12px' }}>{it.name}</div>
-                        {it.sku && <div style={{ fontSize: '10px', fontWeight: '500', color: '#666', marginTop: '4px' }}>Code: {it.sku}</div>}
-                        {it.desc && <div style={{ fontSize: '11px', color: '#444', marginTop: '4px', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{it.desc}</div>}
-                      </td>
-                      <td style={{ textAlign: 'center' }}>{it.qty.toFixed(2)} {it.unit || ''}</td>
-                      <td style={{ textAlign: 'right' }}>{fmt(it.rate).replace('₹', '')}</td>
+              {/* Items Table Row */}
+              <tr className="print-content-row"><td className="print-content-cell" style={{ padding: '0 20px' }}>
+                <table className="z-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: colNo, textAlign: 'center' }}>#</th>
+                      <th>Item & Description</th>
+                      <th style={{ width: colQty, textAlign: 'center' }}>Qty</th>
+                      <th style={{ width: colRate, textAlign: 'right' }}>Rate</th>
                       {isInterState ? (
-                        <td style={{ textAlign: 'right', color: '#555' }}>
-                          <div>{itemTotal === 0 ? '-' : fmt(taxAmt).replace('₹', '')}</div>
-                          <div style={{ fontSize: '9px', opacity: 0.7 }}>({taxRate}%)</div>
-                        </td>
+                        <th style={{ width: colGst, textAlign: 'right' }}>IGST</th>
                       ) : (
                         <>
-                          <td style={{ textAlign: 'right', color: '#555' }}>
-                            <div>{itemTotal === 0 ? '-' : fmt(taxAmt / 2).replace('₹', '')}</div>
-                            <div style={{ fontSize: '9px', opacity: 0.7 }}>({taxRate / 2}%)</div>
-                          </td>
-                          <td style={{ textAlign: 'right', color: '#555' }}>
-                            <div>{itemTotal === 0 ? '-' : fmt(taxAmt / 2).replace('₹', '')}</div>
-                            <div style={{ fontSize: '9px', opacity: 0.7 }}>({taxRate / 2}%)</div>
-                          </td>
+                          <th style={{ width: colGst, textAlign: 'right' }}>CGST</th>
+                          <th style={{ width: colGst, textAlign: 'right' }}>SGST</th>
                         </>
                       )}
-                      <td style={{ textAlign: 'right', fontWeight: '700' }}>{fmt(itemTotal).replace('₹', '')}</td>
+                      <th style={{ width: colAmt, textAlign: 'right' }}>Amount</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-
-            {/* Terms and Notes Block (Above Footer) */}
-            <div style={{ padding: '10px 0 20px 0' }}>
-              <div style={{ marginBottom: '15px' }}>
-                <div style={{ fontSize: '10px', color: '#666', textTransform: 'uppercase', fontWeight: '700', marginBottom: '6px' }}>Total In Words</div>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: '#111', fontStyle: 'italic' }}>{numberToWords(ptots.total)}</div>
-              </div>
-
-              {data.notes && (
-                <div style={{ marginBottom: '15px' }}>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px', textTransform: 'uppercase' }}>Notes</div>
-                  <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.notes}</div>
-                </div>
-              )}
-              
-              {data.terms && (
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px', textTransform: 'uppercase' }}>Terms & Conditions</div>
-                  <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.terms}</div>
-                </div>
-              )}
-            </div>
-            
-            {/* External Footer Branding Props */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px', fontSize: '10px', fontWeight: '600', color: '#666', borderTop: '1px solid #eee', paddingTop: '15px', paddingBottom: '15px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                {settings?.showBranding !== false && (
-                  <>POWERED BY <strong style={{ color: '#000', marginLeft: '4px' }}>{settings?.brandName || 'T2GCRM'}</strong></>
-                )}
-              </div>
-            </div>
-                </td>
-              </tr>
-              {/* The Strict Footer Grid (Bank Det | Amount) */}
-              <tr className="avoid-break print-border-split" style={{ borderTop: '2px solid #000' }}>
-                <td style={{ padding: 0 }}>
-                  <div style={{ display: 'flex', minHeight: '150px' }}>
-                    {/* Left Side: Bank Details */}
-                    <div className="print-border-right" style={{ width: '50%', padding: '20px', borderRight: '2px solid #000' }}>
-                      {profile.accHolder ? (
-                        <div>
-                          <div style={{ fontSize: '12px', fontWeight: '800', color: '#111', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bank Details</div>
-                          <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', gap: '8px', fontSize: '11px', color: '#333' }}>
-                            <span style={{ color: '#666' }}>Bank Name</span><span>:</span><strong style={{ color: '#111' }}>{profile.bankName}</strong>
-                            <span style={{ color: '#666' }}>Account Name</span><span>:</span><strong style={{ color: '#111' }}>{profile.accHolder}</strong>
-                            <span style={{ color: '#666' }}>Account No.</span><span>:</span><strong style={{ color: '#111' }}>{profile.accountNo}</strong>
-                            <span style={{ color: '#666' }}>IFSC Code</span><span>:</span><strong style={{ color: '#111' }}>{profile.ifsc}</strong>
-                            {profile.accType && <><span style={{ color: '#666' }}>Account Type</span><span>:</span><strong>{profile.accType}</strong></>}
-                          </div>
-                          {profile.bankExtra && <div style={{ marginTop: '12px', fontSize: '10px', color: '#555', borderTop: '1px solid #eee', paddingTop: '10px' }}>{profile.bankExtra}</div>}
-                        </div>
-                      ) : (
-                        <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: '11px' }}>No bank details configured.</div>
-                      )}
-                    </div>
-
-                    {/* Right Side: Totals Summary */}
-                    <div style={{ width: '50%', padding: '20px' }}>
-                      <table className="z-summary">
-                        <tbody>
-                          <tr><td>Sub Total</td><td style={{ fontWeight: '600' }}>{fmt(ptots.sub).replace('₹', '')}</td></tr>
-                          {ptots.discAmt > 0 && <tr><td>Discount ({data.discType === '₹' ? 'Flat' : `${data.disc}%`})</td><td style={{ color: '#d97706', fontWeight: '600' }}>- {fmt(ptots.discAmt).replace('₹', '')}</td></tr>}
-                          {ptots.taxTotal > 0 && (
-                            isInterState ? (
-                              <tr><td>IGST</td><td style={{ fontWeight: '600' }}>{fmt(ptots.taxTotal).replace('₹', '')}</td></tr>
-                            ) : (
-                              <>
-                                <tr><td>CGST</td><td style={{ fontWeight: '600' }}>{fmt(ptots.taxTotal / 2).replace('₹', '')}</td></tr>
-                                <tr><td>SGST</td><td style={{ fontWeight: '600' }}>{fmt(ptots.taxTotal / 2).replace('₹', '')}</td></tr>
-                              </>
-                            )
+                  </thead>
+                  <tbody>
+                    {items.map((it, i) => {
+                      const itemTotal = (it.qty || 0) * (it.rate || 0);
+                      const taxRate = it.taxRate || 0;
+                      const taxAmt = itemTotal * taxRate / 100;
+                      return (
+                        <tr key={i}>
+                          <td style={{ textAlign: 'center', color: '#666' }}>{i + 1}</td>
+                          <td>
+                            <div style={{ fontWeight: '700', fontSize: '12px' }}>{it.name}</div>
+                            {it.sku && <div style={{ fontSize: '10px', fontWeight: '500', color: '#666', marginTop: '4px' }}>Code: {it.sku}</div>}
+                            {it.desc && <div style={{ fontSize: '11px', color: '#444', marginTop: '4px', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{it.desc}</div>}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>{it.qty.toFixed(2)} {it.unit || ''}</td>
+                          <td style={{ textAlign: 'right' }}>{fmt(it.rate).replace('₹', '')}</td>
+                          {isInterState ? (
+                            <td style={{ textAlign: 'right', color: '#555' }}>
+                              <div>{itemTotal === 0 ? '-' : fmt(taxAmt).replace('₹', '')}</div>
+                              <div style={{ fontSize: '9px', opacity: 0.7 }}>({taxRate}%)</div>
+                            </td>
+                          ) : (
+                            <>
+                              <td style={{ textAlign: 'right', color: '#555' }}>
+                                <div>{itemTotal === 0 ? '-' : fmt(taxAmt / 2).replace('₹', '')}</div>
+                                <div style={{ fontSize: '9px', opacity: 0.7 }}>({taxRate / 2}%)</div>
+                              </td>
+                              <td style={{ textAlign: 'right', color: '#555' }}>
+                                <div>{itemTotal === 0 ? '-' : fmt(taxAmt / 2).replace('₹', '')}</div>
+                                <div style={{ fontSize: '9px', opacity: 0.7 }}>({taxRate / 2}%)</div>
+                              </td>
+                            </>
                           )}
-                          {data.adj !== 0 && <tr><td>Adjustment</td><td style={{ fontWeight: '600' }}>{data.adj > 0 ? '+' : ''}{fmt(data.adj).replace('₹', '')}</td></tr>}
-                          <tr className="z-total"><td>Total</td><td style={{ whiteSpace: 'nowrap' }}>{fmt(ptots.total)}</td></tr>
-                          {type === 'Invoice' && (
-                            <tr><td style={{ paddingTop: '15px', color: '#111', fontWeight: '800' }}>Balance Due</td><td style={{ paddingTop: '15px', color: '#111', fontWeight: '800', fontSize: '16px' }}>{fmt(ptots.total)}</td></tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                          <td style={{ textAlign: 'right', fontWeight: '700' }}>{fmt(itemTotal).replace('₹', '')}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </td></tr>
+
+              {/* Terms and Notes Row */}
+              <tr className="print-content-row avoid-break"><td className="print-content-cell" style={{ padding: '0 20px' }}>
+                <div style={{ padding: '10px 0 20px 0' }}>
+                  <div style={{ marginBottom: '15px' }}>
+                    <div style={{ fontSize: '10px', color: '#666', textTransform: 'uppercase', fontWeight: '700', marginBottom: '6px' }}>Total In Words</div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#111', fontStyle: 'italic' }}>{numberToWords(ptots.total)}</div>
                   </div>
-                </td>
-              </tr>
+
+                  {data.notes && (
+                    <div style={{ marginBottom: '15px' }}>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px', textTransform: 'uppercase' }}>Notes</div>
+                      <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.notes}</div>
+                    </div>
+                  )}
+                  
+                  {data.terms && (
+                    <div>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px', textTransform: 'uppercase' }}>Terms & Conditions</div>
+                      <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.terms}</div>
+                    </div>
+                  )}
+                </div>
+              </td></tr>
+
+              {/* The Strict Footer Grid (Bank Det | Amount) */}
+              <tr className="avoid-break"><td className="print-footer-cell">
+                <div style={{ display: 'flex', minHeight: '150px' }}>
+                  {/* Left Side: Bank Details */}
+                  <div className="print-border-right" style={{ width: '50%', padding: '20px', borderRight: '2px solid #ddd' }}>
+                    {profile.accHolder ? (
+                      <div>
+                        <div style={{ fontSize: '12px', fontWeight: '800', color: '#111', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bank Details</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', gap: '8px', fontSize: '11px', color: '#333' }}>
+                          <span style={{ color: '#666' }}>Bank Name</span><span>:</span><strong style={{ color: '#111' }}>{profile.bankName}</strong>
+                          <span style={{ color: '#666' }}>Account Name</span><span>:</span><strong style={{ color: '#111' }}>{profile.accHolder}</strong>
+                          <span style={{ color: '#666' }}>Account No.</span><span>:</span><strong style={{ color: '#111' }}>{profile.accountNo}</strong>
+                          <span style={{ color: '#666' }}>IFSC Code</span><span>:</span><strong style={{ color: '#111' }}>{profile.ifsc}</strong>
+                          {profile.accType && <><span style={{ color: '#666' }}>Account Type</span><span>:</span><strong>{profile.accType}</strong></>}
+                        </div>
+                        {profile.bankExtra && <div style={{ marginTop: '12px', fontSize: '10px', color: '#555', borderTop: '1px solid #eee', paddingTop: '10px' }}>{profile.bankExtra}</div>}
+                      </div>
+                    ) : (
+                      <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: '11px' }}>No bank details configured.</div>
+                    )}
+                  </div>
+
+                  {/* Right Side: Totals Summary */}
+                  <div style={{ width: '50%', padding: '20px', background: '#fafafa' }}>
+                    <table className="z-summary">
+                      <tbody>
+                        <tr><td>Sub Total</td><td style={{ fontWeight: '600' }}>{fmt(ptots.sub).replace('₹', '')}</td></tr>
+                        {ptots.discAmt > 0 && <tr><td>Discount ({data.discType === '₹' ? 'Flat' : `${data.disc}%`})</td><td style={{ color: '#d97706', fontWeight: '600' }}>- {fmt(ptots.discAmt).replace('₹', '')}</td></tr>}
+                        {ptots.taxTotal > 0 && (
+                          isInterState ? (
+                            <tr><td>IGST</td><td style={{ fontWeight: '600' }}>{fmt(ptots.taxTotal).replace('₹', '')}</td></tr>
+                          ) : (
+                            <>
+                              <tr><td>CGST</td><td style={{ fontWeight: '600' }}>{fmt(ptots.taxTotal / 2).replace('₹', '')}</td></tr>
+                              <tr><td>SGST</td><td style={{ fontWeight: '600' }}>{fmt(ptots.taxTotal / 2).replace('₹', '')}</td></tr>
+                            </>
+                          )
+                        )}
+                        {data.adj !== 0 && <tr><td>Adjustment</td><td style={{ fontWeight: '600' }}>{data.adj > 0 ? '+' : ''}{fmt(data.adj).replace('₹', '')}</td></tr>}
+                        <tr className="z-total"><td>Total</td><td style={{ whiteSpace: 'nowrap' }}>{fmt(ptots.total)}</td></tr>
+                        {type === 'Invoice' && (
+                          <tr><td style={{ paddingTop: '15px', color: '#111', fontWeight: '800' }}>Balance Due</td><td style={{ paddingTop: '15px', color: '#111', fontWeight: '800', fontSize: '16px' }}>{fmt(ptots.total)}</td></tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </td></tr>
+              
+              <tr className="print-content-row"><td className="print-content-cell">
+                {/* External Footer Branding Props */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px', fontSize: '10px', fontWeight: '600', color: '#666', borderTop: '1px solid #eee', paddingTop: '15px', paddingBottom: '15px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    {settings?.showBranding !== false && (
+                      <>POWERED BY <strong style={{ color: '#000', marginLeft: '4px' }}>{settings?.brandName || 'T2GCRM'}</strong></>
+                    )}
+                  </div>
+                </div>
+              </td></tr>
+
             </tbody>
             <tfoot className="print-frame-foot">
-              <tr><td></td></tr>
+              <tr><td>&nbsp;</td></tr>
             </tfoot>
           </table>
         </>
