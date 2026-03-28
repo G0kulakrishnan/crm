@@ -102,6 +102,30 @@ export default function AllTasks({ user, perms, ownerId }) {
     }
   }, [isOwner, tasks.length]);
 
+  // Handle deep-linking from activity logs
+  useEffect(() => {
+    const openId = localStorage.getItem('tc_open_task');
+    if (openId && tasks.length > 0) {
+      const target = tasks.find(t => t.id === openId);
+      if (target) {
+        setEditData(target);
+        setForm({
+          title: target.title || '',
+          assignTo: target.assignTo || '',
+          dueDate: target.dueDate || '',
+          priority: target.priority || 'Medium',
+          status: target.status || 'Pending',
+          notes: target.notes || '',
+          projectId: target.projectId || '',
+          client: target.client || '',
+          taskNumber: target.taskNumber || null
+        });
+        setModal(true);
+        localStorage.removeItem('tc_open_task');
+      }
+    }
+  }, [tasks]);
+
   const filtered = tasks.filter(t => {
     if (filter === 'all') return activeStages.includes(t.status) || t.priority === 'High';
     if (filter === 'high') return t.priority === 'High';

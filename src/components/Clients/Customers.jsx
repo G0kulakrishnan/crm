@@ -192,6 +192,18 @@ export default function Customers({ user, perms, ownerId }) {
     }
   };
 
+  // Handle deep-linking from activity logs
+  React.useEffect(() => {
+    const openId = localStorage.getItem('tc_open_customer');
+    if (openId && customers.length > 0) {
+      const target = customers.find(c => c.id === openId);
+      if (target) {
+        setViewCustomer(target);
+        localStorage.removeItem('tc_open_customer');
+      }
+    }
+  }, [customers]);
+
   // Auto-sync on load
   React.useEffect(() => {
     if (data && leads.length > 0) {

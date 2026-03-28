@@ -1,10 +1,12 @@
 import React, { useState, useMemo } from 'react';
+import { useApp } from '../../context/AppContext';
 import db from '../../instant';
 import { fmt, fmtD, fmtDT } from '../../utils/helpers';
 
 const DATE_FILTERS = ['Today', 'Yesterday', 'This Month', 'This Year', 'Custom'];
 
 export default function TeamReports({ user, ownerId, perms }) {
+  const { setActiveView } = useApp();
   const [filter, setFilter] = useState('This Month');
   const [customRange, setCustomRange] = useState({ start: '', end: '' });
   const [selectedId, setSelectedId] = useState(null);
@@ -153,6 +155,22 @@ export default function TeamReports({ user, ownerId, perms }) {
     });
     return Object.entries(days).map(([date, count]) => ({ date, count })).sort((a,b) => new Date(b.date) - new Date(a.date));
   }, [selectedMember]);
+
+  const handleNavigate = (type, id) => {
+    if (type === 'lead') {
+      localStorage.setItem('tc_open_lead', id);
+      setActiveView('leads');
+    } else if (type === 'task') {
+      localStorage.setItem('tc_open_task', id);
+      setActiveView('alltasks');
+    } else if (type === 'project') {
+      localStorage.setItem('tc_open_project', id);
+      setActiveView('projects');
+    } else if (type === 'customer') {
+      localStorage.setItem('tc_open_customer', id);
+      setActiveView('customers');
+    }
+  };
 
   if (isLoading) return <div className="p-xl">Loading Performance Data...</div>;
 
@@ -354,19 +372,24 @@ export default function TeamReports({ user, ownerId, perms }) {
                             {entName && (
                               <div className="meta-block">
                                 <span className="meta-label">{refLabel}:</span>
-                                <span className="meta-val">{task?.taskNumber ? `T-${task.taskNumber}: ` : ''}{entName}</span>
+                                <span className="meta-val meta-link" onClick={() => handleNavigate(l.entityType, l.entityId)}>
+                                  {task?.taskNumber ? `T-${task.taskNumber}: ` : ''}{entName}
+                                </span>
                               </div>
                             )}
                             {projectName && (
                               <div className="meta-block">
                                 <span className="meta-label">Project:</span>
-                                <span className="meta-val">{projectName}</span>
+                                <span className="meta-val meta-link" onClick={() => handleNavigate('project', task?.projectId)}>{projectName}</span>
                               </div>
                             )}
                             {clientName && (
                               <div className="meta-block">
                                 <span className="meta-label">Client:</span>
-                                <span className="meta-val">{clientName}</span>
+                                <span className="meta-val meta-link" onClick={() => {
+                                  const custId = task?.customerId || allCustomers.find(c => c.name === clientName)?.id;
+                                  if (custId) handleNavigate('customer', custId);
+                                }}>{clientName}</span>
                               </div>
                             )}
                           </div>

@@ -73,6 +73,18 @@ export default function Projects({ user, perms, ownerId }) {
     return [p.name, p.client, p.desc, p.status].some(v => (v || '').toLowerCase().includes(q));
   });
 
+  // Handle deep-linking from activity logs
+  useEffect(() => {
+    const openId = localStorage.getItem('tc_open_project');
+    if (openId && projects.length > 0) {
+      const target = projects.find(p => p.id === openId);
+      if (target) {
+        setSelectedProj(target);
+        localStorage.removeItem('tc_open_project');
+      }
+    }
+  }, [projects]);
+
   const [taskForm, setTaskForm] = useState({ title: '', assignTo: '', dueDate: '', priority: 'Medium', status: taskStatuses[0], notes: '', client: '' });
 
   const pf = (k) => (e) => setProjForm(p => ({ ...p, [k]: e.target.value }));
