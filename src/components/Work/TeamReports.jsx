@@ -189,7 +189,7 @@ export default function TeamReports({ user, ownerId, perms }) {
         (clientName || '').replace(/"/g, '""')
       ].map(v => `"${v}"`).join(',');
     });
-    const csvContent = [headers.join(','), ...rows].join('\n');
+    const csvContent = '\uFEFF' + [headers.join(','), ...rows].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -521,8 +521,8 @@ export default function TeamReports({ user, ownerId, perms }) {
         .meta-block { display: flex; align-items: center; gap: 5px; }
         .meta-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; }
         .meta-val { font-size: 11px; color: var(--accent); font-weight: 600; }
-        .meta-link { cursor: pointer; }
-        .meta-link:hover { text-decoration: underline; }
+        .meta-link { cursor: pointer; text-decoration: underline; color: #2563eb; }
+        .meta-link:hover { color: #1e40af; }
 
         @keyframes slideIn {
           from { opacity: 0; transform: translateX(30px); }
