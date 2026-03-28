@@ -365,24 +365,24 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
         .pos-card.out-of-stock { opacity: 0.6; filter: grayscale(1); cursor: not-allowed; border-color: #fee2e2; background: #fffafb; }
         .pos-card.out-of-stock:hover { box-shadow: none; border-color: #fee2e2; }
         
-        .pos-side { background: #fff; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; }
-        .pos-bill-box { flex: 1; display: flex; flex-direction: column; }
-        .pos-bill-head { padding: 12px 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .pos-side { background: #fff; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; height: 100%; min-height: 0; }
+        .pos-bill-box { flex: 1; display: flex; flex-direction: column; min-height: 0; }
+        .pos-bill-head { padding: 12px 15px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
         
-        .pos-cust-sec { padding: 12px 15px; border-bottom: 1px solid var(--bg-soft); }
+        .pos-cust-sec { padding: 12px 15px; border-bottom: 1px solid var(--bg-soft); flex-shrink: 0; }
         .pos-cust-search input { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; outline: none; }
         .pos-cust-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); z-index: 100; max-height: 200px; overflow-y: auto; }
         .pos-cust-opt { padding: 10px 12px; border-bottom: 1px solid var(--bg-soft); cursor: pointer; transition: 0.2s; }
         .pos-cust-opt:hover { background: var(--bg-soft); }
         .pos-selected-cust { background: var(--bg-soft); padding: 8px 12px; border-radius: 8px; display: flex; align-items: center; border: 1px solid var(--border); }
 
-        .pos-cart-list { flex: 1; overflow-y: auto; padding: 10px; }
-        .pos-cart-item { display: flex; align-items: center; gap: 8px; padding: 10px 5px; border-bottom: 1px solid var(--bg-soft); }
+        .pos-cart-list { flex: 1; overflow-y: auto; padding: 10px; min-height: 0; }
+        .pos-cart-item { display: flex; align-items: center; gap: 8px; padding: 10px 5px; border-bottom: 1px solid var(--bg-soft); flex-shrink: 0; }
         .pos-qty-ctrl { display: flex; align-items: center; gap: 8px; background: var(--bg-soft); border-radius: 6px; padding: 3px 6px; }
         .pos-qty-ctrl button { border: none; background: transparent; cursor: pointer; font-weight: 700; width: 16px; font-size: 14px; color: var(--muted); }
         .pos-qty-ctrl span { font-size: 12px; font-weight: 700; min-width: 15px; text-align: center; }
         
-        .pos-bill-foot { padding: 15px; background: var(--bg-soft); border-top: 1px solid var(--border); }
+        .pos-bill-foot { padding: 15px; background: var(--bg-soft); border-top: 1px solid var(--border); flex-shrink: 0; }
         .btn-m { flex: 1; padding: 8px; background: #fff; border: 1px solid var(--border); border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; }
         .btn-m.active { background: #000; color: #fff; border-color: #000; }
         
