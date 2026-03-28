@@ -113,9 +113,18 @@ export default function TeamReports({ user, ownerId, perms }) {
       const tasksWorked = userStats.reduce((sum, s) => sum + (s.tasksWorked || 0), 0);
       const leadsWorked = userStats.reduce((sum, s) => sum + (s.leadsWorked || 0), 0);
       const leadsWon = userStats.reduce((sum, s) => sum + (s.leadsWon || 0), 0);
-      const otherWorks = userStats.reduce((sum, s) => sum + (s.otherWorks || 0), 0);
       
-      const totalActivities = tasksWorked + leadsWorked + otherWorks;
+      // Calculate activities from filtered logs for consistency
+      const userLogs = logs.filter(l => 
+        l.actorId === m.id && 
+        l.createdAt >= dateRange.start && 
+        l.createdAt <= dateRange.end &&
+        l.userName !== 'API System' && 
+        l.userName !== 'Automation Bot (Server)' && 
+        !l.text.includes('🤖')
+      );
+      const totalActivities = userLogs.length;
+      const otherWorks = userLogs.filter(l => l.entityType !== 'task' && l.entityType !== 'lead').length;
 
       return {
         ...m,
@@ -135,7 +144,12 @@ export default function TeamReports({ user, ownerId, perms }) {
 
   const activeMemberLogs = useMemo(() => {
     if (!selectedMember) return [];
-    let lgs = (logs || []).filter(l => l.actorId === selectedId);
+    let lgs = (logs || []).filter(l => 
+      l.actorId === selectedId && 
+      l.userName !== 'API System' && 
+      l.userName !== 'Automation Bot (Server)' && 
+      !l.text.includes('🤖')
+    );
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       lgs = lgs.filter(l => {
@@ -158,7 +172,12 @@ export default function TeamReports({ user, ownerId, perms }) {
   const dayWiseActivity = useMemo(() => {
     if (!selectedMember || !logs) return [];
     const groups = {};
-    const memberLogs = logs.filter(l => l.actorId === selectedId);
+    const memberLogs = logs.filter(l => 
+      l.actorId === selectedId && 
+      l.userName !== 'API System' && 
+      l.userName !== 'Automation Bot (Server)' && 
+      !l.text.includes('🤖')
+    );
     memberLogs.forEach(l => {
       // Only group logs that fall within the current filter range
       if (l.createdAt < dateRange.start || l.createdAt > dateRange.end) return;
