@@ -150,19 +150,25 @@ export default function TeamReports({ user, ownerId, perms }) {
       });
     }
     if (selectedDay) {
-      lgs = lgs.filter(l => new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) === selectedDay);
+      lgs = lgs.filter(l => fmtD(l.createdAt) === selectedDay);
     }
     return lgs.sort((a,b) => b.createdAt - a.createdAt);
   }, [selectedMember, searchQuery, leadMap, taskMap, projectMap, customerMap, selectedDay, logs]);
 
   const dayWiseActivity = useMemo(() => {
-    if (!selectedMember) return [];
-    // We already have day-wise counts in filteredStats
-    return filteredStats
-      .filter(s => s.memberId === selectedMember.id)
-      .map(s => ({ date: fmtD(new Date(s.date).getTime()), count: s.leadsWorked + s.tasksWorked + s.otherWorks }))
+    if (!selectedMember || !logs) return [];
+    const groups = {};
+    logs.forEach(l => {
+      // Only group logs that fall within the current filter range
+      if (l.createdAt < dateRange.start || l.createdAt > dateRange.end) return;
+      
+      const d = fmtD(l.createdAt);
+      if (d === '-') return;
+      groups[d] = (groups[d] || 0) + 1;
+    });
+    return Object.entries(groups).map(([date, count]) => ({ date, count }))
       .sort((a,b) => new Date(b.date) - new Date(a.date));
-  }, [selectedMember, filteredStats]);
+  }, [selectedMember, logs, dateRange]);
 
   const handleNavigate = (type, id) => {
     if (type === 'lead') {
