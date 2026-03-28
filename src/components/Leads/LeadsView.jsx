@@ -50,11 +50,11 @@ export default function LeadsView({ user, perms, ownerId }) {
   const toast = useToast();
 
   const { data, isLoading, error } = db.useQuery({
-    leads: { $: { where: { userId: ownerId } } },
-    customers: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId }, limit: pageSize === 'all' ? undefined : pageSize, offset: pageSize === 'all' ? 0 : (currentPage - 1) * pageSize } },
+    customers: { $: { where: { userId: ownerId }, limit: pageSize === 'all' ? undefined : pageSize, offset: pageSize === 'all' ? 0 : (currentPage - 1) * pageSize } },
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    activityLogs: { $: { where: { userId: ownerId } } },
+    activityLogs: { $: { where: { userId: ownerId }, limit: 100 } },
   });
   const leads = data?.leads || [];
   const customers = data?.customers || [];

@@ -14,7 +14,7 @@ export default function TeamReports({ user, ownerId, perms }) {
   const [selectedDay, setSelectedDay] = useState(null);
 
   const { data, isLoading } = db.useQuery({
-    activityLogs: { $: { where: { userId: ownerId } } },
+    activityLogs: { $: { where: { userId: ownerId }, limit: 1000 } },
     teamMembers: { $: { where: { userId: ownerId } } },
     tasks: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
@@ -174,10 +174,17 @@ export default function TeamReports({ user, ownerId, perms }) {
     }
   };
 
-  const downloadCSV = () => {
-    if (activeMemberLogs.length === 0) return toast('No logs to export', 'info');
+  const downloadCSV = async () => {
+    toast('Preparing full report...', 'info');
+    // Fetch all logs for this member for full history export
+    const fullData = await db.query({ 
+      activityLogs: { $: { where: { userId: ownerId, actorId: selectedId } } } 
+    });
+    const allUserLogs = fullData.activityLogs.sort((a,b) => b.createdAt - a.createdAt);
+    
+    if (allUserLogs.length === 0) return toast('No logs to export', 'info');
     const headers = ['Date', 'Type', 'Activity', 'Reference', 'Project', 'Client'];
-    const rows = activeMemberLogs.map(l => {
+    const rows = allUserLogs.map(l => {
       const task = l.entityType === 'task' ? taskMap[l.entityId] : null;
       const entName = l.entityType === 'lead' ? leadMap[l.entityId] : (task?.title || l.entityName);
       const projectName = task ? projectMap[task.projectId] : '';
@@ -203,9 +210,41 @@ export default function TeamReports({ user, ownerId, perms }) {
     toast('CSV Downloaded', 'success');
   };
 
-  const downloadSummaryCSV = () => {
+  const downloadSummaryCSV = async () => {
+    toast('Preparing full summary...', 'info');
+    // Fetch all logs and members for full history summary
+    const fullData = await db.query({
+      activityLogs: { $: { where: { userId: ownerId } } },
+      teamMembers: { $: { where: { userId: ownerId } } },
+      tasks: { $: { where: { userId: ownerId } } },
+      leads: { $: { where: { userId: ownerId } } }
+    });
+    
+    const allLogs = fullData.activityLogs;
+    const allTeams = fullData.teamMembers;
+    const allT = fullData.tasks;
+    const allL = fullData.leads;
+
+    const fullStats = [
+      { id: ownerId, name: 'Business Owner', email: profile.email || '' },
+      ...allTeams.map(m => ({ id: m.id, name: m.name, email: m.email }))
+    ].map(m => {
+      const uLogs = allLogs.filter(l => l.actorId === m.id || (m.email && l.userName && l.userName.toLowerCase() === m.email.toLowerCase()));
+      return {
+        name: m.name,
+        activityCount: uLogs.length,
+        leadsAssigned: allL.filter(l => l.assign === m.name).length,
+        leadsWorked: new Set(uLogs.filter(l => l.entityType === 'lead' && l.entityId).map(l => l.entityId)).size,
+        leadsWon: uLogs.filter(l => l.entityType === 'lead' && (l.text.includes(`to "${wonStage}"`) || l.text.toLowerCase().includes('converted to customer'))).length,
+        tasksAssigned: allT.filter(t => t.assignTo === m.name).length,
+        tasksWorked: new Set(uLogs.filter(l => l.entityType === 'task' && l.entityId).map(l => l.entityId)).size,
+        tasksCompleted: uLogs.filter(l => l.entityType === 'task' && l.text.includes('to "Completed"')).length,
+        otherWorks: uLogs.filter(l => l.entityType !== 'task' && l.entityType !== 'lead').length
+      };
+    });
+
     const headers = ['Member', 'Activity', 'Leads Assg.', 'Leads Work.', 'Leads Won', 'Tasks Assg.', 'Tasks Work.', 'Tasks Comp.', 'Other Work'];
-    const rows = teamStats.map(s => [
+    const rows = fullStats.map(s => [
       s.name, s.activityCount, s.leadsAssigned, s.leadsWorked, s.leadsWon, s.tasksAssigned, s.tasksWorked, s.tasksCompleted, s.otherWorks
     ].map(v => `"${v}"`).join(','));
     const csvContent = [headers.join(','), ...rows].join('\n');

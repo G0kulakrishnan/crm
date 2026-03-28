@@ -16,11 +16,13 @@ export default function Customers({ user, perms, ownerId }) {
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
   const [form, setForm] = useState(EMPTY_CUSTOMER);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [noteText, setNoteText] = useState('');
   const toast = useToast();
 
   const { data } = db.useQuery({
-    customers: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId }, limit: pageSize === 'all' ? undefined : pageSize, offset: pageSize === 'all' ? 0 : (currentPage - 1) * pageSize } },
     userProfiles: { $: { where: { userId: ownerId } } },
     projects: { $: { where: { userId: ownerId } } },
     quotes: { $: { where: { userId: ownerId } } },
@@ -569,6 +571,18 @@ export default function Customers({ user, perms, ownerId }) {
               ))}
             </tbody>
           </table>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid var(--border)', background: '#f8fafc' }}>
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+              Show: {['25', '50', '100', 'all'].map(z => (
+                <button key={z} onClick={() => { setPageSize(z === 'all' ? 'all' : Number(z)); setCurrentPage(1); }} style={{ margin: '0 4px', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: pageSize === (z === 'all' ? 'all' : Number(z)) ? 'var(--accent)' : '#fff', color: pageSize === (z === 'all' ? 'all' : Number(z)) ? '#fff' : 'var(--text)', cursor: 'pointer' }}>{z}</button>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>Previous</button>
+              <span style={{ fontSize: 13, alignSelf: 'center' }}>Page {currentPage}</span>
+              <button className="btn btn-secondary btn-sm" disabled={customers.length < pageSize || pageSize === 'all'} onClick={() => setCurrentPage(p => p + 1)}>Next</button>
+            </div>
+          </div>
         </div>
       </div>
 
