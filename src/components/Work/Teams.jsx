@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
+import { EMPTY_MEMBER } from '../../utils/constants';
 
 const MODULES = [
   { key: 'Dashboard', actions: ['view'] },
@@ -44,7 +45,6 @@ function normalisePerms(perms) {
   return perms; // already new format
 }
 
-const EMPTY = { name: '', email: '', phone: '', role: 'Sales', active: true };
 const EMPTY_ROLE = { name: '', perms: {} };
 
 export default function Teams({ user, ownerId, perms }) {
@@ -57,7 +57,7 @@ export default function Teams({ user, ownerId, perms }) {
   const [pwdModal, setPwdModal] = useState(null); // holds teamMember being set password
   const [editData, setEditData] = useState(null);
   const [editRole, setEditRole] = useState(null);
-  const [form, setForm] = useState(EMPTY);
+  const [form, setForm] = useState(EMPTY_MEMBER);
   const [roleForm, setRoleForm] = useState(EMPTY_ROLE);
   const [pwdForm, setPwdForm] = useState({ password: '', confirm: '' });
   const [pwdLoading, setPwdLoading] = useState(false);
@@ -193,7 +193,7 @@ export default function Teams({ user, ownerId, perms }) {
       <div className="sh">
         <div><h2>Teams &amp; Roles</h2><div className="sub">Manage team access &amp; permissions</div></div>
         <button className="btn btn-primary btn-sm" onClick={() => {
-          if (tab === 'members') { setEditData(null); setForm({ ...EMPTY, role: roles[0]?.name || '' }); setModal(true); }
+          if (tab === 'members') { setEditData(null); setForm({ ...EMPTY_MEMBER, role: roles[0]?.name || '' }); setModal(true); }
           else { setEditRole(null); setRoleForm(EMPTY_ROLE); setRoleModal(true); }
         }}>+ {tab === 'members' ? 'Add Member' : 'Add Role'}</button>
       </div>

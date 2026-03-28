@@ -5,9 +5,9 @@ import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS, INDIAN_STATES, COUNTRIES } fro
 import DocumentTemplate from './DocumentTemplate';
 import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
+import { EMPTY_CUSTOMER } from '../../utils/constants';
 
 const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, assign: '' };
-const EMPTY_CUSTOMER = { name: '', companyName: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
 
 function calcTotals(items, disc, tdsRate, adj) {
   const its = Array.isArray(items) ? items : (items ? JSON.parse(items) : []);

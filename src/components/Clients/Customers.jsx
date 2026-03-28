@@ -1,11 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
-import { fmtD } from '../../utils/helpers';
+import { fmtD, INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
-import { INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
-
-const EMPTY_CUSTOMER = { name: '', companyName: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} };
+import { EMPTY_CUSTOMER } from '../../utils/constants';
 
 export default function Customers({ user, perms, ownerId }) {
   const canCreate = perms?.can('Customers', 'create') === true;

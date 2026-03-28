@@ -4,6 +4,7 @@ import { id } from '@instantdb/react';
 import { stageBadgeClass, prioBadgeClass, fmtD } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
+import { EMPTY_CUSTOMER } from '../../utils/constants';
 
 const PROJ_EMPTY = { name: '', client: '', status: 'Planning', startDate: '', endDate: '', desc: '', assignTo: '' };
 const DEFAULT_TASK_STATUSES = ['Pending', 'In Progress', 'Completed'];
@@ -48,7 +49,7 @@ export default function Projects({ user, perms, ownerId }) {
   const [noteText, setNoteText] = useState('');
   
   const [custModal, setCustModal] = useState(false);
-  const [newCustForm, setNewCustForm] = useState({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+  const [newCustForm, setNewCustForm] = useState(EMPTY_CUSTOMER);
   
   const ncf = (k) => (e) => setNewCustForm(p => ({ ...p, [k]: e.target.value }));
   const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
@@ -268,7 +269,7 @@ export default function Projects({ user, perms, ownerId }) {
     if (projModal) setProjForm(p => ({ ...p, client: newCustForm.name.trim() }));
     if (taskModal) setTaskForm(p => ({ ...p, client: newCustForm.name.trim() }));
     setCustModal(false);
-    setNewCustForm({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+    setNewCustForm(EMPTY_CUSTOMER);
     toast('Customer created!', 'success');
   };
 

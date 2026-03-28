@@ -3,6 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmt, fmtD } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
+import { EMPTY_CUSTOMER } from '../../utils/constants';
 
 export default function POSBilling({ user, perms, ownerId, settings }) {
   const toast = useToast();
@@ -29,7 +30,7 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
   const [payMode, setPayMode] = useState('Cash');
   const [custModal, setCustModal] = useState(false);
   const [showCartMobile, setShowCartMobile] = useState(false);
-  const [newCustForm, setNewCustForm] = useState({ name: '', companyName: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+  const [newCustForm, setNewCustForm] = useState(EMPTY_CUSTOMER);
 
   // 3. Derived Data
   const products = data?.products || [];
@@ -80,7 +81,7 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
     await db.transact(db.tx.customers[newId].update(custPayload));
     setSelectedCust({ id: newId, ...custPayload });
     setCustModal(false);
-    setNewCustForm({ name: '', companyName: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+    setNewCustForm(EMPTY_CUSTOMER);
     toast('Customer created!', 'success');
   };
 

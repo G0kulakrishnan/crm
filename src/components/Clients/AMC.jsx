@@ -4,6 +4,7 @@ import { id } from '@instantdb/react';
 import { fmtD, fmt, daysLeft } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import { sendEmail, sendEmailMock, renderTemplate } from '../../utils/messaging';
+import { EMPTY_CUSTOMER } from '../../utils/constants';
 import SearchableSelect from '../UI/SearchableSelect';
 
 const EMPTY = { client: '', email: '', phone: '', contractNo: '', cycle: 'Yearly', startDate: '', endDate: '', amount: '', taxRate: 0, plan: '', unit: 'Nos', productId: '', sku: '', status: 'Active', notes: '', assign: '' };

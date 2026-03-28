@@ -4,6 +4,7 @@ import { id } from '@instantdb/react';
 import { fmtD, stageBadgeClass, prioBadgeClass } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
+import { EMPTY_CUSTOMER } from '../../utils/constants';
 
 const DEFAULT_TASK_STATUSES = ['Pending', 'In Progress', 'Completed'];
 
@@ -68,7 +69,7 @@ export default function AllTasks({ user, perms, ownerId }) {
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
   
   const [custModal, setCustModal] = useState(false);
-  const [newCustForm, setNewCustForm] = useState({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+  const [newCustForm, setNewCustForm] = useState(EMPTY_CUSTOMER);
   
   const ncf = (k) => (e) => setNewCustForm(p => ({ ...p, [k]: e.target.value }));
   const nccf = (k) => (e) => setNewCustForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
@@ -224,7 +225,7 @@ export default function AllTasks({ user, perms, ownerId }) {
     await db.transact(db.tx.customers[newId].update({ ...newCustForm, name: newCustForm.name.trim(), userId: ownerId, actorId: user.id, createdAt: Date.now() }));
     setForm(p => ({ ...p, client: newCustForm.name.trim() }));
     setCustModal(false);
-    setNewCustForm({ name: '', email: '', phone: '', address: '', state: '', country: 'India', pincode: '', gstin: '', custom: {} });
+    setNewCustForm(EMPTY_CUSTOMER);
     toast('Customer created!', 'success');
   };
 

@@ -414,7 +414,7 @@ export default function TeamReports({ user, ownerId, perms }) {
             <div className="sh" style={{ borderBottom: '1px solid var(--border)', padding: '15px 20px', background: '#f8fafc', position: 'sticky', top: 0, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 16 }}>Activity Logs: {selectedMember.name}</h3>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Showing recent activity logs</div>
+                <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, fontWeight: 500 }}>Only 30 days logs available, for historical data, select Export Logs CSV</div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <button className="btn btn-secondary btn-sm" onClick={downloadCSV}>Export Logs CSV</button>

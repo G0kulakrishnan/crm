@@ -3,8 +3,9 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD, fmtDT, stageBadgeClass, uid, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, DEFAULT_PROD_CATS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
+import { EMPTY_LEAD } from '../../utils/constants';
 
-const EMPTY_LEAD = { name: '', companyName: '', email: '', phone: '', source: '', stage: '', assign: '', followup: '', label: '', notes: '', productCat: '', remWA: false, remEmail: true, remSMS: false, custom: {} };
+
 
 const DEFAULT_IMPORT_MAPPING = {
   name: { type: 'column', value: '' },
