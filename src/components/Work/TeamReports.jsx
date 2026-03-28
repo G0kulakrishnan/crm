@@ -16,7 +16,6 @@ export default function TeamReports({ user, ownerId, perms }) {
   const toast = useToast();
 
   const { data, isLoading } = db.useQuery({
-    memberStats: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
     tasks: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
@@ -30,7 +29,6 @@ export default function TeamReports({ user, ownerId, perms }) {
     activityLogs: { $: { where: { userId: ownerId }, limit: 5000 } }
   });
 
-  const stats = data?.memberStats || [];
   const logs = logData?.activityLogs || [];
   const team = data?.teamMembers || [];
   const allTasks = data?.tasks || [];
@@ -39,6 +37,20 @@ export default function TeamReports({ user, ownerId, perms }) {
   const allCustomers = data?.customers || [];
   const profile = data?.userProfiles?.[0] || {};
   const wonStage = profile.wonStage || 'Won';
+
+  const members = useMemo(() => [
+    { id: ownerId, name: 'Business Owner', email: profile.email || '' },
+    ...team.map(m => ({ id: m.id, name: m.name, email: m.email }))
+  ], [ownerId, profile.email, team]);
+
+  const memberMap = useMemo(() => {
+    const map = {};
+    members.forEach(m => {
+      map[m.id] = m.name;
+      if (m.email) map[m.email] = m.name; // Fallback to email mapping if actorId doesn't match
+    });
+    return map;
+  }, [members]);
 
   const leadMap = useMemo(() => {
     const map = {};
@@ -90,40 +102,43 @@ export default function TeamReports({ user, ownerId, perms }) {
     return { start: start.getTime(), end: end.getTime() };
   }, [filter, customRange]);
 
-  const filteredStats = useMemo(() => {
-    return stats.filter(s => {
-      const ts = new Date(s.date).getTime();
-      return ts >= dateRange.start && ts <= dateRange.end;
-    });
-  }, [stats, dateRange]);
+  // Helper: check if a log belongs to a given member (by actorId OR userName/email)
+  const isLogByMember = (log, member) => {
+    if (log.actorId === member.id) return true;
+    if (member.email && log.userName && log.userName.toLowerCase() === member.email.toLowerCase()) return true;
+    return false;
+  };
+
+  const isHumanLog = (log) => {
+    return log.userName !== 'API System' && 
+           log.userName !== 'Automation Bot (Server)' && 
+           !(log.text || '').includes('🤖');
+  };
 
   const performanceData = useMemo(() => {
-    const members = [
-      { id: ownerId, name: 'Business Owner', email: profile.email || '' },
-      ...team.map(m => ({ id: m.id, name: m.name, email: m.email }))
-    ];
-
     return members.map(m => {
       const leadsAssigned = allLeads.filter(l => l.assign === m.name).length;
       const tasksAssigned = allTasks.filter(t => t.assignTo === m.name).length;
 
-      const userStats = filteredStats.filter(s => s.memberId === m.id);
-      
-      const tasksCompleted = userStats.reduce((sum, s) => sum + (s.tasksCompleted || 0), 0);
-      const tasksWorked = userStats.reduce((sum, s) => sum + (s.tasksWorked || 0), 0);
-      const leadsWorked = userStats.reduce((sum, s) => sum + (s.leadsWorked || 0), 0);
-      const leadsWon = userStats.reduce((sum, s) => sum + (s.leadsWon || 0), 0);
-      
-      // Calculate activities from filtered logs for consistency
+      // Filter logs for this member using email fallback
       const userLogs = logs.filter(l => 
-        l.actorId === m.id && 
+        isLogByMember(l, m) && 
         l.createdAt >= dateRange.start && 
         l.createdAt <= dateRange.end &&
-        l.userName !== 'API System' && 
-        l.userName !== 'Automation Bot (Server)' && 
-        !l.text.includes('🤖')
+        isHumanLog(l)
       );
+
       const totalActivities = userLogs.length;
+
+      // Derive all metrics from activity logs (single source of truth)
+      const tasksWorked = userLogs.filter(l => l.entityType === 'task').length;
+      const tasksCompleted = userLogs.filter(l => 
+        l.entityType === 'task' && (l.text || '').toLowerCase().includes('completed')
+      ).length;
+      const leadsWorked = userLogs.filter(l => l.entityType === 'lead').length;
+      const leadsWon = userLogs.filter(l => 
+        l.entityType === 'lead' && ((l.text || '').toLowerCase().includes('won') || (l.text || '').toLowerCase().includes('converted'))
+      ).length;
       const otherWorks = userLogs.filter(l => l.entityType !== 'task' && l.entityType !== 'lead').length;
 
       return {
@@ -138,17 +153,15 @@ export default function TeamReports({ user, ownerId, perms }) {
         totalActivities
       };
     }).sort((a, b) => b.totalActivities - a.totalActivities);
-  }, [filteredStats, team, ownerId, profile.email, allLeads, allTasks]);
+  }, [members, logs, dateRange, allLeads, allTasks]);
 
   const selectedMember = useMemo(() => performanceData.find(m => m.id === selectedId), [performanceData, selectedId]);
 
   const activeMemberLogs = useMemo(() => {
     if (!selectedMember) return [];
     let lgs = (logs || []).filter(l => 
-      l.actorId === selectedId && 
-      l.userName !== 'API System' && 
-      l.userName !== 'Automation Bot (Server)' && 
-      !l.text.includes('🤖')
+      isLogByMember(l, selectedMember) && 
+      isHumanLog(l)
     );
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
@@ -173,10 +186,8 @@ export default function TeamReports({ user, ownerId, perms }) {
     if (!selectedMember || !logs) return [];
     const groups = {};
     const memberLogs = logs.filter(l => 
-      l.actorId === selectedId && 
-      l.userName !== 'API System' && 
-      l.userName !== 'Automation Bot (Server)' && 
-      !l.text.includes('🤖')
+      isLogByMember(l, selectedMember) && 
+      isHumanLog(l)
     );
     memberLogs.forEach(l => {
       // Only group logs that fall within the current filter range
@@ -212,7 +223,7 @@ export default function TeamReports({ user, ownerId, perms }) {
       
       // Filter the already-loaded logs by the currently selected member and date range
       const allUserLogs = logs
-        .filter(l => l.actorId === selectedId && l.createdAt >= dateRange.start && l.createdAt <= dateRange.end)
+        .filter(l => isLogByMember(l, selectedMember) && isHumanLog(l) && l.createdAt >= dateRange.start && l.createdAt <= dateRange.end)
         .sort((a,b) => b.createdAt - a.createdAt);
       
       if (allUserLogs.length === 0) return toast('No logs found for selected dates', 'info');
@@ -260,7 +271,7 @@ export default function TeamReports({ user, ownerId, perms }) {
       members.forEach(m => { memberMap[m.id] = m.name; });
 
       const allFilteredLogs = logs
-        .filter(l => l.createdAt >= dateRange.start && l.createdAt <= dateRange.end && !!memberMap[l.actorId])
+        .filter(l => l.createdAt >= dateRange.start && l.createdAt <= dateRange.end && isHumanLog(l) && (memberMap[l.actorId] || memberMap[l.userName]))
         .sort((a,b) => b.createdAt - a.createdAt);
       
       if (allFilteredLogs.length === 0) return toast('No logs found for selected dates', 'info');
@@ -271,7 +282,7 @@ export default function TeamReports({ user, ownerId, perms }) {
         const entName = l.entityType === 'lead' ? leadMap[l.entityId] : (task?.title || l.entityName);
         const projectName = task ? projectMap[task.projectId] : '';
         const clientName = task ? (task.client || (task.customerId ? customerMap[task.customerId] : '')) : '';
-        const memberName = memberMap[l.actorId] || l.userName || 'Unknown';
+        const memberName = memberMap[l.actorId] || memberMap[l.userName] || l.userName || 'Unknown';
 
         return [
           memberName,

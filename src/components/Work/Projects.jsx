@@ -91,19 +91,6 @@ export default function Projects({ user, perms, ownerId }) {
   const pf = (k) => (e) => setProjForm(p => ({ ...p, [k]: e.target.value }));
   const tf = (k) => (e) => setTaskForm(p => ({ ...p, [k]: e.target.value }));
 
-  const logActivity = async (entityId, entityType, text, projectId) => {
-    await db.transact(db.tx.activityLogs[id()].update({
-      entityId,
-      entityType,
-      text,
-      projectId,
-      userId: ownerId,
-      actorId: user.id,
-      userName: user.email,
-      createdAt: Date.now()
-    }));
-  };
-
   const saveProj = async () => {
     if (editProj && !canEditProj) { toast('Permission denied: cannot edit projects', 'error'); return; }
     if (!editProj && !canCreateProj) { toast('Permission denied: cannot create projects', 'error'); return; }

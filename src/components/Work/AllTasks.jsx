@@ -177,20 +177,24 @@ export default function AllTasks({ user, perms, ownerId }) {
         const res = await fetch('/api/data', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, id: editData.id, ...form })
+          body: JSON.stringify({ 
+            module: 'tasks', 
+            ownerId, 
+            actorId: user.id, 
+            userName: user.email, 
+            id: editData.id, 
+            logText: changes.length > 0 ? changes.join(' | ') : null,
+            ...form 
+          })
         });
         if (!res.ok) throw new Error('Failed to update');
-        
-        if (changes.length > 0) {
-          await logActivity(editData.id, changes.join(' | '));
-        }
         
         toast('Updated', 'success');
       } else {
         const res = await fetch('/api/data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, ...form })
+          body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, userName: user.email, ...form })
         });
         if (!res.ok) throw new Error('Failed to create');
         const result = await res.json();
@@ -209,7 +213,7 @@ export default function AllTasks({ user, perms, ownerId }) {
       const res = await fetch('/api/data', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, id: tid })
+        body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, userName: user.email, id: tid, logText: 'Task deleted' })
       });
       if (!res.ok) throw new Error('Failed to delete');
       toast('Deleted', 'error');
@@ -246,7 +250,15 @@ export default function AllTasks({ user, perms, ownerId }) {
       await fetch('/api/data', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, id: t.id, status: nextStatus, logText: `Status changed from "${t.status}" to "${nextStatus}" (quick cycle)` })
+        body: JSON.stringify({ 
+          module: 'tasks', 
+          ownerId, 
+          actorId: user.id, 
+          userName: user.email, 
+          id: t.id, 
+          status: nextStatus, 
+          logText: `Status changed from "${t.status}" to "${nextStatus}" (quick cycle)` 
+        })
       });
       toast(`Status: ${nextStatus}`, 'success');
     } catch (e) { toast('Error: ' + e.message, 'error'); }
