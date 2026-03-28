@@ -14,7 +14,7 @@ export default function TeamReports({ user, ownerId, perms }) {
   const [selectedDay, setSelectedDay] = useState(null);
 
   const { data, isLoading } = db.useQuery({
-    activityLogs: { $: { where: { userId: ownerId }, limit: 1000 } },
+    memberStats: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
     tasks: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
@@ -23,7 +23,13 @@ export default function TeamReports({ user, ownerId, perms }) {
     userProfiles: { $: { where: { userId: ownerId } } }
   });
 
-  const logs = data?.activityLogs || [];
+  // Lazy load activity logs only when a member is selected
+  const { data: logData } = db.useQuery(selectedId ? {
+    activityLogs: { $: { where: { userId: ownerId, actorId: selectedId }, limit: 1000 } }
+  } : null);
+
+  const stats = data?.memberStats || [];
+  const logs = logData?.activityLogs || [];
   const team = data?.teamMembers || [];
   const allTasks = data?.tasks || [];
   const allLeads = data?.leads || [];
@@ -82,9 +88,12 @@ export default function TeamReports({ user, ownerId, perms }) {
     return { start: start.getTime(), end: end.getTime() };
   }, [filter, customRange]);
 
-  const filteredLogs = useMemo(() => {
-    return logs.filter(l => l.createdAt >= dateRange.start && l.createdAt <= dateRange.end);
-  }, [logs, dateRange]);
+  const filteredStats = useMemo(() => {
+    return stats.filter(s => {
+      const ts = new Date(s.date).getTime();
+      return ts >= dateRange.start && ts <= dateRange.end;
+    });
+  }, [stats, dateRange]);
 
   const performanceData = useMemo(() => {
     const members = [
@@ -96,18 +105,15 @@ export default function TeamReports({ user, ownerId, perms }) {
       const leadsAssigned = allLeads.filter(l => l.assign === m.name).length;
       const tasksAssigned = allTasks.filter(t => t.assignTo === m.name).length;
 
-      const userLogs = filteredLogs.filter(l => {
-        const actorMatch = l.actorId === m.id;
-        const emailMatch = m.email && l.userName && l.userName.toLowerCase() === m.email.toLowerCase();
-        return actorMatch || emailMatch;
-      });
+      const userStats = filteredStats.filter(s => s.memberId === m.id);
       
-      const tasksCompleted = userLogs.filter(l => l.entityType === 'task' && l.text.includes('to "Completed"')).length;
-      const tasksWorked = new Set(userLogs.filter(l => l.entityType === 'task' && l.entityId).map(l => l.entityId)).size;
-      const leadsWorked = new Set(userLogs.filter(l => l.entityType === 'lead' && l.entityId).map(l => l.entityId)).size;
-      const leadsWon = userLogs.filter(l => l.entityType === 'lead' && (l.text.includes(`to "${wonStage}"`) || l.text.toLowerCase().includes('converted to customer'))).length;
-      const otherWorks = userLogs.filter(l => l.entityType !== 'task' && l.entityType !== 'lead').length;
-      const totalActivities = userLogs.length;
+      const tasksCompleted = userStats.reduce((sum, s) => sum + (s.tasksCompleted || 0), 0);
+      const tasksWorked = userStats.reduce((sum, s) => sum + (s.tasksWorked || 0), 0);
+      const leadsWorked = userStats.reduce((sum, s) => sum + (s.leadsWorked || 0), 0);
+      const leadsWon = userStats.reduce((sum, s) => sum + (s.leadsWon || 0), 0);
+      const otherWorks = userStats.reduce((sum, s) => sum + (s.otherWorks || 0), 0);
+      
+      const totalActivities = tasksWorked + leadsWorked + otherWorks;
 
       return {
         ...m,
@@ -118,17 +124,16 @@ export default function TeamReports({ user, ownerId, perms }) {
         leadsWorked,
         leadsWon,
         otherWorks,
-        totalActivities,
-        userLogs
+        totalActivities
       };
     }).sort((a, b) => b.totalActivities - a.totalActivities);
-  }, [filteredLogs, team, ownerId, profile.email, wonStage, allLeads, allTasks]);
+  }, [filteredStats, team, ownerId, profile.email, allLeads, allTasks]);
 
   const selectedMember = useMemo(() => performanceData.find(m => m.id === selectedId), [performanceData, selectedId]);
 
   const activeMemberLogs = useMemo(() => {
     if (!selectedMember) return [];
-    let lgs = selectedMember.userLogs || [];
+    let lgs = logs || [];
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       lgs = lgs.filter(l => {
@@ -150,13 +155,12 @@ export default function TeamReports({ user, ownerId, perms }) {
 
   const dayWiseActivity = useMemo(() => {
     if (!selectedMember) return [];
-    const days = {};
-    (selectedMember.userLogs || []).forEach(l => {
-      const ds = new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-      days[ds] = (days[ds] || 0) + 1;
-    });
-    return Object.entries(days).map(([date, count]) => ({ date, count })).sort((a,b) => new Date(b.date) - new Date(a.date));
-  }, [selectedMember]);
+    // We already have day-wise counts in filteredStats
+    return filteredStats
+      .filter(s => s.memberId === selectedMember.id)
+      .map(s => ({ date: fmtD(new Date(s.date).getTime()), count: s.leadsWorked + s.tasksWorked + s.otherWorks }))
+      .sort((a,b) => new Date(b.date) - new Date(a.date));
+  }, [selectedMember, filteredStats]);
 
   const handleNavigate = (type, id) => {
     if (type === 'lead') {
@@ -304,7 +308,7 @@ export default function TeamReports({ user, ownerId, perms }) {
       <div className="stat-grid" style={{ marginBottom: 25 }}>
         <div className="stat-card sc-blue">
           <div className="lbl">Total Activities</div>
-          <div className="val">{filteredLogs.length}</div>
+          <div className="val">{performanceData.reduce((s, m) => s + m.totalActivities, 0)}</div>
         </div>
         <div className="stat-card sc-green">
           <div className="lbl">Tasks Worked</div>

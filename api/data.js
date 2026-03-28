@@ -24,7 +24,41 @@ const COLLECTION_MAP = {
   'appointments': 'appointments',
   'appointmentSettings': 'appointmentSettings',
   'ecomCustomers': 'ecomCustomers',
+  'memberStats': 'memberStats',
 };
+
+async function getStatsTx(db, ownerId, actorId, type) {
+  const today = new Date().toISOString().split('T')[0];
+  const { memberStats } = await db.query({ 
+    memberStats: { $: { where: { userId: ownerId, memberId: actorId, date: today } } } 
+  });
+  
+  let statsId;
+  let current = { leadsWorked: 0, leadsWon: 0, tasksWorked: 0, tasksCompleted: 0, otherWorks: 0 };
+  
+  if (memberStats?.length > 0) {
+    statsId = memberStats[0].id;
+    current = memberStats[0];
+  } else {
+    statsId = id();
+  }
+  
+  const updates = { 
+    leadsWorked: current.leadsWorked || 0,
+    leadsWon: current.leadsWon || 0,
+    tasksWorked: current.tasksWorked || 0,
+    tasksCompleted: current.tasksCompleted || 0,
+    otherWorks: current.otherWorks || 0,
+    [type]: (current[type] || 0) + 1, 
+    updatedAt: Date.now() 
+  };
+  return tx.memberStats[statsId].update({
+    ...updates,
+    userId: ownerId,
+    memberId: actorId,
+    date: today
+  });
+}
 
 export default async function handler(req, res) {
   // CORS headers
@@ -106,17 +140,19 @@ export default async function handler(req, res) {
         }
       }
 
+      const statsType = module === 'tasks' ? 'tasksWorked' : (module === 'leads' ? 'leadsWorked' : 'otherWorks');
+      txs.push(await getStatsTx(db, ownerId, payload.actorId, statsType));
+
       await db.transact(txs);
 
       return res.status(200).json({ success: true, id: newId, message: 'Record created successfully' });
     }
 
-    /* ──────────── UPDATE (PATCH) ──────────── */
     if (method === 'PATCH') {
       const { id: targetId, ...updates } = data;
       if (!targetId) return res.status(400).json({ error: 'Record ID is required for updates' });
 
-      await db.transact([
+      const txs = [
         tx[collection][targetId].update(updates),
         tx.activityLogs[id()].update({
           entityId: targetId,
@@ -128,7 +164,17 @@ export default async function handler(req, res) {
           projectId: projectId || null,
           createdAt: Date.now()
         })
-      ]);
+      ];
+
+      // Update Stats for Completions/Wins
+      if (module === 'tasks' && updates.status === 'Completed') {
+        txs.push(await getStatsTx(db, ownerId, actorId || ownerId, 'tasksCompleted'));
+      }
+      if (module === 'leads' && (updates.stage === 'Won' || (updates.stage || '').toLowerCase().includes('won'))) {
+        txs.push(await getStatsTx(db, ownerId, actorId || ownerId, 'leadsWon'));
+      }
+
+      await db.transact(txs);
 
       return res.status(200).json({ success: true, message: 'Record updated successfully' });
     }
