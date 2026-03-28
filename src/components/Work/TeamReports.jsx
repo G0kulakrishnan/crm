@@ -15,6 +15,8 @@ export default function TeamReports({ user, ownerId, perms }) {
     teamMembers: { $: { where: { userId: ownerId } } },
     tasks: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
+    projects: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } }
   });
 
@@ -22,6 +24,8 @@ export default function TeamReports({ user, ownerId, perms }) {
   const team = data?.teamMembers || [];
   const allTasks = data?.tasks || [];
   const allLeads = data?.leads || [];
+  const allProjects = data?.projects || [];
+  const allCustomers = data?.customers || [];
   const profile = data?.userProfiles?.[0] || {};
   const wonStage = profile.wonStage || 'Won';
 
@@ -33,9 +37,21 @@ export default function TeamReports({ user, ownerId, perms }) {
 
   const taskMap = useMemo(() => {
     const map = {};
-    allTasks.forEach(t => { map[t.id] = t.title; });
+    allTasks.forEach(t => { map[t.id] = t; });
     return map;
   }, [allTasks]);
+
+  const projectMap = useMemo(() => {
+    const map = {};
+    allProjects.forEach(p => { map[p.id] = p.name; });
+    return map;
+  }, [allProjects]);
+
+  const customerMap = useMemo(() => {
+    const map = {};
+    allCustomers.forEach(c => { map[c.id] = c.name; });
+    return map;
+  }, [allCustomers]);
 
   const dateRange = useMemo(() => {
     const now = new Date();
@@ -74,13 +90,16 @@ export default function TeamReports({ user, ownerId, perms }) {
     ];
 
     return members.map(m => {
+      const leadsAssigned = allLeads.filter(l => l.assign === m.name).length;
+      const tasksAssigned = allTasks.filter(t => t.assignTo === m.name).length;
+
       const userLogs = filteredLogs.filter(l => {
         const actorMatch = l.actorId === m.id;
         const emailMatch = m.email && l.userName && l.userName.toLowerCase() === m.email.toLowerCase();
         return actorMatch || emailMatch;
       });
       
-      const tasksDone = userLogs.filter(l => l.entityType === 'task' && l.text.includes('to "Completed"')).length;
+      const tasksCompleted = userLogs.filter(l => l.entityType === 'task' && l.text.includes('to "Completed"')).length;
       const tasksWorked = new Set(userLogs.filter(l => l.entityType === 'task' && l.entityId).map(l => l.entityId)).size;
       const leadsWorked = new Set(userLogs.filter(l => l.entityType === 'lead' && l.entityId).map(l => l.entityId)).size;
       const leadsWon = userLogs.filter(l => l.entityType === 'lead' && (l.text.includes(`to "${wonStage}"`) || l.text.toLowerCase().includes('converted to customer'))).length;
@@ -88,7 +107,9 @@ export default function TeamReports({ user, ownerId, perms }) {
 
       return {
         ...m,
-        tasksDone,
+        leadsAssigned,
+        tasksAssigned,
+        tasksCompleted,
         tasksWorked,
         leadsWorked,
         leadsWon,
@@ -96,7 +117,7 @@ export default function TeamReports({ user, ownerId, perms }) {
         userLogs
       };
     }).sort((a, b) => b.totalActivities - a.totalActivities);
-  }, [filteredLogs, team, ownerId, profile.email, wonStage]);
+  }, [filteredLogs, team, ownerId, profile.email, wonStage, allLeads, allTasks]);
 
   const selectedMember = useMemo(() => performanceData.find(m => m.id === selectedId), [performanceData, selectedId]);
 
@@ -108,13 +129,16 @@ export default function TeamReports({ user, ownerId, perms }) {
       lgs = lgs.filter(l => {
         const textMatch = (l.text || '').toLowerCase().includes(q);
         const nameMatch = (l.entityName || '').toLowerCase().includes(q);
-        const refName = l.entityId && (l.entityType === 'lead' ? leadMap[l.entityId] : l.entityType === 'task' ? taskMap[l.entityId] : '');
+        const task = taskMap[l.entityId];
+        const refName = l.entityType === 'lead' ? leadMap[l.entityId] : task?.title;
         const refMatch = refName && refName.toLowerCase().includes(q);
-        return textMatch || nameMatch || refMatch;
+        const projMatch = task && projectMap[task.projectId]?.toLowerCase().includes(q);
+        const cliMatch = task && (task.client || customerMap[task.customerId] || '').toLowerCase().includes(q);
+        return textMatch || nameMatch || refMatch || projMatch || cliMatch;
       });
     }
     return lgs.sort((a,b) => b.createdAt - a.createdAt);
-  }, [selectedMember, searchQuery, leadMap, taskMap]);
+  }, [selectedMember, searchQuery, leadMap, taskMap, projectMap, customerMap]);
 
   const dayWiseActivity = useMemo(() => {
     if (!selectedMember) return [];
@@ -194,17 +218,17 @@ export default function TeamReports({ user, ownerId, perms }) {
               <thead>
                 <tr>
                   <th style={{ textAlign: 'left' }}>Team Member</th>
-                  <th>Total Activity</th>
-                  <th>Tasks Worked</th>
-                  <th>Leads Worked</th>
+                  <th>Activity</th>
+                  <th>Leads Assg.</th>
+                  <th>Leads Work.</th>
                   <th>Leads Won</th>
-                  <th>Performance</th>
+                  <th>Tasks Assg.</th>
+                  <th>Tasks Work.</th>
+                  <th>Tasks Comp.</th>
                 </tr>
               </thead>
               <tbody>
                 {performanceData.map((m, i) => {
-                  const maxActivity = Math.max(...performanceData.map(x => x.totalActivities), 1);
-                  const score = (m.totalActivities / maxActivity) * 100;
                   const isActive = selectedId === m.id;
                   
                   return (
@@ -214,28 +238,32 @@ export default function TeamReports({ user, ownerId, perms }) {
                           <div style={{ width: 32, height: 32, borderRadius: '50%', background: isActive ? 'var(--accent)' : '#94a3b8', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>
                             {m.name.charAt(0)}
                           </div>
-                          <div>
-                            <div style={{ fontWeight: 700 }}>{m.name}</div>
-                            <div style={{ fontSize: 10, color: 'var(--muted)' }}>{m.email}</div>
+                          <div style={{ maxWidth: 120 }}>
+                            <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</div>
+                            <div style={{ fontSize: 9, color: 'var(--muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.email}</div>
                           </div>
                         </div>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <strong style={{ fontSize: 14 }}>{m.totalActivities}</strong>
+                        <strong style={{ fontSize: 13 }}>{m.totalActivities}</strong>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className="badge bg-blue" style={{ fontSize: 12 }}>{m.tasksWorked}</span>
+                        <span className="badge bg-gray" style={{ fontSize: 11 }}>{m.leadsAssigned}</span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className="badge bg-teal" style={{ fontSize: 12 }}>{m.leadsWorked}</span>
+                        <span className="badge bg-teal" style={{ fontSize: 11 }}>{m.leadsWorked}</span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className="badge bg-green" style={{ fontSize: 12 }}>{m.leadsWon}</span>
+                        <span className="badge bg-green" style={{ fontSize: 11 }}>{m.leadsWon}</span>
                       </td>
-                      <td>
-                        <div style={{ width: '100%', maxWidth: 80, height: 6, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
-                          <div style={{ width: `${score}%`, height: '100%', background: 'var(--accent)', borderRadius: 3 }} />
-                        </div>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge bg-gray" style={{ fontSize: 11 }}>{m.tasksAssigned}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge bg-blue" style={{ fontSize: 11 }}>{m.tasksWorked}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className="badge bg-green" style={{ fontSize: 11 }}>{m.tasksCompleted}</span>
                       </td>
                     </tr>
                   );
@@ -247,62 +275,87 @@ export default function TeamReports({ user, ownerId, perms }) {
 
         {selectedMember && (
           <div className="tw log-detail-view">
-            <div className="tw-head" style={{ justifyContent: 'space-between' }}>
+            <div className="tw-head" style={{ justifyContent: 'space-between', padding: '15px 20px' }}>
               <div>
-                <h3>Activity Logs: {selectedMember.name}</h3>
+                <h3 style={{ margin: 0 }}>Activity Logs: {selectedMember.name}</h3>
                 <div style={{ fontSize: 11, color: 'var(--muted)' }}>{filter} activity details</div>
               </div>
               <button className="btn-icon" onClick={() => setSelectedId(null)}>×</button>
             </div>
             
-            <div style={{ padding: 15, borderBottom: '1px solid var(--border)', display: 'flex', gap: 10 }}>
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, background: '#fff' }}>
                <div style={{ flex: 1, position: 'relative' }}>
                   <input 
                     type="text" 
-                    placeholder="Search activity (e.g. call, won, lead name)..." 
+                    placeholder="Search activity, lead, project or client..." 
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     className="input-sm"
-                    style={{ width: '100%', paddingLeft: 30 }}
+                    style={{ width: '100%', paddingLeft: 35, borderRadius: 20 }}
                   />
-                  <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>🔍</span>
+                  <span style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', opacity: 0.5, fontSize: 14 }}>🔍</span>
                </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', flex: 1, overflow: 'hidden' }}>
-              {/* Day Wise Summary */}
-              <div style={{ borderRight: '1px solid var(--border)', overflowY: 'auto', background: '#f8fafc' }}>
-                <div style={{ padding: '10px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>Day Summary</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', flex: 1, overflow: 'hidden' }}>
+              {/* Day Wise Summary Sidebar */}
+              <div style={{ borderRight: '1px solid var(--border)', overflowY: 'auto', background: '#fcfdfe' }}>
+                <div style={{ padding: '12px 15px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Timeline</div>
                 {dayWiseActivity.map(d => (
-                  <div key={d.date} style={{ padding: '10px 15px', borderBottom: '1px solid #edf2f7', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontSize: 11, fontWeight: 600 }}>{d.date.split(',')[0]}</div>
-                    <div className="badge bg-gray" style={{ fontSize: 10 }}>{d.count}</div>
+                  <div key={d.date} style={{ padding: '12px 15px', borderBottom: '1px solid #f1f5f9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>{d.date.split(',')[0]}</div>
+                    <div className="badge bg-gray" style={{ fontSize: 10, minWidth: 20, textAlign: 'center' }}>{d.count}</div>
                   </div>
                 ))}
               </div>
 
-              {/* Logs List */}
-              <div style={{ overflowY: 'auto', padding: 15, maxHeight: 500 }}>
+              {/* Logs List Main Area */}
+              <div style={{ overflowY: 'auto', padding: '20px', background: '#fff' }}>
                 {activeMemberLogs.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>No activities found matching criteria</div>
-                ) : activeMemberLogs.map((l, i) => {
-                   const entName = l.entityType === 'lead' ? leadMap[l.entityId] : l.entityType === 'task' ? taskMap[l.entityId] : l.entityName;
-                   
-                   return (
-                    <div key={l.id || i} style={{ marginBottom: 15, paddingBottom: 15, borderBottom: '1px solid #f1f5f9' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span className={`badge bg-${l.entityType === 'task' ? 'blue' : l.entityType === 'lead' ? 'teal' : 'gray'}`} style={{ fontSize: 9 }}>{l.entityType}</span>
-                        <span style={{ fontSize: 10, color: 'var(--muted)' }}>{fmtDT(l.createdAt)}</span>
-                      </div>
-                      <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.4 }}>{l.text}</div>
-                      {entName && (
-                         <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 4, fontWeight: 600 }}>
-                            Ref: {entName}
-                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                  <div style={{ textAlign: 'center', padding: '100px 40px', color: 'var(--muted)' }}>
+                    <div style={{ fontSize: 40, marginBottom: 10 }}>📋</div>
+                    <div>No activities found matching criteria</div>
+                  </div>
+                ) : (
+                  <div className="activity-timeline">
+                    {activeMemberLogs.map((l, i) => {
+                      const task = l.entityType === 'task' ? taskMap[l.entityId] : null;
+                      const entName = l.entityType === 'lead' ? leadMap[l.entityId] : task?.title || l.entityName;
+                      const projectName = task ? projectMap[task.projectId] : null;
+                      const clientName = task ? (task.client || (task.customerId ? customerMap[task.customerId] : null)) : null;
+                      
+                      return (
+                        <div key={l.id || i} className="activity-item">
+                          <div className="activity-header">
+                            <span className={`type-tag tag-${l.entityType}`}>{l.entityType}</span>
+                            <span className="activity-time">{fmtDT(l.createdAt)}</span>
+                          </div>
+                          <div className="activity-text">{l.text}</div>
+                          <div className="activity-meta">
+                            {entName && (
+                              <div className="meta-block">
+                                <span className="meta-label">Ref:</span>
+                                <span className="meta-val">{entName}</span>
+                              </div>
+                            )}
+                            {projectName && (
+                              <div className="meta-block">
+                                <span className="meta-label">Project:</span>
+                                <span className="meta-val">{projectName}</span>
+                              </div>
+                            )}
+                            {clientName && (
+                              <div className="meta-block">
+                                <span className="meta-label">Client:</span>
+                                <span className="meta-val">{clientName}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -331,11 +384,17 @@ export default function TeamReports({ user, ownerId, perms }) {
         .bg-gray { background: #f1f5f9; color: #475569; }
 
         .input-sm {
-          height: 32px;
-          border-radius: 6px;
+          height: 36px;
+          border-radius: 8px;
           border: 1px solid #e2e8f0;
-          font-size: 13px;
+          font-size: 14px;
+          transition: all 0.2s;
         }
+        .input-sm:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+
+        .perf-table { width: 100%; border-collapse: collapse; }
+        .perf-table th { font-size: 10px; text-transform: uppercase; color: var(--muted); padding: 12px 8px; border-bottom: 2px solid #f1f5f9; white-space: nowrap; }
+        .perf-table td { padding: 10px 8px; border-bottom: 1px solid #f1f5f9; }
 
         .perf-table tr { cursor: pointer; transition: background 0.2s; }
         .perf-table tr:hover { background: #f8fafc; }
@@ -344,11 +403,36 @@ export default function TeamReports({ user, ownerId, perms }) {
         .log-detail-view {
           display: flex;
           flex-direction: column;
-          animation: slideIn 0.3s ease;
+          animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+          box-shadow: -10px 0 30px rgba(0,0,0,0.05);
+          background: #fff;
+          border-left: 1px solid var(--border);
         }
 
+        .activity-timeline { display: flex; flex-direction: column; gap: 20px; }
+        .activity-item { 
+          padding: 15px; 
+          border-radius: 12px; 
+          background: #f8fafc; 
+          border: 1px solid #edf2f7;
+          transition: transform 0.2s;
+        }
+        .activity-item:hover { transform: translateY(-2px); border-color: #cbd5e1; }
+        
+        .activity-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .type-tag { padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 700; text-transform: uppercase; }
+        .tag-task { background: #dbeafe; color: #1e40af; }
+        .tag-lead { background: #f0fdfa; color: #0f766e; }
+        .activity-time { font-size: 11px; color: var(--muted); }
+        .activity-text { font-size: 13.5px; color: #334155; line-height: 1.5; font-weight: 500; margin-bottom: 10px; }
+        
+        .activity-meta { display: flex; flex-wrap: wrap; gap: 15px; padding-top: 10px; border-top: 1px dashed #e2e8f0; }
+        .meta-block { display: flex; align-items: center; gap: 5px; }
+        .meta-label { font-size: 10px; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+        .meta-val { font-size: 11px; color: var(--accent); font-weight: 600; }
+
         @keyframes slideIn {
-          from { opacity: 0; transform: translateX(20px); }
+          from { opacity: 0; transform: translateX(30px); }
           to { opacity: 1; transform: translateX(0); }
         }
       `}} />
