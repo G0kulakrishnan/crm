@@ -76,7 +76,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             @media print {
               @page { size: A4; margin: 10mm; }
               body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; }
-              .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 0 !important; height: auto !important; min-height: auto !important; }
+              .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 0 !important; width: auto !important; height: auto !important; min-height: auto !important; }
               .no-print { display: none !important; }
               
               /* Break Flexbox for Printing to enable Pagination */
@@ -319,7 +319,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
           @media print {
             @page { size: A4; margin: 10mm; }
             body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; }
-            .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 0 !important; height: auto !important; min-height: auto !important; }
+            .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 0 !important; width: auto !important; height: auto !important; min-height: auto !important; }
             .no-print { display: none !important; }
           }
         `}</style>
