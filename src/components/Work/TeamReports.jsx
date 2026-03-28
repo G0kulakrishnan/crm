@@ -151,7 +151,7 @@ export default function TeamReports({ user, ownerId, perms }) {
       lgs = lgs.filter(l => new Date(l.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) === selectedDay);
     }
     return lgs.sort((a,b) => b.createdAt - a.createdAt);
-  }, [selectedMember, searchQuery, leadMap, taskMap, projectMap, customerMap, selectedDay]);
+  }, [selectedMember, searchQuery, leadMap, taskMap, projectMap, customerMap, selectedDay, logs]);
 
   const dayWiseActivity = useMemo(() => {
     if (!selectedMember) return [];
@@ -179,14 +179,18 @@ export default function TeamReports({ user, ownerId, perms }) {
   };
 
   const downloadCSV = async () => {
-    toast('Preparing full report...', 'info');
-    // Fetch all logs for this member for full history export
-    const fullData = await db.query({ 
-      activityLogs: { $: { where: { userId: ownerId, actorId: selectedId } } } 
-    });
-    const allUserLogs = fullData.activityLogs.sort((a,b) => b.createdAt - a.createdAt);
-    
-    if (allUserLogs.length === 0) return toast('No logs to export', 'info');
+    try {
+      toast('Preparing report...', 'info');
+      // Fetch all logs for this member
+      const fullData = await db.query({ 
+        activityLogs: { $: { where: { userId: ownerId, actorId: selectedId } } } 
+      });
+      // Filter by the currently selected date range
+      const allUserLogs = fullData.activityLogs
+        .filter(l => l.createdAt >= dateRange.start && l.createdAt <= dateRange.end)
+        .sort((a,b) => b.createdAt - a.createdAt);
+      
+      if (allUserLogs.length === 0) return toast('No logs found for selected dates', 'info');
     const headers = ['Date', 'Type', 'Activity', 'Reference', 'Project', 'Client'];
     const rows = allUserLogs.map(l => {
       const task = l.entityType === 'task' ? taskMap[l.entityId] : null;
@@ -212,19 +216,23 @@ export default function TeamReports({ user, ownerId, perms }) {
     link.click();
     document.body.removeChild(link);
     toast('CSV Downloaded', 'success');
+    } catch (err) {
+      console.error(err);
+      toast('Error generating CSV', 'error');
+    }
   };
 
   const downloadSummaryCSV = async () => {
-    toast('Preparing full summary...', 'info');
-    // Fetch all logs and members for full history summary
-    const fullData = await db.query({
-      activityLogs: { $: { where: { userId: ownerId } } },
-      teamMembers: { $: { where: { userId: ownerId } } },
-      tasks: { $: { where: { userId: ownerId } } },
-      leads: { $: { where: { userId: ownerId } } }
-    });
-    
-    const allLogs = fullData.activityLogs;
+    try {
+      toast('Preparing summary...', 'info');
+      const fullData = await db.query({
+        activityLogs: { $: { where: { userId: ownerId } } },
+        teamMembers: { $: { where: { userId: ownerId } } },
+        tasks: { $: { where: { userId: ownerId } } },
+        leads: { $: { where: { userId: ownerId } } }
+      });
+      
+      const allLogs = fullData.activityLogs.filter(l => l.createdAt >= dateRange.start && l.createdAt <= dateRange.end);
     const allTeams = fullData.teamMembers;
     const allT = fullData.tasks;
     const allL = fullData.leads;
@@ -261,6 +269,10 @@ export default function TeamReports({ user, ownerId, perms }) {
     link.click();
     document.body.removeChild(link);
     toast('Summary CSV Downloaded', 'success');
+    } catch (err) {
+      console.error(err);
+      toast('Error generating summary', 'error');
+    }
   };
 
   if (isLoading) return <div className="p-xl">Loading Performance Data...</div>;
@@ -399,14 +411,15 @@ export default function TeamReports({ user, ownerId, perms }) {
 
         {selectedMember && (
           <div className="tw log-detail-view">
-            <div className="sh" style={{ borderBottom: '1px solid var(--border)', padding: '15px 20px', background: '#f8fafc', position: 'sticky', top: 0, zIndex: 10 }}>
+            <div className="sh" style={{ borderBottom: '1px solid var(--border)', padding: '15px 20px', background: '#f8fafc', position: 'sticky', top: 0, zIndex: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
                 <h3 style={{ margin: 0, fontSize: 16 }}>Activity Logs: {selectedMember.name}</h3>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                  Showing recent activity logs. For full historical data, <span className="meta-link" style={{ color: 'var(--accent)', fontWeight: 700, textDecoration: 'underline' }} onClick={downloadCSV}>Download Full CSV</span>
-                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Showing recent activity logs</div>
               </div>
-              <button className="btn-icon" onClick={() => { setSelectedId(null); setSelectedDay(null); }}>✕</button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <button className="btn btn-secondary btn-sm" onClick={downloadCSV}>Export Logs CSV</button>
+                <button className="btn-icon" onClick={() => { setSelectedId(null); setSelectedDay(null); }}>✕</button>
+              </div>
             </div>
             
             <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, background: '#fff' }}>
