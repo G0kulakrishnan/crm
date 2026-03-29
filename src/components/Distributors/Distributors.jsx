@@ -10,11 +10,13 @@ export default function Distributors({ user, ownerId, perms }) {
   const [approveModal, setApproveModal] = useState(null);
   const [commission, setCommission] = useState('');
   const [password, setPassword] = useState('');
+  const [parentDist, setParentDist] = useState('');
+  const [detailsModal, setDetailsModal] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [onboardModal, setOnboardModal] = useState(false);
   const [settingsModal, setSettingsModal] = useState(false);
-  const [onboardForm, setOnboardForm] = useState({ name: '', email: '', phone: '', companyName: '', role: 'Retailer', commission: 0, password: '' });
-  const [settingsForm, setSettingsForm] = useState({ reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional' });
+  const [onboardForm, setOnboardForm] = useState({ name: '', email: '', phone: '', companyName: '', role: 'Retailer', commission: 0, password: '', parentDistributorId: '' });
+  const [settingsForm, setSettingsForm] = useState({ reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional', customFields: [] });
   const toast = useToast();
 
   const { data, isLoading } = db.useQuery({
@@ -28,6 +30,7 @@ export default function Distributors({ user, ownerId, perms }) {
   const profile = data?.userProfiles?.[0] || {};
 
   const applications = useMemo(() => data?.partnerApplications || [], [data?.partnerApplications]);
+  const availableDistributors = useMemo(() => applications.filter(a => a.status === 'Approved' && a.role === 'Distributor'), [applications]);
   
   const filtered = useMemo(() => {
     return applications
@@ -71,6 +74,7 @@ export default function Distributors({ user, ownerId, perms }) {
           phone: onboardForm.phone.trim(),
           companyName: onboardForm.companyName.trim(),
           role: onboardForm.role,
+          parentDistributorId: onboardForm.role === 'Retailer' ? (onboardForm.parentDistributorId || null) : null,
           commission: parseFloat(onboardForm.commission) || 0,
           status: 'Approved',
           appliedAt: Date.now(),
@@ -114,7 +118,8 @@ export default function Distributors({ user, ownerId, perms }) {
   };
 
   const openSettings = () => {
-    const ex = profile?.partnerFormConfig || { reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional' };
+    const ex = profile?.partnerFormConfig || { reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional', customFields: [] };
+    if (!ex.customFields) ex.customFields = [];
     setSettingsForm(ex);
     setSettingsModal(true);
   };
@@ -149,6 +154,7 @@ export default function Distributors({ user, ownerId, perms }) {
         db.tx.partnerApplications[approveModal.id].update({
           status: 'Approved',
           commission: parseFloat(commission) || 0,
+          parentDistributorId: approveModal.role === 'Retailer' ? (parentDist || null) : null,
           approvedAt: Date.now()
         }),
         db.tx.activityLogs[db.id()].update({
@@ -166,6 +172,7 @@ export default function Distributors({ user, ownerId, perms }) {
       setApproveModal(null);
       setPassword('');
       setCommission('');
+      setParentDist('');
     } catch (err) {
       toast(err.message, 'error');
     } finally {
@@ -211,16 +218,16 @@ export default function Distributors({ user, ownerId, perms }) {
       </div>
       
       <div className="tabs">
-        {['Pending', 'Approved', 'Rejected', 'Payouts', 'Products'].map(t => (
+        {['Pending', 'Approved', 'Rejected', 'Payouts', 'Products', 'Hierarchy'].map(t => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-            {t} {!['Payouts', 'Products'].includes(t) && `(${applications.filter(a => a.status === t).length})`}
+            {t} {!['Payouts', 'Products', 'Hierarchy'].includes(t) && `(${applications.filter(a => a.status === t).length})`}
           </div>
         ))}
       </div>
 
       <div className="tw">
         <div className="tw-head">
-          <h3>{tab === 'Payouts' ? 'Commission Payouts' : tab === 'Products' ? 'Partner Products' : `${tab} Partners`}</h3>
+          <h3>{tab === 'Payouts' ? 'Commission Payouts' : tab === 'Products' ? 'Partner Products' : tab === 'Hierarchy' ? 'Network Hierarchy' : `${tab} Partners`}</h3>
           <div className="sw">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
             <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -231,6 +238,8 @@ export default function Distributors({ user, ownerId, perms }) {
             <PayoutsView commissions={commissions} applications={applications} search={search} ownerId={ownerId} user={user} toast={toast} />
           ) : tab === 'Products' ? (
             <ProductsView products={products} search={search} />
+          ) : tab === 'Hierarchy' ? (
+            <HierarchyView applications={applications} />
           ) : (
             <table>
               <thead>
@@ -261,15 +270,16 @@ export default function Distributors({ user, ownerId, perms }) {
                     <td>
                       {tab === 'Pending' && (
                         <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-secondary btn-sm" onClick={() => setDetailsModal(a)}>View</button>
                           <button className="btn btn-primary btn-sm" onClick={() => {
                             setApproveModal(a);
-                            setPassword(Math.random().toString(36).slice(-8)); // auto-generate pass
+                            setPassword(Math.random().toString(36).slice(-8)); 
                           }}>Approve</button>
                           <button className="btn btn-secondary btn-sm" style={{ color: '#dc2626' }} onClick={() => handleReject(a.id)}>Reject</button>
                         </div>
                       )}
                       {tab === 'Approved' && (
-                        <button className="btn btn-secondary btn-sm" onClick={() => toast('View details not implemented', 'info')}>View</button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => setDetailsModal(a)}>View Details</button>
                       )}
                     </td>
                   </tr>
@@ -294,6 +304,25 @@ export default function Distributors({ user, ownerId, perms }) {
               </p>
               
               <form onSubmit={handleApprove}>
+                {approveModal.role === 'Retailer' && (
+                  <div className="form-group" style={{ marginBottom: 15 }}>
+                    <label>Assign to Parent Distributor (Optional)</label>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <select 
+                        value={parentDist} 
+                        onChange={e => setParentDist(e.target.value)}
+                        style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }}
+                      >
+                        <option value="">-- No Parent (Direct) --</option>
+                        {availableDistributors.map(d => (
+                          <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>This retailer will be mapped under the selected distributor in your hierarchy.</div>
+                  </div>
+                )}
+
                 <div className="form-group" style={{ marginBottom: 15 }}>
                   <label>Commission Percentage (%)</label>
                   <input 
@@ -303,6 +332,7 @@ export default function Distributors({ user, ownerId, perms }) {
                     onChange={e => setCommission(e.target.value)} 
                     placeholder="e.g. 15" 
                     required 
+                    style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }}
                   />
                   <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>They will automatically receive this cut from all sales they secure.</div>
                 </div>
@@ -347,25 +377,87 @@ export default function Distributors({ user, ownerId, perms }) {
               </p>
               
               <form onSubmit={handleSettingsSave}>
-                {['Company', 'Address', 'Tax', 'Notes'].map(field => {
-                  const key = `req${field}`;
-                  return (
-                    <div className="form-group" style={{ marginBottom: 15 }} key={field}>
-                      <label style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span>{field === 'Tax' ? 'Tax ID' : field} Field</span>
+                <div style={{ marginBottom: 20 }}>
+                  <h4 style={{ marginBottom: 12, color: '#334155', fontSize: 14 }}>Standard Fields</h4>
+                  {['Company', 'Address', 'Tax', 'Notes'].map(field => {
+                    const key = `req${field}`;
+                    return (
+                      <div className="form-group" style={{ marginBottom: 10 }} key={field}>
+                        <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: 13, fontWeight: 500 }}>{field === 'Tax' ? 'Tax ID' : field} Field</span>
+                          <select 
+                            value={settingsForm[key]} 
+                            onChange={e => setSettingsForm(p => ({ ...p, [key]: e.target.value }))}
+                            style={{ width: 140, padding: '4px 8px', fontSize: 13 }}
+                          >
+                            <option value="Hidden">Hidden</option>
+                            <option value="Optional">Optional</option>
+                            <option value="Required">Required</option>
+                          </select>
+                        </label>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div style={{ marginBottom: 20, borderTop: '1px solid #e2e8f0', paddingTop: 15 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                    <h4 style={{ margin: 0, color: '#334155', fontSize: 14 }}>Custom Fields</h4>
+                    <button type="button" className="btn btn-sm btn-secondary" onClick={() => setSettingsForm(p => ({ ...p, customFields: [...p.customFields, { id: id(), label: '', type: 'Text', required: false }] }))} style={{ fontSize: 12, padding: '4px 8px' }}>
+                      ➕ Add Field
+                    </button>
+                  </div>
+                  
+                  {settingsForm.customFields.length === 0 ? (
+                    <p style={{ fontSize: 13, color: 'var(--muted)', fontStyle: 'italic', margin: 0 }}>No custom fields added yet. Need more data? Add a field here!</p>
+                  ) : (
+                    settingsForm.customFields.map((cf, idx) => (
+                      <div key={cf.id} style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'center', background: '#f8fafc', padding: 10, borderRadius: 6, border: '1px solid #e2e8f0' }}>
+                        <input 
+                          type="text" 
+                          placeholder="Field Label (e.g. Website URL)" 
+                          value={cf.label}
+                          onChange={e => {
+                            const nf = [...settingsForm.customFields];
+                            nf[idx].label = e.target.value;
+                            setSettingsForm({ ...settingsForm, customFields: nf });
+                          }}
+                          style={{ flex: 1, padding: '6px 8px', fontSize: 13, border: '1px solid #cbd5e1', borderRadius: 4 }}
+                          required
+                        />
                         <select 
-                          value={settingsForm[key]} 
-                          onChange={e => setSettingsForm(p => ({ ...p, [key]: e.target.value }))}
-                          style={{ width: 140, padding: 4 }}
+                          value={cf.type}
+                          onChange={e => {
+                            const nf = [...settingsForm.customFields];
+                            nf[idx].type = e.target.value;
+                            setSettingsForm({ ...settingsForm, customFields: nf });
+                          }}
+                          style={{ padding: '6px 8px', fontSize: 13, width: 90, border: '1px solid #cbd5e1', borderRadius: 4 }}
                         >
-                          <option value="Hidden">Hidden</option>
-                          <option value="Optional">Optional</option>
-                          <option value="Required">Required</option>
+                          <option value="Text">Text</option>
+                          <option value="Number">Number</option>
+                          <option value="Date">Date</option>
                         </select>
-                      </label>
-                    </div>
-                  );
-                })}
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, cursor: 'pointer', margin: 0 }}>
+                          <input 
+                            type="checkbox" 
+                            checked={cf.required}
+                            onChange={e => {
+                              const nf = [...settingsForm.customFields];
+                              nf[idx].required = e.target.checked;
+                              setSettingsForm({ ...settingsForm, customFields: nf });
+                            }}
+                          /> Req.
+                        </label>
+                        <button type="button" onClick={() => {
+                          const nf = settingsForm.customFields.filter((_, i) => i !== idx);
+                          setSettingsForm({ ...settingsForm, customFields: nf });
+                        }} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: 16, padding: '0 4px' }} title="Remove Field">🗑️</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+
                 <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
                   <button type="button" className="btn btn-secondary" onClick={() => setSettingsModal(null)}>Cancel</button>
                   <button type="submit" className="btn btn-primary" disabled={submitting}>
@@ -426,6 +518,18 @@ export default function Distributors({ user, ownerId, perms }) {
                   <input type="number" step="0.1" required value={onboardForm.commission} onChange={e => setOnboardForm(p => ({ ...p, commission: e.target.value }))} />
                 </div>
 
+                {onboardForm.role === 'Retailer' && (
+                  <div className="form-group" style={{ marginBottom: 15 }}>
+                    <label>Assign to Parent Distributor (Optional)</label>
+                    <select value={onboardForm.parentDistributorId} onChange={e => setOnboardForm(p => ({ ...p, parentDistributorId: e.target.value }))}>
+                      <option value="">-- No Parent (Direct) --</option>
+                      {availableDistributors.map(d => (
+                        <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 <div className="form-group" style={{ marginBottom: 15 }}>
                   <label>Initial Login Password *</label>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -441,6 +545,83 @@ export default function Distributors({ user, ownerId, perms }) {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {detailsModal && (
+        <div className="mo open">
+          <div className="mo-box" style={{ width: 500 }}>
+            <div className="mo-head">
+              <h3>Partner Details</h3>
+              <button className="btn-icon" onClick={() => setDetailsModal(null)}>✕</button>
+            </div>
+            <div className="mo-body" style={{ padding: 25, maxHeight: '80vh', overflow: 'auto' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, alignItems: 'center' }}>
+                <div>
+                   <h2 style={{ margin: 0 }}>{detailsModal.name}</h2>
+                   <div className="badge" style={{ background: detailsModal.role === 'Distributor' ? '#ede9fe' : '#e0f2fe', color: detailsModal.role === 'Distributor' ? '#6d28d9' : '#0369a1', marginTop: 8 }}>{detailsModal.role}</div>
+                </div>
+                <div style={{ textAlign: 'right' }}>
+                   <div style={{ fontSize: 13, color: 'var(--muted)' }}>Status</div>
+                   <div style={{ fontWeight: 700, color: detailsModal.status === 'Approved' ? '#16a34a' : detailsModal.status === 'Rejected' ? '#dc2626' : '#ca8a04' }}>{detailsModal.status}</div>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 25 }}>
+                <div>
+                   <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>Email Address</label>
+                   <div style={{ fontSize: 14 }}>{detailsModal.email}</div>
+                </div>
+                <div>
+                   <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>Phone Number</label>
+                   <div style={{ fontSize: 14 }}>{detailsModal.phone}</div>
+                </div>
+                <div>
+                   <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>Company Name</label>
+                   <div style={{ fontSize: 14 }}>{detailsModal.companyName || '-'}</div>
+                </div>
+                <div>
+                   <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>Tax ID / GSTIN</label>
+                   <div style={{ fontSize: 14 }}>{detailsModal.taxId || '-'}</div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 25 }}>
+                 <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>Business Address</label>
+                 <div style={{ fontSize: 14, background: '#f8fafc', padding: 12, borderRadius: 8, marginTop: 4, border: '1px solid #e2e8f0' }}>{detailsModal.address || 'No address provided.'}</div>
+              </div>
+
+              {((profile?.partnerFormConfig?.customFields || []).length > 0) && (
+                <div style={{ marginBottom: 25 }}>
+                   <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700, display: 'block', marginBottom: 10 }}>Additional Form Data</label>
+                   <div style={{ background: '#f1f5f9', padding: 15, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                      {profile.partnerFormConfig.customFields.map(cf => (
+                        <div key={cf.id} style={{ marginBottom: 12 }}>
+                           <div style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>{cf.label}</div>
+                           <div style={{ fontSize: 14, color: '#1e293b' }}>{detailsModal.customData?.[cf.id] || <em style={{ color: '#94a3b8' }}>No answer</em>}</div>
+                        </div>
+                      ))}
+                   </div>
+                </div>
+              )}
+
+              <div style={{ marginBottom: 25 }}>
+                 <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', fontWeight: 700 }}>Initial Notes</label>
+                 <div style={{ fontSize: 14, color: '#475569', marginTop: 4 }}>{detailsModal.notes || '-'}</div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, borderTop: '1px solid #e2e8f0', paddingTop: 20 }}>
+                 <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setDetailsModal(null)}>Close</button>
+                 {detailsModal.status === 'Pending' && (
+                   <button className="btn btn-primary" style={{ flex: 1 }} onClick={() => {
+                     setDetailsModal(null);
+                     setApproveModal(detailsModal);
+                     setPassword(Math.random().toString(36).slice(-8)); 
+                   }}>Proceed to Approve</button>
+                 )}
+              </div>
             </div>
           </div>
         </div>
@@ -587,5 +768,89 @@ function ProductsView({ products, search }) {
         ))}
       </tbody>
     </table>
+  );
+}
+
+function HierarchyView({ applications }) {
+  const distributors = useMemo(() => applications.filter(a => a.status === 'Approved' && a.role === 'Distributor'), [applications]);
+  const retailers = useMemo(() => applications.filter(a => a.status === 'Approved' && a.role === 'Retailer'), [applications]);
+
+  const tree = useMemo(() => {
+    return distributors.map(d => {
+      const children = retailers.filter(r => r.parentDistributorId === d.id);
+      return { ...d, children };
+    });
+  }, [distributors, retailers]);
+
+  const directRetailers = useMemo(() => {
+    return retailers.filter(r => !r.parentDistributorId);
+  }, [retailers]);
+
+  return (
+    <div style={{ padding: 20 }}>
+      <div style={{ marginBottom: 24, padding: 15, background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe' }}>
+         <h4 style={{ margin: 0, color: '#1e40af' }}>Network Structure</h4>
+         <p style={{ margin: '4px 0 0', fontSize: 13, color: '#1e40af', opacity: 0.8 }}>Visualizing the mapping between your Distributors and their associated Retailers.</p>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+        {tree.map(d => (
+          <div key={d.id} style={{ border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+            <div style={{ padding: '12px 20px', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                 <div style={{ width: 32, height: 32, background: '#ede9fe', color: '#6d28d9', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>D</div>
+                 <div>
+                   <div style={{ fontWeight: 700, fontSize: 14 }}>{d.name}</div>
+                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>{d.companyName || 'No Company'}</div>
+                 </div>
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#6d28d9', textTransform: 'uppercase' }}>Distributor</div>
+            </div>
+            <div style={{ padding: '10px 20px' }}>
+               {d.children.length === 0 ? (
+                 <div style={{ padding: '8px 40px', fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>No retailers mapped under this distributor.</div>
+               ) : (
+                 d.children.map(r => (
+                   <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', marginLeft: 20, borderTop: '1px dashed #e2e8f0' }}>
+                      <div style={{ width: 8, height: 8, background: '#cbd5e1', borderRadius: '50%' }}></div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 600 }}>{r.name}</div>
+                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Retailer • {r.companyName || 'Indiv.'}</div>
+                      </div>
+                      <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>Approved</div>
+                   </div>
+                 ))
+               )}
+            </div>
+          </div>
+        ))}
+
+        {directRetailers.length > 0 && (
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden', background: '#fff', marginTop: 10 }}>
+            <div style={{ padding: '12px 20px', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                 <div style={{ width: 32, height: 32, background: '#f1f5f9', color: '#475569', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>-</div>
+                 <div>
+                   <div style={{ fontWeight: 700, fontSize: 14 }}>Direct Retailers</div>
+                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>Reporting directly to Company</div>
+                 </div>
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Unmapped</div>
+            </div>
+            <div style={{ padding: '10px 20px' }}>
+               {directRetailers.map(r => (
+                 <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', marginLeft: 20, borderTop: '1px dashed #e2e8f0' }}>
+                    <div style={{ width: 8, height: 8, background: '#cbd5e1', borderRadius: '50%' }}></div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600 }}>{r.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Retailer • {r.companyName || 'Indiv.'}</div>
+                    </div>
+                 </div>
+               ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

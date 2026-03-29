@@ -18,7 +18,8 @@ export default function PartnerRegistration({ params }) {
     companyName: '',
     address: '',
     taxId: '',
-    notes: ''
+    notes: '',
+    customData: {}
   });
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -234,6 +235,27 @@ export default function PartnerRegistration({ params }) {
                   style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', minHeight: 60, resize: 'vertical' }}
                   required={config.reqNotes === 'Required'}
                 />
+              </div>
+            )}
+
+            {config.customFields && config.customFields.length > 0 && (
+              <div style={{ marginTop: 8, marginBottom: 8 }}>
+                <div style={{ height: 1, background: '#e2e8f0', marginBottom: 16 }}></div>
+                {config.customFields.map(cf => (
+                  <div key={cf.id} style={{ marginBottom: 16 }}>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>
+                      {cf.label} {cf.required && '*'}
+                    </label>
+                    <input 
+                      type={cf.type === 'Number' ? 'number' : cf.type === 'Date' ? 'date' : 'text'}
+                      value={form.customData?.[cf.id] || ''} 
+                      onChange={e => setForm(p => ({ ...p, customData: { ...p.customData, [cf.id]: e.target.value } }))}
+                      placeholder={`Enter ${cf.label.toLowerCase()}...`}
+                      style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                      required={cf.required}
+                    />
+                  </div>
+                ))}
               </div>
             )}
 
