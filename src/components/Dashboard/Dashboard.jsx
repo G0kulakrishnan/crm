@@ -18,6 +18,7 @@ export default function Dashboard({ user, ownerId, perms }) {
     expenses: { $: { where: { userId: ownerId } } },
     orders: { $: { where: { userId: ownerId } } },
     appointments: { $: { where: { userId: ownerId } } },
+    partnerCommissions: { $: { where: { userId: ownerId } } },
   });
 
   const profile = data?.userProfiles?.[0] || {};
@@ -31,6 +32,7 @@ export default function Dashboard({ user, ownerId, perms }) {
   const amcRaw = data?.amc || [];
   const ordersRaw = data?.orders || [];
   const apptsRaw = data?.appointments || [];
+  const commissionsRaw = data?.partnerCommissions || [];
   
   console.log("🔍 [Dashboard] Props - ownerId:", ownerId, "perms:", perms?.isOwner ? "Owner" : "Team");
   console.log("📊 [Dashboard] Data - leadsRaw count:", leadsRaw.length);
@@ -146,11 +148,12 @@ export default function Dashboard({ user, ownerId, perms }) {
     });
 
     const totalExpenses = (data?.expenses || []).filter(e => e.status === 'Approved').reduce((s, e) => s + (e.amount || 0), 0);
+    const totalCommissions = commissionsRaw.filter(c => c.status === 'Paid').reduce((s, c) => s + (c.amount || 0), 0);
     const grossProfit = revenue - cogs;
-    const netProfit = grossProfit - totalExpenses;
+    const netProfit = grossProfit - totalExpenses - totalCommissions;
     const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
-    return { revenue, cogs, grossProfit, netProfit, totalExpenses, margin };
-  }, [invoices, data?.products, data?.expenses]);
+    return { revenue, cogs, grossProfit, netProfit, totalExpenses, totalCommissions, margin };
+  }, [invoices, data?.products, data?.expenses, commissionsRaw]);
 
   // Hot Leads
   const hotLeads = useMemo(() => {
@@ -327,16 +330,17 @@ export default function Dashboard({ user, ownerId, perms }) {
         {perms.can('Invoices', 'list') === true && (
           <div className="tw">
             <div className="tw-head"><h3>💰 Profit &amp; Loss Summary</h3><span style={{ fontSize: 11, color: 'var(--muted)' }}>Based on Paid Invoices</span></div>
-            <div className="pnl-grid">
+            <div className="pnl-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
               {[
                 { label: 'Revenue', value: fmt(pnl.revenue), color: '#16a34a', bg: '#f0fdf4' },
                 { label: 'COGS', value: fmt(pnl.cogs), color: '#7c3aed', bg: '#faf5ff' },
                 { label: 'Gross Profit', value: fmt(pnl.grossProfit), color: pnl.grossProfit >= 0 ? '#16a34a' : '#dc2626', bg: pnl.grossProfit >= 0 ? '#f0fdf4' : '#fff5f5' },
                 { label: 'Expenses', value: fmt(pnl.totalExpenses), color: '#d97706', bg: '#fffbeb' },
+                { label: 'Commissions', value: fmt(pnl.totalCommissions), color: '#2563eb', bg: '#eff6ff' },
                 { label: 'Net Profit', value: fmt(pnl.netProfit), color: pnl.netProfit >= 0 ? '#16a34a' : '#dc2626', bg: pnl.netProfit >= 0 ? '#f0fdf4' : '#fff5f5' },
                 { label: 'Margin %', value: `${pnl.margin}%`, color: pnl.margin >= 0 ? '#16a34a' : '#dc2626', bg: pnl.margin >= 0 ? '#f0fdf4' : '#fff5f5' },
               ].map((item, i) => (
-                <div key={i} style={{ padding: '14px 18px', borderRight: (i + 1) % 3 !== 0 ? '1px solid var(--border)' : 'none', borderBottom: i < 3 ? '1px solid var(--border)' : 'none', background: item.bg }}>
+                <div key={i} style={{ padding: '14px 18px', borderRight: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: item.bg }}>
                   <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 4 }}>{item.label}</div>
                   <div style={{ fontSize: 17, fontWeight: 800, color: item.color }}>{item.value}</div>
                 </div>
