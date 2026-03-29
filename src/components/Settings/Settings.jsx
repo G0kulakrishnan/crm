@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
-import { renderTemplate, sendEmailMock, sendEmail, sendWhatsApp } from '../../utils/messaging';
+import { renderTemplate, sendEmailMock, sendEmail, sendWhatsApp, AUTO_TRIGGER_EVENTS } from '../../utils/messaging';
 import { fmtD, INDIAN_STATES, COUNTRIES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, SYSTEM_STAGES, DEFAULT_UNITS } from '../../utils/helpers';
 import DocumentTemplate from '../Finance/DocumentTemplate';
 
@@ -1412,11 +1412,28 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                     );
                   })()}
 
+                  {/* ── Auto-Trigger Settings ── */}
+                  <div style={{ marginTop: 16, padding: 14, background: '#f0fdf4', borderRadius: 10, border: '1px solid #bbf7d0' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase', marginBottom: 8 }}>⚡ Auto-Notification Trigger</div>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <select id="new_wa_trigger" style={{ padding: '8px 12px', border: '1.5px solid #86efac', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', background: '#fff' }}>
+                        {AUTO_TRIGGER_EVENTS.map(e => <option key={e.value} value={e.value}>{e.label}</option>)}
+                      </select>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: '#166534', cursor: 'pointer' }}>
+                        <input type="checkbox" id="new_wa_autoEnabled" style={{ width: 16, height: 16 }} />
+                        Enable Auto-Send
+                      </label>
+                    </div>
+                    <div style={{ fontSize: 11, color: '#15803d', marginTop: 6 }}>When enabled, this template is sent automatically when the selected event occurs — no automation setup needed.</div>
+                  </div>
+
                   <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
                     <button className="btn btn-primary" onClick={async () => {
                       const name = document.getElementById('new_wa_name').value;
                       const templateId = document.getElementById('new_wa_id').value;
                       const body = document.getElementById('new_wa_body').value;
+                      const autoTrigger = document.getElementById('new_wa_trigger').value;
+                      const autoEnabled = document.getElementById('new_wa_autoEnabled').checked;
                       if (!name || !templateId) return toast('Name and Template ID required', 'error');
                       if (!body.trim()) return toast('Template message body is required', 'error');
 
@@ -1424,13 +1441,13 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
 
                       if (editingWA) {
                         const updated = whatsappTemplates.map(t => 
-                          t.id === editingWA.id ? { ...t, name, templateId, body, variables: vars, customCurl: editingWA.customCurl } : t
+                          t.id === editingWA.id ? { ...t, name, templateId, body, variables: vars, customCurl: editingWA.customCurl, autoTrigger, autoEnabled } : t
                         );
                         await saveTemplatesNow(updated);
                         setEditingWA(null);
                         toast('Template updated & saved!', 'success');
                       } else {
-                        const updated = [...whatsappTemplates, { id: id(), name, templateId, body, variables: vars }];
+                        const updated = [...whatsappTemplates, { id: id(), name, templateId, body, variables: vars, autoTrigger, autoEnabled }];
                         await saveTemplatesNow(updated);
                         toast('Template added & saved!', 'success');
                       }
@@ -1438,12 +1455,16 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                       document.getElementById('new_wa_name').value = '';
                       document.getElementById('new_wa_id').value = '';
                       document.getElementById('new_wa_body').value = '';
+                      document.getElementById('new_wa_trigger').value = '';
+                      document.getElementById('new_wa_autoEnabled').checked = false;
                     }}>{editingWA ? 'Update Template' : 'Add Template'}</button>
                     {editingWA && <button className="btn btn-secondary" onClick={() => {
                       setEditingWA(null);
                       document.getElementById('new_wa_name').value = '';
                       document.getElementById('new_wa_id').value = '';
                       document.getElementById('new_wa_body').value = '';
+                      document.getElementById('new_wa_trigger').value = '';
+                      document.getElementById('new_wa_autoEnabled').checked = false;
                     }}>Cancel Edit</button>}
                   </div>
                 </div>
@@ -1478,9 +1499,13 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                                   const nameEl = document.getElementById('new_wa_name');
                                   const idEl = document.getElementById('new_wa_id');
                                   const bodyEl = document.getElementById('new_wa_body');
+                                  const triggerEl = document.getElementById('new_wa_trigger');
+                                  const enabledEl = document.getElementById('new_wa_autoEnabled');
                                   if (nameEl) nameEl.value = t.name;
                                   if (idEl) idEl.value = t.templateId;
                                   if (bodyEl) bodyEl.value = t.body;
+                                  if (triggerEl) triggerEl.value = t.autoTrigger || '';
+                                  if (enabledEl) enabledEl.checked = !!t.autoEnabled;
                                 }, 0);
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}>✏️ Edit</button>
@@ -1512,6 +1537,38 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                             {t.customCurl && (
                               <div style={{ fontSize: 10, marginTop: 6, color: '#92400e', fontWeight: 600 }}>📝 Custom curl command saved</div>
                             )}
+
+                            {/* Auto-Trigger Status */}
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 10, padding: '8px 12px', background: t.autoEnabled ? '#f0fdf4' : '#f8fafc', borderRadius: 8, border: `1px solid ${t.autoEnabled ? '#86efac' : '#e2e8f0'}` }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <span style={{ fontSize: 14 }}>{t.autoEnabled ? '⚡' : '💤'}</span>
+                                <div>
+                                  <div style={{ fontSize: 11, fontWeight: 700, color: t.autoEnabled ? '#166534' : '#64748b' }}>
+                                    {t.autoEnabled ? 'Auto-Send Active' : 'Auto-Send Off'}
+                                  </div>
+                                  {t.autoTrigger && (
+                                    <div style={{ fontSize: 10, color: t.autoEnabled ? '#15803d' : '#94a3b8' }}>
+                                      Trigger: {AUTO_TRIGGER_EVENTS.find(e => e.value === t.autoTrigger)?.label || t.autoTrigger}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={!!t.autoEnabled}
+                                  onChange={async (e) => {
+                                    const updated = whatsappTemplates.map(tpl =>
+                                      tpl.id === t.id ? { ...tpl, autoEnabled: e.target.checked } : tpl
+                                    );
+                                    await saveTemplatesNow(updated);
+                                    toast(e.target.checked ? `Auto-send enabled for "${t.name}"` : `Auto-send disabled for "${t.name}"`, e.target.checked ? 'success' : 'info');
+                                  }}
+                                  style={{ width: 16, height: 16 }}
+                                />
+                                <span style={{ fontSize: 11, fontWeight: 600, color: '#475569' }}>Enable</span>
+                              </label>
+                            </div>
                           </div>
                         </div>
                       );

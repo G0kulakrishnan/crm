@@ -32,6 +32,7 @@ const ALL_MODULES = [
   { key: 'appointments', label: 'Appointments', hasLimit: false },
   { key: 'integrations', label: 'Integrations', hasLimit: false },
   { key: 'messagingLogs', label: 'Messaging Logs', hasLimit: false },
+  { key: 'distributors', label: 'Distributors & Retailers', hasLimit: false },
 ];
 
 const DEFAULT_MODULES = Object.fromEntries(ALL_MODULES.map(m => [m.key, true]));

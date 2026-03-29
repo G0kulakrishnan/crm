@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     }
 
     const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
-    const { action, email, password, otp, fullName, bizName, phone, selectedPlan, newPassword, userId, code, ownerUserId, teamMemberId, ownerId } = req.method === 'POST' ? req.body : req.query;
+    const { action, email, password, otp, fullName, bizName, phone, selectedPlan, newPassword, userId, code, ownerUserId, teamMemberId, partnerId, ownerId } = req.method === 'POST' ? req.body : req.query;
 
     if (!action) return res.status(400).json({ error: 'Action is required' });
 
@@ -34,7 +34,9 @@ export default async function handler(req, res) {
       
       const token = await db.auth.createToken({ email: cleanEmail });
       const isTeamMember = !!(user.isTeamMember && user.ownerUserId);
-      let role = 'Owner', perms = null, finalOwnerId = isTeamMember ? user.ownerUserId : null, finalTeamId = isTeamMember ? user.teamMemberId : null;
+      const isPartner = !!(user.isPartner && user.ownerUserId);
+      
+      let role = 'Owner', perms = null, finalOwnerId = isTeamMember || isPartner ? user.ownerUserId : null, finalTeamId = isTeamMember ? user.teamMemberId : null, finalPartnerId = isPartner ? user.partnerId : null;
 
       if (isTeamMember) {
         const { teamMembers, userProfiles } = await db.query({
@@ -47,6 +49,15 @@ export default async function handler(req, res) {
           role = member.role;
           perms = (profile.roles || []).find(r => r.name === member.role)?.perms || {};
         }
+      } else if (isPartner) {
+        const { partnerApplications } = await db.query({
+          partnerApplications: { $: { where: { id: user.partnerId }, limit: 1 } }
+        });
+        const partner = partnerApplications?.[0];
+        if (partner) {
+          role = partner.role; // 'Distributor' or 'Retailer'
+          // Partners don't use the standard generic permissions system, their access is hardcoded by role
+        }
       } else {
         const { userProfiles } = await db.query({ userProfiles: { $: { where: { email: cleanEmail }, limit: 1 } } });
         if (userProfiles?.[0]) {
@@ -54,7 +65,7 @@ export default async function handler(req, res) {
           role = userProfiles[0].role || 'Owner';
         }
       }
-      return res.status(200).json({ success: true, token, isTeamMember, role, perms, ownerUserId: finalOwnerId, teamMemberId: finalTeamId });
+      return res.status(200).json({ success: true, token, isTeamMember, isPartner, role, perms, ownerUserId: finalOwnerId, teamMemberId: finalTeamId, partnerId: finalPartnerId });
     }
 
     /* ──────────── REGISTER ──────────── */
@@ -88,19 +99,27 @@ export default async function handler(req, res) {
       if (!cleanEmail) return res.status(400).json({ error: 'Email is required' });
       const profileData = await db.query({ userProfiles: { $: { where: { email: cleanEmail } } } });
       const ownerProfile = profileData.userProfiles?.[0];
-      if (ownerProfile) return res.status(200).json({ success: true, isOwner: true, role: 'Owner', perms: null, ownerUserId: ownerProfile.userId });
+      if (ownerProfile) return res.status(200).json({ success: true, isOwner: true, isTeamMember: false, isPartner: false, role: 'Owner', perms: null, ownerUserId: ownerProfile.userId });
 
       const teamData = await db.query({ teamMembers: { $: { where: { email: cleanEmail } } } });
       const member = teamData.teamMembers?.[0];
-      if (!member) return res.status(404).json({ error: 'User not found in any business' });
+      if (member) {
+        const targetOwner = ownerId || member.userId;
+        const { userProfiles } = await db.query({ userProfiles: { $: { where: { userId: targetOwner }, limit: 1 } } });
+        const profile = userProfiles?.[0];
+        if (!profile) return res.status(404).json({ error: 'Business profile not found' });
+  
+        const roleMatch = (profile.roles || []).find(r => r.name === member.role);
+        return res.status(200).json({ success: true, isOwner: false, isTeamMember: true, isPartner: false, role: member.role, perms: roleMatch ? roleMatch.perms : {}, ownerUserId: profile.userId, teamMemberId: member.id, name: member.name });
+      }
 
-      const targetOwner = ownerId || member.userId;
-      const { userProfiles } = await db.query({ userProfiles: { $: { where: { userId: targetOwner }, limit: 1 } } });
-      const profile = userProfiles?.[0];
-      if (!profile) return res.status(404).json({ error: 'Business profile not found' });
+      const partnerData = await db.query({ partnerApplications: { $: { where: { email: cleanEmail, status: 'Approved' } } } });
+      const partner = partnerData.partnerApplications?.[0];
+      if (partner) {
+        return res.status(200).json({ success: true, isOwner: false, isTeamMember: false, isPartner: true, role: partner.role, perms: null, ownerUserId: partner.userId, partnerId: partner.id, name: partner.name });
+      }
 
-      const roleMatch = (profile.roles || []).find(r => r.name === member.role);
-      return res.status(200).json({ success: true, isOwner: false, role: member.role, perms: roleMatch ? roleMatch.perms : {}, ownerUserId: profile.userId, teamMemberId: member.id, name: member.name });
+      return res.status(404).json({ error: 'User not found in any business' });
     }
 
     /* ──────────── PASSWORD MANAGEMENT ──────────── */
@@ -151,6 +170,15 @@ export default async function handler(req, res) {
       const credId = existing.userCredentials?.[0]?.id || id();
       await db.transact([tx.userCredentials[credId].update({ email: cleanEmail, password: hashedPassword, ownerUserId, teamMemberId, isTeamMember: true, updatedAt: Date.now(), ...(existing.userCredentials?.[0]?.id ? {} : { createdAt: Date.now() }) })]);
       return res.status(200).json({ success: true, message: 'Password set' });
+    }
+
+    if (action === 'set-partner-password') {
+      if (!cleanEmail || !password || !ownerUserId || !partnerId) return res.status(400).json({ error: 'Required fields missing' });
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const existing = await db.query({ userCredentials: { $: { where: { email: cleanEmail } } } });
+      const credId = existing.userCredentials?.[0]?.id || id();
+      await db.transact([tx.userCredentials[credId].update({ email: cleanEmail, password: hashedPassword, ownerUserId, partnerId, isPartner: true, updatedAt: Date.now(), ...(existing.userCredentials?.[0]?.id ? {} : { createdAt: Date.now() }) })]);
+      return res.status(200).json({ success: true, message: 'Partner password set' });
     }
 
     return res.status(405).json({ error: 'Action not allowed' });

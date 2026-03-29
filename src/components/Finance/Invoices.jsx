@@ -6,6 +6,7 @@ import DocumentTemplate from './DocumentTemplate';
 import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
 import { EMPTY_CUSTOMER } from '../../utils/constants';
+import { fireAutoNotifications } from '../../utils/messaging';
 
 function calcTotals(items, disc, discType, adj) {
   const its = Array.isArray(items) ? items : (items ? JSON.parse(items) : []);
@@ -44,6 +45,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
     leads: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
+    partnerApplications: { $: { where: { userId: ownerId } } },
   });
   const invoices = useMemo(() => {
     return data?.invoices || [];
@@ -54,6 +56,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
   const leads = data?.leads || [];
   const team = data?.teamMembers || [];
   const profile = data?.userProfiles?.[0] || {};
+  const partnerApplications = data?.partnerApplications || [];
   const wonStage = profile.wonStage || 'Won';
   const taxRates = profile.taxRates || TAX_OPTIONS;
   const customFields = profile.customFields || [];
@@ -187,13 +190,8 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
       payload.no = editData ? editData.no : `INV/${new Date().getFullYear()}/${String(invoices.length + 1).padStart(3, '0')}`;
     }
     
-    let invAction;
-
-    if (editData) {
-      invAction = db.tx.invoices[editData.id].update(payload);
-    } else {
-      invAction = db.tx.invoices[id()].update({ ...payload });
-    }
+    const invId = editData ? editData.id : id();
+    const invAction = db.tx.invoices[invId].update({ ...payload });
 
     const txs = [invAction];
 
@@ -256,6 +254,27 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
         isNewCustomer = true;
       }
     }
+    
+    // Partner Commission Generation
+    const partnerId = cMatch?.partnerId || lMatch?.partnerId;
+    if (partnerId) {
+      const pApp = partnerApplications.find(a => a.id === partnerId);
+      if (pApp && pApp.commission > 0) {
+        const commAmt = Math.round(tots.total * (pApp.commission / 100));
+        const commStatus = (payload.status === 'Paid') ? 'Pending Payout' : 'Awaiting Customer Payment';
+        txs.push(db.tx.partnerCommissions[`${invId}-comm`].update({
+          invoiceId: invId,
+          partnerId: partnerId,
+          amount: commAmt,
+          status: commStatus,
+          userId: ownerId,
+          clientName: payload.client,
+          invoiceNo: payload.no,
+          commissionPct: pApp.commission,
+          updatedAt: Date.now()
+        }));
+      }
+    }
 
     // Inventory Stock Deduction Logic
     if (payload.status === 'Paid' && !editData?.stockDeducted) {
@@ -294,6 +313,23 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
       toast('Invoice saved' + (isAmc ? ' & AMC created' : '') + (isNewCustomer ? ' & Lead Converted!' : ''), 'success');
     }
     
+    // Fire WhatsApp auto-notification for new invoices
+    if (!editData) {
+      const cMatch = customers.find(c => (c.name || '').trim().toLowerCase() === (form.client || '').trim().toLowerCase());
+      const lMatchNotif = leads.find(l => (l.name || '').trim().toLowerCase() === (form.client || '').trim().toLowerCase());
+      const recipientPhone = cMatch?.phone || lMatchNotif?.phone;
+      if (recipientPhone) {
+        fireAutoNotifications('invoice_created', {
+          client: form.client,
+          phone: recipientPhone,
+          invoiceno: payload.no,
+          amount: tots.total,
+          date: payload.date,
+          bizName: profile?.businessName || profile?.bizName || '',
+        }, profile, ownerId).catch(() => {});
+      }
+    }
+    
     setModal(false);
   };
 
@@ -314,6 +350,14 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
         })
       });
       if (!res.ok) throw new Error('Failed to delete invoice');
+      
+      // Cascade delete commission record
+      try {
+        await db.transact(db.tx.partnerCommissions[`${iid}-comm`].delete());
+      } catch (e) {
+         // Silently ignore if no commission record exists
+      }
+
       toast('Invoice deleted', 'error');
     } catch (e) {
       toast('Error deleting invoice', 'error');
@@ -377,8 +421,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
 
   const savePayment = async () => {
     if (!canEdit) { toast('Permission denied: cannot record payments', 'error'); return; }
-    if (!payAmt || parseFloat(payAmt) <= 0) return;
- toast('Invalid amount', 'error');
+    if (!payAmt || parseFloat(payAmt) <= 0) { toast('Invalid amount', 'error'); return; }
     const existing = payModal.payments || [];
     const nw = [...existing, { date: Date.now(), amount: parseFloat(payAmt) }];
     const totalPaid = nw.reduce((s, p) => s + p.amount, 0);
@@ -407,8 +450,36 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
       }
     }
 
+    // Partner Commission Update
+    if (stat === 'Paid') {
+      const pntrId = customers.find(c => (c.name || '').trim().toLowerCase() === (payModal.client || '').trim().toLowerCase())?.partnerId || 
+                     leads.find(l => (l.name || '').trim().toLowerCase() === (payModal.client || '').trim().toLowerCase())?.partnerId;
+      if (pntrId) {
+        txs.push(db.tx.partnerCommissions[`${payModal.id}-comm`].update({
+          status: 'Pending Payout',
+          updatedAt: Date.now()
+        }));
+      }
+    }
+
     await db.transact(txs);
     toast('Payment added' + (isNewCustomer ? ' & Lead Converted!' : ''), 'success');
+    
+    // Fire WhatsApp auto-notification for payment received
+    const cMatchPay = customers.find(c => (c.name || '').trim().toLowerCase() === (payModal.client || '').trim().toLowerCase());
+    const lMatchPay = leads.find(l => (l.name || '').trim().toLowerCase() === (payModal.client || '').trim().toLowerCase());
+    const payRecipientPhone = cMatchPay?.phone || lMatchPay?.phone;
+    if (payRecipientPhone) {
+      fireAutoNotifications('payment_received', {
+        client: payModal.client,
+        phone: payRecipientPhone,
+        invoiceno: payModal.no,
+        amount: parseFloat(payAmt),
+        date: new Date().toISOString().split('T')[0],
+        bizName: profile?.businessName || profile?.bizName || '',
+      }, profile, ownerId).catch(() => {});
+    }
+    
     setPayModal(null);
     setPayAmt('');
   };

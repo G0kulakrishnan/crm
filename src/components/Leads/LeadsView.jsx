@@ -4,6 +4,7 @@ import { id } from '@instantdb/react';
 import { fmtD, fmtDT, stageBadgeClass, uid, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, DEFAULT_PROD_CATS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import { EMPTY_LEAD } from '../../utils/constants';
+import { fireAutoNotifications } from '../../utils/messaging';
 
 
 
@@ -262,6 +263,18 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         await db.transact(db.tx.leads[newId].update({ ...form, userId: ownerId, actorId: user.id, createdAt: Date.now() }));
         await logActivity(newId, `Lead created${form.followup ? ` | Follow Up set to ${fmtDT(form.followup)}` : ''}`);
         toast(`Lead "${form.name}" created!`, 'success');
+        
+        // Fire WhatsApp auto-notification for new lead
+        const profile = data?.userProfiles?.[0];
+        if (profile && form.phone) {
+          fireAutoNotifications('lead_created', {
+            client: form.name,
+            phone: form.phone,
+            email: form.email || '',
+            date: new Date().toISOString().split('T')[0],
+            bizName: profile.bizName || profile.businessName || '',
+          }, profile, ownerId).catch(() => {});
+        }
       }
       setModal(false);
     } catch (e) { toast('Error saving lead', 'error'); }

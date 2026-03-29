@@ -140,3 +140,70 @@ export const sendWhatsApp = async (to, message, ownerId, userId) => {
 export const sendWhatsAppMock = async (userId, to, body, metadata = {}) => {
   await logToOutbox(userId, 'whatsapp', to, body, metadata);
 };
+
+/**
+ * Auto-trigger event types for WhatsApp template notifications.
+ */
+export const AUTO_TRIGGER_EVENTS = [
+  { value: '', label: 'None (Manual Only)' },
+  { value: 'invoice_created', label: 'Invoice Created' },
+  { value: 'payment_received', label: 'Payment Received' },
+  { value: 'appointment_booked', label: 'Appointment Booked' },
+  { value: 'order_placed', label: 'Order Placed (E-commerce)' },
+  { value: 'lead_created', label: 'Lead Created' },
+];
+
+/**
+ * Fires WhatsApp notifications for all templates that have autoEnabled=true
+ * and match the given eventType.
+ *
+ * @param {string} eventType - e.g. 'invoice_created', 'appointment_booked'
+ * @param {object} data - Variables to substitute: { client, phone, invoiceNo, amount, date, bizName, ... }
+ * @param {object} profile - The userProfile object (contains whatsappTemplates, waApiToken, waPhoneId)
+ * @param {string} ownerId - The business owner's userId
+ */
+export const fireAutoNotifications = async (eventType, data, profile, ownerId) => {
+  if (!profile || !ownerId || !eventType) return;
+
+  const templates = profile.whatsappTemplates || [];
+  const matching = templates.filter(t => t.autoTrigger === eventType && t.autoEnabled === true);
+
+  if (matching.length === 0) return;
+
+  // Must have WhatsApp credentials configured
+  const hasCredentials = !!(profile.waApiToken?.trim() && profile.waPhoneId?.trim());
+  if (!hasCredentials) {
+    console.warn(`[AutoNotify] WhatsApp credentials not configured. Skipping ${matching.length} template(s) for event: ${eventType}`);
+    return;
+  }
+
+  // Must have a recipient phone number
+  const phone = data.phone?.replace(/\D/g, '');
+  if (!phone) {
+    console.warn(`[AutoNotify] No phone number provided for event: ${eventType}. Skipping.`);
+    return;
+  }
+
+  for (const tpl of matching) {
+    try {
+      // Build variables from template body using #variable# syntax
+      const varMatches = tpl.body?.match(/#([a-zA-Z_][a-zA-Z0-9_]*)#/g) || [];
+      const variables = varMatches.map((m, i) => {
+        const varName = m.replace(/#/g, '');
+        return { index: i + 1, name: varName, value: data[varName] || '' };
+      });
+
+      const message = {
+        templateId: tpl.templateId,
+        name: tpl.name,
+        body: tpl.body,
+        variables
+      };
+
+      await sendWhatsApp(phone, message, ownerId, ownerId);
+      console.log(`[AutoNotify] ✅ Sent "${tpl.name}" to ${phone} for event: ${eventType}`);
+    } catch (err) {
+      console.error(`[AutoNotify] ❌ Failed to send "${tpl.name}" for event: ${eventType}`, err);
+    }
+  }
+};

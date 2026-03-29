@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { init } from '@instantdb/react';
+import { fireAutoNotifications } from '../../utils/messaging';
 
 const APP_ID = import.meta.env.VITE_INSTANT_APP_ID;
 const db = init({ appId: APP_ID });
@@ -149,7 +150,7 @@ function ProductItem({ p, inCart, t, isDark, addToCart, removeFromCart, primary,
 }
 
 /* ─────────── CHECKOUT MODAL ─────────── */
-function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSuccess, primaryC, isDark }) {
+function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSuccess, primaryC, isDark, profile }) {
   const [form, setForm] = useState({ name: customerSession?.name || '', email: customerSession?.email || '', phone: customerSession?.phone || '', address: customerSession?.address || '', notes: '' });
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -161,7 +162,24 @@ function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSu
     try {
       const res = await fetch('/api/ecom/checkout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ownerId, ecomName, customer: form, items: cart, total }) });
       const data = await res.json();
-      if (data.success) { setDone(true); localStorage.setItem(`session_${ecomName}`, JSON.stringify(form)); onSuccess?.(form); }
+      if (data.success) {
+        setDone(true);
+        localStorage.setItem(`session_${ecomName}`, JSON.stringify(form));
+        onSuccess?.(form);
+        // Fire WhatsApp auto-notification for order placed
+        if (profile) {
+          fireAutoNotifications('order_placed', {
+            client: form.name,
+            phone: form.phone,
+            email: form.email || '',
+            orderId: data.orderId || '',
+            orderAmount: total,
+            orderStatus: 'Placed',
+            date: new Date().toISOString().split('T')[0],
+            bizName: profile?.bizName || '',
+          }, profile, ownerId).catch(() => {});
+        }
+      }
       else alert(data.error);
     } catch (err) { alert('Network error'); } finally { setSubmitting(false); }
   };
@@ -341,7 +359,7 @@ export default function StorePage() {
          </div>
       </main>
 
-      {showCheckout && <CheckoutModal cart={cart} ownerId={ownerId} ecomName={ecomName} customerSession={customerSession} onClose={() => setShowCheckout(false)} onSuccess={setCustomerSession} primaryC={primaryC} isDark={isDark} />}
+      {showCheckout && <CheckoutModal cart={cart} ownerId={ownerId} ecomName={ecomName} customerSession={customerSession} onClose={() => setShowCheckout(false)} onSuccess={setCustomerSession} primaryC={primaryC} isDark={isDark} profile={profile} />}
     </div>
   );
 }

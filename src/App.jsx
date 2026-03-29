@@ -8,6 +8,8 @@ import StorePage from './components/Ecommerce/StorePage';
 import TrackingPage from './components/Ecommerce/TrackingPage';
 import BookingPage from './components/Appointments/BookingPage';
 import UserManual from './components/System/UserManual';
+import PartnerRegistration from './components/Partners/PartnerRegistration';
+import PartnerApp from './components/Partners/PartnerApp';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -81,14 +83,34 @@ function AppInner() {
   const isPublicOrders = path.endsWith('/orders');
   const isPublicBooking = path.endsWith('/book') || path.endsWith('/appointment');
   const isPublicManual = path.endsWith('/manual');
+  const isPartnerReg = path.includes('/partner/register');
 
   if (isPublicManual) return <UserManual isPublic={true} settings={settings} />;
   if (isPublicStore) return <StorePage />;
   if (isPublicOrders) return <TrackingPage />;
   if (isPublicBooking) return <BookingPage />;
+  if (isPartnerReg) return <PartnerRegistration params={{ slug: path.split('/')[1] !== 'partner' ? path.split('/')[1] : '' }} />;
 
   if (!user) {
     return <AuthScreen settings={settings} />;
+  }
+
+  try {
+    const partnerStr = localStorage.getItem('tc_channel_partner');
+    if (partnerStr) {
+      const partnerInfo = JSON.parse(partnerStr);
+      if (partnerInfo?.isPartner) {
+        return (
+          <ErrorBoundary>
+            <AppProvider user={user}>
+              <PartnerApp user={user} settings={settings} partnerInfo={partnerInfo} />
+            </AppProvider>
+          </ErrorBoundary>
+        );
+      }
+    }
+  } catch (e) {
+    console.error('Failed to parse partner info from localStorage', e);
   }
 
   return (

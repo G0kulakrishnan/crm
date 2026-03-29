@@ -91,6 +91,17 @@ export default function AuthScreen({ settings }) {
         localStorage.removeItem('tc_team_member');
       }
 
+      if (data.isPartner) {
+        localStorage.setItem('tc_channel_partner', JSON.stringify({
+          isPartner: true,
+          ownerUserId: data.ownerUserId,
+          partnerId: data.partnerId,
+          role: data.role
+        }));
+      } else {
+        localStorage.removeItem('tc_channel_partner');
+      }
+
       if (tab === 'register') {
         localStorage.setItem('tc_reg_data', JSON.stringify({
           bizName, fullName, phone, selectedPlan: selectedPlan || 'Trial'
@@ -283,6 +294,14 @@ export default function AuthScreen({ settings }) {
               <button type="submit" className="btn btn-primary" style={{ marginTop: 6 }} disabled={loading}>
                 {loading ? 'Processing...' : (authMethod === 'password' ? (tab === 'login' ? 'Sign In' : 'Create Account') : 'Send Magic Code →')}
               </button>
+              
+              {tab === 'login' && (
+                <div style={{ textAlign: 'center', marginTop: 24 }}>
+                  <a href="/partner/register" style={{ fontSize: 13, color: '#64748b', textDecoration: 'none', fontWeight: 600 }}>
+                    Channel Partner? <span style={{ color: 'var(--accent)' }}>Register here →</span>
+                  </a>
+                </div>
+              )}
             </form>
           )}
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { init } from '@instantdb/react';
+import { fireAutoNotifications } from '../../utils/messaging';
 
 const APP_ID = import.meta.env.VITE_INSTANT_APP_ID;
 const db = init({ appId: APP_ID });
@@ -125,7 +126,22 @@ export default function BookingPage() {
         }),
       });
       const result = await res.json();
-      if (result.success) setDone(true);
+      if (result.success) {
+        setDone(true);
+        // Fire WhatsApp auto-notification for appointment booked
+        if (profile) {
+          fireAutoNotifications('appointment_booked', {
+            client: form.name,
+            phone: form.phone,
+            email: form.email || '',
+            apptDate: selectedDate,
+            apptTime: selectedTime,
+            service: selectedService,
+            date: selectedDate,
+            bizName: profile?.bizName || '',
+          }, profile, ownerId).catch(() => {});
+        }
+      }
       else alert(result.error || 'Booking failed');
     } catch (err) {
       alert('Error: ' + err.message);

@@ -38,6 +38,7 @@ import UserProfile from '../Settings/UserProfile';
 import EcomSettings from '../Ecommerce/EcomSettings';
 import EcomOrders from '../Ecommerce/EcomOrders';
 import Appointments from '../Appointments/Appointments';
+import Distributors from '../Distributors/Distributors';
 
 const TRIAL_DAYS = 7;
 const SUPERADMIN_KEY = 'santhanam.gokul@gmail.com';
@@ -300,6 +301,7 @@ export default function MainApp({ user, settings }) {
     'ecom-orders': { component: <EcomOrders ownerId={targetUserId} perms={perms} />, label: 'Ecommerce' },
     appointments: { component: <Appointments ownerId={targetUserId} perms={perms} settings={settings} />, label: 'Appointments' },
     'appointment-settings': { component: <Appointments ownerId={targetUserId} perms={perms} initialTab="settings" settings={settings} />, label: 'Appointments' },
+    distributors: { component: <Distributors user={user} ownerId={targetUserId} perms={perms} />, label: 'Distributors' },
     userprofile: { component: <UserProfile user={user} profile={profile} perms={perms} memberProfile={memberProfile} ownerId={targetUserId} />, label: 'Public' },
     manual: { component: <UserManual settings={settings} />, label: 'Public' },
     settings: { component: <Settings user={user} profile={profile} isExpired={isExpired} ownerId={targetUserId} initialTab={settingsTab} perms={perms} teamInfo={teamMembers.find(m => m.id === teamInfo?.teamMemberId)} memberProfile={memberProfile} settings={settings} />, label: 'Settings' },

@@ -5,7 +5,7 @@ import { fmt, stageBadgeClass, DEFAULT_UNITS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import StockLog from './StockLog';
 
-const EMPTY = { name: '', code: '', type: 'Product', category: 'General', unit: 'Nos', rate: '', purchasePrice: '', tax: 18, desc: '', stock: 0, lowStockThreshold: 5, trackStock: true, listInEcom: false, imageUrl: '', description: '' };
+const EMPTY = { name: '', code: '', type: 'Product', category: 'General', unit: 'Nos', rate: '', purchasePrice: '', tax: 18, desc: '', stock: 0, lowStockThreshold: 5, trackStock: true, listInEcom: false, isPartnerAvailable: false, imageUrl: '', description: '' };
 const generateSKU = () => 'P-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
 const CSV_HEADERS = ['Name', 'Code', 'Category', 'Type', 'Unit', 'Rate', 'PurchasePrice', 'Tax', 'Stock', 'LowStockThreshold', 'TrackStock', 'Description', 'ListInEcom', 'ImageUrl', 'FullDescription'];
@@ -178,6 +178,7 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
       tax: parseFloat(form.tax) || 0, 
       stock: parseFloat(form.stock) || 0,
       lowStockThreshold: parseFloat(form.lowStockThreshold) || 5,
+      isPartnerAvailable: !!form.isPartnerAvailable,
       userId: ownerId 
     };
     if (!payload.code) payload.code = '';
@@ -261,6 +262,7 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
           trackStock: String(row['TrackStock']).toLowerCase() !== 'false',
           desc: row['Description'] || '',
           listInEcom: String(row['ListInEcom']).toLowerCase() === 'true',
+          isPartnerAvailable: String(row['ListInEcom']).toLowerCase() === 'true', // Default to same as ecom on import
           imageUrl: row['ImageUrl'] || '',
           description: row['FullDescription'] || '',
           userId: ownerId,
@@ -397,7 +399,7 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
           <table>
             <thead><tr>
               <th><input type="checkbox" checked={paginated.length > 0 && selectedIds.size === paginated.length} onChange={toggleSelectAll} /></th>
-              <th>#</th><th>Name</th><th>Category</th><th>Code</th><th>Stock</th><th>Unit</th><th>Purchase Price</th><th>Selling Rate</th><th>GST %</th><th>E-com</th><th>Actions</th>
+              <th>#</th><th>Name</th><th>Category</th><th>Code</th><th>Stock</th><th>Unit</th><th>Purchase Price</th><th>Selling Rate</th><th>GST %</th><th>E-com</th><th>Partners</th><th>Actions</th>
             </tr></thead>
             <tbody>
               {paginated.length === 0 ? <tr><td colSpan={12} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No products found.</td></tr>
@@ -444,8 +446,17 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
                         </button>
                       </td>
                       <td>
+                        <button
+                          onClick={() => db.transact(db.tx.products[p.id].update({ isPartnerAvailable: !p.isPartnerAvailable }))}
+                          style={{ background: p.isPartnerAvailable ? '#eff6ff' : 'var(--bg-soft)', color: p.isPartnerAvailable ? '#1d4ed8' : 'var(--muted)', border: `1px solid ${p.isPartnerAvailable ? '#93c5fd' : 'var(--border)'}`, borderRadius: 6, padding: '3px 10px', fontSize: 11, cursor: 'pointer', fontWeight: 600 }}
+                          title={p.isPartnerAvailable ? 'Available to Partners' : 'Hidden from Partners'}
+                        >
+                          {p.isPartnerAvailable ? '🤝 Enabled' : 'Off'}
+                        </button>
+                      </td>
+                      <td>
                         <div style={{ display: 'flex', gap: 4 }}>
-                          {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(p); setForm({ name: p.name, code: p.code || '', type: p.type, category: p.category || 'General', unit: p.unit, rate: p.rate, purchasePrice: p.purchasePrice || '', tax: p.tax, desc: p.desc || '', stock: p.stock || 0, lowStockThreshold: p.lowStockThreshold || 5, trackStock: p.trackStock !== false, listInEcom: p.listInEcom || false, imageUrl: p.imageUrl || '', description: p.description || '' }); setModal(true); }}>Edit</button>}
+                          {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(p); setForm({ name: p.name, code: p.code || '', type: p.type, category: p.category || 'General', unit: p.unit, rate: p.rate, purchasePrice: p.purchasePrice || '', tax: p.tax, desc: p.desc || '', stock: p.stock || 0, lowStockThreshold: p.lowStockThreshold || 5, trackStock: p.trackStock !== false, listInEcom: p.listInEcom || false, isPartnerAvailable: p.isPartnerAvailable || false, imageUrl: p.imageUrl || '', description: p.description || '' }); setModal(true); }}>Edit</button>}
                           {p.trackStock && <button className="btn btn-secondary btn-sm" onClick={() => setShowLog(showLog === p.id ? null : p.id)}>History</button>}
                           {canDelete && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(p.id)}>Del</button>}
                         </div>
@@ -506,14 +517,24 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
                 
                 <div className="fg span2" style={{ borderTop: '2px dashed var(--border)', paddingTop: 16, marginTop: 4 }}>
                   <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: 6 }}>🛒 E-Commerce Settings</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', background: form.listInEcom ? '#ecfdf5' : 'var(--bg-soft)', padding: 12, borderRadius: 8, border: `1.5px solid ${form.listInEcom ? '#6ee7b7' : 'var(--border)'}` }}>
-                      <input type="checkbox" checked={form.listInEcom} onChange={e => setForm(p => ({ ...p, listInEcom: e.target.checked }))} style={{ width: 18, height: 18 }} />
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>List this product in E-commerce Store</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Customers visiting your store URL will see this product</div>
-                      </div>
-                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', background: form.listInEcom ? '#ecfdf5' : 'var(--bg-soft)', padding: 12, borderRadius: 8, border: `1.5px solid ${form.listInEcom ? '#6ee7b7' : 'var(--border)'}` }}>
+                        <input type="checkbox" checked={form.listInEcom} onChange={e => setForm(p => ({ ...p, listInEcom: e.target.checked }))} style={{ width: 18, height: 18 }} />
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>List in E-commerce Store</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Public URL catalog</div>
+                        </div>
+                      </label>
+                      
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', background: form.isPartnerAvailable ? '#eff6ff' : 'var(--bg-soft)', padding: 12, borderRadius: 8, border: `1.5px solid ${form.isPartnerAvailable ? '#93c5fd' : 'var(--border)'}` }}>
+                        <input type="checkbox" checked={form.isPartnerAvailable} onChange={e => setForm(p => ({ ...p, isPartnerAvailable: e.target.checked }))} style={{ width: 18, height: 18 }} />
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>Enable for Channel Partners</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Distributors & Retailers can sell this</div>
+                        </div>
+                      </label>
+                    </div>
+
                     <div className="fg" style={{ marginBottom: 0 }}>
                       <label>Product Image URL
                         <span style={{ fontSize: 10, color: 'var(--muted)', marginLeft: 8, fontWeight: 400 }}>Recommended: 800×800px, PNG/JPG, max 200KB</span>
@@ -525,7 +546,7 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
                       <label>Full Product Description <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>(shown on product detail page in store)</span></label>
                       <textarea value={form.description} onChange={f('description')} style={{ minHeight: 80 }} placeholder="Detailed product description, features, specifications..." />
                     </div>
-                  </div>
+
                 </div>
               </div>
             </div>
