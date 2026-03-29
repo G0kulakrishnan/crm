@@ -273,7 +273,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
       {tab === 'Payouts' ? (
         <PayoutsView applications={applications} commissions={commissions} toast={toast} />
       ) : tab === 'Reports' ? (
-        <ReportsView commissions={commissions} applications={applications.filter(a => a.status === 'Approved')} ownerId={ownerId} />
+        <ReportsView commissions={commissions} applications={applications.filter(a => a.status === 'Approved')} ownerId={ownerId} profile={profile} />
       ) : (
       <div className="tw">
         <div className="tw-head">
@@ -880,8 +880,11 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
 
 const DATE_FILTERS = ['Today', 'Yesterday', 'This Month', 'This Year', 'Custom'];
 
-function ReportsView({ commissions, applications, ownerId }) {
+function ReportsView({ commissions, applications, ownerId, profile }) {
   const [filter, setFilter] = useState('This Month');
+  const dAlias = profile?.distributorAlias || 'Distributor';
+  const rAlias = profile?.retailerAlias || 'Retailer';
+  const roleDisplay = (role) => role === 'Distributor' ? dAlias : role === 'Retailer' ? rAlias : role;
   const [customRange, setCustomRange] = useState({ start: '', end: '' });
   const [groupBy, setGroupBy] = useState('Partner');
 
