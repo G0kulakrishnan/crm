@@ -47,6 +47,7 @@ export default function Reports({ user, perms, ownerId, profile }) {
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     activityLogs: { $: { where: { userId: ownerId } } },
+    partnerCommissions: { $: { where: { userId: ownerId } } },
   });
 
   const invoices = data?.invoices || [];
@@ -54,6 +55,7 @@ export default function Reports({ user, perms, ownerId, profile }) {
   const leads = data?.leads || [];
   const tasks = data?.tasks || [];
   const team = data?.teamMembers || [];
+  const commissions = data?.partnerCommissions || [];
 
   const isTeam = perms && !perms.isOwner;
   const canSeeAll = perms?.isAdmin || perms?.isManager || !isTeam;
@@ -118,8 +120,19 @@ export default function Reports({ user, perms, ownerId, profile }) {
   }, [filteredInv, filteredExp]);
 
   const totalExp = useMemo(() => filteredExp.filter(e => e.status === 'Approved').reduce((s, e) => s + (e.amount || 0), 0), [filteredExp]);
+  const totalCommissions = useMemo(() => {
+    return commissions
+      .filter(c => c.status === 'Paid')
+      .filter(c => {
+        const d = c.paidAt || c.updatedAt;
+        if (!d) return false;
+        const dt = new Date(d);
+        return dt >= new Date(fromDate) && dt <= new Date(toDate + 'T23:59:59');
+      })
+      .reduce((s, c) => s + (c.amount || 0), 0);
+  }, [commissions, fromDate, toDate]);
   const netGst = gst - inputGst;
-  const profit = revenue - totalExp;
+  const profit = revenue - totalExp - totalCommissions;
 
   // Lead pipeline
   const STAGE_ORDER = (profile?.leadStages?.length > 0 
@@ -313,6 +326,7 @@ export default function Reports({ user, perms, ownerId, profile }) {
           <div className="stat-grid" style={{ marginBottom: 18 }}>
             <div className="stat-card sc-green"><div className="lbl">Revenue (Paid)</div><div className="val" style={{ fontSize: 20 }}>{fmt(revenue)}</div></div>
             <div className="stat-card sc-red"><div className="lbl">Expenses</div><div className="val" style={{ fontSize: 20 }}>{fmt(totalExp)}</div></div>
+            <div className="stat-card" style={{ background: '#faf5ff' }}><div className="lbl" style={{ color: '#7c3aed' }}>Partner Commissions</div><div className="val" style={{ fontSize: 20, color: '#7c3aed' }}>{fmt(totalCommissions)}</div></div>
             <div className={`stat-card ${profit >= 0 ? 'sc-green' : 'sc-red'}`}><div className="lbl">Net Profit</div><div className="val" style={{ fontSize: 20 }}>{fmt(profit)}</div></div>
             <div className="stat-card sc-blue"><div className="lbl">GST Collected</div><div className="val" style={{ fontSize: 20 }}>{fmt(gst)}</div></div>
           </div>

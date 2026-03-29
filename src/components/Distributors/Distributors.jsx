@@ -18,7 +18,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
   const [onboardModal, setOnboardModal] = useState(false);
   const [settingsModal, setSettingsModal] = useState(false);
   const [onboardForm, setOnboardForm] = useState({ name: '', email: '', phone: '', companyName: '', role: 'Retailer', commission: 0, password: '', parentDistributorId: '', village: '', city: '', district: '', pincode: '', state: '' });
-  const [settingsForm, setSettingsForm] = useState({ reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional', customFields: [] });
+  const [settingsForm, setSettingsForm] = useState({ reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional', customFields: [], defaultDistributorCommission: 0, defaultRetailerCommission: 0 });
   const toast = useToast();
 
   const { data, isLoading } = db.useQuery({
@@ -120,7 +120,9 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
     try {
       await db.transact(
         db.tx.userProfiles[profile.id].update({
-          partnerFormConfig: settingsForm
+          partnerFormConfig: settingsForm,
+          defaultDistributorCommission: parseFloat(settingsForm.defaultDistributorCommission) || 0,
+          defaultRetailerCommission: parseFloat(settingsForm.defaultRetailerCommission) || 0
         })
       );
       toast('Form settings saved!', 'success');
@@ -135,7 +137,11 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
   const openSettings = () => {
     const ex = profile?.partnerFormConfig || { reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional', customFields: [] };
     if (!ex.customFields) ex.customFields = [];
-    setSettingsForm(ex);
+    setSettingsForm({
+      ...ex,
+      defaultDistributorCommission: profile?.defaultDistributorCommission || 0,
+      defaultRetailerCommission: profile?.defaultRetailerCommission || 0
+    });
     setSettingsModal(true);
   };
 
@@ -231,9 +237,9 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
           </div>
           <button className="btn btn-secondary btn-sm" onClick={openSettings}>⚙️ Form Config</button>
           <button className="btn btn-primary btn-sm" onClick={() => {
-             setOnboardForm(p => ({ ...p, password: Math.random().toString(36).slice(-8) }));
+           setOnboardForm(p => ({ ...p, password: Math.random().toString(36).slice(-8) }));
              setOnboardModal(true);
-          }}>➕ Onboard Partner</button>
+          }}> ➕ Onboard Partner</button>
         </div>
       </div>
       
@@ -303,7 +309,10 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
                           <button className="btn btn-secondary btn-sm" onClick={() => setDetailsModal(a)}>View</button>
                           <button className="btn btn-primary btn-sm" onClick={() => {
                             setApproveModal(a);
-                            setPassword(Math.random().toString(36).slice(-8)); 
+                            setPassword(Math.random().toString(36).slice(-8));
+                            setCommission(a.role === 'Distributor'
+                              ? (profile?.defaultDistributorCommission || '')
+                              : (profile?.defaultRetailerCommission || ''));
                           }}>Approve</button>
                           <button className="btn btn-secondary btn-sm" style={{ color: '#dc2626' }} onClick={() => handleReject(a.id)}>Reject</button>
                         </div>
@@ -431,6 +440,21 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
                 </div>
 
                 <div style={{ marginBottom: 20, borderTop: '1px solid #e2e8f0', paddingTop: 15 }}>
+                  <h4 style={{ marginBottom: 8, color: '#334155', fontSize: 14 }}>Default Commission Rates</h4>
+                  <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>Pre-fills when approving a new partner. Still changeable per-partner.</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="form-group">
+                      <label style={{ fontSize: 13, fontWeight: 500 }}>Distributor Default %</label>
+                      <input type="number" step="0.1" min="0" max="100" value={settingsForm.defaultDistributorCommission} onChange={e => setSettingsForm(p => ({ ...p, defaultDistributorCommission: e.target.value }))} placeholder="e.g. 10" />
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: 13, fontWeight: 500 }}>Retailer Default %</label>
+                      <input type="number" step="0.1" min="0" max="100" value={settingsForm.defaultRetailerCommission} onChange={e => setSettingsForm(p => ({ ...p, defaultRetailerCommission: e.target.value }))} placeholder="e.g. 5" />
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 20, borderTop: '1px solid #e2e8f0', paddingTop: 15 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
                     <h4 style={{ margin: 0, color: '#334155', fontSize: 14 }}>Custom Fields</h4>
                     <button type="button" className="btn btn-sm btn-secondary" onClick={() => setSettingsForm(p => ({ ...p, customFields: [...p.customFields, { id: id(), label: '', type: 'Text', required: false }] }))} style={{ fontSize: 12, padding: '4px 8px' }}>
@@ -520,7 +544,11 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
                   </div>
                   <div className="form-group">
                     <label>Role *</label>
-                    <select required value={onboardForm.role} onChange={e => setOnboardForm(p => ({ ...p, role: e.target.value }))}>
+                    <select required value={onboardForm.role} onChange={e => {
+                        const role = e.target.value;
+                        const defComm = role === 'Distributor' ? (profile?.defaultDistributorCommission || 0) : (profile?.defaultRetailerCommission || 0);
+                        setOnboardForm(p => ({ ...p, role, commission: defComm }));
+                      }}>
                       <option value="Distributor">Distributor</option>
                       <option value="Retailer">Retailer</option>
                     </select>
