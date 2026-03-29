@@ -30,6 +30,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const [search, setSearch] = useState('');
   const [srcFilter, setSrcFilter] = useState('');
   const [stgFilter, setStgFilter] = useState('');
+  const [staffFilter, setStaffFilter] = useState('');
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
   const [form, setForm] = useState(EMPTY_LEAD);
@@ -153,11 +154,17 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       .filter(l => !srcFilter || l.source === srcFilter)
       .filter(l => !stgFilter || l.stage === stgFilter)
       .filter(l => {
+        if (!staffFilter) return true;
+        if (staffFilter === 'unassigned') return !l.assign;
+        if (staffFilter === 'my') return l.assign === user.email || l.assign === user.name;
+        return l.assign === staffFilter;
+      })
+      .filter(l => {
         if (!search) return true;
         const q = search.toLowerCase();
         return [l.name, l.email, l.phone, l.source, l.stage, l.assign, l.label, l.notes].some(v => (v || '').toLowerCase().includes(q));
       });
-  }, [visibleLeads, tab, srcFilter, stgFilter, search]);
+  }, [visibleLeads, tab, srcFilter, stgFilter, staffFilter, search, user]);
 
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
   const paginated = useMemo(() => {
@@ -166,7 +173,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     return filtered.slice(start, start + pageSize);
   }, [filtered, currentPage, pageSize]);
 
-  useEffect(() => { setCurrentPage(1); }, [tab, search, srcFilter, stgFilter, pageSize]);
+  useEffect(() => { setCurrentPage(1); }, [tab, search, srcFilter, stgFilter, staffFilter, pageSize]);
 
   const overdueCount = visibleLeads.filter(l => l.followup && new Date(l.followup) < new Date()).length;
   const todayCount = visibleLeads.filter(l => l.followup && new Date(l.followup).toDateString() === new Date().toDateString()).length;
@@ -776,6 +783,33 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         ))}
       </div>
 
+      <div style={{ display: 'flex', gap: 10, padding: '15px 0', alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="sw" style={{ flex: 1, maxWidth: 350 }}>
+          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+          <input className="si" placeholder="Search leads..." value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        <select className="si" style={{ width: 140 }} value={srcFilter} onChange={e => setSrcFilter(e.target.value)}>
+          <option value="">All Sources</option>
+          {activeSources.map(s => <option key={s}>{s}</option>)}
+        </select>
+        <select className="si" style={{ width: 140 }} value={stgFilter} onChange={e => setStgFilter(e.target.value)}>
+          <option value="">All Stages</option>
+          {allStages.map(s => <option key={s}>{s}</option>)}
+        </select>
+        <select className="si" style={{ width: 140 }} value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
+          <option value="">All Staff</option>
+          <option value="my">My Leads</option>
+          <option value="unassigned">Unassigned</option>
+          {team.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+        </select>
+        <button className="btn btn-secondary btn-sm" style={{ height: 36 }} onClick={() => { 
+          setTempCols(activeCols); 
+          setTempStages(savedLeadStages || allStages); 
+          setTempPageSize(pageSize);
+          setColModal(true); 
+        }}>⚙ Configure View</button>
+      </div>
+
       {view === 'list' ? (
         <div>
           {/* Bulk Bar */}
@@ -795,32 +829,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
             </div>
           )}
 
-          {/* Table */}
           <div className="tw">
-            <div className="tw-head">
-              <div style={{ flex: 1 }}></div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <div className="sw">
-                  <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-                  <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
-                </div>
-                <select className="si" style={{ width: 130 }} value={srcFilter} onChange={e => setSrcFilter(e.target.value)}>
-                  <option value="">All Sources</option>
-                  {activeSources.map(s => <option key={s}>{s}</option>)}
-                </select>
-                <select className="si" style={{ width: 130 }} value={stgFilter} onChange={e => setStgFilter(e.target.value)}>
-                  <option value="">All Stages</option>
-                  {allStages.map(s => <option key={s}>{s}</option>)}
-                </select>
-                <button className="btn btn-secondary btn-sm" onClick={() => { 
-                  setTempCols(activeCols); 
-                  setTempStages(savedLeadStages || allStages); 
-                  setTempPageSize(pageSize);
-                  setColModal(true); 
-                }}>⚙ Configure View</button>
-              </div>
-            </div>
-
             {/* Top Pagination & Show Dropdown */}
             <div style={{ padding: '8px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', background: 'var(--bg-soft)', gap: 15 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
