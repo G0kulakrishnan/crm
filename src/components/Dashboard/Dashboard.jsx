@@ -3,7 +3,7 @@ import db from '../../instant';
 import { useApp } from '../../context/AppContext';
 import { fmt, fmtD, fmtDT, daysLeft, stageBadgeClass } from '../../utils/helpers';
 
-export default function Dashboard({ user, ownerId, perms }) {
+export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
   const { setActiveView } = useApp();
   const { data } = db.useQuery({
     leads: { $: { where: { userId: ownerId } } },
@@ -148,7 +148,8 @@ export default function Dashboard({ user, ownerId, perms }) {
     });
 
     const totalExpenses = (data?.expenses || []).filter(e => e.status === 'Approved').reduce((s, e) => s + (e.amount || 0), 0);
-    const totalCommissions = commissionsRaw.filter(c => c.status === 'Paid').reduce((s, c) => s + (c.amount || 0), 0);
+    const showPartners = planEnforcement?.isModuleEnabled('distributors') !== false;
+    const totalCommissions = showPartners ? commissionsRaw.filter(c => c.status === 'Paid').reduce((s, c) => s + (c.amount || 0), 0) : 0;
     const grossProfit = revenue - cogs;
     const netProfit = grossProfit - totalExpenses - totalCommissions;
     const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
@@ -336,7 +337,7 @@ export default function Dashboard({ user, ownerId, perms }) {
                 { label: 'COGS', value: fmt(pnl.cogs), color: '#7c3aed', bg: '#faf5ff' },
                 { label: 'Gross Profit', value: fmt(pnl.grossProfit), color: pnl.grossProfit >= 0 ? '#16a34a' : '#dc2626', bg: pnl.grossProfit >= 0 ? '#f0fdf4' : '#fff5f5' },
                 { label: 'Expenses', value: fmt(pnl.totalExpenses), color: '#d97706', bg: '#fffbeb' },
-                { label: 'Commissions', value: fmt(pnl.totalCommissions), color: '#2563eb', bg: '#eff6ff' },
+                ...(planEnforcement?.isModuleEnabled('distributors') !== false ? [{ label: 'Commissions', value: fmt(pnl.totalCommissions), color: '#2563eb', bg: '#eff6ff' }] : []),
                 { label: 'Net Profit', value: fmt(pnl.netProfit), color: pnl.netProfit >= 0 ? '#16a34a' : '#dc2626', bg: pnl.netProfit >= 0 ? '#f0fdf4' : '#fff5f5' },
                 { label: 'Margin %', value: `${pnl.margin}%`, color: pnl.margin >= 0 ? '#16a34a' : '#dc2626', bg: pnl.margin >= 0 ? '#f0fdf4' : '#fff5f5' },
               ].map((item, i) => (

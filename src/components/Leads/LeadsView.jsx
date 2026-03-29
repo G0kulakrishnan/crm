@@ -25,6 +25,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const canCreate = perms?.can('Leads', 'create') === true;
   const canEdit = perms?.can('Leads', 'edit') === true;
   const canDelete = perms?.can('Leads', 'delete') === true;
+  const showPartners = planEnforcement?.isModuleEnabled('distributors') !== false;
 
   const [view, setView] = useState('list'); // 'list' | 'kanban'
   const [tab, setTab] = useState('all');
@@ -74,6 +75,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const productCats = data?.userProfiles?.[0]?.productCats || DEFAULT_PROD_CATS;
   const allStages = data?.userProfiles?.[0]?.stages || DEFAULT_STAGES;
   const partners = data?.partnerApplications || [];
+  const partnerLeadSource = data?.userProfiles?.[0]?.partnerLeadSource || 'Channel Partners';
   
   useEffect(() => {
     const openId = localStorage.getItem('tc_open_lead');
@@ -101,7 +103,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     }
   }, [savedDefaultPageSize]);
 
-  const allPossibleCols = ['Created', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Label', 'Reminder', 'Distributor', 'Retailer', ...customFields.map(c => c.name)];
+  const allPossibleCols = ['Created', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Label', 'Reminder', ...(showPartners ? ['Distributor', 'Retailer'] : []), ...customFields.map(c => c.name)];
   const activeCols = savedCols || allPossibleCols;
 
   // activeStages is for visual components (Kanban/List), should exclude deleted & disabled
@@ -771,11 +773,17 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                   </div>
                   <div className="fg span2"><label>Notes</label><textarea value={form.notes} onChange={f('notes')} /></div>
 
+                  {showPartners && (
+                  <>
                   <div className="fg" style={{ zIndex: 8 }}><label>Distributor (Optional)</label>
                     <SearchableSelect
                       options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Distributor').map(p => ({ id: p.id, name: p.companyName || p.name }))]}
                       displayKey="name" returnKey="id" value={form.distributorId}
-                      onChange={val => setForm(p => ({ ...p, distributorId: val, retailerId: '' }))}
+                      onChange={val => {
+                        setForm(p => ({ ...p, distributorId: val, retailerId: '' }));
+                        if (val) setForm(p => ({ ...p, distributorId: val, retailerId: '', source: partnerLeadSource }));
+                        else setForm(p => ({ ...p, distributorId: val, retailerId: '' }));
+                      }}
                       placeholder="Search distributor..."
                     />
                   </div>
@@ -785,11 +793,13 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                       displayKey="name" returnKey="id" value={form.retailerId}
                       onChange={val => {
                         const retailer = partners.find(p => p.id === val);
-                        setForm(p => ({ ...p, retailerId: val, distributorId: retailer?.parentDistributorId || p.distributorId }));
+                        setForm(p => ({ ...p, retailerId: val, distributorId: retailer?.parentDistributorId || p.distributorId, ...(val ? { source: partnerLeadSource } : {}) }));
                       }}
                       placeholder="Search retailer..."
                     />
                   </div>
+                  </>
+                  )}
                 </div>
               </div>
               <div className="mo-foot">
@@ -1247,11 +1257,16 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                   </div>
                 </div>
 
+                {showPartners && (
+                <>
                 <div className="fg" style={{ zIndex: 8 }}><label>Distributor (Optional)</label>
                   <SearchableSelect
                     options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Distributor').map(p => ({ id: p.id, name: p.companyName || p.name }))]}
                     displayKey="name" returnKey="id" value={form.distributorId}
-                    onChange={val => setForm(p => ({ ...p, distributorId: val, retailerId: '' }))}
+                    onChange={val => {
+                      if (val) setForm(p => ({ ...p, distributorId: val, retailerId: '', source: partnerLeadSource }));
+                      else setForm(p => ({ ...p, distributorId: val, retailerId: '' }));
+                    }}
                     placeholder="Search distributor..."
                   />
                 </div>
@@ -1261,11 +1276,13 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                     displayKey="name" returnKey="id" value={form.retailerId}
                     onChange={val => {
                       const retailer = partners.find(p => p.id === val);
-                      setForm(p => ({ ...p, retailerId: val, distributorId: retailer?.parentDistributorId || p.distributorId }));
+                      setForm(p => ({ ...p, retailerId: val, distributorId: retailer?.parentDistributorId || p.distributorId, ...(val ? { source: partnerLeadSource } : {}) }));
                     }}
                     placeholder="Search retailer..."
                   />
                 </div>
+                </>
+                )}
               </div>
             </div>
             <div className="mo-foot">

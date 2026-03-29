@@ -262,10 +262,11 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
       }
     }
     
-    // Dual Partner Commission Generation
-    const distId = payload.distributorId || cMatchOuter?.distributorId || lMatch?.distributorId;
-    const retId = payload.retailerId || cMatchOuter?.retailerId || lMatch?.retailerId;
-    const legacyPartnerId = cMatchOuter?.partnerId || lMatch?.partnerId;
+    // Dual Partner Commission Generation (skip if distributors module disabled)
+    const isPartnerModuleActive = planEnforcement?.isModuleEnabled('distributors') !== false;
+    const distId = isPartnerModuleActive ? (payload.distributorId || cMatchOuter?.distributorId || lMatch?.distributorId) : null;
+    const retId = isPartnerModuleActive ? (payload.retailerId || cMatchOuter?.retailerId || lMatch?.retailerId) : null;
+    const legacyPartnerId = isPartnerModuleActive ? (cMatchOuter?.partnerId || lMatch?.partnerId) : null;
 
     const commStatus = (payload.status === 'Paid') ? 'Pending Payout' : 'Awaiting Customer Payment';
     
@@ -280,7 +281,18 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
     [...new Set([distId, retId, legacyPartnerId].filter(Boolean))].forEach(pId => {
       const pApp = partnerApplications.find(a => a.id === pId);
       if (pApp && pApp.commission > 0) {
-        const commAmt = Math.round(tots.total * (pApp.commission / 100));
+        let effectivePct = pApp.commission;
+        
+        // Dual Commission: If this partner is a Distributor AND there's no Retailer on this sale,
+        // stack the default retailer commission onto their base rate
+        if (pApp.role === 'Distributor' && !retId) {
+          const defaultRetComm = parseFloat(profile?.defaultRetailerCommission) || 0;
+          if (defaultRetComm > 0) {
+            effectivePct = pApp.commission + defaultRetComm;
+          }
+        }
+        
+        const commAmt = Math.round(tots.total * (effectivePct / 100));
         txs.push(db.tx.partnerCommissions[id()].update({
           invoiceId: invId,
           partnerId: pId,
@@ -289,7 +301,10 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
           userId: ownerId,
           clientName: payload.client,
           invoiceNo: payload.no,
-          commissionPct: pApp.commission,
+          commissionPct: effectivePct,
+          basePct: pApp.commission,
+          bonusPct: effectivePct - pApp.commission,
+          isDualCommission: effectivePct !== pApp.commission,
           invoiceTotal: tots.total, 
           updatedAt: Date.now()
         }));
@@ -666,7 +681,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
                     {data?.teamMembers?.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                   </select>
                 </div>
-                {partnerApplications.length > 0 && (
+                {planEnforcement?.isModuleEnabled('distributors') !== false && partnerApplications.length > 0 && (
                   <>
                     <div className="fg" style={{ zIndex: 8 }}>
                       <label>Distributor <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>auto-mapped</span></label>

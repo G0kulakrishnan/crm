@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
-import { fmtD } from '../../utils/helpers';
+import { fmtD, DEFAULT_SOURCES } from '../../utils/helpers';
 import { useApp } from '../../context/AppContext';
 
 export default function Distributors({ user, ownerId, perms, initialTab }) {
@@ -18,7 +18,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
   const [onboardModal, setOnboardModal] = useState(false);
   const [settingsModal, setSettingsModal] = useState(false);
   const [onboardForm, setOnboardForm] = useState({ name: '', email: '', phone: '', companyName: '', role: 'Retailer', commission: 0, password: '', parentDistributorId: '', village: '', city: '', district: '', pincode: '', state: '' });
-  const [settingsForm, setSettingsForm] = useState({ reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional', customFields: [], defaultDistributorCommission: 0, defaultRetailerCommission: 0 });
+  const [settingsForm, setSettingsForm] = useState({ reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional', customFields: [], defaultDistributorCommission: 0, defaultRetailerCommission: 0, distributorAlias: '', retailerAlias: '', partnerVisibleRequirements: [], partnerLeadSource: '' });
   const toast = useToast();
 
   const { data, isLoading } = db.useQuery({
@@ -126,10 +126,14 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
         db.tx.userProfiles[profile.id].update({
           partnerFormConfig: settingsForm,
           defaultDistributorCommission: parseFloat(settingsForm.defaultDistributorCommission) || 0,
-          defaultRetailerCommission: parseFloat(settingsForm.defaultRetailerCommission) || 0
+          defaultRetailerCommission: parseFloat(settingsForm.defaultRetailerCommission) || 0,
+          distributorAlias: (settingsForm.distributorAlias || '').trim() || null,
+          retailerAlias: (settingsForm.retailerAlias || '').trim() || null,
+          partnerVisibleRequirements: settingsForm.partnerVisibleRequirements || [],
+          partnerLeadSource: (settingsForm.partnerLeadSource || '').trim() || null
         })
       );
-      toast('Form settings saved!', 'success');
+      toast('Partner settings saved!', 'success');
       setSettingsModal(false);
     } catch (err) {
       toast(err.message, 'error');
@@ -138,13 +142,26 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
     }
   };
 
+  // Dynamic terminology
+  const dAlias = profile?.distributorAlias || 'Distributor';
+  const rAlias = profile?.retailerAlias || 'Retailer';
+
+  // Requirements from profile
+  const DEFAULT_REQUIREMENTS = ['Solar Rooftop', 'Home Automation', 'Electrical Services'];
+  const allRequirements = profile?.requirements || DEFAULT_REQUIREMENTS;
+  const activeSources = profile?.sources || DEFAULT_SOURCES;
+
   const openSettings = () => {
     const ex = profile?.partnerFormConfig || { reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional', customFields: [] };
     if (!ex.customFields) ex.customFields = [];
     setSettingsForm({
       ...ex,
       defaultDistributorCommission: profile?.defaultDistributorCommission || 0,
-      defaultRetailerCommission: profile?.defaultRetailerCommission || 0
+      defaultRetailerCommission: profile?.defaultRetailerCommission || 0,
+      distributorAlias: profile?.distributorAlias || '',
+      retailerAlias: profile?.retailerAlias || '',
+      partnerVisibleRequirements: profile?.partnerVisibleRequirements || [],
+      partnerLeadSource: profile?.partnerLeadSource || ''
     });
     setSettingsModal(true);
   };
@@ -239,7 +256,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
               Copy
             </button>
           </div>
-          <button className="btn btn-secondary btn-sm" onClick={openSettings}>⚙️ Form Config</button>
+          <button className="btn btn-secondary btn-sm" onClick={openSettings}>⚙️ Partner Settings</button>
           <button className="btn btn-primary btn-sm" onClick={() => {
            setOnboardForm(p => ({ ...p, password: Math.random().toString(36).slice(-8) }));
              setOnboardModal(true);
@@ -248,9 +265,9 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
       </div>
       
       <div className="tabs">
-        {['Channel Partners', 'Products', 'Pending', 'Approved', 'Rejected', 'Payouts', 'Reports'].map(t => (
+        {['Channel Partners', 'Products', 'Requirements', 'Pending', 'Approved', 'Rejected', 'Payouts', 'Reports'].map(t => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-            {t} {!['Channel Partners', 'Products', 'Payouts', 'Reports'].includes(t) && `(${applications.filter(a => a.status === t).length})`}
+            {t} {!['Channel Partners', 'Products', 'Requirements', 'Payouts', 'Reports'].includes(t) && `(${applications.filter(a => a.status === t).length})`}
           </div>
         ))}
       </div>
@@ -270,6 +287,8 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
             <PayoutsView applications={applications} ownerId={ownerId} user={user} toast={toast} />
           ) : tab === 'Products' ? (
             <ProductsView products={products} search={search} />
+          ) : tab === 'Requirements' ? (
+            <RequirementsView allRequirements={allRequirements} partnerVisible={profile?.partnerVisibleRequirements || []} />
           ) : tab === 'Reports' ? (
             <ReportsView commissions={commissions} applications={applications.filter(a => a.status === 'Approved')} ownerId={ownerId} />
           ) : tab === 'Channel Partners' ? (
@@ -415,17 +434,84 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
         <div className="mo open">
           <div className="mo-box" style={{ width: 460 }}>
             <div className="mo-head">
-              <h3>Public Form Config</h3>
+              <h3>Partner Settings</h3>
               <button className="btn-icon" onClick={() => setSettingsModal(null)}>✕</button>
             </div>
-            <div className="mo-body" style={{ padding: 20 }}>
-              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>
-                Configure the fields shown to users dynamically on your public registration page. Name, Email, Phone, and Role are permanently mandatory.
-              </p>
-              
+            <div className="mo-body" style={{ padding: 20, maxHeight: '70vh', overflow: 'auto' }}>
               <form onSubmit={handleSettingsSave}>
+                {/* ---- TERMINOLOGY ---- */}
+                <div style={{ marginBottom: 20, padding: 16, background: '#faf5ff', borderRadius: 10, border: '1px solid #e9d5ff' }}>
+                  <h4 style={{ marginBottom: 8, color: '#6b21a8', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>🏷️ Role Terminology</h4>
+                  <p style={{ fontSize: 12, color: '#7c3aed', marginBottom: 12 }}>Rename partner roles to match your business vocabulary. Leave blank for defaults.</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="form-group">
+                      <label style={{ fontSize: 13, fontWeight: 500 }}>Instead of "Distributor" use:</label>
+                      <input type="text" placeholder="e.g. Dealer, Agent, Franchisee" value={settingsForm.distributorAlias} onChange={e => setSettingsForm(p => ({ ...p, distributorAlias: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: 13, fontWeight: 500 }}>Instead of "Retailer" use:</label>
+                      <input type="text" placeholder="e.g. Salesperson, Sub-Agent" value={settingsForm.retailerAlias} onChange={e => setSettingsForm(p => ({ ...p, retailerAlias: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* ---- LEAD SOURCE ---- */}
+                <div style={{ marginBottom: 20, padding: 16, background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe' }}>
+                  <h4 style={{ marginBottom: 8, color: '#1e40af', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }}>📊 Partner Lead Source</h4>
+                  <p style={{ fontSize: 12, color: '#2563eb', marginBottom: 12 }}>Choose the lead source auto-assigned when partners create leads. This is essential for analytics.</p>
+                  <div className="form-group">
+                    <select value={settingsForm.partnerLeadSource} onChange={e => setSettingsForm(p => ({ ...p, partnerLeadSource: e.target.value }))} style={{ width: '100%' }}>
+                      <option value="">-- Use default (Channel Partners) --</option>
+                      {activeSources.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* ---- DEFAULT COMMISSION ---- */}
+                <div style={{ marginBottom: 20, padding: 16, background: '#f0fdf4', borderRadius: 10, border: '1px solid #bbf7d0' }}>
+                  <h4 style={{ marginBottom: 8, color: '#166534', fontSize: 14 }}>💰 Default Commission Rates</h4>
+                  <p style={{ fontSize: 12, color: '#15803d', marginBottom: 12 }}>Auto-applied when approving new partners. Changeable per-partner later.</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div className="form-group">
+                      <label style={{ fontSize: 13, fontWeight: 500 }}>{settingsForm.distributorAlias || 'Distributor'} Default %</label>
+                      <input type="number" step="0.1" min="0" max="100" value={settingsForm.defaultDistributorCommission} onChange={e => setSettingsForm(p => ({ ...p, defaultDistributorCommission: e.target.value }))} placeholder="e.g. 10" />
+                    </div>
+                    <div className="form-group">
+                      <label style={{ fontSize: 13, fontWeight: 500 }}>{settingsForm.retailerAlias || 'Retailer'} Default %</label>
+                      <input type="number" step="0.1" min="0" max="100" value={settingsForm.defaultRetailerCommission} onChange={e => setSettingsForm(p => ({ ...p, defaultRetailerCommission: e.target.value }))} placeholder="e.g. 5" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* ---- REQUIREMENTS VISIBILITY ---- */}
+                <div style={{ marginBottom: 20, padding: 16, background: '#fffbeb', borderRadius: 10, border: '1px solid #fde68a' }}>
+                  <h4 style={{ marginBottom: 8, color: '#92400e', fontSize: 14 }}>📋 Partner-Visible Requirements</h4>
+                  <p style={{ fontSize: 12, color: '#b45309', marginBottom: 12 }}>Select which requirements your partners can see and tag when creating leads.</p>
+                  {allRequirements.length === 0 ? (
+                    <p style={{ fontSize: 13, color: '#92400e', fontStyle: 'italic' }}>No requirements configured. Add them in Business Settings → Requirements.</p>
+                  ) : (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {allRequirements.map(req => {
+                        const isActive = (settingsForm.partnerVisibleRequirements || []).includes(req);
+                        return (
+                          <label key={req} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: isActive ? '#fef08a' : '#fff', border: `1px solid ${isActive ? '#eab308' : '#e5e7eb'}`, borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 500 }}>
+                            <input type="checkbox" checked={isActive} onChange={() => {
+                              setSettingsForm(p => {
+                                const cur = p.partnerVisibleRequirements || [];
+                                return { ...p, partnerVisibleRequirements: isActive ? cur.filter(r => r !== req) : [...cur, req] };
+                              });
+                            }} />
+                            {req}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* ---- FORM FIELDS ---- */}
                 <div style={{ marginBottom: 20 }}>
-                  <h4 style={{ marginBottom: 12, color: '#334155', fontSize: 14 }}>Standard Fields</h4>
+                  <h4 style={{ marginBottom: 12, color: '#334155', fontSize: 14 }}>📝 Registration Form Fields</h4>
                   {['Company', 'Address', 'Tax', 'Notes'].map(field => {
                     const key = `req${field}`;
                     return (
@@ -448,23 +534,8 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
                 </div>
 
                 <div style={{ marginBottom: 20, borderTop: '1px solid #e2e8f0', paddingTop: 15 }}>
-                  <h4 style={{ marginBottom: 8, color: '#334155', fontSize: 14 }}>Default Commission Rates</h4>
-                  <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>Pre-fills when approving a new partner. Still changeable per-partner.</p>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div className="form-group">
-                      <label style={{ fontSize: 13, fontWeight: 500 }}>Distributor Default %</label>
-                      <input type="number" step="0.1" min="0" max="100" value={settingsForm.defaultDistributorCommission} onChange={e => setSettingsForm(p => ({ ...p, defaultDistributorCommission: e.target.value }))} placeholder="e.g. 10" />
-                    </div>
-                    <div className="form-group">
-                      <label style={{ fontSize: 13, fontWeight: 500 }}>Retailer Default %</label>
-                      <input type="number" step="0.1" min="0" max="100" value={settingsForm.defaultRetailerCommission} onChange={e => setSettingsForm(p => ({ ...p, defaultRetailerCommission: e.target.value }))} placeholder="e.g. 5" />
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 20, borderTop: '1px solid #e2e8f0', paddingTop: 15 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                    <h4 style={{ margin: 0, color: '#334155', fontSize: 14 }}>Custom Fields</h4>
+                    <h4 style={{ margin: 0, color: '#334155', fontSize: 14 }}>🔧 Custom Fields</h4>
                     <button type="button" className="btn btn-sm btn-secondary" onClick={() => setSettingsForm(p => ({ ...p, customFields: [...p.customFields, { id: id(), label: '', type: 'Text', required: false }] }))} style={{ fontSize: 12, padding: '4px 8px' }}>
                       ➕ Add Field
                     </button>
@@ -557,8 +628,8 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
                         const defComm = role === 'Distributor' ? (profile?.defaultDistributorCommission || 0) : (profile?.defaultRetailerCommission || 0);
                         setOnboardForm(p => ({ ...p, role, commission: defComm }));
                       }}>
-                      <option value="Distributor">Distributor</option>
-                      <option value="Retailer">Retailer</option>
+                      <option value="Distributor">{dAlias}</option>
+                      <option value="Retailer">{rAlias}</option>
                     </select>
                   </div>
                 </div>
@@ -613,7 +684,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
 
                 {onboardForm.role === 'Retailer' && (
                   <div className="form-group" style={{ marginBottom: 15 }}>
-                    <label>Assign to Parent Distributor (Optional)</label>
+                    <label>Assign to Parent {dAlias} (Optional)</label>
                     <select value={onboardForm.parentDistributorId} onChange={e => setOnboardForm(p => ({ ...p, parentDistributorId: e.target.value }))}>
                       <option value="">-- No Parent (Direct) --</option>
                       {availableDistributors.map(d => (
@@ -1070,6 +1141,7 @@ function PayoutsView({ applications, ownerId, user, toast }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [editModal, setEditModal] = useState(null); // { id, amount, editNote }
   
   // Date Filtering State
   const [dateFilter, setDateFilter] = useState('This Month');
@@ -1228,6 +1300,26 @@ function PayoutsView({ applications, ownerId, user, toast }) {
     }
   };
 
+  const handleEditSave = async () => {
+    if (!editModal) return;
+    const newAmt = parseFloat(editModal.amount);
+    if (isNaN(newAmt) || newAmt < 0) return toast('Invalid amount', 'error');
+    try {
+      await db.transact(
+        db.tx.partnerCommissions[editModal.id].update({
+          amount: Math.round(newAmt),
+          editNote: (editModal.editNote || '').trim() || null,
+          isEdited: true,
+          updatedAt: Date.now()
+        })
+      );
+      toast('Amount updated successfully', 'success');
+      setEditModal(null);
+    } catch (e) {
+      toast('Failed to update: ' + e.message, 'error');
+    }
+  };
+
   const toggleSelect = (id, stat) => {
     if (stat !== 'Pending Payout') return; 
     setSelectedIds(prev => {
@@ -1315,7 +1407,15 @@ function PayoutsView({ applications, ownerId, user, toast }) {
                 </td>
                 <td><span className="badge bg-gray">{c.invoiceNo}</span></td>
                 <td style={{ fontSize: 13 }}>{c.clientName}</td>
-                <td style={{ fontWeight: 700 }}>₹{(c.amount || 0).toLocaleString()}</td>
+                <td style={{ fontWeight: 700 }}>
+                  <span>₹{(c.amount || 0).toLocaleString()}</span>
+                  {c.isEdited && <span title={c.editNote || 'Manually adjusted'} style={{ marginLeft: 4, fontSize: 10, cursor: 'help' }}>✏️</span>}
+                  <button 
+                    onClick={() => setEditModal({ id: c.id, amount: c.amount || 0, editNote: c.editNote || '' })} 
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: 4, fontSize: 12, color: 'var(--muted)', padding: '2px 4px', borderRadius: 4 }}
+                    title="Edit amount"
+                  >✎</button>
+                </td>
                 <td>
                   {c.status === 'Paid' ? (
                     <span className="badge bg-green">Paid</span>
@@ -1369,6 +1469,45 @@ function PayoutsView({ applications, ownerId, user, toast }) {
           )}
         </div>
       </div>
+
+      {/* Edit Amount Modal */}
+      {editModal && (
+        <div className="mo open">
+          <div className="mo-box" style={{ width: 380 }}>
+            <div className="mo-head">
+              <h3>Edit Commission Amount</h3>
+              <button className="btn-icon" onClick={() => setEditModal(null)}>✕</button>
+            </div>
+            <div className="mo-body" style={{ padding: 20 }}>
+              <div className="form-group" style={{ marginBottom: 15 }}>
+                <label style={{ fontWeight: 600, fontSize: 13 }}>Amount (₹)</label>
+                <input 
+                  type="number" 
+                  min="0" 
+                  step="1"
+                  value={editModal.amount} 
+                  onChange={e => setEditModal(p => ({ ...p, amount: e.target.value }))}
+                  style={{ fontSize: 18, fontWeight: 700, padding: '10px 12px' }}
+                  autoFocus
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 15 }}>
+                <label style={{ fontWeight: 600, fontSize: 13 }}>Edit Reason (optional)</label>
+                <input 
+                  type="text" 
+                  value={editModal.editNote} 
+                  onChange={e => setEditModal(p => ({ ...p, editNote: e.target.value }))}
+                  placeholder="e.g. Negotiated rate, correction, split payment..."
+                />
+              </div>
+            </div>
+            <div className="mo-foot">
+              <button className="btn btn-secondary btn-sm" onClick={() => setEditModal(null)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={handleEditSave}>💾 Save Amount</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -1405,6 +1544,42 @@ function ProductsView({ products, search }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+function RequirementsView({ allRequirements, partnerVisible }) {
+  return (
+    <div className="tw-scroll" style={{ padding: 0 }}>
+      <table style={{ margin: 0 }}>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Requirement</th>
+            <th>Partner Visibility</th>
+          </tr>
+        </thead>
+        <tbody>
+          {allRequirements.length === 0 ? (
+            <tr><td colSpan={3} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No requirements configured. Add them in Business Settings → Requirements.</td></tr>
+          ) : allRequirements.map((req, i) => (
+            <tr key={i}>
+              <td style={{ color: 'var(--muted)', fontSize: 12 }}>{i + 1}</td>
+              <td style={{ fontWeight: 600 }}>{req}</td>
+              <td>
+                {partnerVisible.includes(req) ? (
+                  <span className="badge bg-green">Visible to Partners</span>
+                ) : (
+                  <span className="badge bg-gray">Hidden from Partners</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ padding: 16, background: '#f8fafc', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--muted)' }}>
+        💡 Use <strong>Partner Settings → Partner-Visible Requirements</strong> to toggle which requirements are shown to partners when creating leads.
+      </div>
     </div>
   );
 }

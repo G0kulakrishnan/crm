@@ -7,7 +7,8 @@ export default function PartnerRegistration({ params }) {
 
   const { data, isLoading } = db.useQuery({
     userProfiles: { $: { where: { slug: cleanSlug } } },
-    globalSettings: { $: { where: { slug: cleanSlug } } }
+    globalSettings: { $: { where: { slug: cleanSlug } } },
+    partnerApplications: {}
   });
 
   const [form, setForm] = useState({
@@ -24,7 +25,8 @@ export default function PartnerRegistration({ params }) {
     state: '',
     taxId: '',
     notes: '',
-    customData: {}
+    customData: {},
+    distributorPhone: ''
   });
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -42,6 +44,16 @@ export default function PartnerRegistration({ params }) {
   const settings = data?.globalSettings?.[0] || {};
   const ownerId = profile?.userId || settings?.userId;
   const config = profile?.partnerFormConfig || { reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional' };
+
+  // Dynamic role aliases
+  const dAlias = profile?.distributorAlias || 'Distributor';
+  const rAlias = profile?.retailerAlias || 'Retailer';
+
+  // Resolve distributor by phone
+  const allApps = (data?.partnerApplications || []).filter(a => a.userId === ownerId && a.status === 'Approved');
+  const resolvedDistributor = form.distributorPhone.replace(/\D/g, '').length >= 10
+    ? allApps.find(a => a.role === 'Distributor' && a.phone?.replace(/\D/g, '').endsWith(form.distributorPhone.replace(/\D/g, '').slice(-10)))
+    : null;
 
   if (!ownerId && cleanSlug) {
     return (
@@ -75,10 +87,12 @@ export default function PartnerRegistration({ params }) {
       const applicationId = id();
       const payload = {
         ...form,
-        userId: ownerId, // System level: which business they applied to
+        userId: ownerId,
         status: 'Pending',
-        appliedAt: Date.now()
+        appliedAt: Date.now(),
+        ...(form.role === 'Retailer' && resolvedDistributor ? { parentDistributorId: resolvedDistributor.id } : {})
       };
+      delete payload.distributorPhone;
       
       await db.transact(db.tx.partnerApplications[applicationId].update(payload));
       
@@ -149,8 +163,8 @@ export default function PartnerRegistration({ params }) {
                   onChange={e => setForm(p => ({ ...p, role: e.target.value }))}
                   style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, background: '#fff', cursor: 'pointer' }}
                 >
-                  <option value="Distributor">Distributor</option>
-                  <option value="Retailer">Retailer</option>
+                  <option value="Distributor">{dAlias}</option>
+                  <option value="Retailer">{rAlias}</option>
                 </select>
               </div>
             </div>
@@ -190,6 +204,28 @@ export default function PartnerRegistration({ params }) {
                 />
               </div>
             </div>
+
+            {form.role === 'Retailer' && (
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Your {dAlias}'s Mobile Number</label>
+                <input 
+                  type="tel" 
+                  value={form.distributorPhone} 
+                  onChange={e => setForm(p => ({ ...p, distributorPhone: e.target.value }))}
+                  placeholder={`Enter your ${dAlias.toLowerCase()}'s phone number`}
+                  style={{ width: '100%', padding: '10px 12px', border: `1.5px solid ${resolvedDistributor ? '#22c55e' : '#cbd5e1'}`, borderRadius: 8, fontSize: 14, boxSizing: 'border-box', background: resolvedDistributor ? '#f0fdf4' : '#fff' }}
+                />
+                {resolvedDistributor ? (
+                  <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, color: '#16a34a', fontSize: 13, fontWeight: 600 }}>
+                    <span>✓</span> {dAlias}: {resolvedDistributor.companyName || resolvedDistributor.name}
+                  </div>
+                ) : form.distributorPhone.replace(/\D/g, '').length >= 10 ? (
+                  <div style={{ marginTop: 6, color: '#dc2626', fontSize: 12 }}>No matching {dAlias.toLowerCase()} found for this number.</div>
+                ) : form.distributorPhone ? (
+                  <div style={{ marginTop: 6, color: '#94a3b8', fontSize: 12 }}>Enter full 10-digit mobile number to auto-resolve.</div>
+                ) : null}
+              </div>
+            )}
 
             {config.reqCompany !== 'Hidden' && (
               <div>

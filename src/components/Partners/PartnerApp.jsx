@@ -85,7 +85,7 @@ export default function PartnerApp({ user, settings, partnerInfo }) {
 
 // ------ NEW REQUIREMENT FORM COMPONENT ------
 function NewRequirementForm({ ownerId, partnerId, user }) {
-  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', notes: '' });
+  const [form, setForm] = useState({ name: '', phone: '', email: '', address: '', notes: '', selectedRequirement: '' });
   const [selectedProducts, setSelectedProducts] = useState(new Set());
   const [submitting, setSubmitting] = useState(false);
   const toast = useToast();
@@ -93,10 +93,15 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
   const { data, isLoading } = db.useQuery({
     products: { $: { where: { userId: ownerId, isPartnerAvailable: true } } },
     leads: { $: { where: { userId: ownerId } } },
-    customers: { $: { where: { userId: ownerId } } }
+    customers: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
+    partnerApplications: { $: { where: { id: partnerId } } }
   });
 
   const products = data?.products || [];
+  const ownerProfile = data?.userProfiles?.[0] || {};
+  const partnerApp = data?.partnerApplications?.[0];
+  const visibleRequirements = ownerProfile?.partnerVisibleRequirements || [];
   
   const handleToggleProduct = (pId) => {
     setSelectedProducts(prev => {
@@ -151,6 +156,16 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
         selectedProductNames.length > 0 ? `\n--- Products Interested ---\n${selectedProductNames.join('\n')}` : ''
       ].filter(Boolean).join('\n\n');
 
+      // Determine distributor and retailer IDs based on partner's role
+      let distributorId = '';
+      let retailerId = '';
+      if (partnerApp?.role === 'Distributor') {
+        distributorId = partnerId;
+      } else if (partnerApp?.role === 'Retailer') {
+        retailerId = partnerId;
+        distributorId = partnerApp?.parentDistributorId || '';
+      }
+
       const leadId = id();
       await db.transact(
         db.tx.leads[leadId].update({
@@ -159,10 +174,13 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
           email: form.email.trim(),
           custom: { address: form.address.trim() },
           notes: requirementNotes,
-          source: 'Channel Partner',
+          requirement: form.selectedRequirement || '',
+          source: ownerProfile?.partnerLeadSource || 'Channel Partners',
           stage: 'New',
           userId: ownerId,
           partnerId,
+          distributorId,
+          retailerId,
           actorId: user.id,
           createdAt: Date.now(),
           updatedAt: Date.now()
@@ -177,7 +195,7 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
       );
 
       toast('Requirement submitted successfully!', 'success');
-      setForm({ name: '', phone: '', email: '', address: '', notes: '' });
+      setForm({ name: '', phone: '', email: '', address: '', notes: '', selectedRequirement: '' });
       setSelectedProducts(new Set());
     } catch (err) {
       toast(err.message, 'error');
@@ -241,6 +259,20 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
               style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', minHeight: 60 }}
             />
           </div>
+
+          {visibleRequirements.length > 0 && (
+            <div>
+              <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Requirement Type</label>
+              <select 
+                value={form.selectedRequirement} 
+                onChange={e => setForm(p => ({ ...p, selectedRequirement: e.target.value }))}
+                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', background: '#fff' }}
+              >
+                <option value="">-- Select Requirement --</option>
+                {visibleRequirements.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+          )}
 
           <button 
             type="submit" 
