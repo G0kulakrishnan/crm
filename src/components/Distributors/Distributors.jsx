@@ -258,14 +258,16 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
       <div className="tw">
         <div className="tw-head">
           <h3>{tab === 'Payouts' ? 'Commission Payouts' : tab === 'Products' ? 'Partner Products' : tab === 'Channel Partners' ? 'Channel Partners' : `${tab} Partners`}</h3>
-          <div className="sw">
-            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-            <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
+          {tab !== 'Payouts' && (
+            <div className="sw">
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+              <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
+          )}
         </div>
         <div className="tw-scroll">
           {tab === 'Payouts' ? (
-            <PayoutsView commissions={commissions} applications={applications} search={search} ownerId={ownerId} user={user} toast={toast} />
+            <PayoutsView applications={applications} ownerId={ownerId} user={user} toast={toast} />
           ) : tab === 'Products' ? (
             <ProductsView products={products} search={search} />
           ) : tab === 'Reports' ? (
@@ -1064,11 +1066,81 @@ function ReportsView({ commissions, applications, ownerId }) {
   );
 }
 
-function PayoutsView({ commissions, applications, search, ownerId, user, toast }) {
+function PayoutsView({ applications, ownerId, user, toast }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  
+  // Date Filtering State
+  const [dateFilter, setDateFilter] = useState('This Month');
+  const [fromDate, setFromDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]; });
+  const [toDate, setToDate] = useState(() => new Date().toISOString().split('T')[0]);
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+
+  useEffect(() => {
+    if (dateFilter === 'Custom Range') {
+      // Enforce 12 month max bounds on custom
+      if (fromDate && toDate) {
+        const span = new Date(toDate).getTime() - new Date(fromDate).getTime();
+        if (span > 31622400000) { // 366 days
+           toast('Custom date range capped to maximum 12 months for system stability.', 'warning');
+           setToDate(new Date(new Date(fromDate).getTime() + 31536000000).toISOString().split('T')[0]);
+        }
+      }
+      return;
+    }
+    const today = new Date();
+    const sy = today.getFullYear();
+    const sm = today.getMonth();
+    const sd = today.getDate();
+
+    let f, t;
+    if (dateFilter === 'Today') { f = new Date(sy, sm, sd); t = f; }
+    else if (dateFilter === 'Tomorrow') { f = new Date(sy, sm, sd + 1); t = f; }
+    else if (dateFilter === 'This Month') { f = new Date(sy, sm, 1); t = new Date(sy, sm + 1, 0); }
+    else if (dateFilter === 'This Quarter') {
+       const q = Math.floor(sm / 3);
+       f = new Date(sy, q * 3, 1); t = new Date(sy, q * 3 + 3, 0);
+    }
+    
+    if (f && t) {
+      const offset = f.getTimezoneOffset() * 60000;
+      setFromDate(new Date(f - offset).toISOString().split('T')[0]);
+      setToDate(new Date(t - offset).toISOString().split('T')[0]);
+    }
+  }, [dateFilter, fromDate, toDate, toast]);
+
+  const queryWhere = useMemo(() => {
+    const q = { userId: ownerId };
+    if (statusFilter) q.status = statusFilter;
+    if (fromDate && toDate) {
+      const s = new Date(fromDate).getTime();
+      const e = new Date(toDate + 'T23:59:59.999Z').getTime();
+      // Only attach DB Date Filter query if it's less than 12m for safety
+      if (e - s <= 31622400000) {
+        q.updatedAt = { $gte: s, $lte: e };
+      }
+    }
+    return q;
+  }, [ownerId, statusFilter, fromDate, toDate]);
+
+  const { data } = db.useQuery({
+    partnerCommissions: {
+       $: {
+          where: queryWhere,
+          limit: pageSize === 'all' ? undefined : pageSize,
+          offset: pageSize === 'all' ? 0 : (currentPage - 1) * pageSize
+       }
+    }
+  });
+
+  const rawCommissions = data?.partnerCommissions || [];
 
   const records = useMemo(() => {
-    return commissions.map(c => {
+    return rawCommissions.map(c => {
       const p = applications.find(a => a.id === c.partnerId);
       return { ...c, partnerName: p?.name || 'Unknown', partnerCompany: p?.companyName || '' };
     }).filter(c => {
@@ -1076,10 +1148,40 @@ function PayoutsView({ commissions, applications, search, ownerId, user, toast }
       const s = search.toLowerCase();
       return c.partnerName.toLowerCase().includes(s) || 
              c.clientName?.toLowerCase().includes(s) || 
-             c.invoiceNo?.toLowerCase().includes(s) || 
-             c.status?.toLowerCase().includes(s);
+             c.invoiceNo?.toLowerCase().includes(s);
     }).sort((a, b) => b.updatedAt - a.updatedAt);
-  }, [commissions, applications, search]);
+  }, [rawCommissions, applications, search]);
+
+  const handleExport = () => {
+    toast('Preparing full CSV export...', 'info');
+    db.query({
+      partnerCommissions: { $: { where: queryWhere } }
+    }).then(res => {
+      const exportRaw = res.partnerCommissions || [];
+      const exportData = exportRaw.map(c => {
+        const p = applications.find(a => a.id === c.partnerId);
+        return [
+          c.invoiceNo || '',
+          p?.name || 'Unknown',
+          p?.companyName || '',
+          c.clientName || '',
+          c.amount || 0,
+          c.status || '',
+          c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : '',
+          c.paidAt ? new Date(c.paidAt).toLocaleDateString() : '-'
+        ];
+      });
+      const csvStr = [
+        ['Invoice', 'Partner Name', 'Company', 'Client', 'Amount Earned', 'Status', 'Updated Date', 'Paid Date'].join(','),
+        ...exportData.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+      ].join('\n');
+      const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `Payouts_Export_${Date.now()}.csv`;
+      link.click();
+    });
+  };
 
   const handleMarkPaid = async () => {
     if (selectedIds.size === 0) return toast('Select commissions to mark as paid', 'error');
@@ -1137,9 +1239,44 @@ function PayoutsView({ commissions, applications, search, ownerId, user, toast }
 
   return (
     <>
+      <div className="filter-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 15, background: '#fff', padding: 16, borderRadius: 8, border: '1px solid var(--border)' }}>
+        <input 
+          type="text" 
+          placeholder="Search partner, invoice, client..." 
+          className="input" 
+          value={search} 
+          onChange={e => setSearch(e.target.value)} 
+          style={{ width: 220 }} 
+        />
+        <select className="input" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: 'auto' }}>
+          <option value="">All Statuses</option>
+          <option value="Paid">Paid</option>
+          <option value="Pending Payout">Ready to Pay</option>
+          <option value="Awaiting Customer Payment">Pending Client Validation</option>
+        </select>
+        <select className="input" value={dateFilter} onChange={e => { setDateFilter(e.target.value); setCurrentPage(1); }} style={{ width: 'auto' }}>
+          <option value="This Month">This Month</option>
+          <option value="Today">Today</option>
+          <option value="Tomorrow">Tomorrow</option>
+          <option value="This Quarter">This Quarter</option>
+          <option value="Custom Range">Custom Range (Max 12M)</option>
+        </select>
+        {dateFilter === 'Custom Range' && (
+          <>
+            <input type="date" className="input" value={fromDate} onChange={e => setFromDate(e.target.value)} />
+            <span style={{ display: 'flex', alignItems: 'center' }}>-</span>
+            <input type="date" className="input" value={toDate} onChange={e => setToDate(e.target.value)} />
+          </>
+        )}
+        <div style={{ flex: 1 }} />
+        <button className="btn btn-secondary" onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+           <span>↓ Export DB (Full Data)</span>
+        </button>
+      </div>
+
       {selectedIds.size > 0 && (
         <div style={{ background: '#f0fdf4', padding: '10px 16px', borderBottom: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div><strong style={{ color: '#166534' }}>{selectedIds.size}</strong> pending payouts selected</div>
+          <div><strong style={{ color: '#166534' }}>{selectedIds.size}</strong> payouts selected</div>
           <button className="btn btn-sm" style={{ background: '#16a34a', color: '#fff' }} onClick={handleMarkPaid}>💸 Mark as Paid</button>
         </div>
       )}
@@ -1154,6 +1291,7 @@ function PayoutsView({ commissions, applications, search, ownerId, user, toast }
               <th>Client</th>
               <th>Amount Earned</th>
               <th>Status</th>
+              <th>Paid Date</th>
               <th style={{ textAlign: 'right', paddingRight: 20 }}>Actions</th>
             </tr>
           </thead>
@@ -1187,6 +1325,9 @@ function PayoutsView({ commissions, applications, search, ownerId, user, toast }
                     <span className="badge bg-gray" title="Waiting for client to pay the invoice">Pending</span>
                   )}
                 </td>
+                <td style={{ textAlign: 'center' }}>
+                  <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 600 }}>{c.paidAt ? fmtD(c.paidAt) : '-'}</span>
+                </td>
                 <td style={{ textAlign: 'right', paddingRight: 20 }}>
                   <select 
                     style={{ padding: '4px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--border)' }}
@@ -1202,6 +1343,31 @@ function PayoutsView({ commissions, applications, search, ownerId, user, toast }
             ))}
           </tbody>
         </table>
+      </div>
+      
+      {/* Pagination Footer */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: '#f8fafc', borderTop: '1px solid var(--border)', fontSize: 13 }}>
+        <div style={{ color: 'var(--muted)' }}>
+          Showing <b>{records.length}</b> records on this page {data === undefined ? '(Loading...)' : ''}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span>Rows per page:</span>
+            <select className="input" style={{ width: 70, padding: '4px' }} value={pageSize} onChange={e => { setPageSize(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }}>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value="all">All</option>
+            </select>
+          </div>
+          {pageSize !== 'all' && (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>Previous</button>
+              <span style={{ alignSelf: 'center', fontWeight: 600 }}>Page {currentPage}</span>
+              <button className="btn btn-secondary btn-sm" disabled={records.length < pageSize} onClick={() => setCurrentPage(p => p + 1)}>Next</button>
+            </div>
+          )}
+        </div>
       </div>
     </>
   );
