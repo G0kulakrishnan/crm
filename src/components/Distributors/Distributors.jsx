@@ -1010,13 +1010,6 @@ function ReportsView({ commissions, applications, ownerId }) {
       <div className="tw">
         <div className="tw-head">
           <h3>Partner Performance</h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>List by</span>
-            <select value={groupBy} onChange={e => setGroupBy(e.target.value)} style={{ padding: '5px 10px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'inherit' }}>
-              <option value="Partner">Individual Partners</option>
-              <option value="Location">Geographic Districts</option>
-            </select>
-          </div>
         </div>
         <div className="tw-scroll">
           <table>
