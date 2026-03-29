@@ -79,7 +79,7 @@ export default function MessagingLogs({ user, ownerId }) {
     if (dateFilter === 'yesterday') return 'Yesterday';
     if (dateFilter === 'week') return 'Last 7 Days';
     if (dateFilter === 'month') return 'Last 30 Days';
-    return 'All Logs';
+    return 'Last 30 Days';
   }, [dateFilter]);
 
   const handleDeleteOldLogs = async () => {
@@ -145,7 +145,6 @@ export default function MessagingLogs({ user, ownerId }) {
               <option value="yesterday">Yesterday</option>
               <option value="week">Last 7 Days</option>
               <option value="month">Last 30 Days</option>
-              <option value="">All</option>
             </select>
             <select className="si" style={{ width: 130 }} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
               <option value="">All Types</option>
