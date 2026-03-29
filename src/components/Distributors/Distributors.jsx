@@ -815,112 +815,114 @@ function ReportsView({ commissions, applications, ownerId }) {
   };
 
   return (
-    <div className="reports-container">
-      <div className="sh" style={{ marginBottom: 25 }}>
+    <div>
+      <div className="sh" style={{ marginBottom: 16 }}>
         <div>
-          <h2 style={{ fontSize: 24, margin: 0, fontWeight: 700 }}>Distribution Performance</h2>
-          <div className="sub" style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Track business growth across your partner network</div>
+          <h2 style={{ margin: 0 }}>Distribution Performance</h2>
+          <div className="sub">Track business growth across your partner network</div>
         </div>
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button className="btn btn-secondary btn-sm" onClick={exportCSV}>
-             📥 Export CSV
-          </button>
-          <div className="tabs" style={{ marginBottom: 0, border: 'none' }}>
-            {DATE_FILTERS.map(f => (
-              <div 
-                key={f} 
-                className={`tab ${filter === f ? 'active' : ''}`} 
-                onClick={() => setFilter(f)}
-                style={{ padding: '6px 12px', fontSize: 12 }}
-              >
-                {f}
-              </div>
-            ))}
+        <button className="btn btn-secondary btn-sm" onClick={exportCSV}>
+          📥 Export CSV
+        </button>
+      </div>
+
+      {/* Date Filters */}
+      <div className="tabs" style={{ marginBottom: 16 }}>
+        {DATE_FILTERS.map(f => (
+          <div 
+            key={f} 
+            className={`tab ${filter === f ? 'active' : ''}`} 
+            onClick={() => setFilter(f)}
+          >
+            {f}
           </div>
-        </div>
+        ))}
       </div>
 
       {filter === 'Custom' && (
-        <div style={{ display: 'flex', gap: 15, marginBottom: 20, background: '#f8fafc', padding: 15, borderRadius: 10, border: '1px solid #e2e8f0' }}>
-          <div className="form-group" style={{ marginBottom: 0 }}>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16, background: 'var(--bg)', padding: 14, borderRadius: 10, border: '1px solid var(--border)' }}>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
             <label style={{ fontSize: 11 }}>Start Date</label>
-            <input type="date" value={customRange.start} onChange={e => setCustomRange(p => ({ ...p, start: e.target.value }))} style={{ fontSize: 13 }} />
+            <input type="date" value={customRange.start} onChange={e => setCustomRange(p => ({ ...p, start: e.target.value }))} />
           </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
             <label style={{ fontSize: 11 }}>End Date</label>
-            <input type="date" value={customRange.end} onChange={e => setCustomRange(p => ({ ...p, end: e.target.value }))} style={{ fontSize: 13 }} />
+            <input type="date" value={customRange.end} onChange={e => setCustomRange(p => ({ ...p, end: e.target.value }))} />
           </div>
         </div>
       )}
 
-      {/* Summary Stats Grid */}
-      <div className="stat-grid" style={{ marginBottom: 30 }}>
-         <div className="stat-card sc-blue">
-            <div className="lbl">Total Business</div>
-            <div className="val">₹{totals.revenue.toLocaleString()}</div>
-            <div style={{ fontSize: 11, color: '#16a34a', marginTop: 4 }}>{totals.count} successful orders</div>
-         </div>
-         <div className="stat-card sc-green">
-            <div className="lbl">🏆 Top Retailer</div>
-            <div className="val" style={{ fontSize: 18, margin: '6px 0' }}>{tops.retailer ? tops.retailer.name : 'N/A'}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{tops.retailer ? `₹${tops.retailer.revenue.toLocaleString()} Revenue` : 'No data'}</div>
-         </div>
-         <div className="stat-card sc-yellow">
-            <div className="lbl">🏆 Top Distributor</div>
-            <div className="val" style={{ fontSize: 18, margin: '6px 0' }}>{tops.distributor ? tops.distributor.name : 'N/A'}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{tops.distributor ? `₹${tops.distributor.revenue.toLocaleString()} Revenue` : 'No data'}</div>
-         </div>
-         <div className="stat-card sc-teal">
-            <div className="lbl">📍 Top Location</div>
-            <div className="val" style={{ fontSize: 18, margin: '6px 0' }}>{tops.location ? tops.location.name : 'N/A'}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{tops.location ? `₹${tops.location.revenue.toLocaleString()} Business` : 'No data'}</div>
-         </div>
+      {/* Summary Stats */}
+      <div className="stat-grid" style={{ marginBottom: 20 }}>
+        <div className="stat-card sc-blue">
+          <div className="lbl">Total Business</div>
+          <div className="val">₹{totals.revenue.toLocaleString()}</div>
+          <div className="sub">{totals.count} successful orders</div>
+        </div>
+        <div className="stat-card sc-green">
+          <div className="lbl">🏆 Top Retailer</div>
+          <div className="val" style={{ fontSize: 16 }}>{tops.retailer ? tops.retailer.name : 'N/A'}</div>
+          <div className="sub">{tops.retailer ? `₹${tops.retailer.revenue.toLocaleString()} Revenue` : 'No data'}</div>
+        </div>
+        <div className="stat-card sc-yellow">
+          <div className="lbl">🏆 Top Distributor</div>
+          <div className="val" style={{ fontSize: 16 }}>{tops.distributor ? tops.distributor.name : 'N/A'}</div>
+          <div className="sub">{tops.distributor ? `₹${tops.distributor.revenue.toLocaleString()} Revenue` : 'No data'}</div>
+        </div>
+        <div className="stat-card sc-teal">
+          <div className="lbl">📍 Top Location</div>
+          <div className="val" style={{ fontSize: 16 }}>{tops.location ? tops.location.name : 'N/A'}</div>
+          <div className="sub">{tops.location ? `₹${tops.location.revenue.toLocaleString()} Business` : 'No data'}</div>
+        </div>
       </div>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 15 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      {/* Performance Table */}
+      <div className="tw">
+        <div className="tw-head">
+          <h3>Partner Performance</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>List by</span>
-            <select value={groupBy} onChange={e => setGroupBy(e.target.value)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6 }}>
+            <select value={groupBy} onChange={e => setGroupBy(e.target.value)} style={{ padding: '5px 10px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6, fontFamily: 'inherit' }}>
               <option value="Partner">Individual Partners</option>
               <option value="Location">Geographic Districts</option>
             </select>
           </div>
-      </div>
-
-      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
-        <table style={{ margin: 0 }} className="perf-table">
-          <thead>
-            <tr>
-              <th>{groupBy === 'Partner' ? 'Partner Name' : 'District / City'}</th>
-              {groupBy === 'Partner' && <th>Role</th>}
-              {groupBy === 'Partner' && <th>Location</th>}
-              <th style={{ textAlign: 'right' }}>Total Business (₹)</th>
-              <th style={{ textAlign: 'right' }}>Earnings (₹)</th>
-              <th style={{ textAlign: 'right' }}>Volume</th>
-            </tr>
-          </thead>
-          <tbody>
-            {reportData.length === 0 ? (
-              <tr><td colSpan={6} style={{ textAlign: 'center', padding: 60, color: 'var(--muted)' }}>No performance data found for {filter.toLowerCase()}.</td></tr>
-            ) : reportData.map((r, i) => (
-              <tr key={i} style={{ background: i === 0 ? '#f0f9ff' : 'inherit' }}>
-                <td style={{ fontWeight: 600 }}>
+        </div>
+        <div className="tw-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>{groupBy === 'Partner' ? 'Partner Name' : 'District / City'}</th>
+                {groupBy === 'Partner' && <th>Role</th>}
+                {groupBy === 'Partner' && <th>Location</th>}
+                <th style={{ textAlign: 'right' }}>Total Business (₹)</th>
+                <th style={{ textAlign: 'right' }}>Earnings (₹)</th>
+                <th style={{ textAlign: 'right' }}>Volume</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reportData.length === 0 ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 50, color: 'var(--muted)' }}>No performance data found for {filter.toLowerCase()}.</td></tr>
+              ) : reportData.map((r, i) => (
+                <tr key={i} style={{ background: i === 0 ? '#f0f9ff' : undefined }}>
+                  <td style={{ fontWeight: 600 }}>
                     {i === 0 && <span style={{ marginRight: 6 }}>🏆</span>}
                     {r.name}
-                </td>
-                {groupBy === 'Partner' && (
-                  <>
-                    <td><span className="badge" style={{ background: r.role === 'Distributor' ? '#ede9fe' : '#eff6ff', color: r.role === 'Distributor' ? '#6d28d9' : '#1e40af' }}>{r.role}</span></td>
-                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{r.location}</td>
-                  </>
-                )}
-                <td style={{ textAlign: 'right', fontWeight: 700 }}>₹{r.revenue.toLocaleString()}</td>
-                <td style={{ textAlign: 'right', color: '#9333ea', fontWeight: 600 }}>₹{r.earnings.toLocaleString()}</td>
-                <td style={{ textAlign: 'right' }}>{r.count}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </td>
+                  {groupBy === 'Partner' && (
+                    <>
+                      <td><span className="badge" style={{ background: r.role === 'Distributor' ? '#ede9fe' : '#eff6ff', color: r.role === 'Distributor' ? '#6d28d9' : '#1e40af' }}>{r.role}</span></td>
+                      <td style={{ fontSize: 12, color: 'var(--muted)' }}>{r.location}</td>
+                    </>
+                  )}
+                  <td style={{ textAlign: 'right', fontWeight: 700 }}>₹{r.revenue.toLocaleString()}</td>
+                  <td style={{ textAlign: 'right', color: '#9333ea', fontWeight: 600 }}>₹{r.earnings.toLocaleString()}</td>
+                  <td style={{ textAlign: 'right' }}>{r.count}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
