@@ -266,25 +266,24 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
         ))}
       </div>
 
+      {tab === 'Payouts' ? (
+        <PayoutsView applications={applications} commissions={commissions} toast={toast} />
+      ) : tab === 'Reports' ? (
+        <ReportsView commissions={commissions} applications={applications.filter(a => a.status === 'Approved')} ownerId={ownerId} />
+      ) : (
       <div className="tw">
         <div className="tw-head">
-          <h3>{tab === 'Payouts' ? 'Commission Payouts' : tab === 'Products' ? 'Partner Products' : tab === 'Channel Partners' ? 'Channel Partners' : `${tab} Partners`}</h3>
-          {tab !== 'Payouts' && (
-            <div className="sw">
-              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-              <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
-            </div>
-          )}
+          <h3>{tab === 'Products' ? 'Partner Products' : tab === 'Channel Partners' ? 'Channel Partners' : `${tab} Partners`}</h3>
+          <div className="sw">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+            <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
         </div>
         <div className="tw-scroll">
-          {tab === 'Payouts' ? (
-            <PayoutsView applications={applications} ownerId={ownerId} user={user} toast={toast} />
-          ) : tab === 'Products' ? (
+          {tab === 'Products' ? (
             <ProductsView products={products} search={search} />
           ) : tab === 'Requirements' ? (
             <RequirementsView allRequirements={allRequirements} partnerVisible={profile?.partnerVisibleRequirements || []} />
-          ) : tab === 'Reports' ? (
-            <ReportsView commissions={commissions} applications={applications.filter(a => a.status === 'Approved')} ownerId={ownerId} />
           ) : tab === 'Channel Partners' ? (
             <HierarchyView 
               availableDistributors={availableDistributors} 
@@ -349,6 +348,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
           )}
         </div>
       </div>
+      )}
 
       {approveModal && (
         <div className="mo open">
@@ -1131,13 +1131,14 @@ function ReportsView({ commissions, applications, ownerId }) {
   );
 }
 
-function PayoutsView({ applications, ownerId, user, toast }) {
+function PayoutsView({ applications, commissions, toast }) {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [editModal, setEditModal] = useState(null); // { id, amount, editNote }
   
   // Date Filtering State
+  const DATE_FILTERS = ['Today', 'Yesterday', 'This Month', 'This Year', 'Custom'];
   const [dateFilter, setDateFilter] = useState('This Month');
   const [fromDate, setFromDate] = useState(() => { const d = new Date(); d.setDate(1); return d.toISOString().split('T')[0]; });
   const [toDate, setToDate] = useState(() => new Date().toISOString().split('T')[0]);
@@ -1147,12 +1148,12 @@ function PayoutsView({ applications, ownerId, user, toast }) {
   const [pageSize, setPageSize] = useState(50);
 
   useEffect(() => {
-    if (dateFilter === 'Custom Range') {
-      // Enforce 12 month max bounds on custom
+    if (dateFilter === 'Custom' || dateFilter === 'Custom Range') {
       if (fromDate && toDate) {
         const span = new Date(toDate).getTime() - new Date(fromDate).getTime();
-        if (span > 31622400000) { // 366 days
-           toast('Custom date range capped to maximum 12 months for system stability.', 'warning');
+        // Allow up to roughly 12 months for safety but we filter locally so it doesn't matter much.
+        if (span > 31622400000) { 
+           toast('Custom date range capped to 12 months for stability.', 'warning');
            setToDate(new Date(new Date(fromDate).getTime() + 31536000000).toISOString().split('T')[0]);
         }
       }
@@ -1164,12 +1165,13 @@ function PayoutsView({ applications, ownerId, user, toast }) {
     const sd = today.getDate();
 
     let f, t;
-    if (dateFilter === 'Today') { f = new Date(sy, sm, sd); t = f; }
-    else if (dateFilter === 'Tomorrow') { f = new Date(sy, sm, sd + 1); t = f; }
-    else if (dateFilter === 'This Month') { f = new Date(sy, sm, 1); t = new Date(sy, sm + 1, 0); }
+    if (dateFilter === 'Today') { f = new Date(sy, sm, sd); t = new Date(sy, sm, sd, 23, 59, 59); }
+    else if (dateFilter === 'Yesterday') { f = new Date(sy, sm, sd - 1); t = new Date(sy, sm, sd - 1, 23, 59, 59); }
+    else if (dateFilter === 'This Month') { f = new Date(sy, sm, 1); t = new Date(sy, sm + 1, 0, 23, 59, 59); }
+    else if (dateFilter === 'This Year') { f = new Date(sy, 0, 1); t = new Date(sy, 11, 31, 23, 59, 59); }
     else if (dateFilter === 'This Quarter') {
        const q = Math.floor(sm / 3);
-       f = new Date(sy, q * 3, 1); t = new Date(sy, q * 3 + 3, 0);
+       f = new Date(sy, q * 3, 1); t = new Date(sy, q * 3 + 3, 0, 23, 59, 59);
     }
     
     if (f && t) {
@@ -1179,34 +1181,20 @@ function PayoutsView({ applications, ownerId, user, toast }) {
     }
   }, [dateFilter, fromDate, toDate, toast]);
 
-  const queryWhere = useMemo(() => {
-    const q = { userId: ownerId };
-    if (statusFilter) q.status = statusFilter;
-    if (fromDate && toDate) {
-      const s = new Date(fromDate).getTime();
-      const e = new Date(toDate + 'T23:59:59.999Z').getTime();
-      // Use createdAt for date filtering — commissions are stamped at creation time
-      if (e - s <= 31622400000) {
-        q.createdAt = { $gte: s, $lte: e };
-      }
-    }
-    return q;
-  }, [ownerId, statusFilter, fromDate, toDate]);
+  const filteredRawCommissions = useMemo(() => {
+    const sTime = fromDate ? new Date(fromDate).getTime() : 0;
+    const eTime = toDate ? new Date(toDate + 'T23:59:59.999Z').getTime() : Infinity;
 
-  const { data } = db.useQuery({
-    partnerCommissions: {
-       $: {
-          where: queryWhere,
-          limit: pageSize === 'all' ? undefined : pageSize,
-          offset: pageSize === 'all' ? 0 : (currentPage - 1) * pageSize
-       }
-    }
-  });
+    return commissions.filter(c => {
+      if (statusFilter && c.status !== statusFilter) return false;
+      const t = c.updatedAt || c.createdAt; // Uses whichever exists
+      if (t < sTime || t > eTime) return false;
+      return true;
+    });
+  }, [commissions, statusFilter, fromDate, toDate]);
 
-  const rawCommissions = data?.partnerCommissions || [];
-
-  const records = useMemo(() => {
-    return rawCommissions.map(c => {
+  const sortedCommissions = useMemo(() => {
+    return filteredRawCommissions.map(c => {
       const p = applications.find(a => a.id === c.partnerId);
       return { ...c, partnerName: p?.name || 'Unknown', partnerCompany: p?.companyName || '' };
     }).filter(c => {
@@ -1215,38 +1203,36 @@ function PayoutsView({ applications, ownerId, user, toast }) {
       return c.partnerName.toLowerCase().includes(s) || 
              c.clientName?.toLowerCase().includes(s) || 
              c.invoiceNo?.toLowerCase().includes(s);
-    }).sort((a, b) => b.updatedAt - a.updatedAt);
-  }, [rawCommissions, applications, search]);
+    }).sort((a, b) => (b.updatedAt || b.createdAt || 0) - (a.updatedAt || a.createdAt || 0));
+  }, [filteredRawCommissions, applications, search]);
+
+  const records = useMemo(() => {
+    if (pageSize === 'all') return sortedCommissions;
+    const start = (currentPage - 1) * pageSize;
+    return sortedCommissions.slice(start, start + pageSize);
+  }, [sortedCommissions, currentPage, pageSize]);
 
   const handleExport = () => {
     toast('Preparing full CSV export...', 'info');
-    db.query({
-      partnerCommissions: { $: { where: queryWhere } }
-    }).then(res => {
-      const exportRaw = res.partnerCommissions || [];
-      const exportData = exportRaw.map(c => {
-        const p = applications.find(a => a.id === c.partnerId);
-        return [
-          c.invoiceNo || '',
-          p?.name || 'Unknown',
-          p?.companyName || '',
-          c.clientName || '',
-          c.amount || 0,
-          c.status || '',
-          c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : '',
-          c.paidAt ? new Date(c.paidAt).toLocaleDateString() : '-'
-        ];
-      });
-      const csvStr = [
-        ['Invoice', 'Partner Name', 'Company', 'Client', 'Amount Earned', 'Status', 'Updated Date', 'Paid Date'].join(','),
-        ...exportData.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
-      ].join('\n');
-      const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = `Payouts_Export_${Date.now()}.csv`;
-      link.click();
-    });
+    const exportData = sortedCommissions.map(c => [
+      c.invoiceNo || '',
+      c.partnerName || 'Unknown',
+      c.partnerCompany || '',
+      c.clientName || '',
+      c.amount || 0,
+      c.status || '',
+      c.updatedAt ? new Date(c.updatedAt).toLocaleDateString() : '',
+      c.paidAt ? new Date(c.paidAt).toLocaleDateString() : '-'
+    ]);
+    const csvStr = [
+      ['Invoice', 'Partner Name', 'Company', 'Client', 'Amount Earned', 'Status', 'Date', 'Paid Date'].join(','),
+      ...exportData.map(r => r.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+    const blob = new Blob([csvStr], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Payouts_Export_${Date.now()}.csv`;
+    link.click();
   };
 
   const handleMarkPaid = async () => {
@@ -1323,10 +1309,10 @@ function PayoutsView({ applications, ownerId, user, toast }) {
     });
   };
 
-  // Summary stats
-  const totalEarned = records.reduce((s, c) => s + (c.amount || 0), 0);
-  const totalPaid = records.filter(c => c.status === 'Paid').reduce((s, c) => s + (c.amount || 0), 0);
-  const totalPending = records.filter(c => c.status !== 'Paid').reduce((s, c) => s + (c.amount || 0), 0);
+  // Summary stats (unpaginated)
+  const totalEarned = sortedCommissions.reduce((s, c) => s + (c.amount || 0), 0);
+  const totalPaid = sortedCommissions.filter(c => c.status === 'Paid').reduce((s, c) => s + (c.amount || 0), 0);
+  const totalPending = sortedCommissions.filter(c => c.status !== 'Paid').reduce((s, c) => s + (c.amount || 0), 0);
 
   const STATUS_STYLES = {
     'Paid': { bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0', label: 'Paid' },
@@ -1335,7 +1321,30 @@ function PayoutsView({ applications, ownerId, user, toast }) {
   };
 
   return (
-    <>
+    <div style={{ marginTop: 10 }}>
+
+      {/* Title bar */}
+      <div className="sh" style={{ marginBottom: 16 }}>
+        <div>
+          <h2 style={{ margin: 0 }}>Commission Payouts</h2>
+          <div className="sub">Manage and track commission payments for your partners</div>
+        </div>
+      </div>
+
+      {/* Date Filter Tabs */}
+      <div className="tabs" style={{ marginBottom: 16 }}>
+        {DATE_FILTERS.map(f => (
+          <div key={f} className={`tab ${dateFilter === f ? 'active' : ''}`} onClick={() => { setDateFilter(f); setCurrentPage(1); }}>{f}</div>
+        ))}
+      </div>
+
+      {dateFilter === 'Custom' && (
+        <div style={{ display: 'flex', gap: 12, marginBottom: 16, background: 'var(--bg)', padding: 14, borderRadius: 10, border: '1px solid var(--border)' }}>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1 }}><label style={{ fontSize: 11 }}>Start Date</label><input type="date" value={fromDate} onChange={e => setFromDate(e.target.value)} /></div>
+          <div className="form-group" style={{ marginBottom: 0, flex: 1 }}><label style={{ fontSize: 11 }}>End Date</label><input type="date" value={toDate} onChange={e => setToDate(e.target.value)} /></div>
+        </div>
+      )}
+
       {/* Summary cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
         {[
@@ -1350,72 +1359,35 @@ function PayoutsView({ applications, ownerId, user, toast }) {
         ))}
       </div>
 
-      {/* Filter bar */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12, alignItems: 'center', background: '#fff', padding: '12px 16px', borderRadius: 10, border: '1px solid var(--border)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
-        <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 160 }}>
-          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: 14 }}>🔍</span>
-          <input
-            type="text"
-            placeholder="Search partner, invoice, client..."
-            className="input"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            style={{ paddingLeft: 32, width: '100%' }}
-          />
+      {/* Table wrapper */}
+      <div className="tw">
+        <div className="tw-head">
+          <h3 style={{ margin: 0 }}>Payouts Data</h3>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto' }}>
+            {/* Status pills */}
+            {[['', 'All'], ['Paid', 'Paid'], ['Pending Payout', 'Ready to Pay'], ['Awaiting Customer Payment', 'Pending']].map(([val, label]) => (
+              <button key={val} onClick={() => { setStatusFilter(val); setCurrentPage(1); }}
+                style={{ padding: '4px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1.5px solid',
+                  ...(statusFilter === val ? { background: '#1e40af', color: '#fff', borderColor: '#1e40af' } : { background: '#f8fafc', color: '#475569', borderColor: '#e2e8f0' })
+                }}>{label}</button>
+            ))}
+            <div className="sw" style={{ minWidth: 200, marginLeft: 6 }}>
+              <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+              <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={handleExport} style={{ whiteSpace: 'nowrap' }}>↓ Export</button>
+          </div>
         </div>
 
-        {/* Status pills */}
-        <div style={{ display: 'flex', gap: 6 }}>
-          {[['', 'All'], ['Paid', 'Paid'], ['Pending Payout', 'Ready to Pay'], ['Awaiting Customer Payment', 'Pending']].map(([val, label]) => (
-            <button
-              key={val}
-              onClick={() => { setStatusFilter(val); setCurrentPage(1); }}
-              style={{
-                padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1.5px solid',
-                ...(statusFilter === val
-                  ? { background: '#1e40af', color: '#fff', borderColor: '#1e40af' }
-                  : { background: '#f8fafc', color: '#475569', borderColor: '#e2e8f0' })
-              }}
-            >{label}</button>
-          ))}
-        </div>
-
-        {/* Date select */}
-        <select
-          className="input"
-          value={dateFilter}
-          onChange={e => { setDateFilter(e.target.value); setCurrentPage(1); }}
-          style={{ width: 'auto', minWidth: 140 }}
-        >
-          <option value="This Month">This Month</option>
-          <option value="Today">Today</option>
-          <option value="This Quarter">This Quarter</option>
-          <option value="Custom Range">Custom Range</option>
-        </select>
-        {dateFilter === 'Custom Range' && (
-          <>
-            <input type="date" className="input" value={fromDate} onChange={e => setFromDate(e.target.value)} style={{ width: 140 }} />
-            <span style={{ color: 'var(--muted)' }}>–</span>
-            <input type="date" className="input" value={toDate} onChange={e => setToDate(e.target.value)} style={{ width: 140 }} />
-          </>
+        {selectedIds.size > 0 && (
+          <div style={{ background: '#eff6ff', padding: '10px 16px', borderBottom: '1px solid #bfdbfe', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 13, color: '#1e40af' }}><strong>{selectedIds.size}</strong> payouts selected</div>
+            <button className="btn btn-sm" style={{ background: '#16a34a', color: '#fff', borderRadius: 6 }} onClick={handleMarkPaid}>💸 Mark as Paid</button>
+          </div>
         )}
 
-        <div style={{ flex: 1 }} />
-        <button className="btn btn-secondary btn-sm" onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
-          ↓ Export CSV
-        </button>
-      </div>
-
-      {/* Bulk action bar */}
-      {selectedIds.size > 0 && (
-        <div style={{ background: '#eff6ff', padding: '10px 16px', borderRadius: 8, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #bfdbfe' }}>
-          <div style={{ fontSize: 13, color: '#1e40af' }}><strong>{selectedIds.size}</strong> payouts selected</div>
-          <button className="btn btn-sm" style={{ background: '#16a34a', color: '#fff', borderRadius: 6 }} onClick={handleMarkPaid}>💸 Mark as Paid</button>
-        </div>
-      )}
-
-      {/* Table */}
-      <div className="tw-scroll" style={{ padding: 0, borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
+        {/* Table */}
+        <div className="tw-scroll">
         <table style={{ margin: 0 }}>
           <thead>
             <tr style={{ background: '#f8fafc' }}>
@@ -1496,8 +1468,8 @@ function PayoutsView({ applications, ownerId, user, toast }) {
       </div>
 
       {/* Pagination */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 4px', fontSize: 13 }}>
-        <div style={{ color: 'var(--muted)' }}>Showing <b>{records.length}</b> records {data === undefined ? '· Loading...' : ''}</div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 4px', fontSize: 13 }}>
+          <div style={{ color: 'var(--muted)' }}>Showing <b>{records.length}</b> of <b>{sortedCommissions.length}</b> records</div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ color: 'var(--muted)' }}>Rows:</span>
@@ -1516,6 +1488,8 @@ function PayoutsView({ applications, ownerId, user, toast }) {
             </div>
           )}
         </div>
+      </div>
+
       </div>
 
       {/* Edit Amount Modal */}
@@ -1556,7 +1530,7 @@ function PayoutsView({ applications, ownerId, user, toast }) {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 
