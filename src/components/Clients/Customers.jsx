@@ -4,6 +4,7 @@ import { id } from '@instantdb/react';
 import { fmtD, INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import { EMPTY_CUSTOMER } from '../../utils/constants';
+import SearchableSelect from '../UI/SearchableSelect';
 
 export default function Customers({ user, perms, ownerId, planEnforcement }) {
   const canCreate = perms?.can('Customers', 'create') === true;
@@ -502,28 +503,24 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
                     </div>
                   </div>}
 
-                  <div className="fg"><label>Distributor (Optional)</label>
-                    <select value={form.distributorId} onChange={e => setForm(p => ({ ...p, distributorId: e.target.value, retailerId: '' }))}>
-                      <option value="">-- None --</option>
-                      {partners.filter(p => p.role === 'Distributor').map(p => (
-                        <option key={p.id} value={p.id}>{p.companyName || p.name}</option>
-                      ))}
-                    </select>
+                  <div className="fg" style={{ zIndex: 8 }}><label>Distributor (Optional)</label>
+                    <SearchableSelect
+                      options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Distributor').map(p => ({ id: p.id, name: p.companyName || p.name }))]}
+                      displayKey="name" returnKey="id" value={form.distributorId}
+                      onChange={val => setForm(p => ({ ...p, distributorId: val, retailerId: '' }))}
+                      placeholder="Search distributor..."
+                    />
                   </div>
-                  <div className="fg"><label>Retailer (Optional)</label>
-                    <select 
-                      value={form.retailerId} 
-                      disabled={!form.distributorId}
-                      onChange={e => setForm(p => ({ ...p, retailerId: e.target.value === 'self' ? '' : e.target.value }))}
-                    >
-                      <option value="">{form.distributorId ? '-- Select Retailer --' : '-- Select Distributor First --'}</option>
-                      {form.distributorId && (
-                        <option value="self">Self ({partners.find(p => p.id === form.distributorId)?.companyName || partners.find(p => p.id === form.distributorId)?.name})</option>
-                      )}
-                      {partners.filter(p => p.role === 'Retailer' && p.parentDistributorId === form.distributorId).map(p => (
-                        <option key={p.id} value={p.id}>{p.companyName || p.name}</option>
-                      ))}
-                    </select>
+                  <div className="fg" style={{ zIndex: 7 }}><label>Retailer (Optional)</label>
+                    <SearchableSelect
+                      options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Retailer').map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${partners.find(d => d.id === p.parentDistributorId)?.companyName || partners.find(d => d.id === p.parentDistributorId)?.name || ''})` : ''}` }))]}
+                      displayKey="name" returnKey="id" value={form.retailerId}
+                      onChange={val => {
+                        const retailer = partners.find(p => p.id === val);
+                        setForm(p => ({ ...p, retailerId: val, distributorId: retailer?.parentDistributorId || p.distributorId }));
+                      }}
+                      placeholder="Search retailer..."
+                    />
                   </div>
                 </div>
               </div>
@@ -689,28 +686,24 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
                   </div>
                 </div>}
 
-                <div className="fg"><label>Distributor (Optional)</label>
-                  <select value={form.distributorId} onChange={e => setForm(p => ({ ...p, distributorId: e.target.value, retailerId: '' }))}>
-                    <option value="">-- None --</option>
-                    {partners.filter(p => p.role === 'Distributor').map(p => (
-                      <option key={p.id} value={p.id}>{p.companyName || p.name}</option>
-                    ))}
-                  </select>
+                <div className="fg" style={{ zIndex: 8 }}><label>Distributor (Optional)</label>
+                  <SearchableSelect
+                    options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Distributor').map(p => ({ id: p.id, name: p.companyName || p.name }))]}
+                    displayKey="name" returnKey="id" value={form.distributorId}
+                    onChange={val => setForm(p => ({ ...p, distributorId: val, retailerId: '' }))}
+                    placeholder="Search distributor..."
+                  />
                 </div>
-                <div className="fg"><label>Retailer (Optional)</label>
-                  <select 
-                    value={form.retailerId} 
-                    disabled={!form.distributorId}
-                    onChange={e => setForm(p => ({ ...p, retailerId: e.target.value === 'self' ? '' : e.target.value }))}
-                  >
-                    <option value="">{form.distributorId ? '-- Select Retailer --' : '-- Select Distributor First --'}</option>
-                    {form.distributorId && (
-                      <option value="self">Self ({partners.find(p => p.id === form.distributorId)?.companyName || partners.find(p => p.id === form.distributorId)?.name})</option>
-                    )}
-                    {partners.filter(p => p.role === 'Retailer' && p.parentDistributorId === form.distributorId).map(p => (
-                      <option key={p.id} value={p.id}>{p.companyName || p.name}</option>
-                    ))}
-                  </select>
+                <div className="fg" style={{ zIndex: 7 }}><label>Retailer (Optional)</label>
+                  <SearchableSelect
+                    options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Retailer').map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${partners.find(d => d.id === p.parentDistributorId)?.companyName || partners.find(d => d.id === p.parentDistributorId)?.name || ''})` : ''}` }))]}
+                    displayKey="name" returnKey="id" value={form.retailerId}
+                    onChange={val => {
+                      const retailer = partners.find(p => p.id === val);
+                      setForm(p => ({ ...p, retailerId: val, distributorId: retailer?.parentDistributorId || p.distributorId }));
+                    }}
+                    placeholder="Search retailer..."
+                  />
                 </div>
               </div>
             </div>

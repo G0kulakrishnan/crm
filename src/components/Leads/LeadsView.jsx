@@ -767,6 +767,26 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                     </select>
                   </div>
                   <div className="fg span2"><label>Notes</label><textarea value={form.notes} onChange={f('notes')} /></div>
+
+                  <div className="fg" style={{ zIndex: 8 }}><label>Distributor (Optional)</label>
+                    <SearchableSelect
+                      options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Distributor').map(p => ({ id: p.id, name: p.companyName || p.name }))]}
+                      displayKey="name" returnKey="id" value={form.distributorId}
+                      onChange={val => setForm(p => ({ ...p, distributorId: val, retailerId: '' }))}
+                      placeholder="Search distributor..."
+                    />
+                  </div>
+                  <div className="fg" style={{ zIndex: 7 }}><label>Retailer (Optional)</label>
+                    <SearchableSelect
+                      options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Retailer').map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${partners.find(d => d.id === p.parentDistributorId)?.companyName || partners.find(d => d.id === p.parentDistributorId)?.name || ''})` : ''}` }))]}
+                      displayKey="name" returnKey="id" value={form.retailerId}
+                      onChange={val => {
+                        const retailer = partners.find(p => p.id === val);
+                        setForm(p => ({ ...p, retailerId: val, distributorId: retailer?.parentDistributorId || p.distributorId }));
+                      }}
+                      placeholder="Search retailer..."
+                    />
+                  </div>
                 </div>
               </div>
               <div className="mo-foot">
@@ -1225,26 +1245,20 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                 <div className="fg" style={{ zIndex: 8 }}><label>Distributor (Optional)</label>
                   <SearchableSelect
                     options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Distributor').map(p => ({ id: p.id, name: p.companyName || p.name }))]}
-                    displayKey="name"
-                    returnKey="id"
-                    value={form.distributorId}
+                    displayKey="name" returnKey="id" value={form.distributorId}
                     onChange={val => setForm(p => ({ ...p, distributorId: val, retailerId: '' }))}
                     placeholder="Search distributor..."
                   />
                 </div>
                 <div className="fg" style={{ zIndex: 7 }}><label>Retailer (Optional)</label>
                   <SearchableSelect
-                    options={[
-                      { id: '', name: form.distributorId ? '-- Select Retailer --' : '-- Select Distributor First --' },
-                      ...(form.distributorId ? [{ id: 'self', name: `Self (${partners.find(p => p.id === form.distributorId)?.companyName || partners.find(p => p.id === form.distributorId)?.name || ''})` }] : []),
-                      ...partners.filter(p => p.role === 'Retailer' && p.parentDistributorId === form.distributorId).map(p => ({ id: p.id, name: p.companyName || p.name }))
-                    ]}
-                    displayKey="name"
-                    returnKey="id"
-                    value={form.retailerId === '' && form.distributorId ? '' : form.retailerId}
-                    onChange={val => setForm(p => ({ ...p, retailerId: val === 'self' ? '' : val }))}
+                    options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Retailer').map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${partners.find(d => d.id === p.parentDistributorId)?.companyName || partners.find(d => d.id === p.parentDistributorId)?.name || ''})` : ''}` }))]}
+                    displayKey="name" returnKey="id" value={form.retailerId}
+                    onChange={val => {
+                      const retailer = partners.find(p => p.id === val);
+                      setForm(p => ({ ...p, retailerId: val, distributorId: retailer?.parentDistributorId || p.distributorId }));
+                    }}
                     placeholder="Search retailer..."
-                    disabled={!form.distributorId}
                   />
                 </div>
               </div>
