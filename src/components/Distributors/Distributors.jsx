@@ -307,6 +307,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
                   <th>Name</th>
                   <th>Company</th>
                   <th>Role</th>
+                  <th>Parent</th>
                   <th>Contact</th>
                   {tab === 'Approved' && <th>Commission</th>}
                   <th>Actions</th>
@@ -314,13 +315,19 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
               </thead>
               <tbody>
                 {filtered.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No {tab.toLowerCase()} applications.</td></tr>
+                  <tr><td colSpan={tab === 'Approved' ? 8 : 7} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No {tab.toLowerCase()} applications.</td></tr>
                 ) : filtered.map(a => (
                   <tr key={a.id}>
                     <td style={{ fontSize: 12 }}>{fmtD(a.appliedAt)}</td>
                     <td style={{ fontWeight: 600 }}>{a.name}</td>
                     <td>{a.companyName || '-'}</td>
                     <td><span className="badge" style={{ background: a.role === 'Distributor' ? '#ede9fe' : '#e0f2fe', color: a.role === 'Distributor' ? '#6d28d9' : '#0369a1' }}>{a.role}</span></td>
+                    <td style={{ fontSize: 13, fontWeight: 600, color: a.role === 'Distributor' ? '#6366f1' : 'inherit' }}>
+                      {a.role === 'Distributor' ? 'Company' : 
+                       a.parentDistributorId ? 
+                       (applications.find(d => d.id === a.parentDistributorId)?.companyName || applications.find(d => d.id === a.parentDistributorId)?.name || 'Direct') 
+                       : 'Direct'}
+                    </td>
                     <td>
                       <div style={{ fontSize: 12 }}>{a.email}</div>
                       <div style={{ fontSize: 11, color: 'var(--muted)' }}>{a.phone}</div>
@@ -342,6 +349,22 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
                       )}
                       {tab === 'Approved' && (
                         <button className="btn btn-secondary btn-sm" onClick={() => setDetailsModal(a)}>View Details</button>
+                      )}
+                      {tab === 'Rejected' && (
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button className="btn btn-secondary btn-sm" onClick={() => setDetailsModal(a)}>View</button>
+                          <button className="btn btn-primary btn-sm" onClick={() => {
+                            setApproveModal(a);
+                            setPassword(Math.random().toString(36).slice(-8));
+                            setCommission(a.role === 'Distributor'
+                              ? (profile?.defaultDistributorCommission || '')
+                              : (profile?.defaultRetailerCommission || ''));
+                          }}>Approve</button>
+                          <button className="btn btn-secondary btn-sm" style={{ color: '#d97706', borderColor: '#fcd34d' }} onClick={async () => {
+                             await db.transact(db.tx.partnerApplications[a.id].update({ status: 'Pending' }));
+                             toast('Moved back to Pending', 'success');
+                          }}>Pending</button>
+                        </div>
                       )}
                     </td>
                   </tr>
