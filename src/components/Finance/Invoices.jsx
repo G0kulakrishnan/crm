@@ -260,27 +260,31 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
       }
     }
     
-    // Partner Commission Generation
-    const partnerId = cMatchOuter?.partnerId || lMatch?.partnerId;
-    if (partnerId) {
-      const pApp = partnerApplications.find(a => a.id === partnerId);
+    // Dual Partner Commission Generation
+    const distId = payload.distributorId || cMatchOuter?.distributorId || lMatch?.distributorId;
+    const retId = payload.retailerId || cMatchOuter?.retailerId || lMatch?.retailerId;
+    const legacyPartnerId = cMatchOuter?.partnerId || lMatch?.partnerId;
+
+    const commStatus = (payload.status === 'Paid') ? 'Pending Payout' : 'Awaiting Customer Payment';
+    
+    [...new Set([distId, retId, legacyPartnerId].filter(Boolean))].forEach(pId => {
+      const pApp = partnerApplications.find(a => a.id === pId);
       if (pApp && pApp.commission > 0) {
         const commAmt = Math.round(tots.total * (pApp.commission / 100));
-        const commStatus = (payload.status === 'Paid') ? 'Pending Payout' : 'Awaiting Customer Payment';
-        txs.push(db.tx.partnerCommissions[`${invId}-comm`].update({
+        txs.push(db.tx.partnerCommissions[`${invId}-comm-${pId}`].update({
           invoiceId: invId,
-          partnerId: partnerId,
+          partnerId: pId,
           amount: commAmt,
           status: commStatus,
           userId: ownerId,
           clientName: payload.client,
           invoiceNo: payload.no,
           commissionPct: pApp.commission,
-          invoiceTotal: tots.total, // Added for reporting
+          invoiceTotal: tots.total, 
           updatedAt: Date.now()
         }));
       }
-    }
+    });
 
     // Inventory Stock Deduction Logic
     if (payload.status === 'Paid' && !editData?.stockDeducted) {
@@ -464,11 +468,24 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
       }
     }
 
-    // Partner Commission Update
+    // Dual Partner Commission Update
     if (stat === 'Paid') {
-      const pntrId = customers.find(c => (c.name || '').trim().toLowerCase() === (payModal.client || '').trim().toLowerCase())?.partnerId || 
-                     leads.find(l => (l.name || '').trim().toLowerCase() === (payModal.client || '').trim().toLowerCase())?.partnerId;
-      if (pntrId) {
+      const payCMatch = customers.find(c => (c.name || '').trim().toLowerCase() === (payModal.client || '').trim().toLowerCase());
+      const payLMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (payModal.client || '').trim().toLowerCase());
+      
+      const pntrDistId = payModal.distributorId || payCMatch?.distributorId || payLMatch?.distributorId;
+      const pntrRetId = payModal.retailerId || payCMatch?.retailerId || payLMatch?.retailerId;
+      const pntrLegId = payCMatch?.partnerId || payLMatch?.partnerId;
+
+      [...new Set([pntrDistId, pntrRetId, pntrLegId].filter(Boolean))].forEach(pId => {
+        txs.push(db.tx.partnerCommissions[`${payModal.id}-comm-${pId}`].update({
+          status: 'Pending Payout',
+          updatedAt: Date.now()
+        }));
+      });
+      
+      // Backward compatibility update for existing legacy records
+      if (pntrLegId) {
         txs.push(db.tx.partnerCommissions[`${payModal.id}-comm`].update({
           status: 'Pending Payout',
           updatedAt: Date.now()

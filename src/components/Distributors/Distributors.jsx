@@ -1574,8 +1574,8 @@ function PartnerDetailsModal({ partnerId, onClose, ownerId, user, toast, profile
     partnerApplications: { $: { where: { id: partnerId } } },
     subPartners: { $: { where: { parentDistributorId: partnerId, status: 'Approved' } } },
     commissions: { $: { where: { partnerId: partnerId } } },
-    leads: { $: { where: { partnerId: partnerId } } },
-    customers: { $: { where: { partnerId: partnerId } } }
+    leads: { $: { where: { or: [{ partnerId: partnerId }, { distributorId: partnerId }, { retailerId: partnerId }] } } },
+    customers: { $: { where: { or: [{ partnerId: partnerId }, { distributorId: partnerId }, { retailerId: partnerId }] } } }
   });
 
   const partner = data?.partnerApplications?.[0];
