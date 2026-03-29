@@ -493,24 +493,76 @@ export default function Reports({ user, perms, ownerId, profile }) {
         </div>
       )}
 
-      {tab === 'rev-src' && (
-        <div className="tw">
-          <div className="tw-head"><h3>Revenue Analysis by Source</h3></div>
-          <div style={{ padding: '20px' }}>
-            {revBySource.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>Register paid invoices to see source analysis</div>
-            ) : revBySource.map(([src, val], i) => (
-              <div key={src} className="chart-row" style={{ marginBottom: 15 }}>
-                <div className="chart-label" style={{ width: 120 }}>{src}</div>
-                <div className="chart-bar-wrap" style={{ height: 14 }}>
-                  <div className="chart-bar" style={{ width: `${(val / maxSrcRev) * 100}%`, background: CHART_COLORS[i % CHART_COLORS.length] }} />
-                </div>
-                <div className="chart-val" style={{ width: 100, fontSize: 12, marginLeft: 10 }}>{fmt(val)}</div>
+      {tab === 'rev-src' && (() => {
+        const total = revBySource.reduce((s, [, v]) => s + v, 0);
+        let currentDeg = 0;
+        const stops = revBySource.map(([src, val], i) => {
+          const deg = total > 0 ? (val / total) * 360 : 0;
+          const stop = `${CHART_COLORS[i % CHART_COLORS.length]} ${currentDeg}deg ${currentDeg + deg}deg`;
+          currentDeg += deg;
+          return stop;
+        }).join(', ');
+        
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div className="tw">
+              <div className="tw-head"><h3>Revenue Analysis by Source</h3></div>
+              <div style={{ padding: '20px' }}>
+                {revBySource.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>Register paid invoices to see source analysis</div>
+                ) : revBySource.map(([src, val], i) => {
+                  const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+                  return (
+                    <div key={src} className="chart-row" style={{ marginBottom: 15 }}>
+                      <div className="chart-label" style={{ width: 120 }}>{src}</div>
+                      <div className="chart-bar-wrap" style={{ height: 14 }}>
+                        <div className="chart-bar" style={{ width: `${(val / maxSrcRev) * 100}%`, background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                      </div>
+                      <div className="chart-val" style={{ width: 180, fontSize: 13, marginLeft: 10, fontWeight: 700 }}>
+                        {fmt(val)} <span style={{ color: 'var(--muted)', fontWeight: 600 }}>({pct}%)</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))}
+            </div>
+
+            {revBySource.length > 0 && (
+              <div className="tw">
+                <div className="tw-head"><h3>Revenue Distribution</h3></div>
+                <div style={{ padding: '30px', display: 'flex', gap: 50, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <div style={{
+                    width: 200, height: 200,
+                    borderRadius: '50%',
+                    background: `conic-gradient(${stops})`,
+                    boxShadow: '0 4px 15px rgba(0,0,0,0.08)',
+                    flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <div style={{ width: 100, height: 100, background: '#ffffff', borderRadius: '50%', boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.05)' }} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 220 }}>
+                     {revBySource.map(([src, val], i) => {
+                      const pct = Math.round((val / total) * 100);
+                      return (
+                        <div key={src} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                            <div style={{ width: 14, height: 14, borderRadius: 4, background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                            <div style={{ fontSize: 14, fontWeight: 600 }}>{src}</div>
+                          </div>
+                          <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--muted)' }}>
+                            {pct}%
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {tab === 'team' && (
         <div className="tw">
