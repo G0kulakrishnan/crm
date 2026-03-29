@@ -239,7 +239,13 @@ export default function Distributors({ user, ownerId, perms }) {
           ) : tab === 'Products' ? (
             <ProductsView products={products} search={search} />
           ) : tab === 'Hierarchy' ? (
-            <HierarchyView applications={applications} availableDistributors={availableDistributors} ownerId={ownerId} user={user} toast={toast} />
+            <HierarchyView 
+              availableDistributors={availableDistributors} 
+              ownerId={ownerId} 
+              user={user} 
+              toast={toast} 
+              profile={profile}
+            />
           ) : (
             <table>
               <thead>
@@ -771,24 +777,48 @@ function ProductsView({ products, search }) {
   );
 }
 
-function HierarchyView({ applications, availableDistributors, ownerId, user, toast }) {
+function HierarchyView({ availableDistributors, ownerId, user, toast, profile }) {
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(profile?.partnerPageSize || 25);
   const [editingRetailer, setEditingRetailer] = useState(null);
   const [newParentId, setNewParentId] = useState('');
   const [saving, setSaving] = useState(false);
+  const [colModal, setColModal] = useState(false);
 
-  const distributors = useMemo(() => applications.filter(a => a.status === 'Approved' && a.role === 'Distributor'), [applications]);
-  const retailers = useMemo(() => applications.filter(a => a.status === 'Approved' && a.role === 'Retailer'), [applications]);
+  // DB-side pagination query
+  const { data, isLoading } = db.useQuery({
+    partnerApplications: {
+      $: {
+        where: { userId: ownerId, status: 'Approved' },
+        limit: pageSize === 'all' ? undefined : pageSize,
+        offset: pageSize === 'all' ? 0 : (currentPage - 1) * pageSize,
+      }
+    },
+    // Also fetch all approved partners just to get total count and name mappings
+    // (Since InstantDB doesn't have a count-only query yet, this is the most reliable way)
+    allApproved: {
+      $: { where: { userId: ownerId, status: 'Approved' } }
+    }
+  });
 
-  const tree = useMemo(() => {
-    return distributors.map(d => {
-      const children = retailers.filter(r => r.parentDistributorId === d.id);
-      return { ...d, children };
-    });
-  }, [distributors, retailers]);
+  const partners = data?.partnerApplications || [];
+  const allApproved = data?.allApproved || [];
+  const totalCount = allApproved.length;
+  const totalPages = pageSize === 'all' ? 1 : Math.ceil(totalCount / pageSize);
 
-  const directRetailers = useMemo(() => {
-    return retailers.filter(r => !r.parentDistributorId);
-  }, [retailers]);
+  const savedCols = profile?.partnerCols;
+  const allPossibleCols = ['Name', 'Role', 'Parent', 'Phone', 'Email', 'Commission', 'Company', 'Address'];
+  const activeCols = savedCols || ['Name', 'Role', 'Parent', 'Phone', 'Commission', 'Actions'];
+
+  const [tempCols, setTempCols] = useState(activeCols);
+  const [tempPageSize, setTempPageSize] = useState(pageSize);
+
+  const getParentName = (p) => {
+    if (p.role === 'Distributor') return 'Company';
+    if (!p.parentDistributorId) return 'Direct';
+    const parent = allApproved.find(d => d.id === p.parentDistributorId);
+    return parent ? parent.name : 'Unknown';
+  };
 
   const openEdit = (r) => {
     setEditingRetailer(r);
@@ -799,8 +829,8 @@ function HierarchyView({ applications, availableDistributors, ownerId, user, toa
     if (!editingRetailer) return;
     setSaving(true);
     try {
-      const oldParent = availableDistributors.find(d => d.id === editingRetailer.parentDistributorId);
-      const newParent = availableDistributors.find(d => d.id === newParentId);
+      const oldParent = allApproved.find(d => d.id === editingRetailer.parentDistributorId);
+      const newParent = allApproved.find(d => d.id === newParentId);
       await db.transact(
         db.tx.partnerApplications[editingRetailer.id].update({
           parentDistributorId: newParentId || null
@@ -824,80 +854,189 @@ function HierarchyView({ applications, availableDistributors, ownerId, user, toa
     }
   };
 
-  const RetailerRow = ({ r }) => (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', marginLeft: 20, borderTop: '1px dashed #e2e8f0' }}>
-      <div style={{ width: 8, height: 8, background: '#cbd5e1', borderRadius: '50%', flexShrink: 0 }}></div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 14, fontWeight: 600 }}>{r.name}</div>
-        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Retailer • {r.companyName || 'Indiv.'}</div>
-      </div>
-      <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>Approved</div>
-      <button
-        className="btn btn-secondary btn-sm"
-        onClick={() => openEdit(r)}
-        style={{ fontSize: 12, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
-        title="Edit hierarchy"
-      >
-        ✏️ Edit
-      </button>
-    </div>
-  );
+  const saveViewConfig = async (cols, size) => {
+    try {
+      await db.transact(db.tx.userProfiles[profile.id].update({ partnerCols: cols, partnerPageSize: size }));
+      toast('View configuration saved', 'success');
+      setColModal(false);
+    } catch (err) {
+      toast('Error saving config: ' + err.message, 'error');
+    }
+  };
+
+  if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading network data...</div>;
 
   return (
-    <div style={{ padding: 20 }}>
-      <div style={{ marginBottom: 24, padding: 15, background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe' }}>
-         <h4 style={{ margin: 0, color: '#1e40af' }}>Network Structure</h4>
-         <p style={{ margin: '4px 0 0', fontSize: 13, color: '#1e40af', opacity: 0.8 }}>Visualizing the mapping between your Distributors and their associated Retailers. Use ✏️ Edit to reassign a retailer.</p>
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {/* Search Header Area */}
+      <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', background: 'var(--bg-soft)' }}>
+        <button className="btn btn-secondary btn-sm" onClick={() => {
+          setTempCols(activeCols);
+          setTempPageSize(pageSize);
+          setColModal(true);
+        }}>⚙ Configure View</button>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-        {tree.map(d => (
-          <div key={d.id} style={{ border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
-            <div style={{ padding: '12px 20px', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                 <div style={{ width: 32, height: 32, background: '#ede9fe', color: '#6d28d9', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>D</div>
-                 <div>
-                   <div style={{ fontWeight: 700, fontSize: 14 }}>{d.name}</div>
-                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>{d.companyName || 'No Company'}</div>
-                 </div>
-              </div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#6d28d9', textTransform: 'uppercase' }}>Distributor</div>
-            </div>
-            <div style={{ padding: '10px 20px' }}>
-               {d.children.length === 0 ? (
-                 <div style={{ padding: '8px 40px', fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>No retailers mapped under this distributor.</div>
-               ) : (
-                 d.children.map(r => <RetailerRow key={r.id} r={r} />)
-               )}
-            </div>
-          </div>
-        ))}
+      {/* Pagination Controls Top */}
+      <div style={{ padding: '8px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', background: 'var(--bg-soft)', gap: 15 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+          <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Show</span>
+          <select 
+            style={{ border: '1px solid var(--border)', background: 'var(--surface)', fontWeight: 700, outline: 'none', cursor: 'pointer', color: 'var(--accent)', padding: '2px 4px', borderRadius: 4, fontSize: 11 }}
+            value={pageSize}
+            onChange={e => {
+                const newSize = e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10);
+                setPageSize(newSize);
+                setCurrentPage(1);
+            }}
+          >
+            <option value={25}>25</option>
+            <option value={50}>50</option>
+            <option value={100}>100</option>
+            <option value="all">All</option>
+          </select>
+        </div>
 
-        {directRetailers.length > 0 && (
-          <div style={{ border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden', background: '#fff', marginTop: 10 }}>
-            <div style={{ padding: '12px 20px', background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                 <div style={{ width: 32, height: 32, background: '#f1f5f9', color: '#475569', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700 }}>-</div>
-                 <div>
-                   <div style={{ fontWeight: 700, fontSize: 14 }}>Direct Retailers</div>
-                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>Reporting directly to Company</div>
-                 </div>
-              </div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Unmapped</div>
-            </div>
-            <div style={{ padding: '10px 20px' }}>
-               {directRetailers.map(r => <RetailerRow key={r.id} r={r} />)}
-            </div>
-          </div>
-        )}
-
-        {tree.length === 0 && directRetailers.length === 0 && (
-          <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)', fontSize: 14 }}>
-            No approved partners yet. Approve distributors and retailers to see the hierarchy here.
+        {pageSize !== 'all' && totalPages > 1 && (
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>Prev</button>
+            <span style={{ fontSize: 12, alignSelf: 'center' }}>Page {currentPage} of {totalPages}</span>
+            <button className="btn btn-secondary btn-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>Next</button>
           </div>
         )}
       </div>
 
+      <div className="tw-scroll" style={{ padding: 0 }}>
+        <table>
+          <thead>
+            <tr>
+              <th style={{ width: 40 }}>#</th>
+              {activeCols.includes('Name') && <th>Name</th>}
+              {activeCols.includes('Role') && <th>Role</th>}
+              {activeCols.includes('Parent') && <th>Parent</th>}
+              {activeCols.includes('Phone') && <th>Phone</th>}
+              {activeCols.includes('Email') && <th>Email</th>}
+              {activeCols.includes('Commission') && <th>Commission</th>}
+              {activeCols.includes('Company') && <th>Company</th>}
+              {activeCols.includes('Address') && <th>Address</th>}
+              {activeCols.includes('Actions') && <th>Actions</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {partners.length === 0 ? (
+              <tr><td colSpan={10} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>No partners found in this view.</td></tr>
+            ) : partners.map((p, i) => (
+              <tr key={p.id}>
+                <td style={{ color: 'var(--muted)', fontSize: 11 }}>{(currentPage - 1) * (pageSize === 'all' ? 0 : pageSize) + i + 1}</td>
+                {activeCols.includes('Name') && <td><strong>{p.name}</strong></td>}
+                {activeCols.includes('Role') && (
+                  <td>
+                    <span className="badge" style={{ 
+                        background: p.role === 'Distributor' ? '#ede9fe' : '#eff6ff', 
+                        color: p.role === 'Distributor' ? '#6d28d9' : '#1e40af' 
+                    }}>
+                        {p.role}
+                    </span>
+                  </td>
+                )}
+                {activeCols.includes('Parent') && (
+                    <td>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: getParentName(p) === 'Company' ? '#6366f1' : 'inherit' }}>
+                            {getParentName(p)}
+                        </div>
+                    </td>
+                )}
+                {activeCols.includes('Phone') && <td style={{ fontSize: 13 }}>{p.phone || '-'}</td>}
+                {activeCols.includes('Email') && <td style={{ fontSize: 13 }}>{p.email || '-'}</td>}
+                {activeCols.includes('Commission') && <td style={{ fontWeight: 600 }}>{p.commission}%</td>}
+                {activeCols.includes('Company') && <td style={{ fontSize: 13 }}>{p.companyName || '-'}</td>}
+                {activeCols.includes('Address') && <td style={{ fontSize: 12, maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.address}>{p.address || '-'}</td>}
+                {activeCols.includes('Actions') && (
+                  <td>
+                    {p.role === 'Retailer' && (
+                        <button className="btn btn-secondary btn-sm" onClick={() => openEdit(p)}>Edit</button>
+                    )}
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Pagination Controls Bottom */}
+      <div style={{ padding: '12px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', background: 'var(--bg-soft)' }}>
+          <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+              Showing {(currentPage - 1) * (pageSize === 'all' ? 0 : pageSize) + 1} to {Math.min(currentPage * (pageSize === 'all' ? totalCount : pageSize), totalCount)} of {totalCount} partners
+          </div>
+          {pageSize !== 'all' && totalPages > 1 && (
+            <div style={{ display: 'flex', gap: 4 }}>
+                <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>Prev</button>
+                <button className="btn btn-secondary btn-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>Next</button>
+            </div>
+          )}
+      </div>
+
+      {/* Configure View Modal */}
+      {colModal && (
+        <div className="mo open">
+          <div className="mo-box" style={{ width: 480 }}>
+            <div className="mo-head">
+              <h3>Configure View</h3>
+              <button className="btn-icon" onClick={() => setColModal(false)}>✕</button>
+            </div>
+            <div className="mo-body" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxHeight: '60vh', overflowY: 'auto' }}>
+              <div>
+                <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Visible Columns</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {allPossibleCols.concat('Actions').map(c => (
+                    <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                      <input 
+                        type="checkbox" 
+                        checked={tempCols.includes(c)} 
+                        disabled={c === 'Name'}
+                        onChange={e => {
+                            if (e.target.checked) setTempCols([...tempCols, c]);
+                            else setTempCols(tempCols.filter(x => x !== c));
+                        }} 
+                        style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} 
+                      />
+                      {c}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Default Page Size</strong>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[25, 50, 100, 'all'].map(size => (
+                    <button 
+                        key={size} 
+                        className={`btn btn-sm ${tempPageSize === size ? 'btn-primary' : 'btn-secondary'}`} 
+                        onClick={() => setTempPageSize(size)}
+                    >
+                        {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="mo-foot" style={{ justifyContent: 'space-between' }}>
+               <button className="btn btn-secondary btn-sm" onClick={() => {
+                   setTempCols(['Name', 'Role', 'Parent', 'Phone', 'Commission', 'Actions']);
+                   setTempPageSize(25);
+               }}>Reset to Default</button>
+               <div style={{ display: 'flex', gap: 8 }}>
+                 <button className="btn btn-secondary btn-sm" onClick={() => setColModal(false)}>Cancel</button>
+                 <button className="btn btn-primary btn-sm" onClick={() => saveViewConfig(tempCols, tempPageSize)}>Save View</button>
+               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Hierarchy Modal */}
       {editingRetailer && (
         <div className="mo open">
           <div className="mo-box" style={{ width: 420 }}>
@@ -920,12 +1059,12 @@ function HierarchyView({ applications, availableDistributors, ownerId, user, toa
                   style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }}
                 >
                   <option value="">-- No Parent (Direct) --</option>
-                  {availableDistributors.map(d => (
+                  {allApproved.filter(p => p.role === 'Distributor').map(d => (
                     <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
                   ))}
                 </select>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
-                  Current: <strong>{availableDistributors.find(d => d.id === editingRetailer.parentDistributorId)?.name || 'Direct (no parent)'}</strong>
+                  Current: <strong>{allApproved.find(d => d.id === editingRetailer.parentDistributorId)?.name || 'Direct (no parent)'}</strong>
                 </div>
               </div>
 
