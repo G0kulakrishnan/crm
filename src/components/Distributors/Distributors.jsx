@@ -4,8 +4,8 @@ import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { fmtD } from '../../utils/helpers';
 
-export default function Distributors({ user, ownerId, perms }) {
-  const [tab, setTab] = useState('Pending');
+export default function Distributors({ user, ownerId, perms, initialTab }) {
+  const [tab, setTab] = useState(initialTab || 'Pending');
   const [search, setSearch] = useState('');
   const [approveModal, setApproveModal] = useState(null);
   const [commission, setCommission] = useState('');
@@ -15,7 +15,7 @@ export default function Distributors({ user, ownerId, perms }) {
   const [submitting, setSubmitting] = useState(false);
   const [onboardModal, setOnboardModal] = useState(false);
   const [settingsModal, setSettingsModal] = useState(false);
-  const [onboardForm, setOnboardForm] = useState({ name: '', email: '', phone: '', companyName: '', role: 'Retailer', commission: 0, password: '', parentDistributorId: '' });
+  const [onboardForm, setOnboardForm] = useState({ name: '', email: '', phone: '', companyName: '', role: 'Retailer', commission: 0, password: '', parentDistributorId: '', village: '', city: '', district: '', pincode: '', state: '' });
   const [settingsForm, setSettingsForm] = useState({ reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional', customFields: [] });
   const toast = useToast();
 
@@ -76,6 +76,11 @@ export default function Distributors({ user, ownerId, perms }) {
           role: onboardForm.role,
           parentDistributorId: onboardForm.role === 'Retailer' ? (onboardForm.parentDistributorId || null) : null,
           commission: parseFloat(onboardForm.commission) || 0,
+          village: onboardForm.village.trim(),
+          city: onboardForm.city.trim(),
+          district: onboardForm.district.trim(),
+          pincode: onboardForm.pincode.trim(),
+          state: onboardForm.state.trim(),
           status: 'Approved',
           appliedAt: Date.now(),
           approvedAt: Date.now(),
@@ -218,9 +223,9 @@ export default function Distributors({ user, ownerId, perms }) {
       </div>
       
       <div className="tabs">
-        {['Pending', 'Approved', 'Rejected', 'Payouts', 'Products', 'Hierarchy'].map(t => (
+        {['Pending', 'Approved', 'Rejected', 'Payouts', 'Products', 'Hierarchy', 'Reports'].map(t => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-            {t} {!['Payouts', 'Products', 'Hierarchy'].includes(t) && `(${applications.filter(a => a.status === t).length})`}
+            {t} {!['Payouts', 'Products', 'Hierarchy', 'Reports'].includes(t) && `(${applications.filter(a => a.status === t).length})`}
           </div>
         ))}
       </div>
@@ -246,6 +251,8 @@ export default function Distributors({ user, ownerId, perms }) {
               toast={toast} 
               profile={profile}
             />
+          ) : tab === 'Reports' ? (
+            <ReportsView commissions={commissions} applications={applications} ownerId={ownerId} />
           ) : (
             <table>
               <thead>
@@ -519,6 +526,33 @@ export default function Distributors({ user, ownerId, perms }) {
                   <input type="text" value={onboardForm.companyName} onChange={e => setOnboardForm(p => ({ ...p, companyName: e.target.value }))} />
                 </div>
 
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginBottom: 15 }}>
+                  <div className="form-group">
+                    <label>Village / Area</label>
+                    <input type="text" value={onboardForm.village} onChange={e => setOnboardForm(p => ({ ...p, village: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>City / Town</label>
+                    <input type="text" value={onboardForm.city} onChange={e => setOnboardForm(p => ({ ...p, city: e.target.value }))} />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginBottom: 15 }}>
+                  <div className="form-group">
+                    <label>District</label>
+                    <input type="text" value={onboardForm.district} onChange={e => setOnboardForm(p => ({ ...p, district: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>Pincode</label>
+                    <input type="text" value={onboardForm.pincode} onChange={e => setOnboardForm(p => ({ ...p, pincode: e.target.value }))} />
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 15 }}>
+                  <label>State</label>
+                  <input type="text" value={onboardForm.state} onChange={e => setOnboardForm(p => ({ ...p, state: e.target.value }))} />
+                </div>
+
                 <div className="form-group" style={{ marginBottom: 15 }}>
                   <label>Starting Commission (%) *</label>
                   <input type="number" step="0.1" required value={onboardForm.commission} onChange={e => setOnboardForm(p => ({ ...p, commission: e.target.value }))} />
@@ -628,10 +662,172 @@ export default function Distributors({ user, ownerId, perms }) {
                    }}>Proceed to Approve</button>
                  )}
               </div>
+              <div style={{ marginTop: 25, display: 'flex', gap: 10 }}>
+                 <a href={`tel:${detailsModal.phone}`} className="btn btn-secondary btn-sm" style={{ flex: 1, textDecoration: 'none', textAlign: 'center' }}>📞 Call</a>
+                 <a href={`mailto:${detailsModal.email}`} className="btn btn-secondary btn-sm" style={{ flex: 1, textDecoration: 'none', textAlign: 'center' }}>📧 Email</a>
+                 <a href={`https://wa.me/${detailsModal.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="btn btn-secondary btn-sm" style={{ flex: 1, textDecoration: 'none', textAlign: 'center', color: '#16a34a' }}>💬 WhatsApp</a>
+              </div>
+            </div>
+            <div className="mo-foot">
+               <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => setDetailsModal(null)}>Done</button>
             </div>
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ReportsView({ commissions, applications, ownerId }) {
+  const [start, setStart] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    return d.toISOString().split('T')[0];
+  });
+  const [end, setEnd] = useState(() => new Date().toISOString().split('T')[0]);
+  const [groupBy, setGroupBy] = useState('Partner'); // Partner or Location
+
+  const filteredComms = useMemo(() => {
+    const s = new Date(start).getTime();
+    const e = new Date(end).setHours(23, 59, 59, 999);
+    return commissions.filter(c => {
+      const t = c.updatedAt || c.createdAt;
+      return t >= s && t <= e;
+    });
+  }, [commissions, start, end]);
+
+  const reportData = useMemo(() => {
+    const stats = {};
+    
+    filteredComms.forEach(c => {
+      const p = applications.find(a => a.id === c.partnerId);
+      const key = groupBy === 'Partner' ? (p?.name || 'Unknown') : (p?.district || p?.city || 'Unknown Location');
+      
+      if (!stats[key]) {
+        stats[key] = {
+          name: key,
+          role: p?.role || '-',
+          location: p?.district ? `${p.district}, ${p.state || ''}` : p?.city || '-',
+          revenue: 0,
+          earnings: 0,
+          count: 0
+        };
+      }
+      
+      const estRev = c.invoiceTotal || (c.commissionPct > 0 ? (c.amount / (c.commissionPct / 100)) : (c.amount * 10));
+      stats[key].revenue += estRev;
+      stats[key].earnings += (c.amount || 0);
+      stats[key].count += 1;
+    });
+
+    return Object.values(stats).sort((a, b) => b.revenue - a.revenue);
+  }, [filteredComms, applications, groupBy]);
+
+  const exportCSV = () => {
+    const headers = groupBy === 'Partner' 
+      ? ['Partner Name', 'Role', 'Location', 'Total Business (₹)', 'Earnings (₹)', 'Orders']
+      : ['Location', 'Total Business (₹)', 'Total Earnings (₹)', 'Volume'];
+    
+    const rows = reportData.map(r => groupBy === 'Partner' 
+      ? [r.name, r.role, r.location, r.revenue, r.earnings, r.count]
+      : [r.name, r.revenue, r.earnings, r.count]
+    );
+
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `Partner_Performance_${start}_to_${end}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const totals = useMemo(() => {
+    return reportData.reduce((acc, curr) => ({
+      revenue: acc.revenue + curr.revenue,
+      earnings: acc.earnings + curr.earnings,
+      count: acc.count + curr.count
+    }), { revenue: 0, earnings: 0, count: 0 });
+  }, [reportData]);
+
+  return (
+    <div style={{ padding: '20px 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 25, gap: 15, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 15 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Start Date</label>
+            <input type="date" value={start} onChange={e => setStart(e.target.value)} style={{ padding: '6px 10px', fontSize: 13 }} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>End Date</label>
+            <input type="date" value={end} onChange={e => setEnd(e.target.value)} style={{ padding: '6px 10px', fontSize: 13 }} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Group By</label>
+            <select value={groupBy} onChange={e => setGroupBy(e.target.value)} style={{ padding: '6px 10px', fontSize: 13 }}>
+              <option value="Partner">Partner Name</option>
+              <option value="Location">Location (District)</option>
+            </select>
+          </div>
+        </div>
+        <button className="btn btn-secondary btn-sm" onClick={exportCSV} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+           <span>📥</span> Export CSV
+        </button>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 30 }}>
+         <div style={{ background: '#fff', padding: 20, borderRadius: 12, border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>Total Business</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent)' }}>₹{totals.revenue.toLocaleString()}</div>
+            <div style={{ fontSize: 11, color: '#16a34a', marginTop: 4 }}>Generated Revenue</div>
+         </div>
+         <div style={{ background: '#fff', padding: 20, borderRadius: 12, border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>Total Earnings</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: '#9333ea' }}>₹{totals.earnings.toLocaleString()}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Partner Commissions</div>
+         </div>
+         <div style={{ background: '#fff', padding: 20, borderRadius: 12, border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>Order Volume</div>
+            <div style={{ fontSize: 24, fontWeight: 800 }}>{totals.count}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Successful Referrals</div>
+         </div>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
+        <table style={{ margin: 0 }}>
+          <thead>
+            <tr style={{ background: '#f8fafc' }}>
+              <th>{groupBy === 'Partner' ? 'Partner Name' : 'District / City'}</th>
+              {groupBy === 'Partner' && <th>Role</th>}
+              {groupBy === 'Partner' && <th>Location</th>}
+              <th style={{ textAlign: 'right' }}>Business (₹)</th>
+              <th style={{ textAlign: 'right' }}>Earnings (₹)</th>
+              <th style={{ textAlign: 'right' }}>Volume</th>
+            </tr>
+          </thead>
+          <tbody>
+            {reportData.length === 0 ? (
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>No data found for the selected period.</td></tr>
+            ) : reportData.map((r, i) => (
+              <tr key={i}>
+                <td style={{ fontWeight: 600 }}>{r.name}</td>
+                {groupBy === 'Partner' && (
+                  <>
+                    <td><span className="badge" style={{ background: r.role === 'Distributor' ? '#ede9fe' : '#e0f2fe', color: r.role === 'Distributor' ? '#6d28d9' : '#0369a1' }}>{r.role}</span></td>
+                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{r.location}</td>
+                  </>
+                )}
+                <td style={{ textAlign: 'right', fontWeight: 700 }}>₹{r.revenue.toLocaleString()}</td>
+                <td style={{ textAlign: 'right', color: '#9333ea', fontWeight: 600 }}>₹{r.earnings.toLocaleString()}</td>
+                <td style={{ textAlign: 'right' }}>{r.count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -1070,7 +1266,7 @@ function HierarchyView({ availableDistributors, ownerId, user, toast, profile })
                   style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }}
                 >
                   <option value="">-- No Parent (Direct) --</option>
-                  {allApproved.filter(p => p.role === 'Distributor').map(d => (
+                  {availableDistributors.map(d => (
                     <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
                   ))}
                 </select>
@@ -1347,6 +1543,15 @@ function PartnerDetailsModal({ partnerId, onClose, ownerId, user, toast, profile
                   </div>
                </div>
                <div>
+                  <h4 style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 15, letterSpacing: 1 }}>Location Details</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+                     <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Village/Area</label><div style={{ fontSize: 13 }}>{partner.village || '-'}</div></div>
+                     <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>City/Town</label><div style={{ fontSize: 13 }}>{partner.city || '-'}</div></div>
+                     <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>District</label><div style={{ fontSize: 13 }}>{partner.district || '-'}</div></div>
+                     <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Pincode</label><div style={{ fontSize: 13 }}>{partner.pincode || '-'}</div></div>
+                     <div style={{ gridColumn: 'span 2' }}><label style={{ fontSize: 11, color: 'var(--muted)' }}>State</label><div style={{ fontSize: 13 }}>{partner.state || '-'}</div></div>
+                  </div>
+
                   <h4 style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 15, letterSpacing: 1 }}>Full Address</h4>
                   <div style={{ padding: 15, background: 'var(--bg-soft)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, minHeight: 60 }}>
                      {partner.address || 'No address details provided.'}

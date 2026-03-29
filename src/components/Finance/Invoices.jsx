@@ -271,6 +271,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
           clientName: payload.client,
           invoiceNo: payload.no,
           commissionPct: pApp.commission,
+          invoiceTotal: tots.total, // Added for reporting
           updatedAt: Date.now()
         }));
       }

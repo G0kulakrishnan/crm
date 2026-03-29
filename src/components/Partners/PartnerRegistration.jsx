@@ -17,6 +17,11 @@ export default function PartnerRegistration({ params }) {
     role: 'Retailer',
     companyName: '',
     address: '',
+    village: '',
+    city: '',
+    district: '',
+    pincode: '',
+    state: '',
     taxId: '',
     notes: '',
     customData: {}
@@ -200,16 +205,67 @@ export default function PartnerRegistration({ params }) {
             )}
 
             {config.reqAddress !== 'Hidden' && (
-              <div>
-                <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Business Address {config.reqAddress === 'Required' && '*'}</label>
-                <textarea 
-                  value={form.address} 
-                  onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
-                  placeholder="Full operational address..." 
-                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', minHeight: 70, resize: 'vertical' }}
-                  required={config.reqAddress === 'Required'}
-                />
-              </div>
+              <>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Business Address {config.reqAddress === 'Required' && '*'}</label>
+                  <textarea 
+                    value={form.address} 
+                    onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
+                    placeholder="Full operational address..." 
+                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', minHeight: 70, resize: 'vertical' }}
+                    required={config.reqAddress === 'Required'}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Village / Area</label>
+                    <input 
+                      value={form.village} 
+                      onChange={e => setForm(p => ({ ...p, village: e.target.value }))}
+                      placeholder="Village or Local Area" 
+                      style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>City / Town</label>
+                    <input 
+                      value={form.city} 
+                      onChange={e => setForm(p => ({ ...p, city: e.target.value }))}
+                      placeholder="City Name" 
+                      style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>District</label>
+                    <input 
+                      value={form.district} 
+                      onChange={e => setForm(p => ({ ...p, district: e.target.value }))}
+                      placeholder="District" 
+                      style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Pincode</label>
+                    <input 
+                      value={form.pincode} 
+                      onChange={e => setForm(p => ({ ...p, pincode: e.target.value }))}
+                      placeholder="e.g. 560001" 
+                      style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>State</label>
+                  <input 
+                    value={form.state} 
+                    onChange={e => setForm(p => ({ ...p, state: e.target.value }))}
+                    placeholder="State" 
+                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                  />
+                </div>
+              </>
             )}
 
             {config.reqTax !== 'Hidden' && (
