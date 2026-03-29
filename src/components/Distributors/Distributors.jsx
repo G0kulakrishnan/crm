@@ -1571,16 +1571,15 @@ function PartnerDetailsModal({ partnerId, onClose, ownerId, user, toast, profile
   const [tab, setTab] = useState('Overview');
   
   const { data, isLoading } = db.useQuery({
-    partnerApplications: { $: { where: { id: partnerId } } },
-    subPartners: { $: { where: { parentDistributorId: partnerId, status: 'Approved' } } },
-    commissions: { $: { where: { partnerId: partnerId } } },
+    partnerApplications: { $: { where: { or: [{ id: partnerId }, { parentDistributorId: partnerId }] } } },
+    partnerCommissions: { $: { where: { partnerId: partnerId } } },
     leads: { $: { where: { or: [{ partnerId: partnerId }, { distributorId: partnerId }, { retailerId: partnerId }] } } },
     customers: { $: { where: { or: [{ partnerId: partnerId }, { distributorId: partnerId }, { retailerId: partnerId }] } } }
   });
 
-  const partner = data?.partnerApplications?.[0];
-  const subPartners = data?.subPartners || [];
-  const commissions = data?.commissions || [];
+  const partner = data?.partnerApplications?.find(p => p.id === partnerId);
+  const subPartners = data?.partnerApplications?.filter(p => p.parentDistributorId === partnerId && p.status === 'Approved') || [];
+  const commissions = data?.partnerCommissions || [];
   const leads = data?.leads || [];
   const customers = data?.customers || [];
 
