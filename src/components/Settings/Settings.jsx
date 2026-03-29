@@ -25,7 +25,7 @@ const SETTINGS_GROUPS = [
   },
   {
     title: 'Comms & Alerts',
-    items: ['SMTP', 'WhatsApp', 'WhatsApp Templates', 'Reminders']
+    items: ['SMTP', 'WhatsApp', 'WhatsApp Templates']
   }
 ];
 
@@ -150,19 +150,13 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       setWaApiToken(profile.waApiToken || '');
       setWaPhoneId(profile.waPhoneId || '');
       setWhatsappTemplates(profile.whatsappTemplates || []);
-      setReminders(profile.reminders || {
-        amc: { days: 30, msg: 'Hello {client}, your AMC contract is expiring on {date}. Please contact us for renewal.' },
-        followup: { days: 1, msg: 'Reminder: Follow-up with {client} is scheduled for {date}.' }
-      });
+
     }
   }, [profile]);
   const [newTaskStatus, setNewTaskStatus] = useState('');
   const [newTax, setNewTax] = useState({ label: '', rate: '' });
   const [newCF, setNewCF] = useState({ name: '', type: 'text', options: '' });
-  const [reminders, setReminders] = useState(profile?.reminders || {
-    amc: { days: 30, msg: 'Hello {client}, your AMC contract is expiring on {date}. Please contact us for renewal.' },
-    followup: { days: 1, msg: 'Reminder: Follow-up with {client} is scheduled for {date}.' }
-  });
+
   const [editingCFIndex, setEditingCFIndex] = useState(null);
   const [editingWA, setEditingWA] = useState(null);
   const toast = useToast();
@@ -497,20 +491,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   };
 
 
-  const saveReminders = async () => {
-    const payload = { reminders, userId: ownerId };
-    if (profileId) { await db.transact(db.tx.userProfiles[profileId].update(payload)); }
-    toast('Reminder rules updated!', 'success');
-  };
 
-  const testTemplate = (key) => {
-    const msg = renderTemplate(reminders[key].msg, {
-      client: 'Sample Client',
-      date: new Date().toLocaleDateString(),
-      bizName: biz.bizName || 'My Business'
-    });
-    alert(`📢 Template Preview:\n\n${msg}\n\n(This is how your automated message will look)`);
-  };
   const sampleInv = {
     no: 'INV/2026/001', date: new Date().toISOString().split('T')[0], dueDate: new Date(Date.now() + 86400000*7).toISOString().split('T')[0],
     client: 'John Doe Corp', items: [{ name: 'Premium Service', qty: 1, rate: 2500, taxRate: 18 }, { name: 'Consulting', qty: 2, rate: 500, taxRate: 0 }],
@@ -1604,47 +1585,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
             </div>
           )}
 
-          {active === 'Reminders' && (
-            <div className="tw">
-              <div className="tw-head"><h3>Reminder Rules & Templates</h3><button className="btn btn-primary btn-sm" onClick={saveReminders}>Save Rules</button></div>
-              <div style={{ padding: '20px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
-                  {[
-                    { key: 'amc', name: 'AMC Expiry Alert', desc: 'Alert sent before AMC contracts expire.' },
-                    { key: 'followup', name: 'Follow-Up Due', desc: 'Alert sent before a lead follow-up is scheduled.' }
-                  ].map(rule => (
-                    <div key={rule.key} style={{ paddingBottom: 20, borderBottom: '1px solid var(--border)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
-                        <div>
-                          <div style={{ fontSize: 14, fontWeight: 700 }}>{rule.name}</div>
-                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>{rule.desc}</div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <input type="number" value={reminders[rule.key].days} onChange={e => setReminders(r => ({ ...r, [rule.key]: { ...r[rule.key], days: parseInt(e.target.value) || 0 } }))} style={{ width: 60, padding: '6px 8px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 12, textAlign: 'center' }} />
-                            <span style={{ fontSize: 12, color: 'var(--muted)' }}>days before</span>
-                          </div>
-                          <button className="btn btn-secondary btn-sm" onClick={() => testTemplate(rule.key)} style={{ padding: '4px 10px' }}>👁 Test</button>
-                        </div>
-                      </div>
-                      <div className="fg">
-                        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--muted)', marginBottom: 6, display: 'block' }}>Message Template</label>
-                        <textarea 
-                          value={reminders[rule.key].msg} 
-                          onChange={e => setReminders(r => ({ ...r, [rule.key]: { ...r[rule.key], msg: e.target.value } }))} 
-                          style={{ minHeight: 60, fontSize: 13, lineHeight: 1.5 }}
-                          placeholder="Type your message template here..."
-                        />
-                        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
-                          Placeholders: <code>{`{client}`}</code>, <code>{`{date}`}</code> {rule.key === 'sub' && <>, <code>{`{amount}`}</code></>}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+
         </div>
       </div>
     </div>
