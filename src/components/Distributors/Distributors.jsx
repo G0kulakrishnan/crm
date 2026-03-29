@@ -243,14 +243,6 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
             <PayoutsView commissions={commissions} applications={applications} search={search} ownerId={ownerId} user={user} toast={toast} />
           ) : tab === 'Products' ? (
             <ProductsView products={products} search={search} />
-          ) : tab === 'Hierarchy' ? (
-            <HierarchyView 
-              availableDistributors={availableDistributors} 
-              ownerId={ownerId} 
-              user={user} 
-              toast={toast} 
-              profile={profile}
-            />
           ) : tab === 'Reports' ? (
             <ReportsView commissions={commissions} applications={applications.filter(a => a.status === 'Approved')} ownerId={ownerId} />
           ) : tab === 'Hierarchy' ? (
