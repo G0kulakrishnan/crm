@@ -783,35 +783,94 @@ function ReportsView({ commissions, applications, ownerId }) {
 
   const reportData = useMemo(() => {
     const stats = {};
-    
+    const invMap = {};
+    const legacyComms = [];
+
     filteredComms.forEach(c => {
-      const p = applications.find(a => a.id === c.partnerId);
-      const key = groupBy === 'Partner' ? (p?.name || 'Unknown') : (p?.district || p?.city || 'Unknown Location');
-      
+      if (c.invoiceId) {
+        if (!invMap[c.invoiceId]) invMap[c.invoiceId] = [];
+        invMap[c.invoiceId].push(c);
+      } else {
+        legacyComms.push([c]);
+      }
+    });
+
+    const processInvoice = (comms) => {
+      let retailerComm = null;
+      let distributorComm = null;
+      let originatorApp = null;
+      let totalBusiness = 0;
+
+      comms.forEach(c => {
+        const p = applications.find(a => a.id === c.partnerId);
+        if (!p) return;
+        totalBusiness = c.invoiceTotal || (c.commissionPct > 0 ? (c.amount / (c.commissionPct / 100)) : (c.amount * 10));
+        
+        if (p.role === 'Retailer' || !p.role) {
+          retailerComm = c;
+          originatorApp = p;
+        } else if (p.role === 'Distributor') {
+          distributorComm = c;
+          if (!originatorApp) originatorApp = p;
+        }
+      });
+
+      if (!originatorApp) return;
+
+      const key = groupBy === 'Partner' ? originatorApp.id : (originatorApp.district || originatorApp.city || 'Unknown Location');
+
       if (!stats[key]) {
+        let parentApp = null;
+        if (originatorApp.role === 'Retailer' && originatorApp.parentDistributorId) {
+           parentApp = applications.find(a => a.id === originatorApp.parentDistributorId);
+        }
+
         stats[key] = {
-          id: p?.id || key,
-          name: key,
-          role: p?.role || '-',
-          location: p?.district ? `${p.district}, ${p.state || ''}` : p?.city || '-',
-          revenue: 0,
-          earnings: 0,
-          count: 0
+           id: originatorApp.id,
+           name: groupBy === 'Partner' ? originatorApp.name : key,
+           role: originatorApp.role || 'Retailer',
+           parentName: parentApp ? parentApp.name : '-',
+           parentRole: parentApp ? parentApp.role : '-',
+           location: originatorApp.district ? `${originatorApp.district}, ${originatorApp.state || ''}` : originatorApp.city || '-',
+           revenue: 0,
+           retailerEarnings: 0,
+           distributorEarnings: 0,
+           earnings: 0,
+           count: 0
         };
       }
-      
-      const estRev = c.invoiceTotal || (c.commissionPct > 0 ? (c.amount / (c.commissionPct / 100)) : (c.amount * 10));
-      stats[key].revenue += estRev;
-      stats[key].earnings += (c.amount || 0);
+
+      stats[key].revenue += totalBusiness;
       stats[key].count += 1;
-    });
+      
+      const rEarn = retailerComm ? (retailerComm.amount || 0) : 0;
+      const dEarn = distributorComm ? (distributorComm.amount || 0) : 0;
+      stats[key].retailerEarnings += rEarn;
+      stats[key].distributorEarnings += dEarn;
+      stats[key].earnings += (rEarn + dEarn);
+    };
+
+    Object.values(invMap).forEach(processInvoice);
+    legacyComms.forEach(processInvoice);
 
     return Object.values(stats).sort((a, b) => b.revenue - a.revenue);
   }, [filteredComms, applications, groupBy]);
 
   const tops = useMemo(() => {
     const retailers = reportData.filter(r => r.role === 'Retailer').sort((a, b) => b.revenue - a.revenue);
-    const distributors = reportData.filter(r => r.role === 'Distributor').sort((a, b) => b.revenue - a.revenue);
+    
+    const distAgg = {};
+    Object.values(reportData).forEach(r => {
+       if (r.role === 'Distributor') {
+         if (!distAgg[r.name]) distAgg[r.name] = { name: r.name, revenue: 0 };
+         distAgg[r.name].revenue += r.revenue;
+       }
+       if (r.parentName !== '-') {
+         if (!distAgg[r.parentName]) distAgg[r.parentName] = { name: r.parentName, revenue: 0 };
+         distAgg[r.parentName].revenue += r.revenue;
+       }
+    });
+    const distributors = Object.values(distAgg).sort((a, b) => b.revenue - a.revenue);
     
     // For top location, we deduplicate by invoiceId to avoid double counting the same order in the same location
     const locStats = {};
@@ -865,11 +924,11 @@ function ReportsView({ commissions, applications, ownerId }) {
 
   const exportCSV = () => {
     const headers = groupBy === 'Partner' 
-      ? ['Partner Name', 'Role', 'Location', 'Total Business (₹)', 'Earnings (₹)', 'Orders']
+      ? ['Partner Name', 'Role', 'Parent Distributor', 'Parent Role', 'Location', 'Total Business (₹)', 'Retailer Earnings (₹)', 'Distributor Earnings (₹)', 'Orders']
       : ['Location', 'Total Business (₹)', 'Total Earnings (₹)', 'Volume'];
     
     const rows = reportData.map(r => groupBy === 'Partner' 
-      ? [r.name, r.role, r.location, r.revenue, r.earnings, r.count]
+      ? [r.name, r.role, r.parentName, r.parentRole, r.location, r.revenue, r.retailerEarnings, r.distributorEarnings, r.count]
       : [r.name, r.revenue, r.earnings, r.count]
     );
 
@@ -965,15 +1024,18 @@ function ReportsView({ commissions, applications, ownerId }) {
               <tr>
                 <th>{groupBy === 'Partner' ? 'Partner Name' : 'District / City'}</th>
                 {groupBy === 'Partner' && <th>Role</th>}
+                {groupBy === 'Partner' && <th>Parent Distributor</th>}
                 {groupBy === 'Partner' && <th>Location</th>}
                 <th style={{ textAlign: 'right' }}>Total Business (₹)</th>
-                <th style={{ textAlign: 'right' }}>Earnings (₹)</th>
+                {groupBy === 'Partner' && <th style={{ textAlign: 'right' }}>Retailer Earnings (₹)</th>}
+                {groupBy === 'Partner' && <th style={{ textAlign: 'right' }}>Distributor Earnings (₹)</th>}
+                {groupBy !== 'Partner' && <th style={{ textAlign: 'right' }}>Earnings (₹)</th>}
                 <th style={{ textAlign: 'right' }}>Volume</th>
               </tr>
             </thead>
             <tbody>
               {reportData.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 50, color: 'var(--muted)' }}>No performance data found for {filter.toLowerCase()}.</td></tr>
+                <tr><td colSpan={groupBy === 'Partner' ? 9 : 4} style={{ textAlign: 'center', padding: 50, color: 'var(--muted)' }}>No performance data found for {filter.toLowerCase()}.</td></tr>
               ) : reportData.map((r, i) => (
                 <tr key={i} style={{ background: i === 0 ? '#f0f9ff' : undefined }}>
                   <td style={{ fontWeight: 600 }}>
@@ -983,11 +1045,21 @@ function ReportsView({ commissions, applications, ownerId }) {
                   {groupBy === 'Partner' && (
                     <>
                       <td><span className="badge" style={{ background: r.role === 'Distributor' ? '#ede9fe' : '#eff6ff', color: r.role === 'Distributor' ? '#6d28d9' : '#1e40af' }}>{r.role}</span></td>
+                      <td style={{ fontSize: 13, color: 'var(--text)' }}>
+                        {r.parentName !== '-' ? (
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontWeight: 600 }}>{r.parentName}</span>
+                            <span style={{ fontSize: 10, color: 'var(--muted)' }}>{r.parentRole}</span>
+                          </div>
+                        ) : <span style={{ color: 'var(--muted)' }}>-</span>}
+                      </td>
                       <td style={{ fontSize: 12, color: 'var(--muted)' }}>{r.location}</td>
                     </>
                   )}
                   <td style={{ textAlign: 'right', fontWeight: 700 }}>₹{r.revenue.toLocaleString()}</td>
-                  <td style={{ textAlign: 'right', color: '#9333ea', fontWeight: 600 }}>₹{r.earnings.toLocaleString()}</td>
+                  {groupBy === 'Partner' && <td style={{ textAlign: 'right', color: '#1e40af', fontWeight: 600 }}>₹{r.retailerEarnings.toLocaleString()}</td>}
+                  {groupBy === 'Partner' && <td style={{ textAlign: 'right', color: '#9333ea', fontWeight: 600 }}>₹{r.distributorEarnings.toLocaleString()}</td>}
+                  {groupBy !== 'Partner' && <td style={{ textAlign: 'right', color: '#9333ea', fontWeight: 600 }}>₹{r.earnings.toLocaleString()}</td>}
                   <td style={{ textAlign: 'right' }}>{r.count}</td>
                 </tr>
               ))}
