@@ -232,9 +232,10 @@ export default function Reports({ user, perms, ownerId, profile }) {
       const plData = filteredInv.map(inv => {
         const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
         const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
-        return { ...inv, paidAmt };
+        const commTotal = commissions.filter(c => c.invoiceId === inv.id && c.status === 'Paid').reduce((s, c) => s + (c.amount || 0), 0);
+        return { ...inv, paidAmt, commTotal };
       }).filter(inv => inv.paidAmt > 0);
-      exportCSV(['Invoice No', 'Client', 'Date', 'Status', 'Paid Amount'], plData.map(inv => [inv.no, inv.client, fmtD(inv.date), inv.status, inv.paidAmt]), `PL_Report_${fromDate}_to_${toDate}`);
+      exportCSV(['Invoice No', 'Client', 'Date', 'Status', 'Paid Amount', 'Commission Paid'], plData.map(inv => [inv.no, inv.client, fmtD(inv.date), inv.status, inv.paidAmt, inv.commTotal]), `PL_Report_${fromDate}_to_${toDate}`);
     } else if (tab === 'gst') {
       const gstDetails = filteredInv.map(inv => {
         const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
@@ -334,13 +335,14 @@ export default function Reports({ user, perms, ownerId, profile }) {
             <div className="tw-head"><h3>Invoice Breakdown</h3></div>
             <div className="tw-scroll">
               <table>
-                <thead><tr><th>Invoice No.</th><th>Client</th><th>Date</th><th>Status</th><th>Amount</th></tr></thead>
+                <thead><tr><th>Invoice No.</th><th>Client</th><th>Date</th><th>Status</th><th>Amount</th><th>Partner Commission</th></tr></thead>
                 <tbody>
                   {(() => {
                     const plData = filteredInv.map(inv => {
                       const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
                       const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
-                      return { ...inv, paidAmt };
+                      const commTotal = commissions.filter(c => c.invoiceId === inv.id && c.status === 'Paid').reduce((s, c) => s + (c.amount || 0), 0);
+                      return { ...inv, paidAmt, commTotal };
                     }).filter(inv => inv.paidAmt > 0);
 
                     if (plData.length === 0) return <tr><td colSpan={5} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No paid invoices in this period</td></tr>;
@@ -352,6 +354,7 @@ export default function Reports({ user, perms, ownerId, profile }) {
                         <td style={{ fontSize: 12 }}>{fmtD(inv.date)}</td>
                         <td><span className={`badge ${stageBadgeClass(getInvoiceStatus(inv))}`}>{getInvoiceStatus(inv)}</span></td>
                         <td style={{ fontWeight: 700 }}>{fmt(inv.paidAmt)}</td>
+                        <td style={{ fontWeight: 600, color: '#7c3aed' }}>{inv.commTotal > 0 ? fmt(inv.commTotal) : '-'}</td>
                       </tr>
                     ));
                   })()}
