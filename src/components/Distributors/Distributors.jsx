@@ -813,13 +813,23 @@ function ReportsView({ commissions, applications, ownerId }) {
     const retailers = reportData.filter(r => r.role === 'Retailer').sort((a, b) => b.revenue - a.revenue);
     const distributors = reportData.filter(r => r.role === 'Distributor').sort((a, b) => b.revenue - a.revenue);
     
-    // For top location, we need to recalculate grouped by location regardless of 'groupBy' state
+    // For top location, we deduplicate by invoiceId to avoid double counting the same order in the same location
     const locStats = {};
+    const locMap = {};
     filteredComms.forEach(c => {
       const p = applications.find(a => a.id === c.partnerId);
       const loc = p?.district || p?.city || 'Unknown';
       if (!locStats[loc]) locStats[loc] = 0;
-      locStats[loc] += (c.invoiceTotal || (c.commissionPct > 0 ? (c.amount / (c.commissionPct / 100)) : (c.amount * 10)));
+      
+      const val = (c.invoiceTotal || (c.commissionPct > 0 ? (c.amount / (c.commissionPct / 100)) : (c.amount * 10)));
+      if (c.invoiceId) {
+        if (!locMap[`${loc}-${c.invoiceId}`]) {
+           locMap[`${loc}-${c.invoiceId}`] = true;
+           locStats[loc] += val;
+        }
+      } else {
+        locStats[loc] += val;
+      }
     });
     const topLoc = Object.entries(locStats).sort((a, b) => b[1] - a[1])[0];
 
@@ -831,12 +841,27 @@ function ReportsView({ commissions, applications, ownerId }) {
   }, [reportData, filteredComms, applications]);
 
   const totals = useMemo(() => {
-    return reportData.reduce((acc, curr) => ({
-      revenue: acc.revenue + curr.revenue,
-      earnings: acc.earnings + curr.earnings,
-      count: acc.count + curr.count
-    }), { revenue: 0, earnings: 0, count: 0 });
-  }, [reportData]);
+    let rev = 0;
+    let earn = 0;
+    let cnt = 0;
+    const invMap = {};
+
+    filteredComms.forEach(c => {
+       earn += (c.amount || 0);
+       const val = (c.invoiceTotal || (c.commissionPct > 0 ? (c.amount / (c.commissionPct / 100)) : (c.amount * 10)));
+       
+       if (!c.invoiceId) {
+         rev += val;
+         cnt += 1;
+       } else if (!invMap[c.invoiceId]) {
+         invMap[c.invoiceId] = true;
+         rev += val;
+         cnt += 1;
+       }
+    });
+
+    return { revenue: rev, count: cnt, earnings: earn };
+  }, [filteredComms]);
 
   const exportCSV = () => {
     const headers = groupBy === 'Partner' 
