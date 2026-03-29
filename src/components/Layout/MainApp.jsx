@@ -5,7 +5,7 @@ import { useApp } from '../../context/AppContext';
 import { usePermissions } from '../../hooks/usePermissions';
 import { usePlanEnforcement } from '../../hooks/usePlanEnforcement';
 import { useToast } from '../../context/ToastContext';
-import { DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS } from '../../utils/helpers';
+import { DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_REQUIREMENTS } from '../../utils/helpers';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import NotifPanel from './NotifPanel';
@@ -188,7 +188,7 @@ export default function MainApp({ user, settings }) {
         planExpiry: Date.now() + (TRIAL_DAYS * 24 * 60 * 60 * 1000),
         stages: DEFAULT_STAGES,
         sources: DEFAULT_SOURCES,
-        labels: DEFAULT_LABELS,
+        requirements: DEFAULT_REQUIREMENTS,
         invoiceTemplate: 'Spreadsheet',
         quotationTemplate: 'Spreadsheet',
         createdAt: Date.now()

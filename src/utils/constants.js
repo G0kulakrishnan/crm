@@ -22,7 +22,7 @@ export const EMPTY_LEAD = {
   stage: '',
   assign: '',
   followup: '',
-  label: '',
+  requirement: '',
   notes: '',
   productCat: '',
   remWA: false,

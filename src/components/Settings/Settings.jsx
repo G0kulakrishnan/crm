@@ -3,7 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { renderTemplate, sendEmailMock, sendEmail, sendWhatsApp, AUTO_TRIGGER_EVENTS } from '../../utils/messaging';
-import { fmtD, INDIAN_STATES, COUNTRIES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, SYSTEM_STAGES, DEFAULT_UNITS } from '../../utils/helpers';
+import { fmtD, INDIAN_STATES, COUNTRIES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_REQUIREMENTS, SYSTEM_STAGES, DEFAULT_UNITS } from '../../utils/helpers';
 import DocumentTemplate from '../Finance/DocumentTemplate';
 
 const SETTINGS_GROUPS = [
@@ -13,7 +13,7 @@ const SETTINGS_GROUPS = [
   },
   {
     title: 'Lead Settings',
-    items: ['Sources', 'Stages', 'Labels', 'Custom Fields']
+    items: ['Sources', 'Stages', 'Requirements', 'Custom Fields']
   },
   {
     title: 'Finance & Products',
@@ -100,7 +100,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   const [editingStageIdx, setEditingStageIdx] = useState(null);
   const [editingStageVal, setEditingStageVal] = useState('');
   const stageDragIdx = useRef(null);
-  const [newLabel, setNewLabel] = useState('');
+  const [newRequirement, setNewRequirement] = useState('');
   const [newExpCat, setNewExpCat] = useState('');
   const [newProdCat, setNewProdCat] = useState('');
   const [newUnit, setNewUnit] = useState('');
@@ -177,7 +177,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
   const lostStage = data?.userProfiles?.[0]?.lostStage || 'Lost';
   const disabledStages = data?.userProfiles?.[0]?.disabledStages || [];
-  const labels = data?.userProfiles?.[0]?.labels || DEFAULT_LABELS;
+  const requirements = data?.userProfiles?.[0]?.requirements || DEFAULT_REQUIREMENTS;
   const customFields = data?.userProfiles?.[0]?.customFields || DEFAULT_CFIELDS;
   const productCats = data?.userProfiles?.[0]?.productCats || DEFAULT_PROD_CATS;
   const expCats = data?.userProfiles?.[0]?.expCats || DEFAULT_EXP_CATS;
@@ -219,6 +219,33 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       }).catch(e => console.error("❌ Stage migration failed:", e));
     }
   }, [profileId, stages, data?.leads]);
+
+  // Auto-migration for Labels -> Requirements
+  useEffect(() => {
+    if (!profileId) return;
+    const txs = [];
+    let updated = false;
+
+    const rawProfile = data?.userProfiles?.[0];
+    if (rawProfile && rawProfile.labels && !rawProfile.requirements) {
+      txs.push(db.tx.userProfiles[profileId].update({ requirements: rawProfile.labels }));
+      updated = true;
+    }
+
+    (data?.leads || []).forEach(l => {
+      // If legacy label exists but requirement is empty, migrate it
+      if (l.label && !l.requirement) {
+        txs.push(db.tx.leads[l.id].update({ requirement: l.label }));
+        updated = true;
+      }
+    });
+
+    if (updated && txs.length > 0) {
+      db.transact(txs).then(() => {
+         console.log("✅ Labels migrated to Requirements successfully");
+      }).catch(e => console.error("❌ Label migration failed:", e));
+    }
+  }, [profileId, data?.userProfiles, data?.leads]);
 
   const handleFile = (e, callback, fieldName = null) => {
     const file = e.target.files[0];
@@ -313,7 +340,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
 
     const activeStages = profile?.stages || DEFAULT_STAGES;
     const activeSources = profile?.sources || DEFAULT_SOURCES;
-    const activeLabels = profile?.labels || DEFAULT_LABELS;
+    const activeRequirements = profile?.requirements || DEFAULT_REQUIREMENTS;
 
     const STAGE_ORDER = ['New Enquiry', 'Enquiry Contacted', 'Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Won'];
 
@@ -987,20 +1014,20 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
             </div>
           )}
 
-          {active === 'Labels' && (
+          {active === 'Requirements' && (
             <div className="tw">
-              <div className="tw-head"><h3>Lead Labels</h3></div>
+              <div className="tw-head"><h3>Lead Requirements</h3></div>
               <div style={{ padding: '16px 20px' }}>
                 <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-                  <input value={newLabel} onChange={e => setNewLabel(e.target.value)} placeholder="New label..." style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }} />
-                  <button className="btn btn-primary btn-sm" onClick={() => addItem('labels', labels, newLabel, setNewLabel)}>Add</button>
+                  <input value={newRequirement} onChange={e => setNewRequirement(e.target.value)} placeholder="New requirement..." style={{ flex: 1, padding: '8px 12px', border: '1.5px solid var(--border)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }} />
+                  <button className="btn btn-primary btn-sm" onClick={() => addItem('requirements', requirements, newRequirement, setNewRequirement)}>Add</button>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                  {labels.map((l, i) => (
+                  {requirements.map((l, i) => (
                     <span key={i} className="badge bg-orange" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, padding: '5px 10px' }}>
                       {l} 
-                      <span style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => editItem('labels', labels, i, l)}>✎</span>
-                      <span style={{ cursor: 'pointer' }} onClick={() => removeItem('labels', labels, i)}>✕</span>
+                      <span style={{ cursor: 'pointer', opacity: 0.8 }} onClick={() => editItem('requirements', requirements, i, l)}>✎</span>
+                      <span style={{ cursor: 'pointer' }} onClick={() => removeItem('requirements', requirements, i)}>✕</span>
                     </span>
                   ))}
                 </div>

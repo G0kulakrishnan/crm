@@ -3,7 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { sendEmail, sendWhatsApp, sendWhatsAppMock } from '../../utils/messaging';
-import { fmtD, INDIAN_STATES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS } from '../../utils/helpers';
+import { fmtD, INDIAN_STATES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_REQUIREMENTS } from '../../utils/helpers';
 
 const TEMPLATES = [
   { id: 'blank', name: 'Blank Template', subject: '', body: '' },
@@ -23,7 +23,7 @@ export default function Campaigns({ user, perms, ownerId }) {
   const [targetType, setTargetType] = useState('leads'); // 'leads' | 'customers' | 'both'
   const [selStages, setSelStages] = useState(new Set());
   const [selSources, setSelSources] = useState(new Set());
-  const [selLabels, setSelLabels] = useState(new Set());
+  const [selRequirements, setSelRequirements] = useState(new Set());
   
   const [selProducts, setSelProducts] = useState(new Set());
   const [selPeriod, setSelPeriod] = useState('');
@@ -74,7 +74,7 @@ export default function Campaigns({ user, perms, ownerId }) {
   const profile = data?.userProfiles?.[0];
   const activeStages = profile?.stages || DEFAULT_STAGES;
   const activeSources = profile?.sources || DEFAULT_SOURCES;
-  const activeLabels = profile?.labels || DEFAULT_LABELS;
+  const activeRequirements = profile?.requirements || DEFAULT_REQUIREMENTS;
 
     const STAGE_ORDER = ['New Enquiry', 'Enquiry Contacted', 'Quotation Created', 'Quotation Sent', 'Invoice Created', 'Invoice Sent', 'Won'];
 
@@ -141,7 +141,7 @@ export default function Campaigns({ user, perms, ownerId }) {
         const l = item._orig;
         if (selStages.size > 0 && !selStages.has(l.stage)) return false;
         if (selSources.size > 0 && !selSources.has(l.source)) return false;
-        if (selLabels.size > 0 && !selLabels.has(l.label)) return false;
+        if (selRequirements.size > 0 && !selRequirements.has(l.requirement)) return false;
         return true;
       } else {
         if (targetType === 'leads') return false;
@@ -196,7 +196,7 @@ export default function Campaigns({ user, perms, ownerId }) {
     }
 
     return unique;
-  }, [allCandidates, invoices, amcList, channel, targetType, selStages, selSources, selLabels, selProducts, selPeriod, minAmount, maxAmount, selAmcStatus, selStates, excludedIds, manualAdds]);
+  }, [allCandidates, invoices, amcList, channel, targetType, selStages, selSources, selRequirements, selProducts, selPeriod, minAmount, maxAmount, selAmcStatus, selStates, excludedIds, manualAdds]);
 
   const loadTemplate = (tid) => {
     setSelectedTemplate(tid);
@@ -274,7 +274,7 @@ export default function Campaigns({ user, perms, ownerId }) {
         body: body,
         audienceSize: targetAudience.length,
         status: 'Scheduled',
-        filters: { targetType, stages: Array.from(selStages), sources: Array.from(selSources), labels: Array.from(selLabels), products: Array.from(selProducts), period: selPeriod, minAmount, maxAmount, amcStatus: Array.from(selAmcStatus), states: Array.from(selStates) },
+        filters: { targetType, stages: Array.from(selStages), sources: Array.from(selSources), requirements: Array.from(selRequirements), products: Array.from(selProducts), period: selPeriod, minAmount, maxAmount, amcStatus: Array.from(selAmcStatus), states: Array.from(selStates) },
         scheduledFor: skedDate.getTime(),
         createdAt: Date.now()
       }));
@@ -435,11 +435,11 @@ export default function Campaigns({ user, perms, ownerId }) {
                 </div>
 
                 <div>
-                  <strong style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Filter by Label {selLabels.size > 0 && <span style={{ color: 'var(--accent)' }}>({selLabels.size})</span>}</strong>
+                  <strong style={{ fontSize: 13, display: 'block', marginBottom: 10 }}>Filter by Requirement {selRequirements.size > 0 && <span style={{ color: 'var(--accent)' }}>({selRequirements.size})</span>}</strong>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto' }}>
-                    {activeLabels.map(s => (
+                    {activeRequirements.map(s => (
                       <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, cursor: 'pointer' }}>
-                        <input type="checkbox" checked={selLabels.has(s)} onChange={() => toggleSet(selLabels, setSelLabels, s)} style={{ accentColor: 'var(--accent)' }}/> {s}
+                        <input type="checkbox" checked={selRequirements.has(s)} onChange={() => toggleSet(selRequirements, setSelRequirements, s)} style={{ accentColor: 'var(--accent)' }}/> {s}
                       </label>
                     ))}
                   </div>
@@ -508,7 +508,7 @@ export default function Campaigns({ user, perms, ownerId }) {
               </div>
             )}
 
-            <button className="btn btn-secondary btn-sm" style={{ width: '100%', marginBottom: 20 }} onClick={() => { setSelStages(new Set()); setSelSources(new Set()); setSelLabels(new Set()); setSelProducts(new Set()); setSelPeriod(''); setMinAmount(''); setMaxAmount(''); setSelAmcStatus(new Set()); setSelStates(new Set()); setExcludedIds(new Set()); setManualAdds(new Set()); }}>Reset Filters</button>
+            <button className="btn btn-secondary btn-sm" style={{ width: '100%', marginBottom: 20 }} onClick={() => { setSelStages(new Set()); setSelSources(new Set()); setSelRequirements(new Set()); setSelProducts(new Set()); setSelPeriod(''); setMinAmount(''); setMaxAmount(''); setSelAmcStatus(new Set()); setSelStates(new Set()); setExcludedIds(new Set()); setManualAdds(new Set()); }}>Reset Filters</button>
 
             {/* MANUAL RECIPIENTS PANEL */}
             <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 20 }}>

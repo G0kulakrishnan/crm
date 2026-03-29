@@ -29,6 +29,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
   const [form, setForm] = useState(EMPTY);
+  const [saving, setSaving] = useState(false);
   const [printing, setPrinting] = useState(null);
   const [payModal, setPayModal] = useState(null);
   const [payAmt, setPayAmt] = useState('');
@@ -298,7 +299,9 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
       }
     }
 
-    await db.transact(txs);
+    setSaving(true);
+    try {
+      await db.transact(txs);
     
     // Email Recipient Warning
     if (payload.status === 'Sent') {
@@ -329,6 +332,12 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
           bizName: profile?.businessName || profile?.bizName || '',
         }, profile, ownerId).catch(() => {});
       }
+    }
+    
+    } catch (e) {
+      toast('Error saving invoice', 'error');
+    } finally {
+      setSaving(false);
     }
     
     setModal(false);
@@ -836,7 +845,9 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
             </div>
             <div className="mo-foot">
               <button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>Cancel</button>
-              <button className="btn btn-primary btn-sm" onClick={save}>Save Invoice</button>
+              <button className="btn btn-primary btn-sm" onClick={save} disabled={saving}>
+                 {saving ? 'Saving...' : 'Save Invoice'}
+              </button>
             </div>
           </div>
         </div>

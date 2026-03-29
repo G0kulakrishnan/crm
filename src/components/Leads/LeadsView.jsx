@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
-import { fmtD, fmtDT, stageBadgeClass, uid, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS, DEFAULT_PROD_CATS } from '../../utils/helpers';
+import { fmtD, fmtDT, stageBadgeClass, uid, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_REQUIREMENTS, DEFAULT_PROD_CATS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import { EMPTY_LEAD } from '../../utils/constants';
 import { fireAutoNotifications } from '../../utils/messaging';
@@ -35,6 +35,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
   const [form, setForm] = useState(EMPTY_LEAD);
+  const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [colModal, setColModal] = useState(false);
   const [tempCols, setTempCols] = useState([]);
@@ -69,7 +70,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const disabledStages = data?.userProfiles?.[0]?.disabledStages || [];
   const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
   const activeSources = data?.userProfiles?.[0]?.sources || DEFAULT_SOURCES;
-  const activeLabels = data?.userProfiles?.[0]?.labels || DEFAULT_LABELS;
+  const activeRequirements = data?.userProfiles?.[0]?.requirements || DEFAULT_REQUIREMENTS;
   const productCats = data?.userProfiles?.[0]?.productCats || DEFAULT_PROD_CATS;
   const allStages = data?.userProfiles?.[0]?.stages || DEFAULT_STAGES;
   const partners = data?.partnerApplications || [];
@@ -117,9 +118,9 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   // Initialize EMPTY_LEAD values if empty
   useEffect(() => {
     if (form.source === '' && activeSources.length > 0) {
-      setForm(prev => ({ ...prev, source: activeSources[0], stage: activeStages[0], label: activeLabels[0] }));
+      setForm(prev => ({ ...prev, source: activeSources[0], stage: activeStages[0], requirement: activeRequirements[0] }));
     }
-  }, [activeSources, activeStages, activeLabels, form.source]);
+  }, [activeSources, activeStages, activeRequirements, form.source]);
 
   // Stage visibility filter (used for both tabs and list)
   const visibleLeads = useMemo(() => {
@@ -200,7 +201,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       ...EMPTY_LEAD, 
       source: activeSources[0] || '', 
       stage: allEnabledStages[0] || '', 
-      label: activeLabels[0] || '',
+      requirement: activeRequirements[0] || '',
       productCat: productCats[0] || ''
     }); 
     setModal(true); 
@@ -253,10 +254,11 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       }
     }
 
+    setSaving(true);
     try {
       if (editData) {
         const changes = [];
-        const fields = { name: 'Name', phone: 'Phone', email: 'Email', source: 'Source', stage: 'Stage', assign: 'Assignee', followup: 'Follow Up', label: 'Label', notes: 'Notes', productCat: 'Product Category' };
+        const fields = { name: 'Name', phone: 'Phone', email: 'Email', source: 'Source', stage: 'Stage', assign: 'Assignee', followup: 'Follow Up', requirement: 'Requirement', notes: 'Notes', productCat: 'Product Category' };
         Object.entries(fields).forEach(([k, label]) => {
           if (editData[k] !== form[k]) {
             let oldVal = editData[k] || 'None';
@@ -313,6 +315,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       }
       setModal(false);
     } catch (e) { toast('Error saving lead', 'error'); }
+    finally { setSaving(false); }
   };
 
   const deleteLead = async (leadId) => {
@@ -407,7 +410,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
           val = m.value;
         }
 
-        if (['name', 'email', 'phone', 'source', 'stage', 'label', 'notes', 'followup', 'assign'].includes(field)) {
+        if (['name', 'email', 'phone', 'source', 'stage', 'requirement', 'notes', 'followup', 'assign'].includes(field)) {
           lead[field] = val;
         } else {
           lead.custom[field] = val;
@@ -446,7 +449,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     if (leads.length === 0) return toast('No leads to export', 'error');
     
     // Header
-    const standardFields = ['Name', 'Email', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Label', 'Notes', 'Created At'];
+    const standardFields = ['Name', 'Email', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Requirement', 'Notes', 'Created At'];
     const customFieldNames = customFields.map(cf => cf.name);
     const headers = [...standardFields, ...customFieldNames];
 
@@ -467,7 +470,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         escapeCSV(l.stage),
         escapeCSV(l.assign),
         escapeCSV(l.followup ? new Date(l.followup).toLocaleDateString() : ''),
-        escapeCSV(l.label),
+        escapeCSV(l.requirement),
         escapeCSV(l.notes),
         escapeCSV(new Date(l.createdAt).toLocaleString()),
         ...customFieldNames.map(cfName => escapeCSV(l.custom?.[cfName] || ''))
@@ -667,7 +670,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         <div className="stat-grid" style={{ marginBottom: 25 }}>
           <div className="stat-card sc-blue"><div className="lbl">Source</div><div className="val" style={{ fontSize: 16 }}>{l.source}</div></div>
           <div className="stat-card sc-green"><div className="lbl">Assigned To</div><div className="val" style={{ fontSize: 16 }}>{l.assign || 'Unassigned'}</div></div>
-          <div className="stat-card sc-yellow"><div className="lbl">Label</div><div className="val" style={{ fontSize: 16 }}>{l.label}</div></div>
+          <div className="stat-card sc-yellow"><div className="lbl">Requirement</div><div className="val" style={{ fontSize: 16 }}>{l.requirement}</div></div>
           <div className="stat-card sc-purple"><div className="lbl">Follow Up</div><div className="val" style={{ fontSize: 13 }}>{l.followup ? fmtDT(l.followup) : 'None'}</div></div>
           <div className="stat-card sc-teal"><div className="lbl">Product Category</div><div className="val" style={{ fontSize: 14 }}>{l.productCat || 'None'}</div></div>
         </div>
@@ -755,9 +758,9 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                     </select>
                   </div>
                   <div className="fg"><label>Follow Up</label><input type="datetime-local" value={form.followup} onChange={f('followup')} /></div>
-                  <div className="fg"><label>Label</label>
-                    <select value={form.label} onChange={f('label')}>
-                      {activeLabels.map(l => <option key={l}>{l}</option>)}
+                  <div className="fg"><label>Requirement</label>
+                    <select value={form.requirement} onChange={f('requirement')}>
+                      {activeRequirements.map(l => <option key={l}>{l}</option>)}
                     </select>
                   </div>
                   <div className="fg"><label>Product Category</label>
@@ -791,7 +794,9 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
               </div>
               <div className="mo-foot">
                 <button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>Cancel</button>
-                <button className="btn btn-primary btn-sm" onClick={saveLead}>Save Changes</button>
+                <button className="btn btn-primary btn-sm" onClick={saveLead} disabled={saving}>
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
               </div>
             </div>
           </div>
@@ -953,7 +958,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                     {activeCols.includes('Stage') && <th>Stage</th>}
                     {activeCols.includes('Assigned') && <th>Assigned</th>}
                     {activeCols.includes('Follow Up') && <th>Follow Up</th>}
-                    {activeCols.includes('Label') && <th>Label</th>}
+                    {activeCols.includes('Requirement') && <th>Requirement</th>}
                     {activeCols.includes('Reminder') && <th>Reminder</th>}
                     {activeCols.includes('Distributor') && <th>Distributor</th>}
                     {activeCols.includes('Retailer') && <th>Retailer</th>}
@@ -998,7 +1003,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                     {activeCols.includes('Stage') && <td><span className={`badge ${stageBadgeClass(l.stage, wonStage)}`}>{l.stage}</span></td>}
                     {activeCols.includes('Assigned') && <td style={{ fontSize: 12 }}>{l.assign || <span style={{ color: 'var(--muted)' }}>-</span>}</td>}
                     {activeCols.includes('Follow Up') && <td style={{ fontSize: 11 }}>{l.followup ? fmtDT(l.followup) : '-'}</td>}
-                    {activeCols.includes('Label') && <td><span className="badge bg-gray" style={{ fontSize: 10 }}>{l.label || '-'}</span></td>}
+                    {activeCols.includes('Requirement') && <td><span className="badge bg-gray" style={{ fontSize: 10 }}>{l.requirement || '-'}</span></td>}
                     {activeCols.includes('Reminder') && <td>
                       <div style={{ display: 'flex', gap: 3 }}>
                         {l.remWA && <span style={{ fontSize: 10, background: '#e8fdf0', color: '#25d366', borderRadius: 20, padding: '2px 6px', fontWeight: 700 }}>WA</span>}
@@ -1206,9 +1211,9 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                   </select>
                 </div>
                 <div className="fg"><label>Follow Up</label><input type="datetime-local" value={form.followup} onChange={f('followup')} /></div>
-                <div className="fg"><label>Label</label>
-                  <select value={form.label} onChange={f('label')}>
-                    {activeLabels.map(l => <option key={l}>{l}</option>)}
+                <div className="fg"><label>Requirement</label>
+                  <select value={form.requirement} onChange={f('requirement')}>
+                    {activeRequirements.map(l => <option key={l}>{l}</option>)}
                   </select>
                 </div>
                 <div className="fg span2"><label>Notes</label><textarea value={form.notes} onChange={f('notes')} /></div>
@@ -1265,7 +1270,9 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
             </div>
             <div className="mo-foot">
               <button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>Cancel</button>
-              <button className="btn btn-primary btn-sm" onClick={saveLead}>Save Lead</button>
+              <button className="btn btn-primary btn-sm" onClick={saveLead} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Lead'}
+              </button>
             </div>
           </div>
         </div>
@@ -1293,7 +1300,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                 { label: 'Phone', icon: '📱', field: 'phone' },
                 { label: 'Source', icon: '🔗', field: 'source', options: activeSources },
                 { label: 'Stage', icon: '📋', field: 'stage', options: allStages },
-                { label: 'Label', icon: '🏷️', field: 'label', options: activeLabels },
+                { label: 'Requirement', icon: '🏷️', field: 'requirement', options: activeRequirements },
                 { label: 'Assigned To', icon: '👤', field: 'assign', options: team.map(t => t.name) },
                 { label: 'Notes', icon: '📝', field: 'notes' },
                 { label: 'Follow-up Date', icon: '📅', field: 'followup', type: 'datetime-local' }

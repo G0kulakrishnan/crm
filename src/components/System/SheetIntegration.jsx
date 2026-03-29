@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
-import { DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS } from '../../utils/helpers';
+import { DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_REQUIREMENTS } from '../../utils/helpers';
 
 export default function SheetIntegration({ user, ownerId, onBack, existingConfig, editIndex }) {
   const [configName, setConfigName] = useState(existingConfig?.configName || '');
@@ -16,7 +16,7 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
     name: { type: 'column', value: '' },
     email: { type: 'column', value: '' },
     phone: { type: 'column', value: '' },
-    label: { type: 'fixed', value: DEFAULT_LABELS[0] },
+    requirement: { type: 'fixed', value: DEFAULT_REQUIREMENTS[0] },
     stage: { type: 'fixed', value: DEFAULT_STAGES[0] },
     source: { type: 'fixed', value: 'Google Sheets' },
     assign: { type: 'fixed', value: '' },
@@ -43,7 +43,7 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
   });
   const profile = profileData?.userProfiles?.[0] || {};
   const team = profileData?.teamMembers || [];
-  const labels = profile.labels || DEFAULT_LABELS;
+  const requirements = profile.requirements || DEFAULT_REQUIREMENTS;
   const stages = profile.stages || DEFAULT_STAGES;
   const activeSources = profile.sources || DEFAULT_SOURCES;
   const globalCustomFields = profile.customFields || [];
@@ -177,7 +177,7 @@ export default function SheetIntegration({ user, ownerId, onBack, existingConfig
           val = (hasPlus ? '+' : '') + digits;
         }
 
-        if (['name', 'email', 'phone', 'source', 'stage', 'label', 'notes', 'followup', 'assign'].includes(field)) {
+        if (['name', 'email', 'phone', 'source', 'stage', 'requirement', 'notes', 'followup', 'assign'].includes(field)) {
           lead[field] = val;
         } else {
           lead.custom[field] = val;
@@ -422,7 +422,7 @@ function pushAllRows() {
             {renderMappingRow('Name', '👤', 'name')}
             {renderMappingRow('Email', '📧', 'email')}
             {renderMappingRow('Phone / Mobile', '📱', 'phone')}
-            {renderMappingRow('Lead Label', '🏷️', 'label', labels)}
+            {renderMappingRow('Lead Requirement', '🏷️', 'requirement', requirements)}
             {renderMappingRow('Lead Stage', '📋', 'stage', stages)}
             {renderMappingRow('Source', '🔗', 'source', activeSources)}
             {renderMappingRow('Assigned To', '👤', 'assign', team.map(t => t.name))}

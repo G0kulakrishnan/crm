@@ -259,14 +259,14 @@ export default function AutomationView({ user, ownerId }) {
   // Profile-driven condition field options
   const profileStages  = profile.stages  || [];
   const profileSources = profile.sources || [];
-  const profileLabels  = profile.labels  || [];
+  const profileRequirements  = profile.requirements  || [];
   const customFields   = profile.customFields || [];
   const teamNames      = team.map(t => t.name).filter(Boolean);
 
   const COND_FIELDS = [
     { id: 'source',   label: 'Source',      options: profileSources },
     { id: 'stage',    label: 'Stage',       options: profileStages  },
-    { id: 'label',    label: 'Label',       options: profileLabels  },
+    { id: 'requirement',    label: 'Requirement',       options: profileRequirements  },
     { id: 'assign',   label: 'Assigned To', options: teamNames      },
     ...customFields.map(cf => ({ id: `custom.${cf.name}`, label: `Custom: ${cf.name}`, options: cf.type === 'dropdown' ? (cf.options || '').split(',').map(s => s.trim()) : [] })),
   ];
@@ -448,7 +448,7 @@ export default function AutomationView({ user, ownerId }) {
 
   const getFieldInfo = (fieldId) => COND_FIELDS.find(f => f.id === fieldId) || {};
 
-  // ─── Labels ─────────────────────────────────────────────────────────────────
+  // ─── Requirements ─────────────────────────────────────────────────────────────────
   const trigIcon  = (id) => TRIGGER_TYPES.find(t => t.id === id)?.icon || '⚡';
   const trigLabel = (id) => TRIGGER_TYPES.find(t => t.id === id)?.label || id;
   const actIcon   = (id) => ACTION_TYPES.find(a => a.id === id)?.icon || '⚡';

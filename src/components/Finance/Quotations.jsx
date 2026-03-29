@@ -176,6 +176,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
       payload.no = editData ? editData.no : `QUOTE/${new Date().getFullYear()}/${String(quotes.length + 1).padStart(3, '0')}`;
     }
 
+    setSaving(true);
     const txs = [];
     const qId = editData ? editData.id : id();
     txs.push(db.tx.quotes[qId].update(payload));
@@ -249,6 +250,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
       
       setModal(false);
     } catch { toast('Error saving quotation', 'error'); }
+    finally { setSaving(false); }
   };
 
   const del = async (qid) => { 
@@ -671,7 +673,9 @@ export default function Quotations({ user, perms, ownerId, settings }) {
             </div>
             <div className="mo-foot">
               <button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>Cancel</button>
-              <button className="btn btn-primary btn-sm" onClick={save}>Save Quotation</button>
+              <button className="btn btn-primary btn-sm" onClick={save} disabled={saving}>
+                {saving ? 'Saving...' : 'Save Quotation'}
+              </button>
             </div>
           </div>
         </div>
