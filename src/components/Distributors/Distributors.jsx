@@ -25,8 +25,12 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
     partnerApplications: { $: { where: { userId: ownerId } } },
     partnerCommissions: { $: { where: { userId: ownerId } } },
     products: { $: { where: { userId: ownerId } } },
-    userProfiles: { $: { where: { userId: ownerId } } }
+    userProfiles: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId } } }
   });
+  const allLeads = useMemo(() => data?.leads || [], [data?.leads]);
+  const allCustomers = useMemo(() => data?.customers || [], [data?.customers]);
   const commissions = useMemo(() => data?.partnerCommissions || [], [data?.partnerCommissions]);
   const products = useMemo(() => data?.products || [], [data?.products]);
   const profile = data?.userProfiles?.[0] || {};
@@ -275,6 +279,8 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
               toast={toast} 
               profile={profile}
               search={search}
+              globalLeads={allLeads}
+              globalCustomers={allCustomers}
             />
           ) : (
             <table>
@@ -1113,7 +1119,7 @@ function ProductsView({ products, search }) {
   );
 }
 
-function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, user, toast, profile, search }) {
+function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, user, toast, profile, search, globalLeads, globalCustomers }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(profile?.partnerPageSize || 25);
   const [editingPartner, setEditingPartner] = useState(null);
@@ -1122,6 +1128,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
   const [newCompanyName, setNewCompanyName] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newEmail, setNewEmail] = useState('');
+  const [newCommission, setNewCommission] = useState(0);
   const [newAddress, setNewAddress] = useState('');
   const [newVillage, setNewVillage] = useState('');
   const [newCity, setNewCity] = useState('');
@@ -1182,6 +1189,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
     setNewCompanyName(p.companyName || '');
     setNewPhone(p.phone || '');
     setNewEmail(p.email || '');
+    setNewCommission(p.commission || 0);
     setNewAddress(p.address || '');
     setNewVillage(p.village || '');
     setNewCity(p.city || '');
@@ -1231,6 +1239,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
         state: newState.trim(),
         taxId: newTaxId.trim(),
         notes: newNotes.trim(),
+        commission: parseFloat(newCommission) || 0,
         updatedAt: Date.now()
       };
       if (editingPartner.role === 'Retailer') {
@@ -1471,6 +1480,10 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
                   <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="email@company.com" />
                 </div>
                 <div className="form-group">
+                  <label>Commission Rate (%)</label>
+                  <input type="number" value={newCommission} onChange={e => setNewCommission(e.target.value)} placeholder="e.g. 10" />
+                </div>
+                <div className="form-group">
                   <label>Phone Number</label>
                   <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="+91..." />
                 </div>
@@ -1562,27 +1575,27 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
           toast={toast}
           profile={profile}
           allApproved={allApprovedPartners}
+          globalLeads={globalLeads}
+          globalCustomers={globalCustomers}
         />
       )}
     </div>
   );
 }
 
-function PartnerDetailsModal({ partnerId, onClose, onSelectPartner, ownerId, user, toast, profile, allApproved }) {
+function PartnerDetailsModal({ partnerId, onClose, onSelectPartner, ownerId, user, toast, profile, allApproved, globalLeads, globalCustomers }) {
   const [tab, setTab] = useState('Overview');
   
   const { data, isLoading } = db.useQuery({
     partnerApplications: { $: { where: { or: [{ id: partnerId }, { parentDistributorId: partnerId }] } } },
-    partnerCommissions: { $: { where: { partnerId: partnerId } } },
-    leads: { $: { where: { or: [{ partnerId: partnerId }, { distributorId: partnerId }, { retailerId: partnerId }] } } },
-    customers: { $: { where: { or: [{ partnerId: partnerId }, { distributorId: partnerId }, { retailerId: partnerId }] } } }
+    partnerCommissions: { $: { where: { partnerId: partnerId } } }
   });
 
   const partner = data?.partnerApplications?.find(p => p.id === partnerId);
   const subPartners = data?.partnerApplications?.filter(p => p.parentDistributorId === partnerId && p.status === 'Approved') || [];
   const commissions = data?.partnerCommissions || [];
-  const leads = data?.leads || [];
-  const customers = data?.customers || [];
+  const leads = (globalLeads || []).filter(l => l.partnerId === partnerId || l.distributorId === partnerId || l.retailerId === partnerId);
+  const customers = (globalCustomers || []).filter(c => c.partnerId === partnerId || c.distributorId === partnerId || c.retailerId === partnerId);
   const parentDist = partner?.role === 'Retailer' && partner?.parentDistributorId ? allApproved?.find(p => p.id === partner.parentDistributorId) : null;
 
   if (isLoading) return (
