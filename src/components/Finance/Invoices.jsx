@@ -218,6 +218,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
     }
 
     let isNewCustomer = false;
+    const cMatchOuter = customers.find(c => (c.name || '').trim().toLowerCase() === (payload.client || '').trim().toLowerCase());
     const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (payload.client || '').trim().toLowerCase() && l.stage !== wonStage);
     
     if (lMatch) {
@@ -257,7 +258,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
     }
     
     // Partner Commission Generation
-    const partnerId = cMatch?.partnerId || lMatch?.partnerId;
+    const partnerId = cMatchOuter?.partnerId || lMatch?.partnerId;
     if (partnerId) {
       const pApp = partnerApplications.find(a => a.id === partnerId);
       if (pApp && pApp.commission > 0) {
