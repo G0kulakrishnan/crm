@@ -1274,14 +1274,17 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
               return matches.map((m, i) => ({ index: i + 1, name: m.replace(/[{}]/g, ''), raw: m }));
             };
 
+            const hasWACredentials = !!(waApiToken?.trim() && waPhoneId?.trim());
+
             // Helper: generate curl command for a template
             const buildCurl = (t) => {
+              if (t.customCurl) return t.customCurl;
               const vars = extractVars(t.body);
               const lines = [
                 `curl -X POST \\`,
                 `https://portal.waprochat.in/api/v1/whatsapp/send/template \\`,
-                `-d "apiToken=${waApiToken || 'xxxxx'}" \\`,
-                `-d "phone_number_id=${waPhoneId || 'xxxxxx'}" \\`,
+                `-d "apiToken=${waApiToken || '{YOUR_API_TOKEN}'}" \\`,
+                `-d "phone_number_id=${waPhoneId || '{YOUR_PHONE_NUMBER_ID}'}" \\`,
                 `-d "template_id=${t.templateId || '{template-id}'}" \\`,
               ];
               vars.forEach(v => {
@@ -1291,32 +1294,59 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
               return lines.join('\n');
             };
 
+            // Save helper that persists immediately
+            const saveTemplatesNow = async (newTemplates) => {
+              setWhatsappTemplates(newTemplates);
+              const payload = { waApiToken, waPhoneId, whatsappTemplates: newTemplates, userId: ownerId };
+              if (profileId) await db.transact(db.tx.userProfiles[profileId].update(payload));
+            };
+
             return (
             <div className="tw">
               <div className="tw-head">
                 <h3>WhatsApp Templates</h3>
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button className="btn btn-primary btn-sm" onClick={saveWA}>Save All Templates</button>
-                </div>
               </div>
               <div style={{ padding: '20px' }}>
                 <div className="sub" style={{ marginBottom: 20 }}>
                   Create WhatsApp message templates with <code>{'{variable}'}</code> placeholders. The curl command is auto-generated based on variables in your template.
                 </div>
 
+                {/* ── WhatsApp API Credentials Status ── */}
+                {!hasWACredentials && (
+                  <div style={{ marginBottom: 20, padding: '12px 16px', background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                    <span style={{ fontSize: 18 }}>⚠️</span>
+                    <div>
+                      <div style={{ fontWeight: 700, color: '#92400e' }}>WhatsApp API credentials not configured</div>
+                      <div style={{ fontSize: 12, color: '#a16207', marginTop: 2 }}>
+                        Go to <strong>WhatsApp</strong> settings tab to add your API Token & Phone Number ID. The curl commands will use placeholder values until configured.
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {hasWACredentials && (
+                  <div style={{ marginBottom: 20, padding: '10px 14px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10, display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                    <span style={{ fontSize: 16 }}>✅</span>
+                    <div>
+                      <span style={{ fontWeight: 700, color: '#166534' }}>API credentials loaded</span>
+                      <span style={{ color: '#15803d', marginLeft: 6 }}>— Phone ID: <code style={{ background: '#dcfce7', padding: '1px 6px', borderRadius: 4, fontSize: 11 }}>{waPhoneId}</code></span>
+                    </div>
+                  </div>
+                )}
+
                 {/* ── How it works ── */}
                 <div style={{ marginBottom: 24, padding: 14, background: '#f0f9ff', borderRadius: 10, border: '1px solid #bae6fd', fontSize: 12, color: '#0369a1', lineHeight: 1.6 }}>
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>💡 How it works</div>
                   <div>1. Create your template in <strong>WhatsApp Manager (Meta)</strong> with numbered variables like <code>{'{{1}}'}</code>, <code>{'{{2}}'}</code>, etc.</div>
                   <div>2. Add the template here with the <strong>same message</strong> but use <code>{'{variable_name}'}</code> instead of numbers.</div>
-                  <div>3. The CRM auto-generates the curl command. Variable order in the message = variable number in the API call.</div>
+                  <div>3. The CRM auto-generates the curl command using your <strong>API Token</strong> & <strong>Phone Number ID</strong> from WhatsApp settings.</div>
+                  <div>4. Click <strong>Edit</strong> on any template to view and customize the curl command.</div>
                   <div style={{ marginTop: 6, color: '#1e40af', fontWeight: 600 }}>
                     Example: <code>{'Hello {client}, Invoice {invoiceno} for Rs.{amt}/-'}</code> → <code>client=1, invoiceno=2, amt=3</code>
                   </div>
                 </div>
 
                 {/* ── Add / Edit Template Form ── */}
-                <div style={{ marginBottom: 24, padding: 16, background: 'var(--bg-soft)', borderRadius: 12, border: '1px solid var(--border)' }}>
+                <div style={{ marginBottom: 24, padding: 16, background: editingWA ? '#fffbeb' : 'var(--bg-soft)', borderRadius: 12, border: editingWA ? '2px solid #fbbf24' : '1px solid var(--border)' }}>
                   <h4 style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
                     {editingWA ? '✏️ Edit Template' : '➕ Add New Template'}
                   </h4>
@@ -1367,8 +1397,73 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                     </div>
                   </div>
 
+                  {/* ── Curl Preview (only when editing) ── */}
+                  {editingWA && (() => {
+                    const editCurl = buildCurl(editingWA);
+                    const isCustomCurl = !!editingWA.customCurl;
+                    return (
+                      <div style={{ marginTop: 16 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>⚡ Curl Command</div>
+                            {isCustomCurl && (
+                              <span style={{ fontSize: 9, padding: '2px 6px', background: '#fef3c7', color: '#92400e', borderRadius: 8, fontWeight: 600, border: '1px solid #fde68a' }}>CUSTOM EDIT</span>
+                            )}
+                            {!isCustomCurl && hasWACredentials && (
+                              <span style={{ fontSize: 9, padding: '2px 6px', background: '#f0fdf4', color: '#166534', borderRadius: 8, fontWeight: 600, border: '1px solid #bbf7d0' }}>AUTO-GENERATED</span>
+                            )}
+                          </div>
+                          <div style={{ display: 'flex', gap: 6 }}>
+                            {isCustomCurl && (
+                              <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', background: '#fef3c7', color: '#92400e', border: '1px solid #fde68a' }} onClick={() => {
+                                setEditingWA({ ...editingWA, customCurl: undefined });
+                                setWhatsappTemplates(whatsappTemplates.map(tpl =>
+                                  tpl.id === editingWA.id ? { ...tpl, customCurl: undefined } : tpl
+                                ));
+                                toast('Curl reset to auto-generated', 'info');
+                              }}>↺ Reset</button>
+                            )}
+                            <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }} onClick={() => {
+                              navigator.clipboard.writeText(editCurl);
+                              toast('Curl command copied!', 'success');
+                            }}>📋 Copy</button>
+                          </div>
+                        </div>
+                        <textarea
+                          value={editCurl}
+                          onChange={e => {
+                            const newCurl = e.target.value;
+                            setEditingWA({ ...editingWA, customCurl: newCurl });
+                            setWhatsappTemplates(whatsappTemplates.map(tpl =>
+                              tpl.id === editingWA.id ? { ...tpl, customCurl: newCurl } : tpl
+                            ));
+                          }}
+                          spellCheck={false}
+                          style={{ 
+                            width: '100%',
+                            minHeight: 120,
+                            padding: '12px 14px', 
+                            background: '#1e293b', 
+                            color: '#e2e8f0', 
+                            borderRadius: 10, 
+                            fontSize: 11, 
+                            lineHeight: 1.7, 
+                            whiteSpace: 'pre',
+                            fontFamily: "'Fira Code', 'SF Mono', 'Consolas', monospace",
+                            border: isCustomCurl ? '2px solid #fbbf24' : '1px solid #334155',
+                            resize: 'vertical',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                        <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>
+                          💡 Edit the curl command directly. API Token & Phone Number ID are loaded from your <strong>WhatsApp settings</strong>.
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
-                    <button className="btn btn-primary" onClick={() => {
+                    <button className="btn btn-primary" onClick={async () => {
                       const name = document.getElementById('new_wa_name').value;
                       const templateId = document.getElementById('new_wa_id').value;
                       const body = document.getElementById('new_wa_body').value;
@@ -1378,14 +1473,16 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                       const vars = extractVars(body);
 
                       if (editingWA) {
-                        setWhatsappTemplates(whatsappTemplates.map(t => 
-                          t.id === editingWA.id ? { ...t, name, templateId, body, variables: vars } : t
-                        ));
+                        const updated = whatsappTemplates.map(t => 
+                          t.id === editingWA.id ? { ...t, name, templateId, body, variables: vars, customCurl: editingWA.customCurl } : t
+                        );
+                        await saveTemplatesNow(updated);
                         setEditingWA(null);
-                        toast('Template updated locally. Click "Save All Templates" to persist.', 'success');
+                        toast('Template updated & saved!', 'success');
                       } else {
-                        setWhatsappTemplates([...whatsappTemplates, { id: id(), name, templateId, body, variables: vars }]);
-                        toast('Template added locally. Click "Save All Templates" to persist.', 'info');
+                        const updated = [...whatsappTemplates, { id: id(), name, templateId, body, variables: vars }];
+                        await saveTemplatesNow(updated);
+                        toast('Template added & saved!', 'success');
                       }
                       
                       document.getElementById('new_wa_name').value = '';
@@ -1401,7 +1498,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                   </div>
                 </div>
 
-                {/* ── Template Cards ── */}
+                {/* ── Template Cards (compact - no curl shown) ── */}
                 {whatsappTemplates.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)', background: 'var(--bg-soft)', borderRadius: 12, border: '1.5px dashed var(--border)' }}>
                     <div style={{ fontSize: 28, marginBottom: 8 }}>💬</div>
@@ -1409,82 +1506,62 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                     <div style={{ fontSize: 12 }}>Add your first template above to get started.</div>
                   </div>
                 ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {whatsappTemplates.map((t, idx) => {
                       const vars = extractVars(t.body);
-                      const curl = buildCurl(t);
+                      const isBeingEdited = editingWA?.id === t.id;
                       return (
-                        <div key={t.id} style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', background: 'var(--surface)' }}>
+                        <div key={t.id} style={{ border: isBeingEdited ? '2px solid #fbbf24' : '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', background: isBeingEdited ? '#fffdf5' : 'var(--surface)' }}>
                           {/* Header */}
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-soft)', borderBottom: '1px solid var(--border)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: isBeingEdited ? '#fefce8' : 'var(--bg-soft)', borderBottom: '1px solid var(--border)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                               <span style={{ fontSize: 18 }}>💬</span>
                               <div>
-                                <div style={{ fontWeight: 700, fontSize: 14 }}>{t.name}</div>
+                                <div style={{ fontWeight: 700, fontSize: 14 }}>{t.name} {isBeingEdited && <span style={{ fontSize: 10, color: '#b45309', fontWeight: 400 }}>(Editing)</span>}</div>
                                 <div style={{ fontSize: 11, color: 'var(--muted)' }}>Template ID: <code style={{ background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: 4 }}>{t.templateId}</code></div>
                               </div>
                             </div>
                             <div style={{ display: 'flex', gap: 6 }}>
                               <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => {
                                 setEditingWA(t);
-                                document.getElementById('new_wa_name').value = t.name;
-                                document.getElementById('new_wa_id').value = t.templateId;
-                                document.getElementById('new_wa_body').value = t.body;
+                                setTimeout(() => {
+                                  const nameEl = document.getElementById('new_wa_name');
+                                  const idEl = document.getElementById('new_wa_id');
+                                  const bodyEl = document.getElementById('new_wa_body');
+                                  if (nameEl) nameEl.value = t.name;
+                                  if (idEl) idEl.value = t.templateId;
+                                  if (bodyEl) bodyEl.value = t.body;
+                                }, 0);
                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                               }}>✏️ Edit</button>
-                              <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', fontSize: 11 }} onClick={() => {
+                              <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', fontSize: 11 }} onClick={async () => {
                                 if (window.confirm('Delete this template?')) {
-                                  setWhatsappTemplates(whatsappTemplates.filter((_, i) => i !== idx));
+                                  const updated = whatsappTemplates.filter((_, i) => i !== idx);
+                                  await saveTemplatesNow(updated);
                                   if (editingWA?.id === t.id) setEditingWA(null);
+                                  toast('Template deleted', 'error');
                                 }
                               }}>🗑 Delete</button>
                             </div>
                           </div>
 
-                          <div style={{ padding: 16 }}>
+                          <div style={{ padding: '12px 16px' }}>
                             {/* Template Message Preview */}
-                            <div style={{ marginBottom: 14 }}>
-                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>📝 Template Message</div>
-                              <div style={{ padding: '12px 14px', background: '#dcfce7', borderRadius: 10, fontSize: 13, lineHeight: 1.6, color: '#14532d', border: '1px solid #86efac', whiteSpace: 'pre-wrap' }}>
-                                {t.body || 'No message body'}
-                              </div>
-                              {vars.length > 0 && (
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                                  {vars.map(v => (
-                                    <span key={v.index} style={{ fontSize: 10, padding: '3px 8px', background: '#dbeafe', color: '#1e40af', borderRadius: 12, fontWeight: 600, border: '1px solid #93c5fd' }}>
-                                      Variable {v.index}: {'{' + v.name + '}'}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
+                            <div style={{ padding: '10px 14px', background: '#dcfce7', borderRadius: 10, fontSize: 13, lineHeight: 1.6, color: '#14532d', border: '1px solid #86efac', whiteSpace: 'pre-wrap' }}>
+                              {t.body || 'No message body'}
                             </div>
-
-                            {/* Curl Command */}
-                            <div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>⚡ Curl Command</div>
-                                <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }} onClick={() => {
-                                  navigator.clipboard.writeText(curl);
-                                  toast('Curl command copied to clipboard!', 'success');
-                                }}>📋 Copy</button>
+                            {vars.length > 0 && (
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                                {vars.map(v => (
+                                  <span key={v.index} style={{ fontSize: 10, padding: '3px 8px', background: '#dbeafe', color: '#1e40af', borderRadius: 12, fontWeight: 600, border: '1px solid #93c5fd' }}>
+                                    Variable {v.index}: {'{' + v.name + '}'}
+                                  </span>
+                                ))}
                               </div>
-                              <pre style={{ 
-                                padding: '12px 14px', 
-                                background: '#1e293b', 
-                                color: '#e2e8f0', 
-                                borderRadius: 10, 
-                                fontSize: 11, 
-                                lineHeight: 1.7, 
-                                overflow: 'auto', 
-                                whiteSpace: 'pre-wrap',
-                                wordBreak: 'break-all',
-                                fontFamily: "'Fira Code', 'SF Mono', 'Consolas', monospace",
-                                margin: 0,
-                                border: '1px solid #334155'
-                              }}>
-                                {curl}
-                              </pre>
-                            </div>
+                            )}
+                            {t.customCurl && (
+                              <div style={{ fontSize: 10, marginTop: 6, color: '#92400e', fontWeight: 600 }}>📝 Custom curl command saved</div>
+                            )}
                           </div>
                         </div>
                       );
