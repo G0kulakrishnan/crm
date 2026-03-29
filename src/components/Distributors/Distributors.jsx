@@ -239,7 +239,7 @@ export default function Distributors({ user, ownerId, perms }) {
           ) : tab === 'Products' ? (
             <ProductsView products={products} search={search} />
           ) : tab === 'Hierarchy' ? (
-            <HierarchyView applications={applications} />
+            <HierarchyView applications={applications} availableDistributors={availableDistributors} ownerId={ownerId} user={user} toast={toast} />
           ) : (
             <table>
               <thead>
@@ -771,7 +771,11 @@ function ProductsView({ products, search }) {
   );
 }
 
-function HierarchyView({ applications }) {
+function HierarchyView({ applications, availableDistributors, ownerId, user, toast }) {
+  const [editingRetailer, setEditingRetailer] = useState(null);
+  const [newParentId, setNewParentId] = useState('');
+  const [saving, setSaving] = useState(false);
+
   const distributors = useMemo(() => applications.filter(a => a.status === 'Approved' && a.role === 'Distributor'), [applications]);
   const retailers = useMemo(() => applications.filter(a => a.status === 'Approved' && a.role === 'Retailer'), [applications]);
 
@@ -786,11 +790,64 @@ function HierarchyView({ applications }) {
     return retailers.filter(r => !r.parentDistributorId);
   }, [retailers]);
 
+  const openEdit = (r) => {
+    setEditingRetailer(r);
+    setNewParentId(r.parentDistributorId || '');
+  };
+
+  const handleSave = async () => {
+    if (!editingRetailer) return;
+    setSaving(true);
+    try {
+      const oldParent = availableDistributors.find(d => d.id === editingRetailer.parentDistributorId);
+      const newParent = availableDistributors.find(d => d.id === newParentId);
+      await db.transact(
+        db.tx.partnerApplications[editingRetailer.id].update({
+          parentDistributorId: newParentId || null
+        }),
+        db.tx.activityLogs[db.id()].update({
+          entityId: editingRetailer.id,
+          entityType: 'partner',
+          text: `Retailer "${editingRetailer.name}" reassigned from "${oldParent?.name || 'Direct'}" to "${newParent?.name || 'Direct'}".`,
+          userId: ownerId,
+          actorId: user.id,
+          userName: user.email,
+          createdAt: Date.now()
+        })
+      );
+      toast('Retailer hierarchy updated!', 'success');
+      setEditingRetailer(null);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const RetailerRow = ({ r }) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', marginLeft: 20, borderTop: '1px dashed #e2e8f0' }}>
+      <div style={{ width: 8, height: 8, background: '#cbd5e1', borderRadius: '50%', flexShrink: 0 }}></div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 14, fontWeight: 600 }}>{r.name}</div>
+        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Retailer • {r.companyName || 'Indiv.'}</div>
+      </div>
+      <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>Approved</div>
+      <button
+        className="btn btn-secondary btn-sm"
+        onClick={() => openEdit(r)}
+        style={{ fontSize: 12, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+        title="Edit hierarchy"
+      >
+        ✏️ Edit
+      </button>
+    </div>
+  );
+
   return (
     <div style={{ padding: 20 }}>
       <div style={{ marginBottom: 24, padding: 15, background: '#eff6ff', borderRadius: 10, border: '1px solid #bfdbfe' }}>
          <h4 style={{ margin: 0, color: '#1e40af' }}>Network Structure</h4>
-         <p style={{ margin: '4px 0 0', fontSize: 13, color: '#1e40af', opacity: 0.8 }}>Visualizing the mapping between your Distributors and their associated Retailers.</p>
+         <p style={{ margin: '4px 0 0', fontSize: 13, color: '#1e40af', opacity: 0.8 }}>Visualizing the mapping between your Distributors and their associated Retailers. Use ✏️ Edit to reassign a retailer.</p>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
@@ -810,16 +867,7 @@ function HierarchyView({ applications }) {
                {d.children.length === 0 ? (
                  <div style={{ padding: '8px 40px', fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>No retailers mapped under this distributor.</div>
                ) : (
-                 d.children.map(r => (
-                   <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', marginLeft: 20, borderTop: '1px dashed #e2e8f0' }}>
-                      <div style={{ width: 8, height: 8, background: '#cbd5e1', borderRadius: '50%' }}></div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: 14, fontWeight: 600 }}>{r.name}</div>
-                        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Retailer • {r.companyName || 'Indiv.'}</div>
-                      </div>
-                      <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600 }}>Approved</div>
-                   </div>
-                 ))
+                 d.children.map(r => <RetailerRow key={r.id} r={r} />)
                )}
             </div>
           </div>
@@ -838,19 +886,59 @@ function HierarchyView({ applications }) {
               <div style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase' }}>Unmapped</div>
             </div>
             <div style={{ padding: '10px 20px' }}>
-               {directRetailers.map(r => (
-                 <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', marginLeft: 20, borderTop: '1px dashed #e2e8f0' }}>
-                    <div style={{ width: 8, height: 8, background: '#cbd5e1', borderRadius: '50%' }}></div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600 }}>{r.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--muted)' }}>Retailer • {r.companyName || 'Indiv.'}</div>
-                    </div>
-                 </div>
-               ))}
+               {directRetailers.map(r => <RetailerRow key={r.id} r={r} />)}
             </div>
           </div>
         )}
+
+        {tree.length === 0 && directRetailers.length === 0 && (
+          <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)', fontSize: 14 }}>
+            No approved partners yet. Approve distributors and retailers to see the hierarchy here.
+          </div>
+        )}
       </div>
+
+      {editingRetailer && (
+        <div className="mo open">
+          <div className="mo-box" style={{ width: 420 }}>
+            <div className="mo-head">
+              <h3>Reassign Retailer</h3>
+              <button className="btn-icon" onClick={() => setEditingRetailer(null)}>✕</button>
+            </div>
+            <div className="mo-body" style={{ padding: 24 }}>
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>Retailer</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{editingRetailer.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{editingRetailer.companyName || 'No Company'}</div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: 24 }}>
+                <label>Assign to Parent Distributor</label>
+                <select
+                  value={newParentId}
+                  onChange={e => setNewParentId(e.target.value)}
+                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }}
+                >
+                  <option value="">-- No Parent (Direct) --</option>
+                  {availableDistributors.map(d => (
+                    <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
+                  ))}
+                </select>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                  Current: <strong>{availableDistributors.find(d => d.id === editingRetailer.parentDistributorId)?.name || 'Direct (no parent)'}</strong>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingRetailer(null)}>Cancel</button>
+                <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSave} disabled={saving}>
+                  {saving ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
