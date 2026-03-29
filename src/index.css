@@ -378,11 +378,16 @@ tr:hover td { background: #f8faf9; }
 .cal-day.today { background: var(--accent); color: #fff; font-weight: 700; }
 .cal-day.has-event { background: #dcfce7; color: #166534; font-weight: 600; }
 
+/* RESPONSIVE UTILITY CLASSES */
+.dash-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
+.pnl-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 1px solid var(--border); }
+
 /* RESPONSIVE */
 @media (max-width: 992px) {
   .sg { grid-template-columns: 1fr; }
   .sn { display: flex; overflow-x: auto; padding-bottom: 5px; white-space: nowrap; gap: 8px; }
   .sn .sni { flex-shrink: 0; }
+  .dash-grid-2 { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 768px) {
@@ -400,30 +405,77 @@ tr:hover td { background: #f8faf9; }
   .nav-group-label { display: block; }
   .nav-item { margin: 0 12px; padding: 12px; }
   
-  .topbar { padding: 0 12px; }
-  .content { padding: 15px; }
+  .topbar { padding: 0 10px; height: 50px; }
+  .topbar-title { font-size: 13px; }
+  .topbar-right { gap: 6px; }
+  .topbar-right .plan-badge-text { display: none; }
+  .topbar-right .role-badge { font-size: 9px; padding: 3px 7px; }
+  .content { padding: 12px; }
   
+  /* Dashboard Grids */
+  .dash-grid-2 { grid-template-columns: 1fr; gap: 14px; margin-bottom: 14px; }
+  .pnl-grid { grid-template-columns: 1fr 1fr; }
+
   /* Grids & Flex */
   .fgrid { grid-template-columns: 1fr; }
   .stat-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .sh { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .stat-card .val { font-size: 22px; }
+  .sh { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .sh h2 { font-size: 15px; }
   .sh > div:last-child { width: 100%; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
   
   /* Modals */
   .mo-box { width: 100%; height: 100%; max-width: 100%; max-height: 100%; border-radius: 0; display: flex; flex-direction: column; }
+  .mo-box.wide { width: 100%; }
   .mo-body { flex: 1; overflow-y: auto; }
+  .mo-head h3 { font-size: 13px; }
   
   /* Tables */
-  .tw-head { flex-direction: column; align-items: stretch; gap: 12px; }
+  .tw-head { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 14px; }
   .tw-head > div { width: 100%; overflow-x: auto; padding-bottom: 4px; }
   .tw-head .si { flex: 1; min-width: 120px; }
+  .tw-scroll { padding-bottom: 60px; }
+  table { font-size: 12px; }
+  th { padding: 8px 10px; font-size: 10px; }
+  td { padding: 9px 10px; }
   
-  /* Settings Tabs */
-  .tabs { width: 100%; overflow-x: auto; }
+  /* Tabs */
+  .tabs { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab { white-space: nowrap; flex-shrink: 0; }
+
+  /* Kanban */
+  .kanban { min-height: 350px; padding-bottom: 10px; }
+  .kb-col { width: 260px; min-width: 260px; flex: 0 0 260px; }
+  
+  /* Notification Panel */
+  .notif-panel { width: 100%; }
+
+  /* Bulk bar */
+  .bulk-bar { padding: 8px 12px; font-size: 12px; }
+
+  /* Plan card grid */
+  .plan-card { padding: 16px; }
+
+  /* Chart */
+  .chart-label { width: 60px; font-size: 11px; }
+
+  /* Settings grid for mobile */
+  .sg { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
   .stat-grid { grid-template-columns: 1fr; }
+  .stat-card .val { font-size: 20px; }
+  .content { padding: 10px; }
+  .pnl-grid { grid-template-columns: 1fr; }
+  .topbar-title { font-size: 12px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fgrid { gap: 10px; }
+  .mo-head { padding: 14px 16px 10px; }
+  .mo-body { padding: 16px; }
+  .mo-foot { padding: 12px 16px; }
+  .kanban { min-height: 300px; }
+  .kb-col { width: 240px; min-width: 240px; flex: 0 0 240px; }
 }
 /* PRINT STYLES */
 @media print {

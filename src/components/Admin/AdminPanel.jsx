@@ -412,7 +412,7 @@ export default function AdminPanel({ user }) {
               <input value={settingsForm.brandName} onChange={e => setSettingsForm({ ...settingsForm, brandName: e.target.value })} placeholder="e.g. T2G CRM" />
               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Shown on login screen and sidebar logo.</div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div className="fgrid">
               <div className="form-group" style={{ marginBottom: 14 }}>
                 <label>Brand Initials (Short Logo)</label>
                 <input value={settingsForm.brandShort} onChange={e => setSettingsForm({ ...settingsForm, brandShort: e.target.value })} placeholder="e.g. T2G" maxLength={4} />

@@ -32,6 +32,8 @@ const VIEW_TO_MODULE = {
   integrations: 'integrations',
   'messaging-logs': 'messagingLogs',
   performance: 'reports',
+  distributors: 'distributors',
+  distributor_performance: 'distributors',
 };
 
 // Always-allowed views (never blocked by plan)

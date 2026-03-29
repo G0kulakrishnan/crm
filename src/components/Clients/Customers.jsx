@@ -29,6 +29,7 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
     activityLogs: { $: { where: { userId: ownerId } } },
     amc: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
+    partnerApplications: { $: { where: { userId: ownerId, status: 'Approved' } } },
   });
   const customers = useMemo(() => {
     return data?.customers || [];
@@ -42,6 +43,7 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
   const activityLogs = data?.activityLogs || [];
   const amcList = data?.amc || [];
   const leads = data?.leads || [];
+  const partners = data?.partnerApplications || [];
 
   const filtered = useMemo(() => {
     return customers.filter(c => {
@@ -54,7 +56,17 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
   }, [customers, search]);
 
   const openCreate = () => { setEditData(null); setForm(EMPTY_CUSTOMER); setModal(true); };
-  const openEdit = (c) => { setEditData(c); setForm({ name: c.name, companyName: c.companyName || '', email: c.email || '', phone: c.phone || '', address: c.address || '', state: c.state || '', country: c.country || 'India', pincode: c.pincode || '', gstin: c.gstin || '', custom: c.custom || {} }); setModal(true); };
+  const openEdit = (c) => { 
+    setEditData(c); 
+    setForm({ 
+      ...EMPTY_CUSTOMER,
+      ...c,
+      custom: { ...EMPTY_CUSTOMER.custom, ...(c.custom || {}) },
+      retailerId: c.retailerId || '',
+      distributorId: c.distributorId || ''
+    }); 
+    setModal(true); 
+  };
 
   const logActivity = async (customerId, text) => {
     await db.transact(db.tx.activityLogs[id()].update({
@@ -470,6 +482,30 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
                       ))}
                     </div>
                   </div>}
+
+                  <div className="fg"><label>Distributor (Optional)</label>
+                    <select value={form.distributorId} onChange={e => setForm(p => ({ ...p, distributorId: e.target.value, retailerId: '' }))}>
+                      <option value="">-- None --</option>
+                      {partners.filter(p => p.role === 'Distributor').map(p => (
+                        <option key={p.id} value={p.id}>{p.companyName || p.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="fg"><label>Retailer (Optional)</label>
+                    <select 
+                      value={form.retailerId} 
+                      disabled={!form.distributorId}
+                      onChange={e => setForm(p => ({ ...p, retailerId: e.target.value === 'self' ? '' : e.target.value }))}
+                    >
+                      <option value="">{form.distributorId ? '-- Select Retailer --' : '-- Select Distributor First --'}</option>
+                      {form.distributorId && (
+                        <option value="self">Self ({partners.find(p => p.id === form.distributorId)?.companyName || partners.find(p => p.id === form.distributorId)?.name})</option>
+                      )}
+                      {partners.filter(p => p.role === 'Retailer' && p.parentDistributorId === form.distributorId).map(p => (
+                        <option key={p.id} value={p.id}>{p.companyName || p.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
               <div className="mo-foot">
@@ -633,6 +669,30 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
                     ))}
                   </div>
                 </div>}
+
+                <div className="fg"><label>Distributor (Optional)</label>
+                  <select value={form.distributorId} onChange={e => setForm(p => ({ ...p, distributorId: e.target.value, retailerId: '' }))}>
+                    <option value="">-- None --</option>
+                    {partners.filter(p => p.role === 'Distributor').map(p => (
+                      <option key={p.id} value={p.id}>{p.companyName || p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="fg"><label>Retailer (Optional)</label>
+                  <select 
+                    value={form.retailerId} 
+                    disabled={!form.distributorId}
+                    onChange={e => setForm(p => ({ ...p, retailerId: e.target.value === 'self' ? '' : e.target.value }))}
+                  >
+                    <option value="">{form.distributorId ? '-- Select Retailer --' : '-- Select Distributor First --'}</option>
+                    {form.distributorId && (
+                      <option value="self">Self ({partners.find(p => p.id === form.distributorId)?.companyName || partners.find(p => p.id === form.distributorId)?.name})</option>
+                    )}
+                    {partners.filter(p => p.role === 'Retailer' && p.parentDistributorId === form.distributorId).map(p => (
+                      <option key={p.id} value={p.id}>{p.companyName || p.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
             <div className="mo-foot">

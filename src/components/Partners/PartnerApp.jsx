@@ -52,6 +52,12 @@ export default function PartnerApp({ user, settings, partnerInfo }) {
             >
               My Earnings
             </button>
+            <button 
+              onClick={() => setActiveTab('Profile')} 
+              style={{ border: 'none', background: activeTab === 'Profile' ? '#fff' : 'transparent', padding: '6px 16px', borderRadius: 6, fontSize: 13, fontWeight: 600, color: activeTab === 'Profile' ? '#2563eb' : '#64748b', cursor: 'pointer', boxShadow: activeTab === 'Profile' ? '0 1px 2px rgba(0,0,0,0.05)' : 'none' }}
+            >
+              My Profile
+            </button>
           </div>
           <button onClick={handleLogout} style={{ border: 'none', background: 'transparent', color: '#dc2626', fontSize: 13, fontWeight: 600, cursor: 'pointer', padding: '8px 12px' }}>
             Logout
@@ -66,8 +72,10 @@ export default function PartnerApp({ user, settings, partnerInfo }) {
             <NewRequirementForm ownerId={ownerUserId} partnerId={partnerId} user={user} />
           ) : activeTab === 'MyCustomers' ? (
             <MyCustomersView ownerId={ownerUserId} partnerId={partnerId} />
-          ) : (
+          ) : activeTab === 'MyEarnings' ? (
             <MyEarningsView ownerId={ownerUserId} partnerId={partnerId} />
+          ) : (
+            <ProfileSettingsView ownerId={ownerUserId} partnerId={partnerId} />
           )}
         </div>
       </div>
@@ -437,6 +445,204 @@ function MyEarningsView({ ownerId, partnerId }) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+// ------ PROFILE SETTINGS VIEW ------
+function ProfileSettingsView({ ownerId, partnerId }) {
+  const { data, isLoading } = db.useQuery({
+    partner: { partnerApplications: { $: { where: { id: partnerId } } } }
+  });
+
+  const partner = data?.partner?.partnerApplications?.[0];
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [newPass, setNewPass] = useState('');
+  const [confirmPass, setConfirmPass] = useState('');
+  const [resetting, setResetting] = useState(false);
+  const toast = useToast();
+
+  React.useEffect(() => {
+    if (partner && !form) {
+      setForm({
+        companyName: partner.companyName || '',
+        email: partner.email || '',
+        phone: partner.phone || '',
+        village: partner.village || '',
+        city: partner.city || '',
+        district: partner.district || '',
+        pincode: partner.pincode || '',
+        state: partner.state || '',
+        address: partner.address || '',
+        taxId: partner.taxId || ''
+      });
+    }
+  }, [partner, form]);
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      await db.transact(
+        db.tx.partnerApplications[partnerId].update({
+          ...form,
+          updatedAt: Date.now()
+        }),
+        db.tx.activityLogs[db.id()].update({
+          entityId: partnerId,
+          entityType: 'partner',
+          text: `Profile updated by partner`,
+          userId: ownerId,
+          createdAt: Date.now()
+        })
+      );
+      toast('Profile updated successfully!', 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleUpdatePassword = async () => {
+    if (!newPass || newPass.length < 6) return toast('Password must be at least 6 characters', 'error');
+    if (newPass !== confirmPass) return toast('Passwords do not match', 'error');
+    
+    setResetting(true);
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'set-partner-password',
+          email: partner.email,
+          password: newPass,
+          ownerUserId: ownerId,
+          partnerId: partnerId
+        })
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || 'Failed to update password');
+      
+      toast('Password updated successfully!', 'success');
+      setNewPass('');
+      setConfirmPass('');
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setResetting(false);
+    }
+  };
+
+  if (isLoading || !form) return <div>Loading profile...</div>;
+
+  const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 16, boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)', padding: 32 }}>
+      <div style={{ marginBottom: 24 }}>
+        <h2 style={{ fontSize: 20, color: '#0f172a', margin: 0 }}>Business Profile</h2>
+        <p style={{ color: '#64748b', fontSize: 13, margin: '4px 0 0' }}>Manage your business information and contact details.</p>
+      </div>
+
+      <form onSubmit={handleSave} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+        <div style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div className="form-group">
+            <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Company Name</label>
+            <input value={form.companyName} onChange={f('companyName')} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }} />
+          </div>
+          <div className="form-group">
+            <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Tax ID / GSTIN</label>
+            <input value={form.taxId} onChange={f('taxId')} placeholder="22AAAAA0000A1Z5" style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }} />
+          </div>
+        </div>
+
+        <div className="form-group">
+          <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#64748b', marginBottom: 6 }}>Official Email (Fixed)</label>
+          <input value={form.email} readOnly type="email" style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8, background: '#f8fafc', color: '#94a3b8', cursor: 'not-allowed' }} />
+        </div>
+        <div className="form-group">
+          <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#64748b', marginBottom: 6 }}>Official Phone (Fixed)</label>
+          <input value={form.phone} readOnly style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8f0', borderRadius: 8, background: '#f8fafc', color: '#94a3b8', cursor: 'not-allowed' }} />
+        </div>
+
+        <div style={{ gridColumn: 'span 2', marginTop: -8, marginBottom: 8 }}>
+            <p style={{ fontSize: 12, color: '#64748b', margin: 0, fontStyle: 'italic' }}>Note: Email and Phone are managed by the company. Please contact support to update these.</p>
+        </div>
+
+        <div style={{ gridColumn: 'span 2', background: '#f8fafc', padding: 20, borderRadius: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <h4 style={{ gridColumn: 'span 2', margin: 0, fontSize: 14, color: '#475569' }}>Location Details</h4>
+          <div className="form-group">
+            <label style={{ display: 'block', fontWeight: 600, fontSize: 12, color: '#64748b', marginBottom: 4 }}>Village / Area</label>
+            <input value={form.village} onChange={f('village')} style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6 }} />
+          </div>
+          <div className="form-group">
+            <label style={{ display: 'block', fontWeight: 600, fontSize: 12, color: '#64748b', marginBottom: 4 }}>City / Town</label>
+            <input value={form.city} onChange={f('city')} style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6 }} />
+          </div>
+          <div className="form-group">
+            <label style={{ display: 'block', fontWeight: 600, fontSize: 12, color: '#64748b', marginBottom: 4 }}>District</label>
+            <input value={form.district} onChange={f('district')} style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6 }} />
+          </div>
+          <div className="form-group">
+            <label style={{ display: 'block', fontWeight: 600, fontSize: 12, color: '#64748b', marginBottom: 4 }}>Pincode</label>
+            <input value={form.pincode} onChange={f('pincode')} style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6 }} />
+          </div>
+          <div className="form-group" style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontWeight: 600, fontSize: 12, color: '#64748b', marginBottom: 4 }}>State</label>
+            <input value={form.state} onChange={f('state')} style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6 }} />
+          </div>
+          <div className="form-group" style={{ gridColumn: 'span 2' }}>
+            <label style={{ display: 'block', fontWeight: 600, fontSize: 12, color: '#64748b', marginBottom: 4 }}>Full Postal Address</label>
+            <textarea value={form.address} onChange={f('address')} style={{ width: '100%', padding: '8px 10px', border: '1px solid #cbd5e1', borderRadius: 6, minHeight: 60 }} />
+          </div>
+        </div>
+
+        <div style={{ gridColumn: 'span 2', display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+          <button 
+            type="submit" 
+            disabled={saving}
+            style={{ padding: '10px 24px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: saving ? 'not-allowed' : 'pointer' }}
+          >
+            {saving ? 'Saving...' : 'Save Profile Changes'}
+          </button>
+        </div>
+      </form>
+
+      <div style={{ marginTop: 40, borderTop: '2px dashed #f1f5f9', paddingTop: 32 }}>
+        <h3 style={{ fontSize: 18, color: '#0f172a', margin: '0 0 8px 0' }}>Security & Password</h3>
+        <p style={{ color: '#64748b', fontSize: 13, marginBottom: 24 }}>Update your portal login password.</p>
+        
+        <div style={{ maxWidth: 400, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div className="form-group">
+            <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>New Password</label>
+            <input 
+              type="password" 
+              value={newPass} 
+              onChange={e => setNewPass(e.target.value)} 
+              placeholder="Min 6 characters"
+              style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }} 
+            />
+          </div>
+          <div className="form-group">
+            <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Confirm New Password</label>
+            <input 
+              type="password" 
+              value={confirmPass} 
+              onChange={e => setConfirmPass(e.target.value)} 
+              placeholder="Repeat password"
+              style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }} 
+            />
+          </div>
+          <button 
+            onClick={handleUpdatePassword}
+            disabled={resetting || !newPass}
+            style={{ alignSelf: 'flex-start', padding: '10px 24px', background: '#f8fafc', color: '#334155', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: resetting ? 'not-allowed' : 'pointer' }}
+          >
+            {resetting ? 'Updating...' : 'Update Password'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

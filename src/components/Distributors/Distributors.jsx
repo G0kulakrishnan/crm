@@ -3,8 +3,10 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { fmtD } from '../../utils/helpers';
+import { useApp } from '../../context/AppContext';
 
 export default function Distributors({ user, ownerId, perms, initialTab }) {
+  const { setActiveView, setSettingsTab } = useApp();
   const [tab, setTab] = useState(initialTab || 'Pending');
   const [search, setSearch] = useState('');
   const [approveModal, setApproveModal] = useState(null);
@@ -195,12 +197,17 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
 
   return (
     <div>
-      <div className="sh" style={{ alignItems: 'flex-start' }}>
+      <div className="sh" style={{ borderBottom: '1px solid var(--border)', paddingBottom: 20 }}>
         <div>
           <h2>Channel Partners</h2>
-          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-            Control center for your distributor and retailer network.
-          </p>
+          <div className="sub">Control center for your distribution network</div>
+          <button 
+            className="btn-link" 
+            style={{ fontSize: 11, color: 'var(--accent)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}
+            onClick={() => { setActiveView('Settings'); setSettingsTab('Business'); }}
+          >
+            ⚙ Edit Main Business Profile ({profile.bizName || 'Company'})
+          </button>
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <div style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 6, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
@@ -1062,6 +1069,16 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
   const [partnerDetailsId, setPartnerDetailsId] = useState(null);
   const [newParentId, setNewParentId] = useState('');
   const [newCompanyName, setNewCompanyName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newAddress, setNewAddress] = useState('');
+  const [newVillage, setNewVillage] = useState('');
+  const [newCity, setNewCity] = useState('');
+  const [newDistrict, setNewDistrict] = useState('');
+  const [newPincode, setNewPincode] = useState('');
+  const [newState, setNewState] = useState('');
+  const [newTaxId, setNewTaxId] = useState('');
+  const [newNotes, setNewNotes] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [colModal, setColModal] = useState(false);
@@ -1082,7 +1099,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
   const [tempPageSize, setTempPageSize] = useState(pageSize);
 
   const getParentName = (p) => {
-    if (p.role === 'Distributor') return 'Company';
+    if (p.role === 'Distributor') return profile?.bizName || profile?.businessName || 'Company';
     if (!p.parentDistributorId) return 'Direct';
     const parent = allApprovedPartners.find(d => d.id === p.parentDistributorId);
     return parent ? parent.name : 'Unknown';
@@ -1092,6 +1109,16 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
     setEditingPartner(p);
     setNewParentId(p.parentDistributorId || '');
     setNewCompanyName(p.companyName || '');
+    setNewPhone(p.phone || '');
+    setNewEmail(p.email || '');
+    setNewAddress(p.address || '');
+    setNewVillage(p.village || '');
+    setNewCity(p.city || '');
+    setNewDistrict(p.district || '');
+    setNewPincode(p.pincode || '');
+    setNewState(p.state || '');
+    setNewTaxId(p.taxId || '');
+    setNewNotes(p.notes || '');
     setNewPassword('');
   };
 
@@ -1123,6 +1150,16 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
       
       const updateData = {
         companyName: newCompanyName.trim(),
+        phone: newPhone.trim(),
+        email: newEmail.trim(),
+        address: newAddress.trim(),
+        village: newVillage.trim(),
+        city: newCity.trim(),
+        district: newDistrict.trim(),
+        pincode: newPincode.trim(),
+        state: newState.trim(),
+        taxId: newTaxId.trim(),
+        notes: newNotes.trim(),
         updatedAt: Date.now()
       };
       if (editingPartner.role === 'Retailer') {
@@ -1341,63 +1378,98 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
       {/* Edit Partner Modal */}
       {editingPartner && (
         <div className="mo open">
-          <div className="mo-box" style={{ width: 440 }}>
+          <div className="mo-box" style={{ width: 680, maxWidth: '95vw' }}>
             <div className="mo-head">
               <h3>Edit Partner Profile</h3>
               <button className="btn-icon" onClick={() => setEditingPartner(null)}>✕</button>
             </div>
-            <div className="mo-body" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
-              <div>
+            <div className="mo-body tw-scroll" style={{ padding: 24, maxHeight: '80vh', overflowY: 'auto' }}>
+              <div style={{ marginBottom: 20, background: 'var(--bg-soft)', padding: 15, borderRadius: 12, border: '1px solid var(--border)' }}>
                 <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>Partner Name</div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{editingPartner.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{editingPartner.email}</div>
+                <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--accent)' }}>{editingPartner.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>Application ID: {editingPartner.id.slice(0,8)}</div>
               </div>
 
-              <div className="form-group">
-                <label>Company Name</label>
-                <input 
-                  value={newCompanyName} 
-                  onChange={e => setNewCompanyName(e.target.value)} 
-                  placeholder="Business Name"
-                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }}
-                />
-              </div>
-
-              {editingPartner.role === 'Retailer' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
                 <div className="form-group">
-                  <label>Assign to Parent Distributor</label>
-                  <select
-                    value={newParentId}
-                    onChange={e => setNewParentId(e.target.value)}
-                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, background: 'var(--surface)' }}
-                  >
-                    <option value="">-- No Parent (Direct) --</option>
-                    {availableDistributors.map(d => (
-                      <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
-                    ))}
-                  </select>
-                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
-                    Current: <strong>{allApprovedPartners.find(d => d.id === editingPartner.parentDistributorId)?.name || 'Direct (no parent)'}</strong>
+                  <label>Company/Business Name</label>
+                  <input value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} placeholder="Business Name" />
+                </div>
+                <div className="form-group">
+                  <label>Contact Email</label>
+                  <input value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="email@company.com" />
+                </div>
+                <div className="form-group">
+                  <label>Phone Number</label>
+                  <input value={newPhone} onChange={e => setNewPhone(e.target.value)} placeholder="+91..." />
+                </div>
+                <div className="form-group">
+                  <label>Tax ID / GSTIN</label>
+                  <input value={newTaxId} onChange={e => setNewTaxId(e.target.value)} placeholder="GSTIN..." />
+                </div>
+              </div>
+
+              <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+                <h4 style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 15 }}>Location & Address</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 15 }}>
+                  <div className="form-group">
+                    <label>Village / Area</label>
+                    <input value={newVillage} onChange={e => setNewVillage(e.target.value)} placeholder="Village" />
+                  </div>
+                  <div className="form-group">
+                    <label>City / Town</label>
+                    <input value={newCity} onChange={e => setNewCity(e.target.value)} placeholder="City" />
+                  </div>
+                  <div className="form-group">
+                    <label>District</label>
+                    <input value={newDistrict} onChange={e => setNewDistrict(e.target.value)} placeholder="District" />
+                  </div>
+                  <div className="form-group">
+                    <label>Pincode</label>
+                    <input value={newPincode} onChange={e => setNewPincode(e.target.value)} placeholder="600001" />
+                  </div>
+                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                    <label>State</label>
+                    <input value={newState} onChange={e => setNewState(e.target.value)} placeholder="Tamil Nadu" />
                   </div>
                 </div>
-              )}
-
-              <div className="form-group" style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
-                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span>Update Password</span>
-                  <button type="button" className="btn-link" style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', padding: 0 }} onClick={() => setNewPassword(Math.random().toString(36).slice(-8))}>Generate Random</button>
-                </label>
-                <input 
-                  type="text" 
-                  value={newPassword} 
-                  onChange={e => setNewPassword(e.target.value)} 
-                  placeholder="Enter new password (min 6 chars)"
-                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }}
-                />
-                <div style={{ fontSize: 11, color: '#ca8a04', marginTop: 4 }}>Leave blank to keep current password.</div>
+                <div className="form-group" style={{ marginTop: 15 }}>
+                  <label>Full Postal Address</label>
+                  <textarea value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="Enter full address details..." style={{ minHeight: 60 }} />
+                </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+              <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                {editingPartner.role === 'Retailer' && (
+                  <div className="form-group">
+                    <label>Parent Distributor</label>
+                    <select
+                      value={newParentId}
+                      onChange={e => setNewParentId(e.target.value)}
+                      style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, background: 'var(--surface)' }}
+                    >
+                      <option value="">-- No Parent (Direct) --</option>
+                      {availableDistributors.map(d => (
+                        <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div className="form-group">
+                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Reset Password</span>
+                    <button type="button" className="btn-link" style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', padding: 0 }} onClick={() => setNewPassword(Math.random().toString(36).slice(-8))}>Generate Random</button>
+                  </label>
+                  <input type="text" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password (min 6 chars)" />
+                </div>
+              </div>
+
+              <div className="form-group" style={{ marginTop: 20 }}>
+                <label>Internal Admin Notes</label>
+                <textarea value={newNotes} onChange={e => setNewNotes(e.target.value)} placeholder="Private notes about this partner..." style={{ minHeight: 60 }} />
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 24 }}>
                 <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingPartner(null)}>Cancel</button>
                 <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSave} disabled={saving}>
                   {saving ? 'Saving...' : 'Save Changes'}

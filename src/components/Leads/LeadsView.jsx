@@ -58,6 +58,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     activityLogs: { $: { where: { userId: ownerId }, limit: 100 } },
+    partnerApplications: { $: { where: { userId: ownerId, status: 'Approved' } } },
   });
   const leads = data?.leads || [];
   const customers = data?.customers || [];
@@ -70,6 +71,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const activeLabels = data?.userProfiles?.[0]?.labels || DEFAULT_LABELS;
   const productCats = data?.userProfiles?.[0]?.productCats || DEFAULT_PROD_CATS;
   const allStages = data?.userProfiles?.[0]?.stages || DEFAULT_STAGES;
+  const partners = data?.partnerApplications || [];
   
   useEffect(() => {
     const openId = localStorage.getItem('tc_open_lead');
@@ -204,7 +206,13 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   };
   const openEdit = (l) => { 
     setEditData(l); 
-    setForm({ name: l.name, email: l.email || '', phone: l.phone || '', source: l.source || activeSources[0], stage: l.stage || activeStages[0], assign: l.assign || '', followup: l.followup || '', label: l.label || activeLabels[0], notes: l.notes || '', productCat: l.productCat || '', remWA: l.remWA || false, remEmail: l.remEmail !== false, remSMS: l.remSMS || false, custom: l.custom || {} }); 
+    setForm({ 
+      ...EMPTY_LEAD,
+      ...l,
+      custom: { ...EMPTY_LEAD.custom, ...(l.custom || {}) },
+      retailerId: l.retailerId || '',
+      distributorId: l.distributorId || ''
+    }); 
     setModal(true); 
   };
 
@@ -1189,6 +1197,30 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                     ))}
                   </div>
                 </div>
+
+                <div className="fg"><label>Distributor (Optional)</label>
+                  <select value={form.distributorId} onChange={e => setForm(p => ({ ...p, distributorId: e.target.value, retailerId: '' }))}>
+                    <option value="">-- None --</option>
+                    {partners.filter(p => p.role === 'Distributor').map(p => (
+                      <option key={p.id} value={p.id}>{p.companyName || p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="fg"><label>Retailer (Optional)</label>
+                  <select 
+                    value={form.retailerId} 
+                    disabled={!form.distributorId}
+                    onChange={e => setForm(p => ({ ...p, retailerId: e.target.value === 'self' ? '' : e.target.value }))}
+                  >
+                    <option value="">{form.distributorId ? '-- Select Retailer --' : '-- Select Distributor First --'}</option>
+                    {form.distributorId && (
+                      <option value="self">Self ({partners.find(p => p.id === form.distributorId)?.companyName || partners.find(p => p.id === form.distributorId)?.name})</option>
+                    )}
+                    {partners.filter(p => p.role === 'Retailer' && p.parentDistributorId === form.distributorId).map(p => (
+                      <option key={p.id} value={p.id}>{p.companyName || p.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
             <div className="mo-foot">
@@ -1266,35 +1298,28 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
               })}
 
               {/* Custom Fields Mapping */}
-              {customFields.length > 0 && (
-                <div style={{ marginTop: 15, borderTop: '2px solid var(--bg-soft)', paddingTop: 15 }}>
-                  <h4 style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10, textTransform: 'uppercase' }}>Custom Fields</h4>
-                  {customFields.map(cf => {
-                    const m = importMapping[cf.name] || { type: 'column', value: '' };
-                    const setM = (val) => setImportMapping({ ...importMapping, [cf.name]: { ...m, ...val } });
-
-                    return (
-                      <div key={cf.name} style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderBottom: '1px solid var(--bg-soft)', gap: 20 }}>
-                        <div style={{ width: 140, fontWeight: 600, fontSize: 12 }}>{cf.name}</div>
-                        
-                        <div style={{ display: 'flex', background: 'var(--bg-soft)', borderRadius: 6, padding: 2 }}>
-                           <button className={`btn-toggle ${m.type === 'column' ? 'active' : ''}`} onClick={() => setM({ type: 'column' })}>Column</button>
-                           <button className={`btn-toggle ${m.type === 'fixed' ? 'active' : ''}`} onClick={() => setM({ type: 'fixed' })}>Fixed</button>
-                        </div>
-
-                        {m.type === 'column' ? (
-                          <select style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)' }} value={m.value} onChange={e => setM({ value: e.target.value })}>
-                            <option value="">(Select Column)</option>
-                            {importHeaders.map((h, idx) => <option key={idx} value={h}>{h}</option>)}
-                          </select>
-                        ) : (
-                          <input type="text" style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)' }} value={m.value} onChange={e => setM({ value: e.target.value })} placeholder="Fixed value..." />
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+              {customFields.map(cf => {
+                const m = importMapping[cf.name] || { type: 'column', value: '' };
+                const setM = (val) => setImportMapping({ ...importMapping, [cf.name]: { ...m, ...val } });
+                
+                return (
+                  <div key={cf.name} style={{ display: 'flex', alignItems: 'center', padding: '12px 0', borderBottom: '1px solid var(--bg-soft)', gap: 20 }}>
+                     <div style={{ width: 140, fontWeight: 600, fontSize: 12 }}>{cf.name}</div>
+                     <div style={{ display: 'flex', background: 'var(--bg-soft)', borderRadius: 6, padding: 2 }}>
+                        <button className={`btn-toggle ${m.type === 'column' ? 'active' : ''}`} onClick={() => setM({ type: 'column' })}>Column</button>
+                        <button className={`btn-toggle ${m.type === 'fixed' ? 'active' : ''}`} onClick={() => setM({ type: 'fixed' })}>Fixed</button>
+                     </div>
+                     {m.type === 'column' ? (
+                       <select style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)' }} value={m.value} onChange={e => setM({ value: e.target.value })}>
+                         <option value="">(Select Column)</option>
+                         {importHeaders.map((h, idx) => <option key={idx} value={h}>{h}</option>)}
+                       </select>
+                     ) : (
+                       <input type="text" style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)' }} value={m.value} onChange={e => setM({ value: e.target.value })} placeholder="Fixed value..." />
+                     )}
+                  </div>
+                );
+              })}
             </div>
             <div className="mo-foot">
               <button className="btn btn-secondary btn-sm" onClick={() => setImportMappingModal(false)}>Cancel</button>

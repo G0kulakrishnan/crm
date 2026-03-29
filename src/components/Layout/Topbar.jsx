@@ -41,7 +41,7 @@ export default function Topbar({ user, notifCount, isExpired, teamInfo, teamMemb
       <div className="topbar-right">
         {/* Team Badge */}
         {roleName && (
-          <div style={{ background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, border: '1px solid #bbf7d0', textTransform: 'uppercase' }}>
+          <div className="role-badge" style={{ background: '#dcfce7', color: '#166534', padding: '4px 10px', borderRadius: 20, fontSize: 10, fontWeight: 700, border: '1px solid #bbf7d0', textTransform: 'uppercase' }}>
             👥 {roleName}
           </div>
         )}
@@ -72,7 +72,7 @@ export default function Topbar({ user, notifCount, isExpired, teamInfo, teamMemb
             }}
             title="Go to Billing Settings"
           >
-            {user?.profile?.plan || 'Free'}
+            <span className="plan-badge-text">{user?.profile?.plan || 'Free'}</span>
           </div>
         </div>
 

@@ -240,7 +240,7 @@ export default function Dashboard({ user, ownerId, perms }) {
       </div>
 
       {/* Charts Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginBottom: 18 }}>
+      <div className="dash-grid-2">
         {/* Source Chart */}
         {perms.can('Leads', 'list') === true && (
           <div className="tw">
@@ -278,7 +278,7 @@ export default function Dashboard({ user, ownerId, perms }) {
       </div>
 
       {/* Recent Leads + Calendar */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18 }}>
+      <div className="dash-grid-2">
         {perms.can('Leads', 'list') === true && (
           <>
             <div className="tw">
@@ -327,7 +327,7 @@ export default function Dashboard({ user, ownerId, perms }) {
         {perms.can('Invoices', 'list') === true && (
           <div className="tw">
             <div className="tw-head"><h3>💰 Profit &amp; Loss Summary</h3><span style={{ fontSize: 11, color: 'var(--muted)' }}>Based on Paid Invoices</span></div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 0, borderTop: '1px solid var(--border)' }}>
+            <div className="pnl-grid">
               {[
                 { label: 'Revenue', value: fmt(pnl.revenue), color: '#16a34a', bg: '#f0fdf4' },
                 { label: 'COGS', value: fmt(pnl.cogs), color: '#7c3aed', bg: '#faf5ff' },
@@ -396,7 +396,7 @@ export default function Dashboard({ user, ownerId, perms }) {
       </div>
 
       {/* Ecom & Appointments Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 18, marginTop: 18 }}>
+      <div className="dash-grid-2" style={{ marginTop: 18 }}>
         {perms.can('Ecommerce', 'list') === true && (
           <div className="tw">
             <div className="tw-head"><h3>Recent Store Orders</h3></div>

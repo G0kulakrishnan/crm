@@ -8,6 +8,8 @@ export const EMPTY_CUSTOMER = {
   country: 'India',
   pincode: '',
   gstin: '',
+  retailerId: '',
+  distributorId: '',
   custom: {}
 };
 
@@ -26,6 +28,8 @@ export const EMPTY_LEAD = {
   remWA: false,
   remEmail: true,
   remSMS: false,
+  retailerId: '',
+  distributorId: '',
   custom: {}
 };
 
