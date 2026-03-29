@@ -95,6 +95,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
           district: onboardForm.district.trim(),
           pincode: onboardForm.pincode.trim(),
           state: onboardForm.state.trim(),
+          customData: onboardForm.customData || {},
           status: 'Approved',
           appliedAt: Date.now(),
           approvedAt: Date.now(),
@@ -109,7 +110,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
 
       toast('Partner onboarded successfully!', 'success');
       setOnboardModal(false);
-      setOnboardForm({ name: '', email: '', phone: '', companyName: '', role: 'Retailer', commission: 0, password: '' });
+      setOnboardForm({ name: '', email: '', phone: '', companyName: '', role: 'Retailer', commission: 0, password: '', parentDistributorId: '', village: '', city: '', district: '', pincode: '', state: '', customData: {} });
     } catch (err) {
       toast(err.message, 'error');
     } finally {
@@ -685,6 +686,49 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
                         <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
                       ))}
                     </select>
+                  </div>
+                )}
+
+                {/* Custom Fields from Partner Settings */}
+                {(profile?.partnerFormConfig?.customFields || []).length > 0 && (
+                  <div style={{ marginBottom: 15, padding: '14px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>Additional Information</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                      {profile.partnerFormConfig.customFields.map(cf => (
+                        <div className="form-group" key={cf.id} style={{ marginBottom: 0 }}>
+                          <label>{cf.label}{cf.required && <span style={{ color: '#dc2626', marginLeft: 2 }}>*</span>}</label>
+                          {cf.type === 'Dropdown' ? (
+                            <select
+                              required={cf.required}
+                              value={onboardForm.customData?.[cf.id] || ''}
+                              onChange={e => setOnboardForm(p => ({ ...p, customData: { ...p.customData, [cf.id]: e.target.value } }))}
+                            >
+                              <option value="">-- Select --</option>
+                              {(cf.options || '').split(',').map(o => o.trim()).filter(Boolean).map(o => (
+                                <option key={o} value={o}>{o}</option>
+                              ))}
+                            </select>
+                          ) : cf.type === 'Checkbox' ? (
+                            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+                              <input
+                                type="checkbox"
+                                checked={!!onboardForm.customData?.[cf.id]}
+                                onChange={e => setOnboardForm(p => ({ ...p, customData: { ...p.customData, [cf.id]: e.target.checked } }))}
+                              />
+                              {cf.label}
+                            </label>
+                          ) : (
+                            <input
+                              type={cf.type === 'Number' ? 'number' : cf.type === 'Date' ? 'date' : 'text'}
+                              required={cf.required}
+                              placeholder={cf.label}
+                              value={onboardForm.customData?.[cf.id] || ''}
+                              onChange={e => setOnboardForm(p => ({ ...p, customData: { ...p.customData, [cf.id]: e.target.value } }))}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
