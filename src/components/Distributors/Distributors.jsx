@@ -236,13 +236,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
         <div>
           <h2>Channel Partners</h2>
           <div className="sub">Control center for your distribution network</div>
-          <button 
-            className="btn-link" 
-            style={{ fontSize: 11, color: 'var(--accent)', marginTop: 8, display: 'flex', alignItems: 'center', gap: 4 }}
-            onClick={() => { setActiveView('Settings'); setSettingsTab('Business'); }}
-          >
-            ⚙ Edit Main Business Profile ({profile.bizName || 'Company'})
-          </button>
+
         </div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <div style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 6, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
@@ -1549,37 +1543,32 @@ function ProductsView({ products, search }) {
 }
 
 function RequirementsView({ allRequirements, partnerVisible }) {
+  const visibleReqs = allRequirements.filter(req => partnerVisible.includes(req));
+
   return (
-    <div className="tw-scroll" style={{ padding: 0 }}>
-      <table style={{ margin: 0 }}>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Requirement</th>
-            <th>Partner Visibility</th>
-          </tr>
-        </thead>
-        <tbody>
-          {allRequirements.length === 0 ? (
-            <tr><td colSpan={3} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No requirements configured. Add them in Business Settings → Requirements.</td></tr>
-          ) : allRequirements.map((req, i) => (
-            <tr key={i}>
-              <td style={{ color: 'var(--muted)', fontSize: 12 }}>{i + 1}</td>
-              <td style={{ fontWeight: 600 }}>{req}</td>
-              <td>
-                {partnerVisible.includes(req) ? (
-                  <span className="badge bg-green">Visible to Partners</span>
-                ) : (
-                  <span className="badge bg-gray">Hidden from Partners</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div style={{ padding: 16, background: '#f8fafc', borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--muted)' }}>
-        💡 Use <strong>Partner Settings → Partner-Visible Requirements</strong> to toggle which requirements are shown to partners when creating leads.
+    <div style={{ padding: 20 }}>
+      <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h4 style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>Partner-Visible Requirements</h4>
+          <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--muted)' }}>These requirements are shown to partners when creating leads.</p>
+        </div>
+        <span style={{ fontSize: 12, color: 'var(--muted)' }}>{visibleReqs.length} of {allRequirements.length} visible</span>
       </div>
+      {visibleReqs.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--muted)', background: '#f8fafc', border: '1px dashed var(--border)', borderRadius: 10 }}>
+          <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>No requirements visible to partners yet</div>
+          <div style={{ fontSize: 12 }}>Go to <strong>⚙️ Partner Settings → Partner-Visible Requirements</strong> to enable some.</div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          {visibleReqs.map((req, i) => (
+            <div key={i} style={{ padding: '10px 18px', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, fontWeight: 600, fontSize: 14, color: '#166534', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: '#16a34a' }}>✓</span> {req}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
