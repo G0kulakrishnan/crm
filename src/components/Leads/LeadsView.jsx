@@ -100,7 +100,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     }
   }, [savedDefaultPageSize]);
 
-  const allPossibleCols = ['Created', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Label', 'Reminder', ...customFields.map(c => c.name)];
+  const allPossibleCols = ['Created', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Label', 'Reminder', 'Distributor', 'Retailer', ...customFields.map(c => c.name)];
   const activeCols = savedCols || allPossibleCols;
 
   // activeStages is for visual components (Kanban/List), should exclude deleted & disabled
@@ -234,6 +234,25 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     if (!editData && !canCreate) { toast('Permission denied: cannot create leads', 'error'); return; }
     if (!editData && planEnforcement && !planEnforcement.isWithinLimit('maxLeads', leads.length)) { toast('Lead limit reached for your plan. Please upgrade to add more leads.', 'error'); return; }
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
+
+    // Duplicate phone/email check across leads + customers
+    const checkPhone = (form.phone || '').trim().toLowerCase();
+    const checkEmail = (form.email || '').trim().toLowerCase();
+    if (checkPhone || checkEmail) {
+      const allRecords = [...leads, ...customers];
+      const duplicate = allRecords.find(r => {
+        if (editData && r.id === editData.id) return false; // skip self when editing
+        const rPhone = (r.phone || '').trim().toLowerCase();
+        const rEmail = (r.email || '').trim().toLowerCase();
+        return (checkPhone && rPhone && rPhone === checkPhone) ||
+               (checkEmail && rEmail && rEmail === checkEmail);
+      });
+      if (duplicate) {
+        toast(`Duplicate! A record with this ${duplicate.phone?.toLowerCase() === checkPhone ? 'phone number' : 'email'} already exists (${duplicate.name}).`, 'error');
+        return;
+      }
+    }
+
     try {
       if (editData) {
         const changes = [];
@@ -916,6 +935,8 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                     {activeCols.includes('Follow Up') && <th>Follow Up</th>}
                     {activeCols.includes('Label') && <th>Label</th>}
                     {activeCols.includes('Reminder') && <th>Reminder</th>}
+                    {activeCols.includes('Distributor') && <th>Distributor</th>}
+                    {activeCols.includes('Retailer') && <th>Retailer</th>}
                     {customFields.filter(cf => activeCols.includes(cf.name)).map(cf => <th key={cf.name}>{cf.name}</th>)}
                     <th style={{ textAlign: 'right' }}>Actions</th>
                   </tr>
@@ -965,6 +986,8 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                         {l.remSMS && <span style={{ fontSize: 10, background: '#f5f3ff', color: '#7c3aed', borderRadius: 20, padding: '2px 6px', fontWeight: 700 }}>SMS</span>}
                       </div>
                     </td>}
+                    {activeCols.includes('Distributor') && <td style={{ fontSize: 12 }}>{l.distributorId ? (partners.find(p => p.id === l.distributorId)?.companyName || partners.find(p => p.id === l.distributorId)?.name || '-') : '-'}</td>}
+                    {activeCols.includes('Retailer') && <td style={{ fontSize: 12 }}>{l.retailerId ? (partners.find(p => p.id === l.retailerId)?.companyName || partners.find(p => p.id === l.retailerId)?.name || '-') : '-'}</td>}
                     {customFields.filter(cf => activeCols.includes(cf.name)).map(cf => (
                       <td key={cf.name} style={{ fontSize: 11 }}>{l.custom?.[cf.name] || '-'}</td>
                     ))}

@@ -86,6 +86,25 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
     if (!editData && planEnforcement && !planEnforcement.isWithinLimit('maxCustomers', customers.length)) { toast('Customer limit reached for your plan. Please upgrade.', 'error'); return; }
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
     if (!form.email.trim()) { toast('Email is mandatory for clients', 'error'); return; }
+
+    // Duplicate phone/email check across customers + leads
+    const checkPhone = (form.phone || '').trim().toLowerCase();
+    const checkEmail = (form.email || '').trim().toLowerCase();
+    if (checkPhone || checkEmail) {
+      const allRecords = [...customers, ...leads];
+      const duplicate = allRecords.find(r => {
+        if (editData && r.id === editData.id) return false; // skip self when editing
+        const rPhone = (r.phone || '').trim().toLowerCase();
+        const rEmail = (r.email || '').trim().toLowerCase();
+        return (checkPhone && rPhone && rPhone === checkPhone) ||
+               (checkEmail && rEmail && rEmail === checkEmail);
+      });
+      if (duplicate) {
+        toast(`Duplicate! A record with this ${(duplicate.phone || '').toLowerCase() === checkPhone ? 'phone number' : 'email'} already exists (${duplicate.name}).`, 'error');
+        return;
+      }
+    }
+
     try {
       const txs = [];
       if (editData) {
