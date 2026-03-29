@@ -1323,7 +1323,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                     <div className="fg span2">
                       <label>Template Message (use <code>#variable#</code> for dynamic values)</label>
                       <textarea 
-                        placeholder="Hello #User-Name#, Thank you for your order with TechToGrow! Your Invoice No : #invoiceno# Amount Rupees.#amt#/- is attached below." 
+                        placeholder="Hello #client#, this is a reminder for your upcoming #service# on #date#. Thank you!" 
                         id="new_wa_body" 
                         style={{ minHeight: 80, lineHeight: 1.6 }} 
                       />
