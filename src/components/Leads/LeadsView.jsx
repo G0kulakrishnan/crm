@@ -5,6 +5,7 @@ import { fmtD, fmtDT, stageBadgeClass, uid, DEFAULT_STAGES, DEFAULT_SOURCES, DEF
 import { useToast } from '../../context/ToastContext';
 import { EMPTY_LEAD } from '../../utils/constants';
 import { fireAutoNotifications } from '../../utils/messaging';
+import SearchableSelect from '../UI/SearchableSelect';
 
 
 
@@ -1198,28 +1199,30 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                   </div>
                 </div>
 
-                <div className="fg"><label>Distributor (Optional)</label>
-                  <select value={form.distributorId} onChange={e => setForm(p => ({ ...p, distributorId: e.target.value, retailerId: '' }))}>
-                    <option value="">-- None --</option>
-                    {partners.filter(p => p.role === 'Distributor').map(p => (
-                      <option key={p.id} value={p.id}>{p.companyName || p.name}</option>
-                    ))}
-                  </select>
+                <div className="fg" style={{ zIndex: 8 }}><label>Distributor (Optional)</label>
+                  <SearchableSelect
+                    options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Distributor').map(p => ({ id: p.id, name: p.companyName || p.name }))]}
+                    displayKey="name"
+                    returnKey="id"
+                    value={form.distributorId}
+                    onChange={val => setForm(p => ({ ...p, distributorId: val, retailerId: '' }))}
+                    placeholder="Search distributor..."
+                  />
                 </div>
-                <div className="fg"><label>Retailer (Optional)</label>
-                  <select 
-                    value={form.retailerId} 
+                <div className="fg" style={{ zIndex: 7 }}><label>Retailer (Optional)</label>
+                  <SearchableSelect
+                    options={[
+                      { id: '', name: form.distributorId ? '-- Select Retailer --' : '-- Select Distributor First --' },
+                      ...(form.distributorId ? [{ id: 'self', name: `Self (${partners.find(p => p.id === form.distributorId)?.companyName || partners.find(p => p.id === form.distributorId)?.name || ''})` }] : []),
+                      ...partners.filter(p => p.role === 'Retailer' && p.parentDistributorId === form.distributorId).map(p => ({ id: p.id, name: p.companyName || p.name }))
+                    ]}
+                    displayKey="name"
+                    returnKey="id"
+                    value={form.retailerId === '' && form.distributorId ? '' : form.retailerId}
+                    onChange={val => setForm(p => ({ ...p, retailerId: val === 'self' ? '' : val }))}
+                    placeholder="Search retailer..."
                     disabled={!form.distributorId}
-                    onChange={e => setForm(p => ({ ...p, retailerId: e.target.value === 'self' ? '' : e.target.value }))}
-                  >
-                    <option value="">{form.distributorId ? '-- Select Retailer --' : '-- Select Distributor First --'}</option>
-                    {form.distributorId && (
-                      <option value="self">Self ({partners.find(p => p.id === form.distributorId)?.companyName || partners.find(p => p.id === form.distributorId)?.name})</option>
-                    )}
-                    {partners.filter(p => p.role === 'Retailer' && p.parentDistributorId === form.distributorId).map(p => (
-                      <option key={p.id} value={p.id}>{p.companyName || p.name}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
               </div>
             </div>

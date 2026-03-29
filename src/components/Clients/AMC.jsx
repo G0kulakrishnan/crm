@@ -147,6 +147,15 @@ export default function AMC({ user, perms, ownerId }) {
     if (!editData && !canCreate) { toast('Permission denied: cannot create AMC', 'error'); return; }
     if (!form.client.trim()) { toast('Client required', 'error'); return; }
     const payload = { ...form, amount: parseFloat(form.amount) || 0, taxRate: parseFloat(form.taxRate) || 0, userId: ownerId, actorId: user.id };
+    // Auto-assign contract number if empty
+    if (!payload.contractNo || !payload.contractNo.trim()) {
+      const existingNos = amcList.map(a => {
+        const m = (a.contractNo || '').match(/^AMC(\d+)$/);
+        return m ? parseInt(m[1], 10) : 0;
+      });
+      const maxNo = existingNos.length > 0 ? Math.max(...existingNos) : 50000;
+      payload.contractNo = `AMC${maxNo + 1}`;
+    }
     if (editData) { await db.transact(db.tx.amc[editData.id].update(payload)); toast('AMC updated', 'success'); }
     else { 
       const txs = [db.tx.amc[id()].update(payload)];
@@ -548,7 +557,7 @@ export default function AMC({ user, perms, ownerId }) {
         </div>
         <div className="tw-scroll">
           <table>
-            <thead><tr><th>#</th><th>Client</th><th>Contract No.</th><th>Plan</th><th>Start</th><th>End (Expiry)</th><th>Amount</th><th>Status</th><th>Renewals</th><th>Phone</th><th>Actions</th></tr></thead>
+            <thead><tr><th>#</th><th>Contract No.</th><th>Client</th><th>Plan</th><th>Start</th><th>End (Expiry)</th><th>Amount</th><th>Status</th><th>Renewals</th><th>Phone</th><th>Actions</th></tr></thead>
             <tbody>
               {filtered.length === 0 ? <tr><td colSpan={11} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No AMC contracts</td></tr>
                 : filtered.map((a, i) => {
@@ -558,10 +567,12 @@ export default function AMC({ user, perms, ownerId }) {
                     <tr key={a.id}>
                       <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
                       <td>
-                        <strong style={{ cursor: 'pointer', color: 'var(--accent2)', textDecoration: 'underline' }} onClick={() => setViewAMC(a)}>{a.client}</strong>
+                        <strong style={{ cursor: 'pointer', color: 'var(--accent2)', textDecoration: 'underline' }} onClick={() => setViewAMC(a)}>{a.contractNo || '-'}</strong>
+                      </td>
+                      <td>
+                        <div style={{ fontWeight: 600 }}>{a.client}</div>
                         <div style={{ fontSize: 10, color: 'var(--muted)' }}>{a.email}</div>
                       </td>
-                      <td style={{ fontSize: 12 }}>{a.contractNo || '-'}</td>
                       <td>
                         <div style={{ fontWeight: 600 }}>{products.find(p => p.id === a.productId)?.name || a.plan}</div>
                         <div style={{ fontSize: 10, color: 'var(--muted)' }}>{products.find(p => p.id === a.productId)?.code || a.sku || '-'}</div>
