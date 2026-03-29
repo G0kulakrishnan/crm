@@ -1104,6 +1104,28 @@ function PayoutsView({ commissions, applications, search, ownerId, user, toast }
     }
   };
 
+  const handleStatusChange = async (commId, newRawStatus) => {
+    const displayNames = {
+      'Paid': 'Paid',
+      'Awaiting Customer Payment': 'Pending',
+      'Pending Payout': 'Ready to Pay'
+    };
+    if (!confirm(`Are you sure you want to change the status to "${displayNames[newRawStatus]}"?`)) return;
+
+    try {
+      await db.transact([
+        db.tx.partnerCommissions[commId].update({
+          status: newRawStatus,
+          updatedAt: Date.now(),
+          ...(newRawStatus === 'Paid' ? { paidAt: Date.now() } : {})
+        })
+      ]);
+      toast('Status updated successfully', 'success');
+    } catch (e) {
+      toast('Failed to update status: ' + e.message, 'error');
+    }
+  };
+
   const toggleSelect = (id, stat) => {
     if (stat !== 'Pending Payout') return; 
     setSelectedIds(prev => {
@@ -1132,6 +1154,7 @@ function PayoutsView({ commissions, applications, search, ownerId, user, toast }
               <th>Client</th>
               <th>Amount Earned</th>
               <th>Status</th>
+              <th style={{ textAlign: 'right', paddingRight: 20 }}>Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -1161,8 +1184,19 @@ function PayoutsView({ commissions, applications, search, ownerId, user, toast }
                   ) : c.status === 'Pending Payout' ? (
                     <span className="badge" style={{ background: '#fef08a', color: '#854d0e' }}>Ready to Pay</span>
                   ) : (
-                    <span className="badge bg-gray" title="Waiting for client to pay the invoice">Awaiting Client Val</span>
+                    <span className="badge bg-gray" title="Waiting for client to pay the invoice">Pending</span>
                   )}
+                </td>
+                <td style={{ textAlign: 'right', paddingRight: 20 }}>
+                  <select 
+                    style={{ padding: '4px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--border)' }}
+                    value={c.status === 'Awaiting Customer Payment' ? 'Awaiting Customer Payment' : c.status === 'Paid' ? 'Paid' : 'Pending Payout'}
+                    onChange={e => handleStatusChange(c.id, e.target.value)}
+                  >
+                     <option value="Awaiting Customer Payment">Set Pending</option>
+                     <option value="Pending Payout">Set Ready to Pay</option>
+                     <option value="Paid">Set Paid</option>
+                  </select>
                 </td>
               </tr>
             ))}
