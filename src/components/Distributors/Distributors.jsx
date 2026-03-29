@@ -1185,9 +1185,9 @@ function PayoutsView({ applications, ownerId, user, toast }) {
     if (fromDate && toDate) {
       const s = new Date(fromDate).getTime();
       const e = new Date(toDate + 'T23:59:59.999Z').getTime();
-      // Only attach DB Date Filter query if it's less than 12m for safety
+      // Use createdAt for date filtering — commissions are stamped at creation time
       if (e - s <= 31622400000) {
-        q.updatedAt = { $gte: s, $lte: e };
+        q.createdAt = { $gte: s, $lte: e };
       }
     }
     return q;
@@ -1323,131 +1323,185 @@ function PayoutsView({ applications, ownerId, user, toast }) {
     });
   };
 
+  // Summary stats
+  const totalEarned = records.reduce((s, c) => s + (c.amount || 0), 0);
+  const totalPaid = records.filter(c => c.status === 'Paid').reduce((s, c) => s + (c.amount || 0), 0);
+  const totalPending = records.filter(c => c.status !== 'Paid').reduce((s, c) => s + (c.amount || 0), 0);
+
+  const STATUS_STYLES = {
+    'Paid': { bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0', label: 'Paid' },
+    'Pending Payout': { bg: '#fefce8', color: '#854d0e', border: '#fde68a', label: 'Ready to Pay' },
+    'Awaiting Customer Payment': { bg: '#f1f5f9', color: '#475569', border: '#e2e8f0', label: 'Pending' },
+  };
+
   return (
     <>
-      <div className="filter-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 15, background: '#fff', padding: 16, borderRadius: 8, border: '1px solid var(--border)' }}>
-        <input 
-          type="text" 
-          placeholder="Search partner, invoice, client..." 
-          className="input" 
-          value={search} 
-          onChange={e => setSearch(e.target.value)} 
-          style={{ width: 220 }} 
-        />
-        <select className="input" value={statusFilter} onChange={e => setStatusFilter(e.target.value)} style={{ width: 'auto' }}>
-          <option value="">All Statuses</option>
-          <option value="Paid">Paid</option>
-          <option value="Pending Payout">Ready to Pay</option>
-          <option value="Awaiting Customer Payment">Pending Client Validation</option>
-        </select>
-        <select className="input" value={dateFilter} onChange={e => { setDateFilter(e.target.value); setCurrentPage(1); }} style={{ width: 'auto' }}>
+      {/* Summary cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12, marginBottom: 16 }}>
+        {[
+          { label: 'Total Commission', amount: totalEarned, color: '#6366f1', bg: '#eef2ff', border: '#c7d2fe' },
+          { label: 'Paid Out', amount: totalPaid, color: '#16a34a', bg: '#f0fdf4', border: '#bbf7d0' },
+          { label: 'Pending Payout', amount: totalPending, color: '#d97706', bg: '#fffbeb', border: '#fde68a' },
+        ].map((s, i) => (
+          <div key={i} style={{ padding: '14px 18px', background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10 }}>
+            <div style={{ fontSize: 11, color: s.color, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>₹{s.amount.toLocaleString()}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter bar */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12, alignItems: 'center', background: '#fff', padding: '12px 16px', borderRadius: 10, border: '1px solid var(--border)', boxShadow: '0 1px 4px rgba(0,0,0,0.04)' }}>
+        <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 160 }}>
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--muted)', fontSize: 14 }}>🔍</span>
+          <input
+            type="text"
+            placeholder="Search partner, invoice, client..."
+            className="input"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ paddingLeft: 32, width: '100%' }}
+          />
+        </div>
+
+        {/* Status pills */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[['', 'All'], ['Paid', 'Paid'], ['Pending Payout', 'Ready to Pay'], ['Awaiting Customer Payment', 'Pending']].map(([val, label]) => (
+            <button
+              key={val}
+              onClick={() => { setStatusFilter(val); setCurrentPage(1); }}
+              style={{
+                padding: '5px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1.5px solid',
+                ...(statusFilter === val
+                  ? { background: '#1e40af', color: '#fff', borderColor: '#1e40af' }
+                  : { background: '#f8fafc', color: '#475569', borderColor: '#e2e8f0' })
+              }}
+            >{label}</button>
+          ))}
+        </div>
+
+        {/* Date select */}
+        <select
+          className="input"
+          value={dateFilter}
+          onChange={e => { setDateFilter(e.target.value); setCurrentPage(1); }}
+          style={{ width: 'auto', minWidth: 140 }}
+        >
           <option value="This Month">This Month</option>
           <option value="Today">Today</option>
-          <option value="Tomorrow">Tomorrow</option>
           <option value="This Quarter">This Quarter</option>
-          <option value="Custom Range">Custom Range (Max 12M)</option>
+          <option value="Custom Range">Custom Range</option>
         </select>
         {dateFilter === 'Custom Range' && (
           <>
-            <input type="date" className="input" value={fromDate} onChange={e => setFromDate(e.target.value)} />
-            <span style={{ display: 'flex', alignItems: 'center' }}>-</span>
-            <input type="date" className="input" value={toDate} onChange={e => setToDate(e.target.value)} />
+            <input type="date" className="input" value={fromDate} onChange={e => setFromDate(e.target.value)} style={{ width: 140 }} />
+            <span style={{ color: 'var(--muted)' }}>–</span>
+            <input type="date" className="input" value={toDate} onChange={e => setToDate(e.target.value)} style={{ width: 140 }} />
           </>
         )}
+
         <div style={{ flex: 1 }} />
-        <button className="btn btn-secondary" onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-           <span>↓ Export DB (Full Data)</span>
+        <button className="btn btn-secondary btn-sm" onClick={handleExport} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+          ↓ Export CSV
         </button>
       </div>
 
+      {/* Bulk action bar */}
       {selectedIds.size > 0 && (
-        <div style={{ background: '#f0fdf4', padding: '10px 16px', borderBottom: '1px solid #bbf7d0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div><strong style={{ color: '#166534' }}>{selectedIds.size}</strong> payouts selected</div>
-          <button className="btn btn-sm" style={{ background: '#16a34a', color: '#fff' }} onClick={handleMarkPaid}>💸 Mark as Paid</button>
+        <div style={{ background: '#eff6ff', padding: '10px 16px', borderRadius: 8, marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #bfdbfe' }}>
+          <div style={{ fontSize: 13, color: '#1e40af' }}><strong>{selectedIds.size}</strong> payouts selected</div>
+          <button className="btn btn-sm" style={{ background: '#16a34a', color: '#fff', borderRadius: 6 }} onClick={handleMarkPaid}>💸 Mark as Paid</button>
         </div>
       )}
-      <div className="tw-scroll" style={{ padding: 0 }}>
+
+      {/* Table */}
+      <div className="tw-scroll" style={{ padding: 0, borderRadius: 10, border: '1px solid var(--border)', overflow: 'hidden' }}>
         <table style={{ margin: 0 }}>
           <thead>
-            <tr>
-              <th style={{ width: 40 }}></th>
-              <th>Updated</th>
-              <th>Partner</th>
-              <th>Invoice</th>
-              <th>Client</th>
-              <th>Amount Earned</th>
-              <th>Status</th>
-              <th>Paid Date</th>
-              <th style={{ textAlign: 'right', paddingRight: 20 }}>Actions</th>
+            <tr style={{ background: '#f8fafc' }}>
+              <th style={{ width: 40, padding: '10px 12px' }}></th>
+              <th style={{ padding: '10px 12px' }}>Date</th>
+              <th style={{ padding: '10px 12px' }}>Partner</th>
+              <th style={{ padding: '10px 12px' }}>Invoice</th>
+              <th style={{ padding: '10px 12px' }}>Client</th>
+              <th style={{ padding: '10px 12px' }}>Amount</th>
+              <th style={{ padding: '10px 12px' }}>Status</th>
+              <th style={{ padding: '10px 12px' }}>Paid Date</th>
+              <th style={{ padding: '10px 12px', textAlign: 'right' }}>Actions</th>
             </tr>
           </thead>
           <tbody>
             {records.length === 0 ? (
-              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No commissions recorded yet.</td></tr>
-            ) : records.map(c => (
-              <tr key={c.id}>
-                <td>
-                  <input 
-                    type="checkbox" 
-                    checked={selectedIds.has(c.id)} 
-                    onChange={() => toggleSelect(c.id, c.status)} 
-                    disabled={c.status !== 'Pending Payout'} 
-                  />
-                </td>
-                <td style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtD(c.updatedAt || c.createdAt)}</td>
-                <td>
-                  <div style={{ fontWeight: 600 }}>{c.partnerName}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{c.partnerCompany}</div>
-                </td>
-                <td><span className="badge bg-gray">{c.invoiceNo}</span></td>
-                <td style={{ fontSize: 13 }}>{c.clientName}</td>
-                <td style={{ fontWeight: 700 }}>
-                  <span>₹{(c.amount || 0).toLocaleString()}</span>
-                  {c.isEdited && <span title={c.editNote || 'Manually adjusted'} style={{ marginLeft: 4, fontSize: 10, cursor: 'help' }}>✏️</span>}
-                  <button 
-                    onClick={() => setEditModal({ id: c.id, amount: c.amount || 0, editNote: c.editNote || '' })} 
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: 4, fontSize: 12, color: 'var(--muted)', padding: '2px 4px', borderRadius: 4 }}
-                    title="Edit amount"
-                  >✎</button>
-                </td>
-                <td>
-                  {c.status === 'Paid' ? (
-                    <span className="badge bg-green">Paid</span>
-                  ) : c.status === 'Pending Payout' ? (
-                    <span className="badge" style={{ background: '#fef08a', color: '#854d0e' }}>Ready to Pay</span>
-                  ) : (
-                    <span className="badge bg-gray" title="Waiting for client to pay the invoice">Pending</span>
-                  )}
-                </td>
-                <td style={{ textAlign: 'center' }}>
-                  <span style={{ color: 'var(--muted)', fontSize: 12, fontWeight: 600 }}>{c.paidAt ? fmtD(c.paidAt) : '-'}</span>
-                </td>
-                <td style={{ textAlign: 'right', paddingRight: 20 }}>
-                  <select 
-                    style={{ padding: '4px 8px', fontSize: 11, borderRadius: 4, border: '1px solid var(--border)' }}
-                    value={c.status === 'Awaiting Customer Payment' ? 'Awaiting Customer Payment' : c.status === 'Paid' ? 'Paid' : 'Pending Payout'}
-                    onChange={e => handleStatusChange(c.id, e.target.value)}
-                  >
-                     <option value="Awaiting Customer Payment">Set Pending</option>
-                     <option value="Pending Payout">Set Ready to Pay</option>
-                     <option value="Paid">Set Paid</option>
-                  </select>
+              <tr>
+                <td colSpan={9} style={{ textAlign: 'center', padding: 48, color: 'var(--muted)' }}>
+                  <div style={{ fontSize: 32, marginBottom: 10 }}>💰</div>
+                  <div style={{ fontWeight: 600, marginBottom: 4 }}>No commissions found</div>
+                  <div style={{ fontSize: 12 }}>Try changing the date range or status filter</div>
                 </td>
               </tr>
-            ))}
+            ) : records.map((c, idx) => {
+              const ss = STATUS_STYLES[c.status] || STATUS_STYLES['Awaiting Customer Payment'];
+              return (
+                <tr key={c.id} style={{ background: idx % 2 === 0 ? '#fff' : '#fafafa', borderBottom: '1px solid var(--border)' }}>
+                  <td style={{ padding: '10px 12px' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(c.id)}
+                      onChange={() => toggleSelect(c.id, c.status)}
+                      disabled={c.status !== 'Pending Payout'}
+                    />
+                  </td>
+                  <td style={{ fontSize: 12, color: 'var(--muted)', padding: '10px 12px', whiteSpace: 'nowrap' }}>{fmtD(c.createdAt || c.updatedAt)}</td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <div style={{ fontWeight: 700, fontSize: 13 }}>{c.partnerName}</div>
+                    {c.partnerCompany && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{c.partnerCompany}</div>}
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 5, padding: '2px 8px', fontSize: 12, fontFamily: 'monospace', fontWeight: 600 }}>{c.invoiceNo || '—'}</span>
+                  </td>
+                  <td style={{ fontSize: 13, padding: '10px 12px' }}>{c.clientName || '—'}</td>
+                  <td style={{ fontWeight: 700, padding: '10px 12px', fontSize: 14 }}>
+                    ₹{(c.amount || 0).toLocaleString()}
+                    {c.isEdited && <span title={c.editNote || 'Manually adjusted'} style={{ marginLeft: 5, fontSize: 10, cursor: 'help' }}>✏️</span>}
+                    <button
+                      onClick={() => setEditModal({ id: c.id, amount: c.amount || 0, editNote: c.editNote || '' })}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: 4, fontSize: 13, color: '#94a3b8', padding: '1px 3px' }}
+                      title="Edit amount"
+                    >✎</button>
+                  </td>
+                  <td style={{ padding: '10px 12px' }}>
+                    <span style={{ padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, background: ss.bg, color: ss.color, border: `1px solid ${ss.border}` }}>
+                      {ss.label}
+                    </span>
+                  </td>
+                  <td style={{ padding: '10px 12px', fontSize: 12, color: 'var(--muted)', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                    {c.paidAt ? fmtD(c.paidAt) : '—'}
+                  </td>
+                  <td style={{ padding: '10px 12px', textAlign: 'right' }}>
+                    <select
+                      style={{ padding: '5px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)', background: '#fff', cursor: 'pointer' }}
+                      value={c.status}
+                      onChange={e => handleStatusChange(c.id, e.target.value)}
+                    >
+                      <option value="Awaiting Customer Payment">Set Pending</option>
+                      <option value="Pending Payout">Set Ready to Pay</option>
+                      <option value="Paid">Set Paid</option>
+                    </select>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
-      
-      {/* Pagination Footer */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', background: '#f8fafc', borderTop: '1px solid var(--border)', fontSize: 13 }}>
-        <div style={{ color: 'var(--muted)' }}>
-          Showing <b>{records.length}</b> records on this page {data === undefined ? '(Loading...)' : ''}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 15 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>Rows per page:</span>
-            <select className="input" style={{ width: 70, padding: '4px' }} value={pageSize} onChange={e => { setPageSize(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }}>
+
+      {/* Pagination */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 4px', fontSize: 13 }}>
+        <div style={{ color: 'var(--muted)' }}>Showing <b>{records.length}</b> records {data === undefined ? '· Loading...' : ''}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ color: 'var(--muted)' }}>Rows:</span>
+            <select className="input" style={{ width: 70, padding: '4px 6px' }} value={pageSize} onChange={e => { setPageSize(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }}>
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
@@ -1455,10 +1509,10 @@ function PayoutsView({ applications, ownerId, user, toast }) {
             </select>
           </div>
           {pageSize !== 'all' && (
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>Previous</button>
-              <span style={{ alignSelf: 'center', fontWeight: 600 }}>Page {currentPage}</span>
-              <button className="btn btn-secondary btn-sm" disabled={records.length < pageSize} onClick={() => setCurrentPage(p => p + 1)}>Next</button>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>← Prev</button>
+              <span style={{ fontWeight: 700, minWidth: 60, textAlign: 'center' }}>Page {currentPage}</span>
+              <button className="btn btn-secondary btn-sm" disabled={records.length < pageSize} onClick={() => setCurrentPage(p => p + 1)}>Next →</button>
             </div>
           )}
         </div>
