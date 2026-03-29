@@ -27,7 +27,6 @@ const NAV_ITEMS = [
   { id: 'ecom-orders', label: 'Orders', icon: 'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z M3 6h18 M16 10a4 4 0 0 1-8 0', permKey: 'Ecommerce' },
   { group: 'Partners' },
   { id: 'distributors', label: 'Distributors', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75 M7 10h14 M7 14h14 M7 18h14', permKey: 'Distributors' },
-  { id: 'distributor_performance', label: 'Performance', icon: 'M21 21H3V3h18v18z M9 17v-6 M12 17V9 M15 17v-4', permKey: 'Distributors' },
   { group: 'Appointments' },
   { id: 'appointments', label: 'Appointments', icon: 'M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01', badge: true, permKey: 'Appointments' },
   { group: 'System' },
