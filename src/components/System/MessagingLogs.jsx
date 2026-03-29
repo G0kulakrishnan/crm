@@ -67,12 +67,20 @@ export default function MessagingLogs({ user, ownerId }) {
 
   const stats = useMemo(() => {
     return {
-      total: logs.length,
-      email: logs.filter(l => l.type === 'email').length,
-      whatsapp: logs.filter(l => l.type === 'whatsapp').length,
-      failed: logs.filter(l => l.status === 'Failed').length,
+      total: filtered.length,
+      email: filtered.filter(l => l.type === 'email').length,
+      whatsapp: filtered.filter(l => l.type === 'whatsapp').length,
+      failed: filtered.filter(l => l.status === 'Failed').length,
     };
-  }, [logs]);
+  }, [filtered]);
+
+  const dateLabel = useMemo(() => {
+    if (dateFilter === 'today') return 'Today';
+    if (dateFilter === 'yesterday') return 'Yesterday';
+    if (dateFilter === 'week') return 'Last 7 Days';
+    if (dateFilter === 'month') return 'Last 30 Days';
+    return 'All Logs';
+  }, [dateFilter]);
 
   const handleDeleteOldLogs = async () => {
     if (oldLogs.length === 0) return;
@@ -107,7 +115,7 @@ export default function MessagingLogs({ user, ownerId }) {
 
       <div className="stat-grid" style={{ marginBottom: 25 }}>
         <div className="stat-card sc-blue">
-          <div className="lbl">Last 30 Days</div>
+          <div className="lbl">{dateLabel}</div>
           <div className="val">{stats.total}</div>
         </div>
         <div className="stat-card sc-purple">
