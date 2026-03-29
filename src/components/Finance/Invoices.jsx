@@ -17,7 +17,7 @@ function calcTotals(items, disc, discType, adj) {
   return { sub, taxTotal, discAmt, total };
 }
 
-const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [], assign: '' };
+const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [], assign: '', distributorId: '', retailerId: '' };
 
 export default function Invoices({ user, perms, ownerId, settings, planEnforcement }) {
   const canCreate = perms?.can('Invoices', 'create') === true;
@@ -610,7 +610,17 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
                         displayKey="displayName" 
                         returnKey="name"
                         value={form.client} 
-                        onChange={val => setForm(p => ({ ...p, client: val }))} 
+                        onChange={val => {
+                          // Auto-map distributor/retailer from matching lead
+                          const matchedLead = leads.find(l => (l.name || '').trim().toLowerCase() === (val || '').trim().toLowerCase());
+                          const matchedCust = customers.find(c => (c.name || '').trim().toLowerCase() === (val || '').trim().toLowerCase());
+                          setForm(p => ({ 
+                            ...p, 
+                            client: val,
+                            distributorId: matchedLead?.distributorId || matchedCust?.distributorId || '',
+                            retailerId: matchedLead?.retailerId || matchedCust?.retailerId || ''
+                          }));
+                        }} 
                         placeholder="Search client or lead..." 
                       />
                     </div>
@@ -630,6 +640,35 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
                     {data?.teamMembers?.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                   </select>
                 </div>
+                {partnerApplications.length > 0 && (
+                  <>
+                    <div className="fg" style={{ zIndex: 8 }}>
+                      <label>Distributor <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>auto-mapped</span></label>
+                      <SearchableSelect
+                        options={[{ id: '', name: '-- None --' }, ...partnerApplications.filter(p => p.role === 'Distributor').map(p => ({ id: p.id, name: p.companyName || p.name }))]}
+                        displayKey="name"
+                        returnKey="id"
+                        value={form.distributorId}
+                        onChange={val => setForm(p => ({ ...p, distributorId: val, retailerId: '' }))}
+                        placeholder="Select distributor..."
+                      />
+                    </div>
+                    <div className="fg" style={{ zIndex: 7 }}>
+                      <label>Retailer</label>
+                      <SearchableSelect
+                        options={[
+                          { id: '', name: '-- None --' },
+                          ...partnerApplications.filter(p => p.role === 'Retailer' && (!form.distributorId || p.parentDistributorId === form.distributorId)).map(p => ({ id: p.id, name: p.companyName || p.name }))
+                        ]}
+                        displayKey="name"
+                        returnKey="id"
+                        value={form.retailerId}
+                        onChange={val => setForm(p => ({ ...p, retailerId: val }))}
+                        placeholder="Select retailer..."
+                      />
+                    </div>
+                  </>
+                )}
 </div>
 
               {profile?.reqShipping !== 'Hidden' && (

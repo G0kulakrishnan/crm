@@ -7,7 +7,7 @@ import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
 import { EMPTY_CUSTOMER } from '../../utils/constants';
 
-const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, assign: '' };
+const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, assign: '', distributorId: '', retailerId: '' };
 
 function calcTotals(items, disc, tdsRate, adj) {
   const its = Array.isArray(items) ? items : (items ? JSON.parse(items) : []);
@@ -41,6 +41,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
     leads: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
+    partnerApplications: { $: { where: { userId: ownerId, status: 'Approved' } } },
   });
   const quotes = useMemo(() => {
     return data?.quotes || [];
@@ -452,7 +453,17 @@ export default function Quotations({ user, perms, ownerId, settings }) {
                         displayKey="displayName" 
                         returnKey="name"
                         value={form.client} 
-                        onChange={val => setForm(p => ({ ...p, client: val }))} 
+                        onChange={val => {
+                          // Auto-map distributor/retailer from matching lead
+                          const matchedLead = leads.find(l => (l.name || '').trim().toLowerCase() === (val || '').trim().toLowerCase());
+                          const matchedCust = customers.find(c => (c.name || '').trim().toLowerCase() === (val || '').trim().toLowerCase());
+                          setForm(p => ({ 
+                            ...p, 
+                            client: val,
+                            distributorId: matchedLead?.distributorId || matchedCust?.distributorId || '',
+                            retailerId: matchedLead?.retailerId || matchedCust?.retailerId || ''
+                          }));
+                        }} 
                         placeholder="Search client or lead..." 
                       />
                     </div>
@@ -472,6 +483,35 @@ export default function Quotations({ user, perms, ownerId, settings }) {
                     {team.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
                   </select>
                 </div>
+                {(data?.partnerApplications || []).length > 0 && (
+                  <>
+                    <div className="fg" style={{ zIndex: 8 }}>
+                      <label>Distributor <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>auto-mapped</span></label>
+                      <SearchableSelect
+                        options={[{ id: '', name: '-- None --' }, ...(data?.partnerApplications || []).filter(p => p.role === 'Distributor').map(p => ({ id: p.id, name: p.companyName || p.name }))]}
+                        displayKey="name"
+                        returnKey="id"
+                        value={form.distributorId}
+                        onChange={val => setForm(p => ({ ...p, distributorId: val, retailerId: '' }))}
+                        placeholder="Select distributor..."
+                      />
+                    </div>
+                    <div className="fg" style={{ zIndex: 7 }}>
+                      <label>Retailer</label>
+                      <SearchableSelect
+                        options={[
+                          { id: '', name: '-- None --' },
+                          ...(data?.partnerApplications || []).filter(p => p.role === 'Retailer' && (!form.distributorId || p.parentDistributorId === form.distributorId)).map(p => ({ id: p.id, name: p.companyName || p.name }))
+                        ]}
+                        displayKey="name"
+                        returnKey="id"
+                        value={form.retailerId}
+                        onChange={val => setForm(p => ({ ...p, retailerId: val }))}
+                        placeholder="Select retailer..."
+                      />
+                    </div>
+                  </>
+                )}
               </div>
 
               {profile?.reqShipping !== 'Hidden' && (
