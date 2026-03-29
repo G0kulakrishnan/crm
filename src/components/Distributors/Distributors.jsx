@@ -1058,9 +1058,11 @@ function ProductsView({ products, search }) {
 function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, user, toast, profile }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(profile?.partnerPageSize || 25);
-  const [editingRetailer, setEditingRetailer] = useState(null);
+  const [editingPartner, setEditingPartner] = useState(null);
   const [partnerDetailsId, setPartnerDetailsId] = useState(null);
   const [newParentId, setNewParentId] = useState('');
+  const [newCompanyName, setNewCompanyName] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [saving, setSaving] = useState(false);
   const [colModal, setColModal] = useState(false);
 
@@ -1086,33 +1088,61 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
     return parent ? parent.name : 'Unknown';
   };
 
-  const openEdit = (r) => {
-    setEditingRetailer(r);
-    setNewParentId(r.parentDistributorId || '');
+  const openEdit = (p) => {
+    setEditingPartner(p);
+    setNewParentId(p.parentDistributorId || '');
+    setNewCompanyName(p.companyName || '');
+    setNewPassword('');
   };
 
   const handleSave = async () => {
-    if (!editingRetailer) return;
+    if (!editingPartner) return;
     setSaving(true);
     try {
-      const oldParent = allApprovedPartners.find(d => d.id === editingRetailer.parentDistributorId);
+      // 1. Update password if provided
+      if (newPassword) {
+        if (newPassword.length < 6) throw new Error('Password must be at least 6 characters');
+        const res = await fetch('/api/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'set-partner-password',
+            email: editingPartner.email.trim(),
+            password: newPassword,
+            ownerUserId: ownerId,
+            partnerId: editingPartner.id
+          })
+        });
+        const resData = await res.json();
+        if (!res.ok) throw new Error(resData.error || 'Failed to update partner password');
+      }
+
+      // 2. Update database fields
+      const oldParent = allApprovedPartners.find(d => d.id === editingPartner.parentDistributorId);
       const newParent = allApprovedPartners.find(d => d.id === newParentId);
+      
+      const updateData = {
+        companyName: newCompanyName.trim(),
+        updatedAt: Date.now()
+      };
+      if (editingPartner.role === 'Retailer') {
+        updateData.parentDistributorId = newParentId || null;
+      }
+
       await db.transact(
-        db.tx.partnerApplications[editingRetailer.id].update({
-          parentDistributorId: newParentId || null
-        }),
+        db.tx.partnerApplications[editingPartner.id].update(updateData),
         db.tx.activityLogs[id()].update({
-          entityId: editingRetailer.id,
+          entityId: editingPartner.id,
           entityType: 'partner',
-          text: `Retailer "${editingRetailer.name}" reassigned from "${oldParent?.name || 'Direct'}" to "${newParent?.name || 'Direct'}".`,
+          text: `Partner "${editingPartner.name}" updated by admin.${newPassword ? ' Password was reset.' : ''}`,
           userId: ownerId,
           actorId: user.id,
           userName: user.email,
           createdAt: Date.now()
         })
       );
-      toast('Retailer hierarchy updated!', 'success');
-      setEditingRetailer(null);
+      toast('Partner details updated!', 'success');
+      setEditingPartner(null);
     } catch (err) {
       toast(err.message, 'error');
     } finally {
@@ -1227,9 +1257,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
                 {activeCols.includes('Address') && <td style={{ fontSize: 12, maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.address}>{p.address || '-'}</td>}
                 {activeCols.includes('Actions') && (
                   <td>
-                    {p.role === 'Retailer' && (
-                        <button className="btn btn-secondary btn-sm" onClick={() => openEdit(p)}>Edit</button>
-                    )}
+                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(p)}>Edit</button>
                   </td>
                 )}
               </tr>
@@ -1310,40 +1338,67 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
         </div>
       )}
 
-      {/* Edit Hierarchy Modal */}
-      {editingRetailer && (
+      {/* Edit Partner Modal */}
+      {editingPartner && (
         <div className="mo open">
-          <div className="mo-box" style={{ width: 420 }}>
+          <div className="mo-box" style={{ width: 440 }}>
             <div className="mo-head">
-              <h3>Reassign Retailer</h3>
-              <button className="btn-icon" onClick={() => setEditingRetailer(null)}>✕</button>
+              <h3>Edit Partner Profile</h3>
+              <button className="btn-icon" onClick={() => setEditingPartner(null)}>✕</button>
             </div>
-            <div className="mo-body" style={{ padding: 24 }}>
-              <div style={{ marginBottom: 20 }}>
-                <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>Retailer</div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{editingRetailer.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{editingRetailer.companyName || 'No Company'}</div>
+            <div className="mo-body" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
+              <div>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>Partner Name</div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{editingPartner.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--muted)' }}>{editingPartner.email}</div>
               </div>
 
-              <div className="form-group" style={{ marginBottom: 24 }}>
-                <label>Assign to Parent Distributor</label>
-                <select
-                  value={newParentId}
-                  onChange={e => setNewParentId(e.target.value)}
-                  style={{ width: '100%', padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }}
-                >
-                  <option value="">-- No Parent (Direct) --</option>
-                  {availableDistributors.map(d => (
-                    <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
-                  ))}
-                </select>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
-                  Current: <strong>{allApprovedPartners.find(d => d.id === editingRetailer.parentDistributorId)?.name || 'Direct (no parent)'}</strong>
+              <div className="form-group">
+                <label>Company Name</label>
+                <input 
+                  value={newCompanyName} 
+                  onChange={e => setNewCompanyName(e.target.value)} 
+                  placeholder="Business Name"
+                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }}
+                />
+              </div>
+
+              {editingPartner.role === 'Retailer' && (
+                <div className="form-group">
+                  <label>Assign to Parent Distributor</label>
+                  <select
+                    value={newParentId}
+                    onChange={e => setNewParentId(e.target.value)}
+                    style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, background: 'var(--surface)' }}
+                  >
+                    <option value="">-- No Parent (Direct) --</option>
+                    {availableDistributors.map(d => (
+                      <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
+                    ))}
+                  </select>
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
+                    Current: <strong>{allApprovedPartners.find(d => d.id === editingPartner.parentDistributorId)?.name || 'Direct (no parent)'}</strong>
+                  </div>
                 </div>
+              )}
+
+              <div className="form-group" style={{ borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Update Password</span>
+                  <button type="button" className="btn-link" style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', padding: 0 }} onClick={() => setNewPassword(Math.random().toString(36).slice(-8))}>Generate Random</button>
+                </label>
+                <input 
+                  type="text" 
+                  value={newPassword} 
+                  onChange={e => setNewPassword(e.target.value)} 
+                  placeholder="Enter new password (min 6 chars)"
+                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }}
+                />
+                <div style={{ fontSize: 11, color: '#ca8a04', marginTop: 4 }}>Leave blank to keep current password.</div>
               </div>
 
-              <div style={{ display: 'flex', gap: 10 }}>
-                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingRetailer(null)}>Cancel</button>
+              <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
+                <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setEditingPartner(null)}>Cancel</button>
                 <button className="btn btn-primary" style={{ flex: 1 }} onClick={handleSave} disabled={saving}>
                   {saving ? 'Saving...' : 'Save Changes'}
                 </button>
