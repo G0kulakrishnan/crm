@@ -52,7 +52,7 @@ export default function Reports({ user, perms, ownerId, profile }) {
 
   const invoices = data?.invoices || [];
   const expenses = data?.expenses || [];
-  const leads = data?.leads || [];
+  const leads = (data?.leads || []).map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
   const tasks = data?.tasks || [];
   const team = data?.teamMembers || [];
   const commissions = data?.partnerCommissions || [];

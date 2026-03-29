@@ -24,7 +24,7 @@ export default function Dashboard({ user, ownerId, perms }) {
   const profile = data?.userProfiles?.[0] || {};
   const wonStage = profile.wonStage || 'Won';
   const lostStage = profile.lostStage || 'Lost';
-  const leadsRaw = data?.leads || [];
+  const leadsRaw = (data?.leads || []).map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
   const quotesRaw = data?.quotes || [];
   const invoicesRaw = data?.invoices || [];
   const projectsRaw = data?.projects || [];

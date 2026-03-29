@@ -62,7 +62,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     activityLogs: { $: { where: { userId: ownerId }, limit: 100 } },
     partnerApplications: { $: { where: { userId: ownerId, status: 'Approved' } } },
   });
-  const leads = data?.leads || [];
+  const leads = (data?.leads || []).map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
   const customers = data?.customers || [];
   const team = data?.teamMembers || [];
   const activityLogs = data?.activityLogs || [];
