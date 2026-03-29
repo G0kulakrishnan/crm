@@ -81,7 +81,7 @@ export default function Distributors({ user, ownerId, perms }) {
           approvedAt: Date.now(),
           userId: ownerId
         }),
-        db.tx.activityLogs[db.id()].update({
+        db.tx.activityLogs[id()].update({
           entityId: pId, entityType: 'partner',
           text: `Manually onboarded Partner ${onboardForm.name} as ${onboardForm.role}.`,
           userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
@@ -157,7 +157,7 @@ export default function Distributors({ user, ownerId, perms }) {
           parentDistributorId: approveModal.role === 'Retailer' ? (parentDist || null) : null,
           approvedAt: Date.now()
         }),
-        db.tx.activityLogs[db.id()].update({
+        db.tx.activityLogs[id()].update({
           entityId: approveModal.id,
           entityType: 'partner',
           text: `Partner application approved as ${approveModal.role} with ${commission}% commision.`,
@@ -805,7 +805,7 @@ function HierarchyView({ applications, availableDistributors, ownerId, user, toa
         db.tx.partnerApplications[editingRetailer.id].update({
           parentDistributorId: newParentId || null
         }),
-        db.tx.activityLogs[db.id()].update({
+        db.tx.activityLogs[id()].update({
           entityId: editingRetailer.id,
           entityType: 'partner',
           text: `Retailer "${editingRetailer.name}" reassigned from "${oldParent?.name || 'Direct'}" to "${newParent?.name || 'Direct'}".`,
