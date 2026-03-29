@@ -783,32 +783,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         ))}
       </div>
 
-      <div style={{ display: 'flex', gap: 10, padding: '15px 0', alignItems: 'center', flexWrap: 'wrap' }}>
-        <div className="sw" style={{ flex: 1, maxWidth: 350 }}>
-          <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
-          <input className="si" placeholder="Search leads..." value={search} onChange={e => setSearch(e.target.value)} />
-        </div>
-        <select className="si" style={{ width: 140 }} value={srcFilter} onChange={e => setSrcFilter(e.target.value)}>
-          <option value="">All Sources</option>
-          {activeSources.map(s => <option key={s}>{s}</option>)}
-        </select>
-        <select className="si" style={{ width: 140 }} value={stgFilter} onChange={e => setStgFilter(e.target.value)}>
-          <option value="">All Stages</option>
-          {allStages.map(s => <option key={s}>{s}</option>)}
-        </select>
-        <select className="si" style={{ width: 140 }} value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
-          <option value="">All Staff</option>
-          <option value="my">My Leads</option>
-          <option value="unassigned">Unassigned</option>
-          {team.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
-        </select>
-        <button className="btn btn-secondary btn-sm" style={{ height: 36 }} onClick={() => { 
-          setTempCols(activeCols); 
-          setTempStages(savedLeadStages || allStages); 
-          setTempPageSize(pageSize);
-          setColModal(true); 
-        }}>⚙ Configure View</button>
-      </div>
+
 
       {view === 'list' ? (
         <div>
@@ -830,6 +805,35 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
           )}
 
           <div className="tw">
+            <div className="tw-head">
+               <div style={{ flex: 1 }}></div>
+               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  <div className="sw" style={{ width: 220 }}>
+                    <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                    <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+                  </div>
+                  <select className="si" style={{ width: 130 }} value={srcFilter} onChange={e => setSrcFilter(e.target.value)}>
+                    <option value="">All Sources</option>
+                    {activeSources.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                  <select className="si" style={{ width: 130 }} value={stgFilter} onChange={e => setStgFilter(e.target.value)}>
+                    <option value="">All Stages</option>
+                    {allStages.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                  <select className="si" style={{ width: 130 }} value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
+                    <option value="">All Staff</option>
+                    <option value="my">My Leads</option>
+                    <option value="unassigned">Unassigned</option>
+                    {team.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  </select>
+                  <button className="btn btn-secondary btn-sm" onClick={() => { 
+                    setTempCols(activeCols); 
+                    setTempStages(savedLeadStages || allStages); 
+                    setTempPageSize(pageSize);
+                    setColModal(true); 
+                  }}>⚙ Configure View</button>
+               </div>
+            </div>
             {/* Top Pagination & Show Dropdown */}
             <div style={{ padding: '8px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', background: 'var(--bg-soft)', gap: 15 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
@@ -1025,7 +1029,28 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         </div>
       ) : (
         /* KANBAN */
-        <div className="kanban">
+        <div className="kanban-wrapper">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 15, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div className="sw" style={{ width: 200 }}>
+                <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+                <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+              </div>
+              <select className="si" style={{ width: 120, padding: '4px 8px' }} value={srcFilter} onChange={e => setSrcFilter(e.target.value)}>
+                <option value="">All Sources</option>
+                {activeSources.map(s => <option key={s}>{s}</option>)}
+              </select>
+              <select className="si" style={{ width: 120, padding: '4px 8px' }} value={stgFilter} onChange={e => setStgFilter(e.target.value)}>
+                <option value="">All Stages</option>
+                {allStages.map(s => <option key={s}>{s}</option>)}
+              </select>
+              <select className="si" style={{ width: 120, padding: '4px 8px' }} value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
+                <option value="">All Staff</option>
+                <option value="my">My Leads</option>
+                <option value="unassigned">Unassigned</option>
+                {team.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </select>
+          </div>
+          <div className="kanban">
           {activeStages.map(stage => {
             const cards = filtered.filter(l => l.stage === stage);
             const isOver = dragOverStage === stage;
@@ -1094,6 +1119,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
               </div>
             );
           })}
+          </div>
         </div>
       )}
 
