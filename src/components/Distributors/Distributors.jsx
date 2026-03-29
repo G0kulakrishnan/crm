@@ -781,6 +781,7 @@ function HierarchyView({ availableDistributors, ownerId, user, toast, profile })
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(profile?.partnerPageSize || 25);
   const [editingRetailer, setEditingRetailer] = useState(null);
+  const [partnerDetailsId, setPartnerDetailsId] = useState(null);
   const [newParentId, setNewParentId] = useState('');
   const [saving, setSaving] = useState(false);
   const [colModal, setColModal] = useState(false);
@@ -928,7 +929,17 @@ function HierarchyView({ availableDistributors, ownerId, user, toast, profile })
             ) : partners.map((p, i) => (
               <tr key={p.id}>
                 <td style={{ color: 'var(--muted)', fontSize: 11 }}>{(currentPage - 1) * (pageSize === 'all' ? 0 : pageSize) + i + 1}</td>
-                {activeCols.includes('Name') && <td><strong>{p.name}</strong></td>}
+                {activeCols.includes('Name') && (
+                  <td>
+                    <button 
+                      className="btn-link" 
+                      style={{ background: 'none', border: 'none', padding: 0, fontWeight: 700, color: 'var(--accent)', cursor: 'pointer', textAlign: 'left' }}
+                      onClick={() => setPartnerDetailsId(p.id)}
+                    >
+                      {p.name}
+                    </button>
+                  </td>
+                )}
                 {activeCols.includes('Role') && (
                   <td>
                     <span className="badge" style={{ 
@@ -1078,6 +1089,290 @@ function HierarchyView({ availableDistributors, ownerId, user, toast, profile })
           </div>
         </div>
       )}
+      {/* Partner Details Modal */}
+      {partnerDetailsId && (
+        <PartnerDetailsModal 
+          partnerId={partnerDetailsId} 
+          onClose={() => setPartnerDetailsId(null)} 
+          ownerId={ownerId} 
+          user={user} 
+          toast={toast}
+          profile={profile}
+          allApproved={allApproved}
+        />
+      )}
+    </div>
+  );
+}
+
+function PartnerDetailsModal({ partnerId, onClose, ownerId, user, toast, profile, allApproved }) {
+  const [tab, setTab] = useState('Overview');
+  
+  const { data, isLoading } = db.useQuery({
+    partnerApplications: { $: { where: { id: partnerId } } },
+    subPartners: { $: { where: { parentDistributorId: partnerId, status: 'Approved' } } },
+    commissions: { $: { where: { partnerId: partnerId } } },
+    leads: { $: { where: { partnerId: partnerId } } },
+    customers: { $: { where: { partnerId: partnerId } } }
+  });
+
+  const partner = data?.partnerApplications?.[0];
+  const subPartners = data?.subPartners || [];
+  const commissions = data?.commissions || [];
+  const leads = data?.leads || [];
+  const customers = data?.customers || [];
+
+  if (isLoading) return (
+    <div className="mo open">
+      <div className="mo-box" style={{ width: 800, textAlign: 'center', padding: 40 }}>
+        <div className="spinner" style={{ margin: '0 auto 10px' }}></div>
+        Loading partner details...
+      </div>
+    </div>
+  );
+
+  if (!partner) return (
+    <div className="mo open">
+      <div className="mo-box" style={{ width: 400, padding: 20 }}>
+        Partner not found.
+        <button className="btn btn-secondary mt-md" onClick={onClose}>Close</button>
+      </div>
+    </div>
+  );
+
+  const pendingAmount = commissions
+    .filter(c => c.status === 'Pending Payout')
+    .reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0);
+  
+  const totalEarned = commissions
+    .reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0);
+
+  return (
+    <div className="mo open">
+      <div className="mo-box" style={{ width: 900, maxWidth: '95vw' }}>
+        <div className="mo-head" style={{ background: 'var(--bg-soft)', borderBottom: '1px solid var(--border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ padding: 10, background: partner.role === 'Distributor' ? '#ede9fe' : '#eff6ff', borderRadius: 10 }}>
+               {partner.role === 'Distributor' ? '🏢' : '🤝'}
+            </div>
+            <div>
+              <h3 style={{ margin: 0 }}>{partner.name}</h3>
+              <div style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', gap: 10 }}>
+                <span>{partner.companyName || 'Independant'}</span>
+                <span>•</span>
+                <span className="badge" style={{ padding: '0 6px', background: 'var(--surface)', fontSize: 10 }}>{partner.role}</span>
+              </div>
+            </div>
+          </div>
+          <button className="btn-icon" onClick={onClose}>✕</button>
+        </div>
+
+        <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--bg-soft)', padding: '0 20px' }}>
+           {['Overview', 'Payouts', 'Customers', ...(partner.role === 'Distributor' ? ['Network'] : []), 'Profile'].map(t => (
+             <button 
+               key={t} 
+               onClick={() => setTab(t)}
+               style={{ 
+                 padding: '12px 18px', 
+                 background: 'none', 
+                 border: 'none', 
+                 borderBottom: tab === t ? '2px solid var(--accent)' : '2px solid transparent',
+                 color: tab === t ? 'var(--accent)' : 'var(--muted)',
+                 fontWeight: tab === t ? 700 : 500,
+                 cursor: 'pointer',
+                 fontSize: 13
+               }}
+             >
+               {t}
+             </button>
+           ))}
+        </div>
+
+        <div className="mo-body" style={{ padding: 25, maxHeight: '70vh', overflow: 'auto' }}>
+          {tab === 'Overview' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 25 }}>
+               <div className="stat-grid">
+                  <div className="stat-card sc-blue"><div className="lbl">Total Earned</div><div className="val">₹{totalEarned.toLocaleString()}</div></div>
+                  <div className="stat-card sc-yellow"><div className="lbl">Pending Payout</div><div className="val">₹{pendingAmount.toLocaleString()}</div></div>
+                  <div className="stat-card sc-green"><div className="lbl">Customers</div><div className="val">{leads.length + customers.length}</div></div>
+                  {partner.role === 'Distributor' && (
+                    <div className="stat-card sc-purple"><div className="lbl">Sub-Partners</div><div className="val">{subPartners.length}</div></div>
+                  )}
+               </div>
+
+               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+                  <div className="tw" style={{ padding: 0 }}>
+                    <div className="tw-head"><h3>Recent Activity</h3></div>
+                    <div style={{ padding: 15, fontSize: 13 }}>
+                       <p style={{ color: 'var(--muted)', fontStyle: 'italic' }}>Basic performance metrics for {partner.name}.</p>
+                       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          <div style={{ padding: 12, background: 'var(--bg-soft)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                             <div style={{ fontSize: 11, color: 'var(--muted)' }}>Latest Earning</div>
+                             <div style={{ fontWeight: 600 }}>{commissions.length > 0 ? `₹${commissions[0].amount} from ${commissions[0].clientName || 'Partner'}` : 'No earnings recorded'}</div>
+                          </div>
+                       </div>
+                    </div>
+                  </div>
+                  <div className="tw" style={{ padding: 20 }}>
+                     <h3 style={{ fontSize: 14, marginBottom: 15 }}>Contact Quick Actions</h3>
+                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+                        <a href={`mailto:${partner.email}`} className="btn btn-secondary btn-sm" style={{ textDecoration: 'none' }}>✉ Email</a>
+                        <a href={`tel:${partner.phone}`} className="btn btn-secondary btn-sm" style={{ textDecoration: 'none' }}>☏ Call</a>
+                        <a href={`https://wa.me/${partner.phone?.replace(/\D/g, '')}`} target="_blank" className="btn btn-secondary btn-sm" style={{ textDecoration: 'none' }}>💬 WhatsApp</a>
+                     </div>
+                  </div>
+               </div>
+            </div>
+          )}
+
+          {tab === 'Payouts' && (
+            <div className="tw" style={{ padding: 0 }}>
+              <div className="tw-head">
+                 <h3>Commission Payout History</h3>
+                 <div style={{ fontSize: 13, background: '#fef3c7', color: '#92400e', padding: '4px 10px', borderRadius: 20, fontWeight: 700 }}>
+                    Pending: ₹{pendingAmount.toLocaleString()}
+                 </div>
+              </div>
+              <div className="tw-scroll">
+                 <table style={{ minWidth: 600 }}>
+                    <thead>
+                       <tr>
+                          <th>Date</th>
+                          <th>Invoice / Client</th>
+                          <th>Amount</th>
+                          <th>Status</th>
+                          <th>Paid On</th>
+                       </tr>
+                    </thead>
+                    <tbody>
+                       {commissions.length === 0 ? (
+                         <tr><td colSpan={5} style={{ textAlign: 'center', padding: 30, color: 'var(--muted)' }}>No commission records found.</td></tr>
+                       ) : commissions.sort((a,b) => (b.updatedAt || b.appliedAt) - (a.updatedAt || a.appliedAt)).map(c => (
+                         <tr key={c.id}>
+                            <td style={{ fontSize: 12 }}>{fmtD(c.updatedAt || c.appliedAt)}</td>
+                            <td>
+                               <div style={{ fontWeight: 600 }}>{c.clientName || 'Partner Portal Sales'}</div>
+                               <div style={{ fontSize: 11, color: 'var(--muted)' }}>Inv: {c.invoiceNo || '-'}</div>
+                            </td>
+                            <td style={{ fontWeight: 700 }}>₹{c.amount}</td>
+                            <td>
+                               <span className={`badge ${c.status === 'Paid' ? 'bg-green' : 'bg-yellow'}`}>{c.status}</span>
+                            </td>
+                            <td style={{ fontSize: 11 }}>{c.paidAt ? fmtD(c.paidAt) : '-'}</td>
+                         </tr>
+                       ))}
+                    </tbody>
+                 </table>
+              </div>
+            </div>
+          )}
+
+          {tab === 'Customers' && (
+            <div className="tw" style={{ padding: 0 }}>
+              <div className="tw-head"><h3>Referred Leads & Customers</h3></div>
+              <div className="tw-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Status</th>
+                      <th>Name</th>
+                      <th>Phone</th>
+                      <th>Email</th>
+                      <th>Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...leads, ...customers].length === 0 ? (
+                      <tr><td colSpan={5} style={{ textAlign: 'center', padding: 30, color: 'var(--muted)' }}>No customers added by this partner yet.</td></tr>
+                    ) : [...leads, ...customers].sort((a,b) => (b.createdAt || b.appliedAt) - (a.createdAt || a.appliedAt)).map((c, idx) => (
+                      <tr key={c.id || idx}>
+                        <td>
+                          <span className={`badge ${leads.find(l => l.id === c.id) ? 'bg-blue' : 'bg-green'}`}>
+                            {leads.find(l => l.id === c.id) ? 'Lead' : 'Converted Client'}
+                          </span>
+                        </td>
+                        <td><strong>{c.name}</strong></td>
+                        <td style={{ fontSize: 12 }}>{c.phone || '-'}</td>
+                        <td style={{ fontSize: 12 }}>{c.email || '-'}</td>
+                        <td style={{ fontSize: 11 }}>{fmtD(c.createdAt || c.appliedAt || Date.now())}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {tab === 'Network' && partner.role === 'Distributor' && (
+            <div className="tw" style={{ padding: 0 }}>
+               <div className="tw-head"><h3>Associated Retailers</h3></div>
+               <div className="tw-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Commission</th>
+                        <th>Joined</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                       {subPartners.length === 0 ? (
+                         <tr><td colSpan={5} style={{ textAlign: 'center', padding: 30, color: 'var(--muted)' }}>No retailers found under this distributor.</td></tr>
+                       ) : subPartners.map((sp, idx) => (
+                         <tr key={sp.id}>
+                           <td style={{ fontSize: 11, color: 'var(--muted)' }}>{idx + 1}</td>
+                           <td><strong>{sp.name}</strong></td>
+                           <td style={{ fontSize: 12 }}>{sp.email}</td>
+                           <td style={{ fontWeight: 600 }}>{sp.commission}%</td>
+                           <td style={{ fontSize: 11 }}>{fmtD(sp.approvedAt || sp.appliedAt)}</td>
+                         </tr>
+                       ))}
+                    </tbody>
+                  </table>
+               </div>
+            </div>
+          )}
+
+          {tab === 'Profile' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 30 }}>
+               <div>
+                  <h4 style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 15, letterSpacing: 1 }}>Basic Information</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+                     <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Phone Number</label><div>{partner.phone}</div></div>
+                     <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Email Address</label><div>{partner.email}</div></div>
+                     <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Company Name</label><div>{partner.companyName || '-'}</div></div>
+                     <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Tax ID / GSTIN</label><div>{partner.taxId || '-'}</div></div>
+                  </div>
+               </div>
+               <div>
+                  <h4 style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 15, letterSpacing: 1 }}>Full Address</h4>
+                  <div style={{ padding: 15, background: 'var(--bg-soft)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, minHeight: 60 }}>
+                     {partner.address || 'No address details provided.'}
+                  </div>
+                  
+                  <h4 style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', marginTop: 25, marginBottom: 15, letterSpacing: 1 }}>Additional Form Data</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                     {profile?.partnerFormConfig?.customFields?.map(field => (
+                        <div key={field.id}>
+                           <label style={{ fontSize: 11, color: 'var(--muted)' }}>{field.label}</label>
+                           <div style={{ fontSize: 13 }}>{partner.customData?.[field.id] || '-'}</div>
+                        </div>
+                     ))}
+                  </div>
+
+                  <h4 style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase', marginTop: 25, marginBottom: 10, letterSpacing: 1 }}>Internal Notes</h4>
+                  <div style={{ fontSize: 13, color: '#475569' }}>{partner.notes || 'No partner notes.'}</div>
+               </div>
+            </div>
+          )}
+        </div>
+        
+        <div className="mo-foot" style={{ background: 'var(--bg-soft)', borderTop: '1px solid var(--border)' }}>
+           <button className="btn btn-secondary" onClick={onClose} style={{ marginLeft: 'auto' }}>Close Detail View</button>
+        </div>
+      </div>
     </div>
   );
 }
