@@ -20,6 +20,11 @@ const MODULES = [
   { key: 'Tasks', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'Teams', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'Reports', actions: ['view'] },
+  { key: 'Automation', actions: ['list', 'create', 'edit', 'delete'] },
+  { key: 'Ecommerce', actions: ['list', 'create', 'edit', 'delete'] },
+  { key: 'Appointments', actions: ['list', 'create', 'edit', 'delete'] },
+  { key: 'Integrations', actions: ['view', 'edit'] },
+  { key: 'MessagingLogs', actions: ['list'] },
   { key: 'Settings', actions: ['view'] },
 ];
 
@@ -47,7 +52,7 @@ function normalisePerms(perms) {
 
 const EMPTY_ROLE = { name: '', perms: {} };
 
-export default function Teams({ user, ownerId, perms }) {
+export default function Teams({ user, ownerId, perms, planEnforcement }) {
   const canCreate = perms?.can('Teams', 'create') === true;
   const canEdit = perms?.can('Teams', 'edit') === true;
   const canDelete = perms?.can('Teams', 'delete') === true;
@@ -78,6 +83,7 @@ export default function Teams({ user, ownerId, perms }) {
   const save = async () => {
     if (editData && !canEdit) { toast('Permission denied: cannot edit members', 'error'); return; }
     if (!editData && !canCreate) { toast('Permission denied: cannot add members', 'error'); return; }
+    if (!editData && planEnforcement && !planEnforcement.isWithinLimit('maxUsers', team.length)) { toast('Team member limit reached for your plan. Please upgrade.', 'error'); return; }
     if (!form.name.trim() || !form.email.trim()) { toast('Name and email required', 'error'); return; }
     const normalizedEmail = form.email.trim().toLowerCase();
     const payload = { ...form, email: normalizedEmail, userId: ownerId };

@@ -30,6 +30,8 @@ const ALL_MODULES = [
   { key: 'automation', label: 'Automation', hasLimit: false },
   { key: 'ecommerce', label: 'E-Commerce Store', hasLimit: false },
   { key: 'appointments', label: 'Appointments', hasLimit: false },
+  { key: 'integrations', label: 'Integrations', hasLimit: false },
+  { key: 'messagingLogs', label: 'Messaging Logs', hasLimit: false },
 ];
 
 const DEFAULT_MODULES = Object.fromEntries(ALL_MODULES.map(m => [m.key, true]));
@@ -47,6 +49,10 @@ export default function AdminPanel({ user }) {
   const [planModal, setPlanModal] = useState(false);
   const [planForm, setPlanForm] = useState(EMPTY_PLAN);
   const [editPlanIdx, setEditPlanIdx] = useState(null);
+  const [editUserModal, setEditUserModal] = useState(false);
+  const [editUserData, setEditUserData] = useState(null);
+  const [editUserForm, setEditUserForm] = useState({ newPassword: '', expiry: '', role: '' });
+  const [editUserLoading, setEditUserLoading] = useState(false);
   const hasSettingsLoaded = React.useRef(false); // Robust flag to prevent overwriting user typing
   const toast = useToast();
 
@@ -108,6 +114,50 @@ export default function AdminPanel({ user }) {
     toast(!banned ? 'User banned' : 'User reinstated', !banned ? 'error' : 'success');
   };
 
+  const openEditUser = (u) => {
+    setEditUserData(u);
+    setEditUserForm({
+      newPassword: '',
+      expiry: u.planExpiry ? new Date(u.planExpiry).toISOString().split('T')[0] : '',
+      role: u.role || 'user',
+    });
+    setEditUserModal(true);
+  };
+
+  const resetUserPassword = async () => {
+    if (!editUserData || !editUserForm.newPassword.trim()) { toast('Enter a new password', 'error'); return; }
+    if (editUserForm.newPassword.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
+    if (!window.confirm(`Reset password for ${editUserData.email}?`)) return;
+    setEditUserLoading(true);
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'change-password', email: editUserData.email, newPassword: editUserForm.newPassword })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed');
+      toast(`Password reset for ${editUserData.email}`, 'success');
+      setEditUserForm(f => ({ ...f, newPassword: '' }));
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setEditUserLoading(false); }
+  };
+
+  const updateUserExpiry = async () => {
+    if (!editUserData || !editUserForm.expiry) { toast('Select an expiry date', 'error'); return; }
+    const newExpiry = new Date(editUserForm.expiry).getTime();
+    if (!window.confirm(`Set plan expiry for ${editUserData.email} to ${editUserForm.expiry}?`)) return;
+    await db.transact(db.tx.userProfiles[editUserData.id].update({ planExpiry: newExpiry }));
+    toast('Expiry updated', 'success');
+  };
+
+  const updateUserRole = async () => {
+    if (!editUserData) return;
+    if (!window.confirm(`Change role of ${editUserData.email} to "${editUserForm.role}"?`)) return;
+    await db.transact(db.tx.userProfiles[editUserData.id].update({ role: editUserForm.role }));
+    toast(`Role updated to ${editUserForm.role}`, 'success');
+  };
+
   const repairData = async () => {
     const txs = users.map(u => {
       const updates = {};
@@ -137,7 +187,7 @@ export default function AdminPanel({ user }) {
   const savePlan = async () => {
     if (!planForm.name.trim()) { toast('Plan name required', 'error'); return; }
     const newPlans = [...plans];
-    const planEntry = { ...planForm, price: +planForm.price, duration: +planForm.duration, maxLeads: +planForm.maxLeads, maxUsers: +planForm.maxUsers, id: planForm.id || id() };
+    const planEntry = { ...planForm, price: +planForm.price, duration: +planForm.duration, id: planForm.id || id() };
     if (editPlanIdx !== null) newPlans[editPlanIdx] = planEntry;
     else newPlans.push(planEntry);
     await db.transact(db.tx.globalSettings[settingsId].update({ plans: JSON.stringify(newPlans) }));
@@ -241,7 +291,8 @@ export default function AdminPanel({ user }) {
                       <td style={{ fontSize: 11 }}>{u.planExpiry ? fmtD(u.planExpiry) : '-'}</td>
                       <td><span className={`badge ${u.role === 'superadmin' ? 'bg-purple' : 'bg-gray'}`}>{u.role || 'user'}</span></td>
                       <td><span className={`badge ${u.banned ? 'bg-red' : 'bg-green'}`}>{u.banned ? 'Banned' : 'Active'}</span></td>
-                      <td>
+                      <td style={{ display: 'flex', gap: 4 }}>
+                        <button className="btn btn-secondary btn-sm" onClick={() => openEditUser(u)}>✏️ Edit</button>
                         <button className="btn btn-sm" style={{ background: u.banned ? '#dcfce7' : '#fee2e2', color: u.banned ? '#166534' : '#991b1b' }} onClick={() => banUser(u.id, u.banned)}>
                           {u.banned ? '✓ Reinstate' : '⊘ Ban'}
                         </button>
@@ -469,6 +520,58 @@ export default function AdminPanel({ user }) {
               </div>
             </div>
             <div className="mo-foot"><button className="btn btn-secondary btn-sm" onClick={() => setCouponModal(false)}>Cancel</button><button className="btn btn-primary btn-sm" onClick={saveCoupon}>Create Coupon</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* ── EDIT USER MODAL ── */}
+      {editUserModal && editUserData && (
+        <div className="mo open">
+          <div className="mo-box" style={{ maxWidth: 520 }}>
+            <div className="mo-head"><h3>✏️ Edit User — {editUserData.fullName || editUserData.email}</h3><button className="btn-icon" onClick={() => setEditUserModal(false)}>✕</button></div>
+            <div className="mo-body">
+              {/* Section 1: Reset Password */}
+              <div style={{ marginBottom: 20, padding: 16, background: 'var(--bg-soft)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>🔑 Reset Password</div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, display: 'block' }}>New Password</label>
+                    <input type="password" value={editUserForm.newPassword} onChange={e => setEditUserForm(f => ({ ...f, newPassword: e.target.value }))} placeholder="Min. 6 characters" style={{ width: '100%' }} />
+                  </div>
+                  <button className="btn btn-primary btn-sm" onClick={resetUserPassword} disabled={editUserLoading}>{editUserLoading ? 'Saving...' : 'Reset Password'}</button>
+                </div>
+              </div>
+
+              {/* Section 2: Edit Expiry */}
+              <div style={{ marginBottom: 20, padding: 16, background: 'var(--bg-soft)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>📅 Plan Expiry</div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, display: 'block' }}>Expiry Date</label>
+                    <input type="date" value={editUserForm.expiry} onChange={e => setEditUserForm(f => ({ ...f, expiry: e.target.value }))} style={{ width: '100%' }} />
+                  </div>
+                  <button className="btn btn-primary btn-sm" onClick={updateUserExpiry}>Update Expiry</button>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>Current: {editUserData.planExpiry ? fmtD(editUserData.planExpiry) : 'Not set'}</div>
+              </div>
+
+              {/* Section 3: Change Role */}
+              <div style={{ padding: 16, background: 'var(--bg-soft)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>👤 User Role</div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: 11, fontWeight: 600, marginBottom: 4, display: 'block' }}>Role</label>
+                    <select value={editUserForm.role} onChange={e => setEditUserForm(f => ({ ...f, role: e.target.value }))} style={{ width: '100%' }}>
+                      <option value="user">User</option>
+                      <option value="superadmin">Superadmin</option>
+                    </select>
+                  </div>
+                  <button className="btn btn-primary btn-sm" onClick={updateUserRole}>Update Role</button>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>Current: {editUserData.role || 'user'}</div>
+              </div>
+            </div>
+            <div className="mo-foot"><button className="btn btn-secondary btn-sm" onClick={() => setEditUserModal(false)}>Close</button></div>
           </div>
         </div>
       )}

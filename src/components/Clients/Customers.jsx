@@ -5,7 +5,7 @@ import { fmtD, INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import { EMPTY_CUSTOMER } from '../../utils/constants';
 
-export default function Customers({ user, perms, ownerId }) {
+export default function Customers({ user, perms, ownerId, planEnforcement }) {
   const canCreate = perms?.can('Customers', 'create') === true;
   const canEdit = perms?.can('Customers', 'edit') === true;
   const canDelete = perms?.can('Customers', 'delete') === true;
@@ -71,6 +71,7 @@ export default function Customers({ user, perms, ownerId }) {
   const saveCustomer = async () => {
     if (editData && !canEdit) { toast('Permission denied: cannot edit customers', 'error'); return; }
     if (!editData && !canCreate) { toast('Permission denied: cannot create customers', 'error'); return; }
+    if (!editData && planEnforcement && !planEnforcement.isWithinLimit('maxCustomers', customers.length)) { toast('Customer limit reached for your plan. Please upgrade.', 'error'); return; }
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
     if (!form.email.trim()) { toast('Email is mandatory for clients', 'error'); return; }
     try {

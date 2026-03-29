@@ -18,7 +18,7 @@ function calcTotals(items, disc, discType, adj) {
 
 const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [], assign: '' };
 
-export default function Invoices({ user, perms, ownerId, settings }) {
+export default function Invoices({ user, perms, ownerId, settings, planEnforcement }) {
   const canCreate = perms?.can('Invoices', 'create') === true;
   const canEdit = perms?.can('Invoices', 'edit') === true;
   const canDelete = perms?.can('Invoices', 'delete') === true;
@@ -151,6 +151,7 @@ export default function Invoices({ user, perms, ownerId, settings }) {
   const save = async () => {
     if (editData && !canEdit) { toast('Permission denied: cannot edit invoices', 'error'); return; }
     if (!editData && !canCreate) { toast('Permission denied: cannot create invoices', 'error'); return; }
+    if (!editData && planEnforcement && !planEnforcement.isWithinLimit('maxInvoices', invoices.length)) { toast('Invoice limit reached for your plan. Please upgrade.', 'error'); return; }
     if (!form.client.trim()) { toast('Client required', 'error'); return; }
     if (profile.reqShipping === 'Mandatory' && !form.shipTo?.trim()) { toast('Shipping Address is required', 'error'); return; }
     

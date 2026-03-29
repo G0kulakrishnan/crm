@@ -8,7 +8,7 @@ import { EMPTY_CUSTOMER } from '../../utils/constants';
 
 const DEFAULT_TASK_STATUSES = ['Pending', 'In Progress', 'Completed'];
 
-export default function AllTasks({ user, perms, ownerId }) {
+export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
   const canCreate = perms?.can('Tasks', 'create') === true;
   const canEdit = perms?.can('Tasks', 'edit') === true;
   const canDelete = perms?.can('Tasks', 'delete') === true;
@@ -167,6 +167,7 @@ export default function AllTasks({ user, perms, ownerId }) {
 
   const save = async () => {
     if (!form.title.trim()) { toast('Title required', 'error'); return; }
+    if (!editData && planEnforcement && !planEnforcement.isWithinLimit('maxTasks', tasks.length)) { toast('Task limit reached for your plan. Please upgrade.', 'error'); return; }
     try {
       if (editData) {
         const changes = [];

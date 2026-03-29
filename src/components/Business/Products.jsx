@@ -32,7 +32,7 @@ function downloadCSVTemplate() {
   URL.revokeObjectURL(url);
 }
 
-export default function Products({ user, perms, ownerId }) {
+export default function Products({ user, perms, ownerId, planEnforcement }) {
   const canCreate = perms?.can('Products', 'create') === true;
   const canEdit = perms?.can('Products', 'edit') === true;
   const canDelete = perms?.can('Products', 'delete') === true;
@@ -162,6 +162,7 @@ export default function Products({ user, perms, ownerId }) {
   const save = async () => {
     if (editData && !canEdit) { toast('Permission denied: cannot edit products', 'error'); return; }
     if (!editData && !canCreate) { toast('Permission denied: cannot create products', 'error'); return; }
+    if (!editData && planEnforcement && !planEnforcement.isWithinLimit('maxProducts', products.length)) { toast('Product limit reached for your plan. Please upgrade.', 'error'); return; }
     if (!form.name.trim()) { toast('Name required', 'error'); return; }
 
     const sku = form.code?.trim();

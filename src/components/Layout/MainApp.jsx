@@ -3,6 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useApp } from '../../context/AppContext';
 import { usePermissions } from '../../hooks/usePermissions';
+import { usePlanEnforcement } from '../../hooks/usePlanEnforcement';
 import { useToast } from '../../context/ToastContext';
 import { DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_LABELS } from '../../utils/helpers';
 import Sidebar from './Sidebar';
@@ -126,6 +127,9 @@ export default function MainApp({ user, settings }) {
   
   // Permissions hook
   const perms = usePermissions(user, profile, teamMembers);
+
+  // Plan enforcement hook
+  const planEnforcement = usePlanEnforcement(profile, settings);
 
   // 2. Load Automation Engine (for background checks)
   useAutomationEngine(user, targetUserId);
@@ -303,26 +307,41 @@ export default function MainApp({ user, settings }) {
     apidocs: { component: isSuperadmin ? <ApiDocs ownerId={targetUserId} /> : null, label: 'API Docs' },
   };
 
-  // 1. Guard against unauthorised views for team members
+  // 1. Guard against unauthorised views for team members AND plan restrictions
   useEffect(() => {
-    if (!perms || perms.isOwner) return;
+    if (!perms) return;
 
-    // Check if the current view is allowed
     const viewConfig = views[activeView];
     const permKey = viewConfig?.label || '';
+
+    // Plan-based guard (applies to owners AND team members, but not superadmin)
+    if (planEnforcement && !isSuperadmin && !planEnforcement.isViewAllowed(activeView)) {
+      const firstAllowed = Object.keys(views).find(key => {
+        if (!views[key]) return false;
+        if (key === 'dashboard' || key === 'userprofile') return true;
+        return planEnforcement.isViewAllowed(key);
+      });
+      if (firstAllowed && firstAllowed !== activeView) setActiveView(firstAllowed);
+      return;
+    }
+
+    // Role-based guard (team members only)
+    if (perms.isOwner) return;
+
     const canSeeCurrent = activeView === 'dashboard' ? perms.can('Dashboard', 'view') : 
                         activeView === 'userprofile' ? true :
-                        activeView === 'settings' ? false : // Strict block for members
+                        activeView === 'settings' ? false :
                         perms.can(permKey, 'list');
 
     if (!canSeeCurrent) {
-      // Find the first module they DO have access to
       const firstAvailableKey = Object.keys(views).find(key => {
         const conf = views[key];
         if (!conf || !conf.label) return false;
         if (key === 'userprofile') return true;
         if (key === 'dashboard') return perms.can('Dashboard', 'view');
-        if (key === 'settings') return false; // Strict block for members
+        if (key === 'settings') return false;
+        // Also check plan enforcement
+        if (planEnforcement && !isSuperadmin && !planEnforcement.isViewAllowed(key)) return false;
         return perms.can(conf.label, 'list');
       });
 
@@ -330,7 +349,7 @@ export default function MainApp({ user, settings }) {
         setActiveView(firstAvailableKey);
       }
     }
-  }, [perms, activeView, setActiveView]);
+  }, [perms, planEnforcement, activeView, setActiveView]);
 
 
 
@@ -355,11 +374,12 @@ export default function MainApp({ user, settings }) {
         isExpired={isExpired} 
         perms={perms}
         settings={settings}
+        planEnforcement={planEnforcement}
       />
       <div className="main">
         <Topbar user={{ ...user, profile }} notifCount={liveNotifs.filter(n => n.unread).length} isExpired={isExpired} teamInfo={teamInfo} teamMembers={teamMembers} />
         <div className="content">
-          {currentView.component ? React.cloneElement(currentView.component, { perms }) : <div className="p-xl">View not found or access denied</div>}
+          {currentView.component ? React.cloneElement(currentView.component, { perms, planEnforcement }) : <div className="p-xl">View not found or access denied</div>}
         </div>
       </div>
       <NotifPanel notifications={liveNotifs} onMarkRead={() => {}} onMarkAllRead={() => {}} />

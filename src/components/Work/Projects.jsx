@@ -9,7 +9,7 @@ import { EMPTY_CUSTOMER } from '../../utils/constants';
 const PROJ_EMPTY = { name: '', client: '', status: 'Planning', startDate: '', endDate: '', desc: '', assignTo: '' };
 const DEFAULT_TASK_STATUSES = ['Pending', 'In Progress', 'Completed'];
 
-export default function Projects({ user, perms, ownerId }) {
+export default function Projects({ user, perms, ownerId, planEnforcement }) {
   const canCreateProj = perms?.can('Projects', 'create') === true;
   const canEditProj = perms?.can('Projects', 'edit') === true;
   const canDeleteProj = perms?.can('Projects', 'delete') === true;
@@ -94,6 +94,7 @@ export default function Projects({ user, perms, ownerId }) {
   const saveProj = async () => {
     if (editProj && !canEditProj) { toast('Permission denied: cannot edit projects', 'error'); return; }
     if (!editProj && !canCreateProj) { toast('Permission denied: cannot create projects', 'error'); return; }
+    if (!editProj && planEnforcement && !planEnforcement.isWithinLimit('maxProjects', projects.length)) { toast('Project limit reached for your plan. Please upgrade.', 'error'); return; }
     if (!projForm.name.trim()) { toast('Project name required', 'error'); return; }
 
     try {

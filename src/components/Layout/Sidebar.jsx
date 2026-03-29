@@ -35,14 +35,19 @@ const NAV_ITEMS = [
   { id: 'settings', label: 'Business Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z', permKey: 'Settings' },
 ];
 
-export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, perms, settings }) {
+export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, perms, settings, planEnforcement }) {
   const { activeView, setActiveView, setSettingsTab, sidebarExpanded, setSidebarExpanded, mobileSidebarOpen, setMobileSidebarOpen } = useApp();
 
-  // Filter NAV_ITEMS based on permissions
+  // Filter NAV_ITEMS based on permissions AND plan module access
   const filteredItems = NAV_ITEMS.filter(item => {
     if (item.group) return true;
-    if (perms?.isOwner) return true;
     if (item.id === 'userprofile') return true; // Everyone can see their profile
+
+    // Plan-level module check (owner + team members)
+    if (planEnforcement && !isSuperadmin && !planEnforcement.isViewAllowed(item.id)) return false;
+
+    // Role-level permission check (team members)
+    if (perms?.isOwner) return true;
     if (item.id === 'dashboard') return perms?.can('Dashboard', 'view');
     return perms?.can(item.permKey, 'list');
   });

@@ -19,7 +19,7 @@ const DEFAULT_IMPORT_MAPPING = {
   followup: { type: 'fixed', value: '' }
 };
 
-export default function LeadsView({ user, perms, ownerId }) {
+export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const canCreate = perms?.can('Leads', 'create') === true;
   const canEdit = perms?.can('Leads', 'edit') === true;
   const canDelete = perms?.can('Leads', 'delete') === true;
@@ -215,6 +215,7 @@ export default function LeadsView({ user, perms, ownerId }) {
   const saveLead = async () => {
     if (editData && !canEdit) { toast('Permission denied: cannot edit leads', 'error'); return; }
     if (!editData && !canCreate) { toast('Permission denied: cannot create leads', 'error'); return; }
+    if (!editData && planEnforcement && !planEnforcement.isWithinLimit('maxLeads', leads.length)) { toast('Lead limit reached for your plan. Please upgrade to add more leads.', 'error'); return; }
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
     try {
       if (editData) {
