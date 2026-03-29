@@ -87,6 +87,7 @@ export default function PartnerRegistration({ params }) {
       const applicationId = id();
       const payload = {
         ...form,
+        email: form.email.trim().toLowerCase(),
         userId: ownerId,
         status: 'Pending',
         appliedAt: Date.now(),

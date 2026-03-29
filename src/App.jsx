@@ -98,7 +98,7 @@ function AppInner() {
   const storedPartner = localStorage.getItem('tc_channel_partner');
   
   const partnerQuery = (!storedPartner && user?.email) 
-    ? { partnerApplications: { $: { where: { email: String(user.email).toLowerCase(), status: 'Approved' }, limit: 1 } } }
+    ? { partnerApplications: { $: { where: { email: String(user.email).toLowerCase() }, limit: 1 } } }
     : null;
     
   const { data: partnerData, isLoading: partnerLoading } = db.useQuery(partnerQuery);
@@ -123,12 +123,37 @@ function AppInner() {
       isPartner: true,
       ownerUserId: p.userId,
       partnerId: p.id,
-      role: p.role
+      role: p.role,
+      status: p.status
     };
-    localStorage.setItem('tc_channel_partner', JSON.stringify(finalPartnerInfo));
+    if (p.status === 'Approved') {
+      localStorage.setItem('tc_channel_partner', JSON.stringify(finalPartnerInfo));
+    }
   }
 
   if (finalPartnerInfo?.isPartner) {
+    if (finalPartnerInfo.status === 'Pending' || finalPartnerInfo.status === 'Rejected') {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', padding: 20 }}>
+          <div style={{ background: '#fff', padding: 40, borderRadius: 16, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', textAlign: 'center', maxWidth: 400 }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>{finalPartnerInfo.status === 'Pending' ? '⏳' : '❌'}</div>
+            <h2 style={{ margin: '0 0 12px 0', fontSize: 24, color: '#0f172a' }}>{finalPartnerInfo.status === 'Pending' ? 'Approval Pending' : 'Application Rejected'}</h2>
+            <p style={{ color: '#64748b', fontSize: 14, margin: '0 0 24px 0', lineHeight: 1.6 }}>
+              {finalPartnerInfo.status === 'Pending' 
+                ? 'Your partner account is actively being reviewed by the administration. You will be able to log in once you are approved.' 
+                : 'Your partner application could not be approved at this time. Please contact support for details.'}
+            </p>
+            <button 
+              onClick={() => { localStorage.removeItem('tc_channel_partner'); db.auth.signOut(); window.location.href='/'; }}
+              style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '10px 24px', borderRadius: 8, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Sign Out
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <ErrorBoundary>
         <AppProvider user={user}>
