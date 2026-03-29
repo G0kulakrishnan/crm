@@ -1556,6 +1556,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
         <PartnerDetailsModal 
           partnerId={partnerDetailsId} 
           onClose={() => setPartnerDetailsId(null)} 
+          onSelectPartner={setPartnerDetailsId}
           ownerId={ownerId} 
           user={user} 
           toast={toast}
@@ -1567,7 +1568,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
   );
 }
 
-function PartnerDetailsModal({ partnerId, onClose, ownerId, user, toast, profile, allApproved }) {
+function PartnerDetailsModal({ partnerId, onClose, onSelectPartner, ownerId, user, toast, profile, allApproved }) {
   const [tab, setTab] = useState('Overview');
   
   const { data, isLoading } = db.useQuery({
@@ -1582,6 +1583,7 @@ function PartnerDetailsModal({ partnerId, onClose, ownerId, user, toast, profile
   const commissions = data?.partnerCommissions || [];
   const leads = data?.leads || [];
   const customers = data?.customers || [];
+  const parentDist = partner?.role === 'Retailer' && partner?.parentDistributorId ? allApproved?.find(p => p.id === partner.parentDistributorId) : null;
 
   if (isLoading) return (
     <div className="mo open">
@@ -1629,7 +1631,7 @@ function PartnerDetailsModal({ partnerId, onClose, ownerId, user, toast, profile
         </div>
 
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--bg-soft)', padding: '0 20px' }}>
-           {['Overview', 'Payouts', 'Customers', ...(partner.role === 'Distributor' ? ['Network'] : []), 'Profile'].map(t => (
+           {['Overview', 'Payouts', 'Customers', ...(partner.role === 'Distributor' ? ['Retailers'] : []), 'Profile'].map(t => (
              <button 
                key={t} 
                onClick={() => setTab(t)}
@@ -1657,7 +1659,13 @@ function PartnerDetailsModal({ partnerId, onClose, ownerId, user, toast, profile
                   <div className="stat-card sc-yellow"><div className="lbl">Pending Payout</div><div className="val">₹{pendingAmount.toLocaleString()}</div></div>
                   <div className="stat-card sc-green"><div className="lbl">Customers</div><div className="val">{leads.length + customers.length}</div></div>
                   {partner.role === 'Distributor' && (
-                    <div className="stat-card sc-purple"><div className="lbl">Sub-Partners</div><div className="val">{subPartners.length}</div></div>
+                    <div className="stat-card sc-purple"><div className="lbl">Retailers</div><div className="val">{subPartners.length}</div></div>
+                  )}
+                  {parentDist && (
+                    <div className="stat-card sc-purple" onClick={() => onSelectPartner?.(parentDist.id)} style={{ cursor: 'pointer' }}>
+                        <div className="lbl">Assigned Distributor</div>
+                        <div className="val">{parentDist.name}</div>
+                    </div>
                   )}
                </div>
 
@@ -1776,30 +1784,36 @@ function PartnerDetailsModal({ partnerId, onClose, ownerId, user, toast, profile
             </div>
           )}
 
-          {tab === 'Network' && partner.role === 'Distributor' && (
+          {tab === 'Retailers' && partner.role === 'Distributor' && (
             <div className="tw" style={{ padding: 0 }}>
                <div className="tw-head"><h3>Associated Retailers</h3></div>
                <div className="tw-scroll">
                   <table>
                     <thead>
                       <tr>
-                        <th>#</th>
-                        <th>Name</th>
-                        <th>Email</th>
+                        <th>Joined Date</th>
+                        <th>Retailer Name</th>
+                        <th>Company</th>
+                        <th>Contact Email</th>
                         <th>Commission</th>
-                        <th>Joined</th>
+                        <th>Status</th>
+                        <th style={{ textAlign: 'right', paddingRight: 20 }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                        {subPartners.length === 0 ? (
-                         <tr><td colSpan={5} style={{ textAlign: 'center', padding: 30, color: 'var(--muted)' }}>No retailers found under this distributor.</td></tr>
+                         <tr><td colSpan={7} style={{ textAlign: 'center', padding: 30, color: 'var(--muted)' }}>No retailers found under this distributor.</td></tr>
                        ) : subPartners.map((sp, idx) => (
                          <tr key={sp.id}>
-                           <td style={{ fontSize: 11, color: 'var(--muted)' }}>{idx + 1}</td>
-                           <td><strong>{sp.name}</strong></td>
-                           <td style={{ fontSize: 12 }}>{sp.email}</td>
-                           <td style={{ fontWeight: 600 }}>{sp.commission}%</td>
-                           <td style={{ fontSize: 11 }}>{fmtD(sp.approvedAt || sp.appliedAt)}</td>
+                           <td style={{ fontSize: 13 }}>{fmtD(sp.approvedAt || sp.appliedAt)}</td>
+                           <td><span style={{ color: 'var(--accent)', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }} onClick={() => onSelectPartner?.(sp.id)}>{sp.name}</span></td>
+                           <td style={{ fontSize: 13, color: 'var(--muted)' }}>{sp.companyName || 'Independent'}</td>
+                           <td style={{ fontSize: 13, color: 'var(--muted)' }}>{sp.email}</td>
+                           <td><strong style={{ color: 'var(--accent)' }}>{sp.commission}%</strong></td>
+                           <td><span className="badge" style={{ padding: '4px 10px', background: sp.status === 'Approved' ? 'var(--bg-green)' : 'var(--bg-yellow)', color: sp.status === 'Approved' ? 'var(--dark-green)' : 'var(--dark-yellow)' }}>{sp.status}</span></td>
+                           <td style={{ textAlign: 'right', paddingRight: 20 }}>
+                              <button className="btn btn-secondary btn-sm" onClick={() => onSelectPartner?.(sp.id)}>View Profile</button>
+                           </td>
                          </tr>
                        ))}
                     </tbody>
@@ -1817,6 +1831,12 @@ function PartnerDetailsModal({ partnerId, onClose, ownerId, user, toast, profile
                      <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Email Address</label><div>{partner.email}</div></div>
                      <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Company Name</label><div>{partner.companyName || '-'}</div></div>
                      <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Tax ID / GSTIN</label><div>{partner.taxId || '-'}</div></div>
+                     {parentDist && (
+                        <div>
+                           <label style={{ fontSize: 11, color: 'var(--muted)' }}>Assigned Distributor</label>
+                           <div style={{ color: 'var(--accent)', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }} onClick={() => onSelectPartner?.(parentDist.id)}>{parentDist.name} ({parentDist.companyName || 'Independent'})</div>
+                        </div>
+                     )}
                   </div>
                </div>
                <div>
