@@ -252,7 +252,16 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
               profile={profile}
             />
           ) : tab === 'Reports' ? (
-            <ReportsView commissions={commissions} applications={applications} ownerId={ownerId} />
+            <ReportsView commissions={commissions} applications={applications.filter(a => a.status === 'Approved')} ownerId={ownerId} />
+          ) : tab === 'Hierarchy' ? (
+            <HierarchyView 
+              availableDistributors={availableDistributors} 
+              allApprovedPartners={applications.filter(a => a.status === 'Approved')}
+              ownerId={ownerId} 
+              user={user} 
+              toast={toast} 
+              profile={profile} 
+            />
           ) : (
             <table>
               <thead>
@@ -678,23 +687,45 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
   );
 }
 
+const DATE_FILTERS = ['Today', 'Yesterday', 'This Month', 'This Year', 'Custom'];
+
 function ReportsView({ commissions, applications, ownerId }) {
-  const [start, setStart] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d.toISOString().split('T')[0];
-  });
-  const [end, setEnd] = useState(() => new Date().toISOString().split('T')[0]);
-  const [groupBy, setGroupBy] = useState('Partner'); // Partner or Location
+  const [filter, setFilter] = useState('This Month');
+  const [customRange, setCustomRange] = useState({ start: '', end: '' });
+  const [groupBy, setGroupBy] = useState('Partner');
+
+  const dateRange = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now);
+    const end = new Date(now);
+    
+    if (filter === 'Today') {
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+    } else if (filter === 'Yesterday') {
+      start.setDate(now.getDate() - 1);
+      start.setHours(0, 0, 0, 0);
+      end.setDate(now.getDate() - 1);
+      end.setHours(23, 59, 59, 999);
+    } else if (filter === 'This Month') {
+      start.setHours(0, 0, 0, 0);
+      start.setDate(1);
+    } else if (filter === 'This Year') {
+      start.setMonth(0, 1);
+      start.setHours(0, 0, 0, 0);
+    } else if (filter === 'Custom' && customRange.start && customRange.end) {
+      return { start: new Date(customRange.start).getTime(), end: new Date(customRange.end).getTime() + 86400000 };
+    }
+    
+    return { start: start.getTime(), end: end.getTime() };
+  }, [filter, customRange]);
 
   const filteredComms = useMemo(() => {
-    const s = new Date(start).getTime();
-    const e = new Date(end).setHours(23, 59, 59, 999);
     return commissions.filter(c => {
       const t = c.updatedAt || c.createdAt;
-      return t >= s && t <= e;
+      return t >= dateRange.start && t <= dateRange.end;
     });
-  }, [commissions, start, end]);
+  }, [commissions, dateRange]);
 
   const reportData = useMemo(() => {
     const stats = {};
@@ -705,6 +736,7 @@ function ReportsView({ commissions, applications, ownerId }) {
       
       if (!stats[key]) {
         stats[key] = {
+          id: p?.id || key,
           name: key,
           role: p?.role || '-',
           location: p?.district ? `${p.district}, ${p.state || ''}` : p?.city || '-',
@@ -723,6 +755,35 @@ function ReportsView({ commissions, applications, ownerId }) {
     return Object.values(stats).sort((a, b) => b.revenue - a.revenue);
   }, [filteredComms, applications, groupBy]);
 
+  const tops = useMemo(() => {
+    const retailers = reportData.filter(r => r.role === 'Retailer').sort((a, b) => b.revenue - a.revenue);
+    const distributors = reportData.filter(r => r.role === 'Distributor').sort((a, b) => b.revenue - a.revenue);
+    
+    // For top location, we need to recalculate grouped by location regardless of 'groupBy' state
+    const locStats = {};
+    filteredComms.forEach(c => {
+      const p = applications.find(a => a.id === c.partnerId);
+      const loc = p?.district || p?.city || 'Unknown';
+      if (!locStats[loc]) locStats[loc] = 0;
+      locStats[loc] += (c.invoiceTotal || (c.commissionPct > 0 ? (c.amount / (c.commissionPct / 100)) : (c.amount * 10)));
+    });
+    const topLoc = Object.entries(locStats).sort((a, b) => b[1] - a[1])[0];
+
+    return {
+      retailer: retailers[0],
+      distributor: distributors[0],
+      location: topLoc ? { name: topLoc[0], revenue: topLoc[1] } : null
+    };
+  }, [reportData, filteredComms, applications]);
+
+  const totals = useMemo(() => {
+    return reportData.reduce((acc, curr) => ({
+      revenue: acc.revenue + curr.revenue,
+      earnings: acc.earnings + curr.earnings,
+      count: acc.count + curr.count
+    }), { revenue: 0, earnings: 0, count: 0 });
+  }, [reportData]);
+
   const exportCSV = () => {
     const headers = groupBy === 'Partner' 
       ? ['Partner Name', 'Role', 'Location', 'Total Business (₹)', 'Earnings (₹)', 'Orders']
@@ -738,85 +799,110 @@ function ReportsView({ commissions, applications, ownerId }) {
     const link = document.createElement("a");
     const url = URL.createObjectURL(blob);
     link.setAttribute("href", url);
-    link.setAttribute("download", `Partner_Performance_${start}_to_${end}.csv`);
+    link.setAttribute("download", `Partner_Performance_${filter}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const totals = useMemo(() => {
-    return reportData.reduce((acc, curr) => ({
-      revenue: acc.revenue + curr.revenue,
-      earnings: acc.earnings + curr.earnings,
-      count: acc.count + curr.count
-    }), { revenue: 0, earnings: 0, count: 0 });
-  }, [reportData]);
-
   return (
-    <div style={{ padding: '20px 0' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 25, gap: 15, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 15 }}>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Start Date</label>
-            <input type="date" value={start} onChange={e => setStart(e.target.value)} style={{ padding: '6px 10px', fontSize: 13 }} />
-          </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>End Date</label>
-            <input type="date" value={end} onChange={e => setEnd(e.target.value)} style={{ padding: '6px 10px', fontSize: 13 }} />
-          </div>
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ fontSize: 11, color: 'var(--muted)', textTransform: 'uppercase' }}>Group By</label>
-            <select value={groupBy} onChange={e => setGroupBy(e.target.value)} style={{ padding: '6px 10px', fontSize: 13 }}>
-              <option value="Partner">Partner Name</option>
-              <option value="Location">Location (District)</option>
-            </select>
+    <div className="reports-container">
+      <div className="sh" style={{ marginBottom: 25 }}>
+        <div>
+          <h2 style={{ fontSize: 24, margin: 0, fontWeight: 700 }}>Distribution Performance</h2>
+          <div className="sub" style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>Track business growth across your partner network</div>
+        </div>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button className="btn btn-secondary btn-sm" onClick={exportCSV}>
+             📥 Export CSV
+          </button>
+          <div className="tabs" style={{ marginBottom: 0, border: 'none' }}>
+            {DATE_FILTERS.map(f => (
+              <div 
+                key={f} 
+                className={`tab ${filter === f ? 'active' : ''}`} 
+                onClick={() => setFilter(f)}
+                style={{ padding: '6px 12px', fontSize: 12 }}
+              >
+                {f}
+              </div>
+            ))}
           </div>
         </div>
-        <button className="btn btn-secondary btn-sm" onClick={exportCSV} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-           <span>📥</span> Export CSV
-        </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 20, marginBottom: 30 }}>
-         <div style={{ background: '#fff', padding: 20, borderRadius: 12, border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <div style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>Total Business</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent)' }}>₹{totals.revenue.toLocaleString()}</div>
-            <div style={{ fontSize: 11, color: '#16a34a', marginTop: 4 }}>Generated Revenue</div>
+      {filter === 'Custom' && (
+        <div style={{ display: 'flex', gap: 15, marginBottom: 20, background: '#f8fafc', padding: 15, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: 11 }}>Start Date</label>
+            <input type="date" value={customRange.start} onChange={e => setCustomRange(p => ({ ...p, start: e.target.value }))} style={{ fontSize: 13 }} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: 11 }}>End Date</label>
+            <input type="date" value={customRange.end} onChange={e => setCustomRange(p => ({ ...p, end: e.target.value }))} style={{ fontSize: 13 }} />
+          </div>
+        </div>
+      )}
+
+      {/* Summary Stats Grid */}
+      <div className="stat-grid" style={{ marginBottom: 30 }}>
+         <div className="stat-card sc-blue">
+            <div className="lbl">Total Business</div>
+            <div className="val">₹{totals.revenue.toLocaleString()}</div>
+            <div style={{ fontSize: 11, color: '#16a34a', marginTop: 4 }}>{totals.count} successful orders</div>
          </div>
-         <div style={{ background: '#fff', padding: 20, borderRadius: 12, border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <div style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>Total Earnings</div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: '#9333ea' }}>₹{totals.earnings.toLocaleString()}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Partner Commissions</div>
+         <div className="stat-card sc-green">
+            <div className="lbl">🏆 Top Retailer</div>
+            <div className="val" style={{ fontSize: 18, margin: '6px 0' }}>{tops.retailer ? tops.retailer.name : 'N/A'}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{tops.retailer ? `₹${tops.retailer.revenue.toLocaleString()} Revenue` : 'No data'}</div>
          </div>
-         <div style={{ background: '#fff', padding: 20, borderRadius: 12, border: '1px solid var(--border)', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
-            <div style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: 0.5 }}>Order Volume</div>
-            <div style={{ fontSize: 24, fontWeight: 800 }}>{totals.count}</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Successful Referrals</div>
+         <div className="stat-card sc-yellow">
+            <div className="lbl">🏆 Top Distributor</div>
+            <div className="val" style={{ fontSize: 18, margin: '6px 0' }}>{tops.distributor ? tops.distributor.name : 'N/A'}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{tops.distributor ? `₹${tops.distributor.revenue.toLocaleString()} Revenue` : 'No data'}</div>
          </div>
+         <div className="stat-card sc-teal">
+            <div className="lbl">📍 Top Location</div>
+            <div className="val" style={{ fontSize: 18, margin: '6px 0' }}>{tops.location ? tops.location.name : 'N/A'}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)' }}>{tops.location ? `₹${tops.location.revenue.toLocaleString()} Business` : 'No data'}</div>
+         </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 15 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--muted)' }}>List by</span>
+            <select value={groupBy} onChange={e => setGroupBy(e.target.value)} style={{ padding: '4px 10px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 6 }}>
+              <option value="Partner">Individual Partners</option>
+              <option value="Location">Geographic Districts</option>
+            </select>
+          </div>
       </div>
 
       <div style={{ background: '#fff', borderRadius: 12, border: '1px solid var(--border)', overflow: 'hidden' }}>
-        <table style={{ margin: 0 }}>
+        <table style={{ margin: 0 }} className="perf-table">
           <thead>
-            <tr style={{ background: '#f8fafc' }}>
+            <tr>
               <th>{groupBy === 'Partner' ? 'Partner Name' : 'District / City'}</th>
               {groupBy === 'Partner' && <th>Role</th>}
               {groupBy === 'Partner' && <th>Location</th>}
-              <th style={{ textAlign: 'right' }}>Business (₹)</th>
+              <th style={{ textAlign: 'right' }}>Total Business (₹)</th>
               <th style={{ textAlign: 'right' }}>Earnings (₹)</th>
               <th style={{ textAlign: 'right' }}>Volume</th>
             </tr>
           </thead>
           <tbody>
             {reportData.length === 0 ? (
-              <tr><td colSpan={6} style={{ textAlign: 'center', padding: 40, color: 'var(--muted)' }}>No data found for the selected period.</td></tr>
+              <tr><td colSpan={6} style={{ textAlign: 'center', padding: 60, color: 'var(--muted)' }}>No performance data found for {filter.toLowerCase()}.</td></tr>
             ) : reportData.map((r, i) => (
-              <tr key={i}>
-                <td style={{ fontWeight: 600 }}>{r.name}</td>
+              <tr key={i} style={{ background: i === 0 ? '#f0f9ff' : 'inherit' }}>
+                <td style={{ fontWeight: 600 }}>
+                    {i === 0 && <span style={{ marginRight: 6 }}>🏆</span>}
+                    {r.name}
+                </td>
                 {groupBy === 'Partner' && (
                   <>
-                    <td><span className="badge" style={{ background: r.role === 'Distributor' ? '#ede9fe' : '#e0f2fe', color: r.role === 'Distributor' ? '#6d28d9' : '#0369a1' }}>{r.role}</span></td>
+                    <td><span className="badge" style={{ background: r.role === 'Distributor' ? '#ede9fe' : '#eff6ff', color: r.role === 'Distributor' ? '#6d28d9' : '#1e40af' }}>{r.role}</span></td>
                     <td style={{ fontSize: 12, color: 'var(--muted)' }}>{r.location}</td>
                   </>
                 )}
@@ -861,7 +947,7 @@ function PayoutsView({ commissions, applications, search, ownerId, user, toast }
           updatedAt: Date.now()
         })
       );
-      // Batch execute in 25s
+      // Batch execute
       for (let i = 0; i < txs.length; i += 25) {
         await db.transact(txs.slice(i, i + 25));
       }
@@ -873,7 +959,7 @@ function PayoutsView({ commissions, applications, search, ownerId, user, toast }
   };
 
   const toggleSelect = (id, stat) => {
-    if (stat !== 'Pending Payout') return; // only allow paying ones that are ready
+    if (stat !== 'Pending Payout') return; 
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -889,52 +975,54 @@ function PayoutsView({ commissions, applications, search, ownerId, user, toast }
           <button className="btn btn-sm" style={{ background: '#16a34a', color: '#fff' }} onClick={handleMarkPaid}>💸 Mark as Paid</button>
         </div>
       )}
-      <table>
-        <thead>
-          <tr>
-            <th style={{ width: 40 }}></th>
-            <th>Updated</th>
-            <th>Partner</th>
-            <th>Invoice</th>
-            <th>Client</th>
-            <th>Amount Earned</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {records.length === 0 ? (
-            <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No commissions recorded yet.</td></tr>
-          ) : records.map(c => (
-            <tr key={c.id}>
-              <td>
-                <input 
-                  type="checkbox" 
-                  checked={selectedIds.has(c.id)} 
-                  onChange={() => toggleSelect(c.id, c.status)} 
-                  disabled={c.status !== 'Pending Payout'} 
-                />
-              </td>
-              <td style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtD(c.updatedAt || c.createdAt)}</td>
-              <td>
-                <div style={{ fontWeight: 600 }}>{c.partnerName}</div>
-                <div style={{ fontSize: 11, color: 'var(--muted)' }}>{c.partnerCompany}</div>
-              </td>
-              <td><span className="badge bg-gray">{c.invoiceNo}</span></td>
-              <td style={{ fontSize: 13 }}>{c.clientName}</td>
-              <td style={{ fontWeight: 700 }}>₹{(c.amount || 0).toLocaleString()}</td>
-              <td>
-                {c.status === 'Paid' ? (
-                  <span className="badge bg-green">Paid</span>
-                ) : c.status === 'Pending Payout' ? (
-                  <span className="badge" style={{ background: '#fef08a', color: '#854d0e' }}>Ready to Pay</span>
-                ) : (
-                  <span className="badge bg-gray" title="Waiting for client to pay the invoice">Awaiting Client Val</span>
-                )}
-              </td>
+      <div className="tw-scroll" style={{ padding: 0 }}>
+        <table style={{ margin: 0 }}>
+          <thead>
+            <tr>
+              <th style={{ width: 40 }}></th>
+              <th>Updated</th>
+              <th>Partner</th>
+              <th>Invoice</th>
+              <th>Client</th>
+              <th>Amount Earned</th>
+              <th>Status</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {records.length === 0 ? (
+              <tr><td colSpan={7} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No commissions recorded yet.</td></tr>
+            ) : records.map(c => (
+              <tr key={c.id}>
+                <td>
+                  <input 
+                    type="checkbox" 
+                    checked={selectedIds.has(c.id)} 
+                    onChange={() => toggleSelect(c.id, c.status)} 
+                    disabled={c.status !== 'Pending Payout'} 
+                  />
+                </td>
+                <td style={{ fontSize: 12, color: 'var(--muted)' }}>{fmtD(c.updatedAt || c.createdAt)}</td>
+                <td>
+                  <div style={{ fontWeight: 600 }}>{c.partnerName}</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{c.partnerCompany}</div>
+                </td>
+                <td><span className="badge bg-gray">{c.invoiceNo}</span></td>
+                <td style={{ fontSize: 13 }}>{c.clientName}</td>
+                <td style={{ fontWeight: 700 }}>₹{(c.amount || 0).toLocaleString()}</td>
+                <td>
+                  {c.status === 'Paid' ? (
+                    <span className="badge bg-green">Paid</span>
+                  ) : c.status === 'Pending Payout' ? (
+                    <span className="badge" style={{ background: '#fef08a', color: '#854d0e' }}>Ready to Pay</span>
+                  ) : (
+                    <span className="badge bg-gray" title="Waiting for client to pay the invoice">Awaiting Client Val</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </>
   );
 }
@@ -946,34 +1034,36 @@ function ProductsView({ products, search }) {
   }, [products, search]);
 
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>Product Name</th>
-          <th>Category</th>
-          <th>Stock</th>
-          <th>Price Setting</th>
-          <th>Visibility</th>
-        </tr>
-      </thead>
-      <tbody>
-        {partnerProducts.length === 0 ? (
-          <tr><td colSpan={5} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No products listed for partners.</td></tr>
-        ) : partnerProducts.map(p => (
-          <tr key={p.id}>
-            <td style={{ fontWeight: 600 }}>{p.name}</td>
-            <td>{p.category || '-'}</td>
-            <td>{p.trackStock ? p.stock : 'N/A'}</td>
-            <td>Hidden (Commission based)</td>
-            <td><span className="badge bg-green">Visible in Portal</span></td>
+    <div className="tw-scroll" style={{ padding: 0 }}>
+      <table style={{ margin: 0 }}>
+        <thead>
+          <tr>
+            <th>Product Name</th>
+            <th>Category</th>
+            <th>Stock</th>
+            <th>Price Setting</th>
+            <th>Visibility</th>
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {partnerProducts.length === 0 ? (
+            <tr><td colSpan={5} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No products listed for partners.</td></tr>
+          ) : partnerProducts.map(p => (
+            <tr key={p.id}>
+              <td style={{ fontWeight: 600 }}>{p.name}</td>
+              <td>{p.category || '-'}</td>
+              <td>{p.trackStock ? p.stock : 'N/A'}</td>
+              <td>Hidden (Commission based)</td>
+              <td><span className="badge bg-green">Visible in Portal</span></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
-function HierarchyView({ availableDistributors, ownerId, user, toast, profile }) {
+function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, user, toast, profile }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(profile?.partnerPageSize || 25);
   const [editingRetailer, setEditingRetailer] = useState(null);
@@ -982,26 +1072,13 @@ function HierarchyView({ availableDistributors, ownerId, user, toast, profile })
   const [saving, setSaving] = useState(false);
   const [colModal, setColModal] = useState(false);
 
-  // DB-side pagination query
-  const { data, isLoading } = db.useQuery({
-    partnerApplications: {
-      $: {
-        where: { userId: ownerId, status: 'Approved' },
-        limit: pageSize === 'all' ? undefined : pageSize,
-        offset: pageSize === 'all' ? 0 : (currentPage - 1) * pageSize,
-      }
-    },
-    // Also fetch all approved partners just to get total count and name mappings
-    // (Since InstantDB doesn't have a count-only query yet, this is the most reliable way)
-    allApproved: {
-      $: { where: { userId: ownerId, status: 'Approved' } }
-    }
-  });
-
-  const partners = data?.partnerApplications || [];
-  const allApproved = data?.allApproved || [];
-  const totalCount = allApproved.length;
+  const totalCount = allApprovedPartners.length;
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(totalCount / pageSize);
+
+  const partners = useMemo(() => {
+    if (pageSize === 'all') return allApprovedPartners;
+    return allApprovedPartners.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  }, [allApprovedPartners, currentPage, pageSize]);
 
   const savedCols = profile?.partnerCols;
   const allPossibleCols = ['Name', 'Role', 'Parent', 'Phone', 'Email', 'Commission', 'Company', 'Address'];
@@ -1013,7 +1090,7 @@ function HierarchyView({ availableDistributors, ownerId, user, toast, profile })
   const getParentName = (p) => {
     if (p.role === 'Distributor') return 'Company';
     if (!p.parentDistributorId) return 'Direct';
-    const parent = allApproved.find(d => d.id === p.parentDistributorId);
+    const parent = allApprovedPartners.find(d => d.id === p.parentDistributorId);
     return parent ? parent.name : 'Unknown';
   };
 
@@ -1026,8 +1103,8 @@ function HierarchyView({ availableDistributors, ownerId, user, toast, profile })
     if (!editingRetailer) return;
     setSaving(true);
     try {
-      const oldParent = allApproved.find(d => d.id === editingRetailer.parentDistributorId);
-      const newParent = allApproved.find(d => d.id === newParentId);
+      const oldParent = allApprovedPartners.find(d => d.id === editingRetailer.parentDistributorId);
+      const newParent = allApprovedPartners.find(d => d.id === newParentId);
       await db.transact(
         db.tx.partnerApplications[editingRetailer.id].update({
           parentDistributorId: newParentId || null
@@ -1060,8 +1137,6 @@ function HierarchyView({ availableDistributors, ownerId, user, toast, profile })
       toast('Error saving config: ' + err.message, 'error');
     }
   };
-
-  if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading network data...</div>;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1271,7 +1346,7 @@ function HierarchyView({ availableDistributors, ownerId, user, toast, profile })
                   ))}
                 </select>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>
-                  Current: <strong>{allApproved.find(d => d.id === editingRetailer.parentDistributorId)?.name || 'Direct (no parent)'}</strong>
+                  Current: <strong>{allApprovedPartners.find(d => d.id === editingRetailer.parentDistributorId)?.name || 'Direct (no parent)'}</strong>
                 </div>
               </div>
 
@@ -1294,7 +1369,7 @@ function HierarchyView({ availableDistributors, ownerId, user, toast, profile })
           user={user} 
           toast={toast}
           profile={profile}
-          allApproved={allApproved}
+          allApproved={allApprovedPartners}
         />
       )}
     </div>
