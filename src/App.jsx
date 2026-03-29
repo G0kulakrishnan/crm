@@ -95,22 +95,47 @@ function AppInner() {
     return <AuthScreen settings={settings} />;
   }
 
-  try {
-    const partnerStr = localStorage.getItem('tc_channel_partner');
-    if (partnerStr) {
-      const partnerInfo = JSON.parse(partnerStr);
-      if (partnerInfo?.isPartner) {
-        return (
-          <ErrorBoundary>
-            <AppProvider user={user}>
-              <PartnerApp user={user} settings={settings} partnerInfo={partnerInfo} />
-            </AppProvider>
-          </ErrorBoundary>
-        );
-      }
-    }
-  } catch (e) {
-    console.error('Failed to parse partner info from localStorage', e);
+  const storedPartner = localStorage.getItem('tc_channel_partner');
+  
+  const partnerQuery = (!storedPartner && user?.email) 
+    ? { partnerApplications: { $: { where: { email: String(user.email).toLowerCase(), status: 'Approved' }, limit: 1 } } }
+    : null;
+    
+  const { data: partnerData, isLoading: partnerLoading } = db.useQuery(partnerQuery);
+  const isDiscoveringPartner = !!partnerQuery && partnerLoading;
+
+  if (isDiscoveringPartner) {
+    return (
+      <div className="loading-screen">
+        <div className="logo">{settings.brandShort || 'T2G'}</div>
+        <div className="spinner" />
+        <p>Discovering account type...</p>
+      </div>
+    );
+  }
+
+  let finalPartnerInfo = null;
+  if (storedPartner) {
+    try { finalPartnerInfo = JSON.parse(storedPartner); } catch(e) {}
+  } else if (partnerData?.partnerApplications?.[0]) {
+    const p = partnerData.partnerApplications[0];
+    finalPartnerInfo = {
+      isPartner: true,
+      ownerUserId: p.userId,
+      partnerId: p.id,
+      role: p.role
+    };
+    localStorage.setItem('tc_channel_partner', JSON.stringify(finalPartnerInfo));
+  }
+
+  if (finalPartnerInfo?.isPartner) {
+    return (
+      <ErrorBoundary>
+        <AppProvider user={user}>
+          <PartnerApp user={user} settings={settings} partnerInfo={finalPartnerInfo} />
+        </AppProvider>
+      </ErrorBoundary>
+    );
   }
 
   return (
