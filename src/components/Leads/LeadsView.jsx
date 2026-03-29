@@ -564,7 +564,10 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         email: l.email || '',
         phone: l.phone || '',
         userId: ownerId,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        partnerId: l.partnerId || '',
+        distributorId: l.distributorId || '',
+        retailerId: l.retailerId || ''
       };
       // Assuming 'lMatch' refers to 'l' from the function parameter, and 'data' is available in scope.
       // If 'data' is not available, this will cause a runtime error.

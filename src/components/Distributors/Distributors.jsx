@@ -147,6 +147,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
   // Dynamic terminology
   const dAlias = profile?.distributorAlias || 'Distributor';
   const rAlias = profile?.retailerAlias || 'Retailer';
+  const roleDisplay = (role) => role === 'Distributor' ? dAlias : role === 'Retailer' ? rAlias : role;
 
   // Requirements from profile
   const DEFAULT_REQUIREMENTS = ['Solar Rooftop', 'Home Automation', 'Electrical Services'];
@@ -321,7 +322,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
                     <td style={{ fontSize: 12 }}>{fmtD(a.appliedAt)}</td>
                     <td style={{ fontWeight: 600 }}>{a.name}</td>
                     <td>{a.companyName || '-'}</td>
-                    <td><span className="badge" style={{ background: a.role === 'Distributor' ? '#ede9fe' : '#e0f2fe', color: a.role === 'Distributor' ? '#6d28d9' : '#0369a1' }}>{a.role}</span></td>
+                    <td><span className="badge" style={{ background: a.role === 'Distributor' ? '#ede9fe' : '#e0f2fe', color: a.role === 'Distributor' ? '#6d28d9' : '#0369a1' }}>{roleDisplay(a.role)}</span></td>
                     <td style={{ fontSize: 13, fontWeight: 600, color: a.role === 'Distributor' ? '#6366f1' : 'inherit' }}>
                       {a.role === 'Distributor' ? 'Company' : 
                        a.parentDistributorId ? 
@@ -788,7 +789,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 20, alignItems: 'center' }}>
                 <div>
                    <h2 style={{ margin: 0 }}>{detailsModal.name}</h2>
-                   <div className="badge" style={{ background: detailsModal.role === 'Distributor' ? '#ede9fe' : '#e0f2fe', color: detailsModal.role === 'Distributor' ? '#6d28d9' : '#0369a1', marginTop: 8 }}>{detailsModal.role}</div>
+                   <div className="badge" style={{ background: detailsModal.role === 'Distributor' ? '#ede9fe' : '#e0f2fe', color: detailsModal.role === 'Distributor' ? '#6d28d9' : '#0369a1', marginTop: 8 }}>{roleDisplay(detailsModal.role)}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                    <div style={{ fontSize: 13, color: 'var(--muted)' }}>Status</div>
@@ -1126,12 +1127,12 @@ function ReportsView({ commissions, applications, ownerId }) {
           <div className="sub">{totals.count} successful orders</div>
         </div>
         <div className="stat-card sc-green">
-          <div className="lbl">🏆 Top Retailer</div>
+          <div className="lbl">🏆 Top {rAlias}</div>
           <div className="val" style={{ fontSize: 16 }}>{tops.retailer ? tops.retailer.name : 'N/A'}</div>
           <div className="sub">{tops.retailer ? `₹${tops.retailer.revenue.toLocaleString()} Revenue` : 'No data'}</div>
         </div>
         <div className="stat-card sc-yellow">
-          <div className="lbl">🏆 Top Distributor</div>
+          <div className="lbl">🏆 Top {dAlias}</div>
           <div className="val" style={{ fontSize: 16 }}>{tops.distributor ? tops.distributor.name : 'N/A'}</div>
           <div className="sub">{tops.distributor ? `₹${tops.distributor.revenue.toLocaleString()} Revenue` : 'No data'}</div>
         </div>
@@ -1153,11 +1154,11 @@ function ReportsView({ commissions, applications, ownerId }) {
               <tr>
                 <th>{groupBy === 'Partner' ? 'Partner Name' : 'District / City'}</th>
                 {groupBy === 'Partner' && <th>Role</th>}
-                {groupBy === 'Partner' && <th>Parent Distributor</th>}
+                {groupBy === 'Partner' && <th>Parent {dAlias}</th>}
                 {groupBy === 'Partner' && <th>Location</th>}
                 <th style={{ textAlign: 'right' }}>Total Business (₹)</th>
-                {groupBy === 'Partner' && <th style={{ textAlign: 'right' }}>Retailer Earnings (₹)</th>}
-                {groupBy === 'Partner' && <th style={{ textAlign: 'right' }}>Distributor Earnings (₹)</th>}
+                {groupBy === 'Partner' && <th style={{ textAlign: 'right' }}>{rAlias} Earnings (₹)</th>}
+                {groupBy === 'Partner' && <th style={{ textAlign: 'right' }}>{dAlias} Earnings (₹)</th>}
                 {groupBy !== 'Partner' && <th style={{ textAlign: 'right' }}>Earnings (₹)</th>}
                 <th style={{ textAlign: 'right' }}>Volume</th>
               </tr>
@@ -1173,7 +1174,7 @@ function ReportsView({ commissions, applications, ownerId }) {
                   </td>
                   {groupBy === 'Partner' && (
                     <>
-                      <td><span className="badge" style={{ background: r.role === 'Distributor' ? '#ede9fe' : '#eff6ff', color: r.role === 'Distributor' ? '#6d28d9' : '#1e40af' }}>{r.role}</span></td>
+                      <td><span className="badge" style={{ background: r.role === 'Distributor' ? '#ede9fe' : '#eff6ff', color: r.role === 'Distributor' ? '#6d28d9' : '#1e40af' }}>{roleDisplay(r.role)}</span></td>
                       <td style={{ fontSize: 13, color: 'var(--text)' }}>
                         {r.parentName !== '-' ? (
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1677,6 +1678,9 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
   const [partnerDetailsId, setPartnerDetailsId] = useState(null);
   const [newParentId, setNewParentId] = useState('');
   const [newCompanyName, setNewCompanyName] = useState('');
+  const dAlias = profile?.distributorAlias || 'Distributor';
+  const rAlias = profile?.retailerAlias || 'Retailer';
+  const roleDisplay = (role) => role === 'Distributor' ? dAlias : role === 'Retailer' ? rAlias : role;
   const [newPhone, setNewPhone] = useState('');
   const [newEmail, setNewEmail] = useState('');
   const [newCommission, setNewCommission] = useState(0);
@@ -1832,7 +1836,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
   };
 
   const exportMapping = () => {
-    const headers = ['Name', 'Role', 'Company', 'Parent Distributor', 'Commission (%)', 'Retailer Commission (%)', 'Phone', 'Email', 'Village', 'City', 'District'];
+    const headers = ['Name', 'Role', 'Company', `Parent ${dAlias}`, 'Commission (%)', `${rAlias} Commission (%)`, 'Phone', 'Email', 'Village', 'City', 'District'];
     const rows = searchedPartners.map(p => [
       p.name,
       p.role,
@@ -1958,7 +1962,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
                         background: p.role === 'Distributor' ? '#ede9fe' : '#eff6ff', 
                         color: p.role === 'Distributor' ? '#6d28d9' : '#1e40af' 
                     }}>
-                        {p.role}
+                        {roleDisplay(p.role)}
                     </span>
                   </td>
                 )}
@@ -2135,7 +2139,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
                 <div className="fgrid">
                   {editingPartner.role === 'Retailer' && (
                     <div className="form-group">
-                      <label>Parent Distributor</label>
+                      <label>Parent {dAlias}</label>
                       <select
                         value={newParentId}
                         onChange={e => setNewParentId(e.target.value)}
@@ -2193,6 +2197,9 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
 
 function PartnerDetailsModal({ partnerId, onClose, onSelectPartner, ownerId, user, toast, profile, allApproved, globalLeads, globalCustomers }) {
   const [tab, setTab] = useState('Overview');
+  const dAlias = profile?.distributorAlias || 'Distributor';
+  const rAlias = profile?.retailerAlias || 'Retailer';
+  const roleDisplay = (role) => role === 'Distributor' ? dAlias : role === 'Retailer' ? rAlias : role;
   
   const { data, isLoading } = db.useQuery({
     partnerApplications: { $: { where: { or: [{ id: partnerId }, { parentDistributorId: partnerId }] } } },
@@ -2244,7 +2251,7 @@ function PartnerDetailsModal({ partnerId, onClose, onSelectPartner, ownerId, use
               <div style={{ fontSize: 12, color: 'var(--muted)', display: 'flex', gap: 10, alignItems: 'center' }}>
                 <span>{partner.companyName || 'Independant'}</span>
                 <span>•</span>
-                <span className="badge" style={{ padding: '0 6px', background: 'var(--surface)', fontSize: 10 }}>{partner.role}</span>
+                <span className="badge" style={{ padding: '0 6px', background: 'var(--surface)', fontSize: 10 }}>{roleDisplay(partner.role)}</span>
               </div>
               <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                 {partner.phone && (
@@ -2272,7 +2279,7 @@ function PartnerDetailsModal({ partnerId, onClose, onSelectPartner, ownerId, use
         </div>
 
         <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', background: 'var(--bg-soft)', padding: '0 20px' }}>
-           {['Overview', 'Payouts', 'Customers', ...(partner.role === 'Distributor' ? ['Retailers'] : []), 'Profile'].map(t => (
+           {['Overview', 'Payouts', 'Customers', ...(partner.role === 'Distributor' ? [`${rAlias}s`] : []), 'Profile'].map(t => (
              <button 
                key={t} 
                onClick={() => setTab(t)}
@@ -2300,11 +2307,11 @@ function PartnerDetailsModal({ partnerId, onClose, onSelectPartner, ownerId, use
                   <div className="stat-card sc-yellow"><div className="lbl">Pending Payout</div><div className="val">₹{pendingAmount.toLocaleString()}</div></div>
                   <div className="stat-card sc-green"><div className="lbl">Customers</div><div className="val">{leads.length + customers.length}</div></div>
                   {partner.role === 'Distributor' && (
-                    <div className="stat-card sc-purple"><div className="lbl">Retailers</div><div className="val">{subPartners.length}</div></div>
+                    <div className="stat-card sc-purple"><div className="lbl">{rAlias}s</div><div className="val">{subPartners.length}</div></div>
                   )}
                   {parentDist && (
                     <div className="stat-card sc-purple" onClick={() => onSelectPartner?.(parentDist.id)} style={{ cursor: 'pointer' }}>
-                        <div className="lbl">Assigned Distributor</div>
+                        <div className="lbl">Assigned {dAlias}</div>
                         <div className="val">{parentDist.name}</div>
                     </div>
                   )}
@@ -2425,7 +2432,7 @@ function PartnerDetailsModal({ partnerId, onClose, onSelectPartner, ownerId, use
             </div>
           )}
 
-          {tab === 'Retailers' && partner.role === 'Distributor' && (
+          {(tab === `${rAlias}s`) && partner.role === 'Distributor' && (
             <div className="tw" style={{ padding: 0 }}>
                <div className="tw-head"><h3>Associated Retailers</h3></div>
                <div className="tw-scroll">
@@ -2443,7 +2450,7 @@ function PartnerDetailsModal({ partnerId, onClose, onSelectPartner, ownerId, use
                     </thead>
                     <tbody>
                        {subPartners.length === 0 ? (
-                         <tr><td colSpan={7} style={{ textAlign: 'center', padding: 30, color: 'var(--muted)' }}>No retailers found under this distributor.</td></tr>
+                         <tr><td colSpan={7} style={{ textAlign: 'center', padding: 30, color: 'var(--muted)' }}>No {rAlias.toLowerCase()}s found under this {dAlias.toLowerCase()}.</td></tr>
                        ) : subPartners.map((sp, idx) => (
                          <tr key={sp.id}>
                            <td style={{ fontSize: 13 }}>{fmtD(sp.approvedAt || sp.appliedAt)}</td>
@@ -2474,7 +2481,7 @@ function PartnerDetailsModal({ partnerId, onClose, onSelectPartner, ownerId, use
                      <div><label style={{ fontSize: 11, color: 'var(--muted)' }}>Tax ID / GSTIN</label><div>{partner.taxId || '-'}</div></div>
                      {parentDist && (
                         <div>
-                           <label style={{ fontSize: 11, color: 'var(--muted)' }}>Assigned Distributor</label>
+                           <label style={{ fontSize: 11, color: 'var(--muted)' }}>Assigned {dAlias}</label>
                            <div style={{ color: 'var(--accent)', cursor: 'pointer', fontWeight: 600, textDecoration: 'underline' }} onClick={() => onSelectPartner?.(parentDist.id)}>{parentDist.name} ({parentDist.companyName || 'Independent'})</div>
                         </div>
                      )}

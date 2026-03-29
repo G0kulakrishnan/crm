@@ -1,19 +1,33 @@
 import React, { useState, useMemo } from 'react';
 import db from '../../instant';
+import { id } from '@instantdb/react';
 import { fmtD, stageBadgeClass } from '../../utils/helpers';
 
 export default function MessagingLogs({ user, ownerId }) {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('today');
   const [viewMessage, setViewMessage] = useState(null);
+  const [page, setPage] = useState(0);
+  const PAGE_SIZE = 50;
 
   const { data, isLoading } = db.useQuery({
     outbox: { $: { where: { userId: ownerId } } },
   });
 
-  const logs = data?.outbox || [];
+  const allLogs = data?.outbox || [];
+
+  // Only keep last 30 days for display
+  const thirtyDaysAgo = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  }, []);
+
+  const logs = useMemo(() => allLogs.filter(l => (l.sentAt || 0) >= thirtyDaysAgo), [allLogs, thirtyDaysAgo]);
+  const oldLogs = useMemo(() => allLogs.filter(l => (l.sentAt || 0) < thirtyDaysAgo), [allLogs, thirtyDaysAgo]);
 
   const filtered = useMemo(() => {
     return logs
@@ -31,16 +45,25 @@ export default function MessagingLogs({ user, ownerId }) {
         today.setHours(0, 0, 0, 0);
         const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
+        const weekAgo = new Date(today);
+        weekAgo.setDate(weekAgo.getDate() - 7);
         const monthAgo = new Date(today);
         monthAgo.setMonth(monthAgo.getMonth() - 1);
         
         if (dateFilter === 'today') return sentDate >= today;
         if (dateFilter === 'yesterday') return sentDate >= yesterday && sentDate < today;
+        if (dateFilter === 'week') return sentDate >= weekAgo;
         if (dateFilter === 'month') return sentDate >= monthAgo;
         return true;
       })
       .sort((a, b) => (b.sentAt || 0) - (a.sentAt || 0));
   }, [logs, typeFilter, statusFilter, dateFilter, search]);
+
+  const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
+  const paged = filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  // Reset page on filter change
+  useMemo(() => setPage(0), [typeFilter, statusFilter, dateFilter, search]);
 
   const stats = useMemo(() => {
     return {
@@ -51,6 +74,21 @@ export default function MessagingLogs({ user, ownerId }) {
     };
   }, [logs]);
 
+  const handleDeleteOldLogs = async () => {
+    if (oldLogs.length === 0) return;
+    if (!confirm(`Permanently delete ${oldLogs.length} logs older than 30 days? This will improve performance.`)) return;
+    try {
+      const batchSize = 50;
+      for (let i = 0; i < oldLogs.length; i += batchSize) {
+        const batch = oldLogs.slice(i, i + batchSize);
+        await db.transact(batch.map(l => db.tx.outbox[l.id].delete()));
+      }
+      alert(`Deleted ${oldLogs.length} old logs successfully.`);
+    } catch (e) {
+      alert('Error deleting old logs: ' + e.message);
+    }
+  };
+
   if (isLoading) return <div className="loading-screen"><div className="spinner" /></div>;
 
   return (
@@ -60,11 +98,16 @@ export default function MessagingLogs({ user, ownerId }) {
           <h2>Messaging Logs</h2>
           <div className="sub">Track all outgoing emails and WhatsApp messages</div>
         </div>
+        {oldLogs.length > 0 && (
+          <button className="btn btn-secondary btn-sm" style={{ color: '#dc2626' }} onClick={handleDeleteOldLogs}>
+            🗑 Delete {oldLogs.length} Old Logs (&gt;30 days)
+          </button>
+        )}
       </div>
 
       <div className="stat-grid" style={{ marginBottom: 25 }}>
         <div className="stat-card sc-blue">
-          <div className="lbl">Total Messages</div>
+          <div className="lbl">Last 30 Days</div>
           <div className="val">{stats.total}</div>
         </div>
         <div className="stat-card sc-purple">
@@ -83,17 +126,18 @@ export default function MessagingLogs({ user, ownerId }) {
 
       <div className="tw">
         <div className="tw-head">
-          <h3>Activity History</h3>
+          <h3>Activity History ({filtered.length})</h3>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <div className="sw">
               <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
               <input className="si" placeholder="Search logs..." value={search} onChange={e => setSearch(e.target.value)} />
             </div>
             <select className="si" style={{ width: 130 }} value={dateFilter} onChange={e => setDateFilter(e.target.value)}>
-              <option value="">All Time</option>
               <option value="today">Today</option>
               <option value="yesterday">Yesterday</option>
-              <option value="month">Last 1 Month</option>
+              <option value="week">Last 7 Days</option>
+              <option value="month">Last 30 Days</option>
+              <option value="">All</option>
             </select>
             <select className="si" style={{ width: 130 }} value={typeFilter} onChange={e => setTypeFilter(e.target.value)}>
               <option value="">All Types</option>
@@ -121,10 +165,10 @@ export default function MessagingLogs({ user, ownerId }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No messaging logs found</td></tr>
+              {paged.length === 0 ? (
+                <tr><td colSpan={6} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No messaging logs found for this filter</td></tr>
               ) : (
-                filtered.map((l) => (
+                paged.map((l) => (
                   <tr key={l.id}>
                     <td>
                       <div style={{ fontWeight: 600 }}>{l.recipient}</div>
@@ -152,6 +196,20 @@ export default function MessagingLogs({ user, ownerId }) {
             </tbody>
           </table>
         </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderTop: '1px solid var(--border)', fontSize: 13 }}>
+            <span style={{ color: 'var(--muted)' }}>
+              Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length}
+            </span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button className="btn btn-secondary btn-sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>← Prev</button>
+              <span style={{ padding: '4px 10px', fontSize: 13, fontWeight: 600 }}>{page + 1} / {totalPages}</span>
+              <button className="btn btn-secondary btn-sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>Next →</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {viewMessage && (

@@ -516,6 +516,25 @@ function ProfileSettingsView({ ownerId, partnerId }) {
     e.preventDefault();
     setSaving(true);
     try {
+      // Build field-level diff for activity log
+      const fieldLabels = {
+        companyName: 'Company Name', village: 'Village', city: 'City',
+        district: 'District', pincode: 'Pincode', state: 'State',
+        address: 'Address', taxId: 'Tax ID'
+      };
+      const changes = [];
+      Object.entries(fieldLabels).forEach(([key, label]) => {
+        const oldVal = (partner[key] || '').trim();
+        const newVal = (form[key] || '').trim();
+        if (oldVal !== newVal) {
+          changes.push(`${label}: "${oldVal || '—'}" → "${newVal || '—'}"`);
+        }
+      });
+
+      const logText = changes.length > 0
+        ? `Profile updated by partner: ${changes.join(', ')}`
+        : 'Profile updated by partner (no field changes detected)';
+
       await db.transact(
         db.tx.partnerApplications[partnerId].update({
           ...form,
@@ -524,7 +543,7 @@ function ProfileSettingsView({ ownerId, partnerId }) {
         db.tx.activityLogs[db.id()].update({
           entityId: partnerId,
           entityType: 'partner',
-          text: `Profile updated by partner`,
+          text: logText,
           userId: ownerId,
           createdAt: Date.now()
         })

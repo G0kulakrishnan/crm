@@ -246,7 +246,8 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
         }));
       } else if (payload.status === 'Paid' || payload.status === 'Partially Paid') {
         txs.push(db.tx.customers[id()].update({
-          name: lMatch.name, companyName: lMatch.companyName || '', email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
+          name: lMatch.name, companyName: lMatch.companyName || '', email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now(),
+          partnerId: lMatch.partnerId || '', distributorId: lMatch.distributorId || payload.distributorId || '', retailerId: lMatch.retailerId || payload.retailerId || ''
         }));
         txs.push(db.tx.leads[lMatch.id].update({ 
            stage: wonStage,
@@ -477,7 +478,8 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
       const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (payModal.client || '').trim().toLowerCase() && l.stage !== wonStage);
       if (lMatch) {
          txs.push(db.tx.customers[id()].update({
-            name: lMatch.name, companyName: lMatch.companyName || '', email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now()
+            name: lMatch.name, companyName: lMatch.companyName || '', email: lMatch.email || '', phone: lMatch.phone || '', userId: ownerId, actorId: user.id, createdAt: Date.now(),
+            partnerId: lMatch.partnerId || payModal.distributorId || '', distributorId: lMatch.distributorId || payModal.distributorId || '', retailerId: lMatch.retailerId || payModal.retailerId || ''
          }));
          txs.push(db.tx.leads[lMatch.id].update({ 
             stage: wonStage,
