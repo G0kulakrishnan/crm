@@ -149,25 +149,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       setSmtpPass(profile.smtpPass || '');
       setWaApiToken(profile.waApiToken || '');
       setWaPhoneId(profile.waPhoneId || '');
-      const templates = profile.whatsappTemplates || [];
-      if (templates.length === 0) {
-        // Auto-load defaults if none exist
-        const defaults = [
-          { id: 'tpl_welcome', name: 'Welcome Message', templateId: 'welcome_msg_01', body: 'Hi {client}, welcome to {bizname}! We are delighted to have you with us.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'bizname' }] },
-          { id: 'tpl_order_received', name: 'Order Received', templateId: 'order_rec_01', body: 'Hi {client}, we have received your order! Order ID: {orderid}. Amount: {amt}. Status: {status}.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'orderid' }, { index: 3, name: 'amt' }, { index: 4, name: 'status' }] },
-          { id: 'tpl_order_conf', name: 'Order Confirmed', templateId: 'order_conf_01', body: 'Great news {client}! Your order #{orderid} for {product} has been confirmed.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'orderid' }, { index: 3, name: 'product' }] },
-          { id: 'tpl_order_del', name: 'Order Delivered', templateId: 'order_del_01', body: 'Hi {client}, your order #{orderid} has been delivered. We hope you enjoy it!', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'orderid' }] },
-          { id: 'tpl_invoice', name: 'Invoice Notification', templateId: 'invoice_notify_01', body: 'Hello {client}, Thank you for your order with TechToGrow! Your Invoice No : {invoiceno} Amount Rupees.{amt}/- is attached below.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'invoiceno' }, { index: 3, name: 'amt' }] },
-          { id: 'tpl_appt_booking', name: 'Appointment Confirmed', templateId: 'appt_conf_01', body: 'Hi {client}, your appointment for {service} on {apptdate} at {appttime} is confirmed.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'service' }, { index: 3, name: 'apptdate' }, { index: 4, name: 'appttime' }] },
-          { id: 'tpl_appt_rem', name: 'Appointment Reminder', templateId: 'appt_rem_01', body: 'Reminder: Hi {client}, you have an appointment for {service} today at {appttime}.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'service' }, { index: 3, name: 'appttime' }] },
-          { id: 'tpl_amc_rem', name: 'AMC Upcoming Renewal', templateId: 'amc_rem_01', body: 'Dear {client}, your AMC for {service} (Contract: {contractno}) is expiring on {expirydate}.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'service' }, { index: 3, name: 'contractno' }, { index: 4, name: 'expirydate' }] },
-          { id: 'tpl_lead_won', name: 'Lead Won / Onboarding', templateId: 'lead_onboard_01', body: 'Hi {client}! Welcome aboard! Your status is now {stage}.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'stage' }] },
-          { id: 'tpl_payment_rec', name: 'Payment Received', templateId: 'payment_rec_01', body: 'Hi {client}, we received your payment of {amt} for order #{orderid}.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'amt' }, { index: 3, name: 'orderid' }] }
-        ];
-        setWhatsappTemplates(defaults);
-      } else {
-        setWhatsappTemplates(templates);
-      }
+      setWhatsappTemplates(profile.whatsappTemplates || []);
       setReminders(profile.reminders || {
         amc: { days: 30, msg: 'Hello {client}, your AMC contract is expiring on {date}. Please contact us for renewal.' },
         followup: { days: 1, msg: 'Reminder: Follow-up with {client} is scheduled for {date}.' }
@@ -489,22 +471,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     }
   };
 
-  const loadDefaultWATemplates = () => {
-    const defaults = [
-      { id: 'tpl_welcome', name: 'Welcome Message', templateId: 'welcome_msg_01', body: 'Hi {client}, welcome to {bizname}! We are delighted to have you with us.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'bizname' }] },
-      { id: 'tpl_order_received', name: 'Order Received', templateId: 'order_received_02', body: 'Hi {client}, your order #{orderid} for {product} has been received and is being processed.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'orderid' }, { index: 3, name: 'product' }] },
-      { id: 'tpl_order_confirmed', name: 'Order Confirmed', templateId: 'order_confirmed_02', body: 'Hi {client}, your order #{orderid} is confirmed! Total: {amt}. Thank you!', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'orderid' }, { index: 3, name: 'amt' }] },
-      { id: 'tpl_order_delivery', name: 'Order Out for Delivery', templateId: 'order_delivery_01', body: 'Great news {client}! Your order #{orderid} is out for delivery and will reach you soon.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'orderid' }] },
-      { id: 'tpl_invoice', name: 'Invoice Notification', templateId: 'invoice_notify_01', body: 'Hello {client}, Thank you for your order with TechToGrow! Your Invoice No : {invoiceno} Amount Rupees.{amt}/- is attached below.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'invoiceno' }, { index: 3, name: 'amt' }] },
-      { id: 'tpl_appt_booking', name: 'Appointment Confirmed', templateId: 'appt_conf_01', body: 'Hi {client}, your appointment for {service} on {apptdate} at {appttime} is confirmed. See you soon!', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'service' }, { index: 3, name: 'apptdate' }, { index: 4, name: 'appttime' }] },
-      { id: 'tpl_appt_rem', name: 'Appointment Reminder', templateId: 'appt_rem_01', body: 'Reminder: Hi {client}, you have an appointment for {service} today at {appttime}. Please let us know if you need to reschedule.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'service' }, { index: 3, name: 'appttime' }] },
-      { id: 'tpl_amc_rem', name: 'AMC Upcoming Renewal', templateId: 'amc_rem_01', body: 'Dear {client}, your AMC for {service} (Contract: {contractno}) is expiring on {expirydate}. Please renew to avoid service interruption.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'service' }, { index: 3, name: 'contractno' }, { index: 4, name: 'expirydate' }] },
-      { id: 'tpl_lead_won', name: 'Lead Won / Onboarding', templateId: 'lead_onboard_01', body: 'Hi {client}! We are excited to start working with you. Your status has been updated to {stage}. Welcome aboard!', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'stage' }] },
-      { id: 'tpl_payment_rec', name: 'Payment Received', templateId: 'payment_rec_01', body: 'Hi {client}, we have received your payment of {amt} for order #{orderid}. Thank you for your business!', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'amt' }, { index: 3, name: 'orderid' }] }
-    ];
-    setWhatsappTemplates(defaults);
-    toast(`Loaded ${defaults.length} default templates. Click "Save All" to persist.`, 'success');
-  };
+
 
   const testWA = async () => {
     if (!waApiToken || !waPhoneId) return toast('Please save WhatsApp settings first', 'error');
@@ -1399,8 +1366,10 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
 
                   {/* ── Curl Preview (only when editing) ── */}
                   {editingWA && (() => {
-                    const editCurl = buildCurl(editingWA);
-                    const isCustomCurl = !!editingWA.customCurl;
+                    // Find the current template from state to get latest customCurl
+                    const currentTpl = whatsappTemplates.find(tpl => tpl.id === editingWA.id) || editingWA;
+                    const editCurl = buildCurl(currentTpl);
+                    const isCustomCurl = !!currentTpl.customCurl;
                     return (
                       <div style={{ marginTop: 16 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
