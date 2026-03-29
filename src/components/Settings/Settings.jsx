@@ -153,15 +153,16 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
       if (templates.length === 0) {
         // Auto-load defaults if none exist
         const defaults = [
-          { id: 'tpl_welcome', name: 'Welcome Message', templateId: 'welcome_msg_01', body: 'Hi {{1}}, welcome to {{2}}! We are delighted to have you with us.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'slug' }] },
-          { id: 'tpl_order_received', name: 'Order Received', templateId: 'order_rec_01', body: 'Hi {{1}}, we have received your order! Order ID: {{2}}. Amount: {{3}}. Status: {{4}}.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'orderId' }, { index: 3, field: 'orderAmount' }, { index: 4, field: 'orderStatus' }] },
-          { id: 'tpl_order_conf', name: 'Order Confirmed', templateId: 'order_conf_01', body: 'Great news {{1}}! Your order #{{2}} for {{3}} has been confirmed.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'orderId' }, { index: 3, field: 'service' }] },
-          { id: 'tpl_order_del', name: 'Order Delivered', templateId: 'order_del_01', body: 'Hi {{1}}, your order #{{2}} has been delivered. We hope you enjoy it!', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'orderId' }] },
-          { id: 'tpl_appt_booking', name: 'Appointment Confirmed', templateId: 'appt_conf_01', body: 'Hi {{1}}, your appointment for {{2}} on {{3}} at {{4}} is confirmed.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'apptDate' }, { index: 4, field: 'apptTime' }] },
-          { id: 'tpl_appt_rem', name: 'Appointment Reminder', templateId: 'appt_rem_01', body: 'Reminder: Hi {{1}}, you have an appointment for {{2}} today at {{3}}.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'apptTime' }] },
-          { id: 'tpl_amc_rem', name: 'AMC Upcoming Renewal', templateId: 'amc_rem_01', body: 'Dear {{1}}, your AMC for {{2}} (Contract: {{3}}) is expiring on {{4}}.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'contractNo' }, { index: 4, field: 'date' }] },
-          { id: 'tpl_lead_won', name: 'Lead Won / Onboarding', templateId: 'lead_onboard_01', body: 'Hi {{1}}! Welcome aboard! Your status is now {{2}}.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'stage' }] },
-          { id: 'tpl_payment_rec', name: 'Payment Received', templateId: 'payment_rec_01', body: 'Hi {{1}}, we received your payment of {{2}} for order #{{3}}.', variables: [{ index: 1, field: 'name' }, { index: 2, field: 'amount' }, { index: 3, field: 'orderId' }] }
+          { id: 'tpl_welcome', name: 'Welcome Message', templateId: 'welcome_msg_01', body: 'Hi [client], welcome to [bizname]! We are delighted to have you with us.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'bizname' }] },
+          { id: 'tpl_order_received', name: 'Order Received', templateId: 'order_rec_01', body: 'Hi [client], we have received your order! Order ID: [orderid]. Amount: [amt]. Status: [status].', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'orderid' }, { index: 3, name: 'amt' }, { index: 4, name: 'status' }] },
+          { id: 'tpl_order_conf', name: 'Order Confirmed', templateId: 'order_conf_01', body: 'Great news [client]! Your order #[orderid] for [product] has been confirmed.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'orderid' }, { index: 3, name: 'product' }] },
+          { id: 'tpl_order_del', name: 'Order Delivered', templateId: 'order_del_01', body: 'Hi [client], your order #[orderid] has been delivered. We hope you enjoy it!', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'orderid' }] },
+          { id: 'tpl_invoice', name: 'Invoice Notification', templateId: 'invoice_notify_01', body: 'Hello [client], Thank you for your order with TechToGrow! Your Invoice No : [invoiceno] Amount Rupees.[amt]/- is attached below.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'invoiceno' }, { index: 3, name: 'amt' }] },
+          { id: 'tpl_appt_booking', name: 'Appointment Confirmed', templateId: 'appt_conf_01', body: 'Hi [client], your appointment for [service] on [apptdate] at [appttime] is confirmed.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'service' }, { index: 3, name: 'apptdate' }, { index: 4, name: 'appttime' }] },
+          { id: 'tpl_appt_rem', name: 'Appointment Reminder', templateId: 'appt_rem_01', body: 'Reminder: Hi [client], you have an appointment for [service] today at [appttime].', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'service' }, { index: 3, name: 'appttime' }] },
+          { id: 'tpl_amc_rem', name: 'AMC Upcoming Renewal', templateId: 'amc_rem_01', body: 'Dear [client], your AMC for [service] (Contract: [contractno]) is expiring on [expirydate].', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'service' }, { index: 3, name: 'contractno' }, { index: 4, name: 'expirydate' }] },
+          { id: 'tpl_lead_won', name: 'Lead Won / Onboarding', templateId: 'lead_onboard_01', body: 'Hi [client]! Welcome aboard! Your status is now [stage].', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'stage' }] },
+          { id: 'tpl_payment_rec', name: 'Payment Received', templateId: 'payment_rec_01', body: 'Hi [client], we received your payment of [amt] for order #[orderid].', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'amt' }, { index: 3, name: 'orderid' }] }
         ];
         setWhatsappTemplates(defaults);
       } else {
@@ -490,69 +491,16 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
 
   const loadDefaultWATemplates = () => {
     const defaults = [
-      {
-        id: 'tpl_welcome',
-        name: 'Welcome Message',
-        templateId: 'welcome_msg_01',
-        body: 'Hi {{1}}, welcome to {{2}}! We are delighted to have you with us.',
-        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'slug' }]
-      },
-      {
-        id: 'tpl_order_received',
-        name: 'Order Received',
-        templateId: 'order_received_02',
-        body: 'Hi {{1}}, your order #{{2}} for {{3}} has been received and is being processed.',
-        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'orderId' }, { index: 3, field: 'service' }]
-      },
-      {
-        id: 'tpl_order_confirmed',
-        name: 'Order Confirmed',
-        templateId: 'order_confirmed_02',
-        body: 'Hi {{1}}, your order #{{2}} is confirmed! Total: {{3}}. Thank you!',
-        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'orderId' }, { index: 3, field: 'orderAmount' }]
-      },
-      {
-        id: 'tpl_order_delivery',
-        name: 'Order Out for Delivery',
-        templateId: 'order_delivery_01',
-        body: 'Great news {{1}}! Your order #{{2}} is out for delivery and will reach you soon.',
-        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'orderId' }]
-      },
-      {
-        id: 'tpl_appt_booking',
-        name: 'Appointment Confirmed',
-        templateId: 'appt_conf_01',
-        body: 'Hi {{1}}, your appointment for {{2}} on {{3}} at {{4}} is confirmed. See you soon!',
-        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'apptDate' }, { index: 4, field: 'apptTime' }]
-      },
-      {
-        id: 'tpl_appt_rem',
-        name: 'Appointment Reminder',
-        templateId: 'appt_rem_01',
-        body: 'Reminder: Hi {{1}}, you have an appointment for {{2}} today at {{3}}. Please let us know if you need to reschedule.',
-        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'apptTime' }]
-      },
-      {
-        id: 'tpl_amc_rem',
-        name: 'AMC Upcoming Renewal',
-        templateId: 'amc_rem_01',
-        body: 'Dear {{1}}, your AMC for {{2}} (Contract: {{3}}) is expiring on {{4}}. Please renew to avoid service interruption.',
-        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'service' }, { index: 3, field: 'contractNo' }, { index: 4, field: 'date' }]
-      },
-      {
-        id: 'tpl_lead_won',
-        name: 'Lead Won / Onboarding',
-        templateId: 'lead_onboard_01',
-        body: 'Hi {{1}}! We are excited to start working with you. Your status has been updated to {{2}}. Welcome aboard!',
-        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'stage' }]
-      },
-      {
-        id: 'tpl_payment_rec',
-        name: 'Payment Received',
-        templateId: 'payment_rec_01',
-        body: 'Hi {{1}}, we have received your payment of {{2}} for order #{{3}}. Thank you for your business!',
-        variables: [{ index: 1, field: 'name' }, { index: 2, field: 'amount' }, { index: 3, field: 'orderId' }]
-      }
+      { id: 'tpl_welcome', name: 'Welcome Message', templateId: 'welcome_msg_01', body: 'Hi [client], welcome to [bizname]! We are delighted to have you with us.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'bizname' }] },
+      { id: 'tpl_order_received', name: 'Order Received', templateId: 'order_received_02', body: 'Hi [client], your order #[orderid] for [product] has been received and is being processed.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'orderid' }, { index: 3, name: 'product' }] },
+      { id: 'tpl_order_confirmed', name: 'Order Confirmed', templateId: 'order_confirmed_02', body: 'Hi [client], your order #[orderid] is confirmed! Total: [amt]. Thank you!', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'orderid' }, { index: 3, name: 'amt' }] },
+      { id: 'tpl_order_delivery', name: 'Order Out for Delivery', templateId: 'order_delivery_01', body: 'Great news [client]! Your order #[orderid] is out for delivery and will reach you soon.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'orderid' }] },
+      { id: 'tpl_invoice', name: 'Invoice Notification', templateId: 'invoice_notify_01', body: 'Hello [client], Thank you for your order with TechToGrow! Your Invoice No : [invoiceno] Amount Rupees.[amt]/- is attached below.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'invoiceno' }, { index: 3, name: 'amt' }] },
+      { id: 'tpl_appt_booking', name: 'Appointment Confirmed', templateId: 'appt_conf_01', body: 'Hi [client], your appointment for [service] on [apptdate] at [appttime] is confirmed. See you soon!', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'service' }, { index: 3, name: 'apptdate' }, { index: 4, name: 'appttime' }] },
+      { id: 'tpl_appt_rem', name: 'Appointment Reminder', templateId: 'appt_rem_01', body: 'Reminder: Hi [client], you have an appointment for [service] today at [appttime]. Please let us know if you need to reschedule.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'service' }, { index: 3, name: 'appttime' }] },
+      { id: 'tpl_amc_rem', name: 'AMC Upcoming Renewal', templateId: 'amc_rem_01', body: 'Dear [client], your AMC for [service] (Contract: [contractno]) is expiring on [expirydate]. Please renew to avoid service interruption.', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'service' }, { index: 3, name: 'contractno' }, { index: 4, name: 'expirydate' }] },
+      { id: 'tpl_lead_won', name: 'Lead Won / Onboarding', templateId: 'lead_onboard_01', body: 'Hi [client]! We are excited to start working with you. Your status has been updated to [stage]. Welcome aboard!', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'stage' }] },
+      { id: 'tpl_payment_rec', name: 'Payment Received', templateId: 'payment_rec_01', body: 'Hi [client], we have received your payment of [amt] for order #[orderid]. Thank you for your business!', variables: [{ index: 1, name: 'client' }, { index: 2, name: 'amt' }, { index: 3, name: 'orderid' }] }
     ];
     setWhatsappTemplates(defaults);
     toast(`Loaded ${defaults.length} default templates. Click "Save All" to persist.`, 'success');
@@ -1319,7 +1267,31 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
             </div>
           )}
 
-          {active === 'WhatsApp Templates' && (
+          {active === 'WhatsApp Templates' && (() => {
+            // Helper: extract [variable] placeholders from template body
+            const extractVars = (body) => {
+              const matches = body?.match(/\[([^\]]+)\]/g) || [];
+              return matches.map((m, i) => ({ index: i + 1, name: m.replace(/[\[\]]/g, ''), raw: m }));
+            };
+
+            // Helper: generate curl command for a template
+            const buildCurl = (t) => {
+              const vars = extractVars(t.body);
+              const lines = [
+                `curl -X POST \\`,
+                `https://portal.waprochat.in/api/v1/whatsapp/send/template \\`,
+                `-d "apiToken=${waApiToken || 'xxxxx'}" \\`,
+                `-d "phone_number_id=${waPhoneId || 'xxxxxx'}" \\`,
+                `-d "template_id=${t.templateId || '[template-id]'}" \\`,
+              ];
+              vars.forEach(v => {
+                lines.push(`-d "templateVariable-${v.name}-${v.index}=[${v.name}]" \\`);
+              });
+              lines.push(`-d "phone_number=[phone]"`);
+              return lines.join('\n');
+            };
+
+            return (
             <div className="tw">
               <div className="tw-head">
                 <h3>WhatsApp Templates</h3>
@@ -1328,137 +1300,177 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                 </div>
               </div>
               <div style={{ padding: '20px' }}>
-                <div className="sub" style={{ marginBottom: 20 }}>Manage your WhatsApp templates and map system fields to template variables.</div>
+                <div className="sub" style={{ marginBottom: 20 }}>
+                  Create WhatsApp message templates with <code>[variable]</code> placeholders. The curl command is auto-generated based on variables in your template.
+                </div>
 
+                {/* ── How it works ── */}
+                <div style={{ marginBottom: 24, padding: 14, background: '#f0f9ff', borderRadius: 10, border: '1px solid #bae6fd', fontSize: 12, color: '#0369a1', lineHeight: 1.6 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>💡 How it works</div>
+                  <div>1. Create your template in <strong>WhatsApp Manager (Meta)</strong> with numbered variables like <code>{'{{1}}'}</code>, <code>{'{{2}}'}</code>, etc.</div>
+                  <div>2. Add the template here with the <strong>same message</strong> but use <code>[variable-name]</code> instead of numbers.</div>
+                  <div>3. The CRM auto-generates the curl command. Variable order in the message = variable number in the API call.</div>
+                  <div style={{ marginTop: 6, color: '#1e40af', fontWeight: 600 }}>
+                    Example: <code>Hello [client], Invoice [invoiceno] for Rs.[amt]/-</code> → <code>client=1, invoiceno=2, amt=3</code>
+                  </div>
+                </div>
+
+                {/* ── Add / Edit Template Form ── */}
                 <div style={{ marginBottom: 24, padding: 16, background: 'var(--bg-soft)', borderRadius: 12, border: '1px solid var(--border)' }}>
-                  <h4 style={{ marginBottom: 12 }}>Add New Template</h4>
+                  <h4 style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {editingWA ? '✏️ Edit Template' : '➕ Add New Template'}
+                  </h4>
                   <div className="fgrid">
-                    <div className="fg"><label>Template Name</label><input placeholder="e.g. Order Confirmation" id="new_wa_name" /></div>
-                    <div className="fg"><label>Waprochat Template ID</label><input placeholder="e.g. 329129" id="new_wa_id" /></div>
-                    <div className="fg span2"><label>Message Body (for reference)</label><textarea placeholder="Hi {{1}}, your order for {{2}} is confirmed!" id="new_wa_body" style={{ minHeight: 60 }} /></div>
+                    <div className="fg"><label>Template Name *</label><input placeholder="e.g. Invoice Notification" id="new_wa_name" /></div>
+                    <div className="fg"><label>Waprochat Template ID *</label><input placeholder="e.g. invoice_notify_01" id="new_wa_id" /></div>
                     <div className="fg span2">
-                      <label>Variable Mapping {'{{1}}, {{2}}, ...'}</label>
-                      <div id="new_wa_vars" style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
-                        {[1, 2, 3, 4, 5].map(i => (
-                          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, backgroundColor: '#fff', padding: '4px 10px', borderRadius: 8, border: '1px solid var(--border)' }}>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)' }}>{'{{' + i + '}}'}</span>
-                            <select id={`wa_var_${i}`} style={{ fontSize: 11, padding: '2px 4px', border: 'none', backgroundColor: 'transparent' }}>
-                              <option value="">None</option>
-                              <option value="name">Customer Name</option>
-                              <option value="service">Service/Product</option>
-                              <option value="date">Date/Time (General)</option>
-                              <option value="amount">Amount (Total/General)</option>
-                              <option value="orderId">Order # / ID</option>
-                              <option value="slug">Business Name</option>
-                              <option value="stage">Lead Stage</option>
-                              <option value="apptDate">Appt Date</option>
-                              <option value="apptTime">Appt Time</option>
-                              <option value="contractNo">AMC Contract #</option>
-                              <option value="orderStatus">Order Status</option>
-                              <option value="orderAmount">Order Amount</option>
-                            </select>
-                          </div>
-                        ))}
+                      <label>Template Message (use <code>[variable]</code> for dynamic values)</label>
+                      <textarea 
+                        placeholder="Hello [client], Thank you for your order with TechToGrow! Your Invoice No : [invoiceno] Amount Rupees.[amt]/- is attached below." 
+                        id="new_wa_body" 
+                        style={{ minHeight: 80, lineHeight: 1.6 }} 
+                      />
+                      <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 6 }}>
+                        Wrap variable names in square brackets like <code>[client]</code>, <code>[invoiceno]</code>, <code>[amt]</code>. 
+                        Each unique <code>[variable]</code> is automatically mapped to a numbered position in the curl command.
                       </div>
                     </div>
                   </div>
-                  <button className="btn btn-primary" style={{ marginTop: 16 }} onClick={() => {
-                    const name = document.getElementById('new_wa_name').value;
-                    const templateId = document.getElementById('new_wa_id').value;
-                    const body = document.getElementById('new_wa_body').value;
-                    if (!name || !templateId) return toast('Name and Template ID required', 'error');
 
-                    const variables = [];
-                    for(let i=1; i<=5; i++) {
-                      const field = document.getElementById(`wa_var_${i}`).value;
-                      if (field) variables.push({ index: i, field });
-                    }
+                  {/* Live preview of extracted variables */}
+                  {(() => {
+                    const bodyEl = typeof document !== 'undefined' ? document.getElementById('new_wa_body') : null;
+                    return null; // Preview updates are shown after adding
+                  })()}
 
-                    if (editingWA) {
-                      setWhatsappTemplates(whatsappTemplates.map(t => 
-                        t.id === editingWA.id ? { ...t, name, templateId, body, variables } : t
-                      ));
+                  <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+                    <button className="btn btn-primary" onClick={() => {
+                      const name = document.getElementById('new_wa_name').value;
+                      const templateId = document.getElementById('new_wa_id').value;
+                      const body = document.getElementById('new_wa_body').value;
+                      if (!name || !templateId) return toast('Name and Template ID required', 'error');
+                      if (!body.trim()) return toast('Template message body is required', 'error');
+
+                      const vars = extractVars(body);
+
+                      if (editingWA) {
+                        setWhatsappTemplates(whatsappTemplates.map(t => 
+                          t.id === editingWA.id ? { ...t, name, templateId, body, variables: vars } : t
+                        ));
+                        setEditingWA(null);
+                        toast('Template updated locally. Click "Save All Templates" to persist.', 'success');
+                      } else {
+                        setWhatsappTemplates([...whatsappTemplates, { id: id(), name, templateId, body, variables: vars }]);
+                        toast('Template added locally. Click "Save All Templates" to persist.', 'info');
+                      }
+                      
+                      document.getElementById('new_wa_name').value = '';
+                      document.getElementById('new_wa_id').value = '';
+                      document.getElementById('new_wa_body').value = '';
+                    }}>{editingWA ? 'Update Template' : 'Add Template'}</button>
+                    {editingWA && <button className="btn btn-secondary" onClick={() => {
                       setEditingWA(null);
-                      toast('Template updated locally.', 'success');
-                    } else {
-                      setWhatsappTemplates([...whatsappTemplates, { id: id(), name, templateId, body, variables }]);
-                      toast('Template added locally.', 'info');
-                    }
-                    
-                    document.getElementById('new_wa_name').value = '';
-                    document.getElementById('new_wa_id').value = '';
-                    document.getElementById('new_wa_body').value = '';
-                    [1,2,3,4,5].forEach(i => document.getElementById(`wa_var_${i}`).value = '');
-                  }}>{editingWA ? 'Update Template' : 'Add Template'}</button>
-                  {editingWA && <button className="btn btn-secondary" style={{ marginTop: 16, marginLeft: 10 }} onClick={() => {
-                    setEditingWA(null);
-                    document.getElementById('new_wa_name').value = '';
-                    document.getElementById('new_wa_id').value = '';
-                    document.getElementById('new_wa_body').value = '';
-                    [1,2,3,4,5].forEach(i => document.getElementById(`wa_var_${i}`).value = '');
-                  }}>Cancel Edit</button>}
+                      document.getElementById('new_wa_name').value = '';
+                      document.getElementById('new_wa_id').value = '';
+                      document.getElementById('new_wa_body').value = '';
+                    }}>Cancel Edit</button>}
+                  </div>
                 </div>
 
-                <div className="tw-scroll">
-                  <table style={{ background: 'var(--bg)', borderRadius: 12, overflow: 'hidden' }}>
-                    <thead style={{ background: 'var(--bg-soft)' }}>
-                      <tr>
-                        <th>Template Name</th>
-                        <th>Template ID</th>
-                        <th>Mapping</th>
-                        <th style={{ textAlign: 'right' }}>Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {whatsappTemplates.length === 0 ? (
-                        <tr><td colSpan={4} style={{ textAlign: 'center', padding: 20, color: 'var(--muted)' }}>No templates added yet.</td></tr>
-                      ) : (
-                        whatsappTemplates.map((t, idx) => (
-                          <tr key={t.id}>
-                            <td style={{ verticalAlign: 'top' }}>
-                              <div style={{ fontWeight: 700 }}>{t.name}</div>
-                              <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4, whiteSpace: 'pre-wrap', maxWidth: 200 }}>{t.body}</div>
-                            </td>
-                            <td style={{ verticalAlign: 'top' }}><code>{t.templateId}</code></td>
-                            <td style={{ verticalAlign: 'top' }}>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                                {t.variables.map(v => (
-                                  <div key={v.index} style={{ fontSize: 11 }}>
-                                    <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{`{{${v.index}}}`}</span> → {v.field}
-                                  </div>
-                                ))}
+                {/* ── Template Cards ── */}
+                {whatsappTemplates.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: 40, color: 'var(--muted)', background: 'var(--bg-soft)', borderRadius: 12, border: '1.5px dashed var(--border)' }}>
+                    <div style={{ fontSize: 28, marginBottom: 8 }}>💬</div>
+                    <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}>No WhatsApp templates yet</div>
+                    <div style={{ fontSize: 12 }}>Add your first template above to get started.</div>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {whatsappTemplates.map((t, idx) => {
+                      const vars = extractVars(t.body);
+                      const curl = buildCurl(t);
+                      return (
+                        <div key={t.id} style={{ border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', background: 'var(--surface)' }}>
+                          {/* Header */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: 'var(--bg-soft)', borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <span style={{ fontSize: 18 }}>💬</span>
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: 14 }}>{t.name}</div>
+                                <div style={{ fontSize: 11, color: 'var(--muted)' }}>Template ID: <code style={{ background: '#e0f2fe', color: '#0369a1', padding: '1px 6px', borderRadius: 4 }}>{t.templateId}</code></div>
                               </div>
-                            </td>
-                            <td style={{ textAlign: 'right', verticalAlign: 'top' }}>
-                              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-                                <button className="btn-icon" onClick={() => {
-                                  setEditingWA(t);
-                                  document.getElementById('new_wa_name').value = t.name;
-                                  document.getElementById('new_wa_id').value = t.templateId;
-                                  document.getElementById('new_wa_body').value = t.body;
-                                  [1,2,3,4,5].forEach(i => {
-                                    const v = t.variables.find(v => v.index === i);
-                                    document.getElementById(`wa_var_${i}`).value = v ? v.field : '';
-                                  });
-                                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                                }}>✏️</button>
-                                <button className="btn-icon" style={{ color: '#ef4444' }} onClick={() => {
-                                  if (window.confirm('Delete this template?')) {
-                                    setWhatsappTemplates(whatsappTemplates.filter((_, i) => i !== idx));
-                                    if (editingWA?.id === t.id) setEditingWA(null);
-                                  }
-                                }}>🗑</button>
+                            </div>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button className="btn btn-secondary btn-sm" style={{ fontSize: 11 }} onClick={() => {
+                                setEditingWA(t);
+                                document.getElementById('new_wa_name').value = t.name;
+                                document.getElementById('new_wa_id').value = t.templateId;
+                                document.getElementById('new_wa_body').value = t.body;
+                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                              }}>✏️ Edit</button>
+                              <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', fontSize: 11 }} onClick={() => {
+                                if (window.confirm('Delete this template?')) {
+                                  setWhatsappTemplates(whatsappTemplates.filter((_, i) => i !== idx));
+                                  if (editingWA?.id === t.id) setEditingWA(null);
+                                }
+                              }}>🗑 Delete</button>
+                            </div>
+                          </div>
+
+                          <div style={{ padding: 16 }}>
+                            {/* Template Message Preview */}
+                            <div style={{ marginBottom: 14 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 6 }}>📝 Template Message</div>
+                              <div style={{ padding: '12px 14px', background: '#dcfce7', borderRadius: 10, fontSize: 13, lineHeight: 1.6, color: '#14532d', border: '1px solid #86efac', whiteSpace: 'pre-wrap' }}>
+                                {t.body?.replace(/\[([^\]]+)\]/g, (match) => `${match}`) || 'No message body'}
                               </div>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                              {vars.length > 0 && (
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                                  {vars.map(v => (
+                                    <span key={v.index} style={{ fontSize: 10, padding: '3px 8px', background: '#dbeafe', color: '#1e40af', borderRadius: 12, fontWeight: 600, border: '1px solid #93c5fd' }}>
+                                      Variable {v.index}: [{v.name}]
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Curl Command */}
+                            <div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase' }}>⚡ Curl Command</div>
+                                <button className="btn btn-sm" style={{ fontSize: 10, padding: '2px 8px', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }} onClick={() => {
+                                  navigator.clipboard.writeText(curl);
+                                  toast('Curl command copied to clipboard!', 'success');
+                                }}>📋 Copy</button>
+                              </div>
+                              <pre style={{ 
+                                padding: '12px 14px', 
+                                background: '#1e293b', 
+                                color: '#e2e8f0', 
+                                borderRadius: 10, 
+                                fontSize: 11, 
+                                lineHeight: 1.7, 
+                                overflow: 'auto', 
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-all',
+                                fontFamily: "'Fira Code', 'SF Mono', 'Consolas', monospace",
+                                margin: 0,
+                                border: '1px solid #334155'
+                              }}>
+                                {curl}
+                              </pre>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {active === 'Templates' && (
             <div className="tw">
