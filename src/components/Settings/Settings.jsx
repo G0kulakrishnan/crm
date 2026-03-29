@@ -1235,10 +1235,10 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
           )}
 
           {active === 'WhatsApp Templates' && (() => {
-            // Helper: extract {variable} placeholders from template body
+            // Helper: extract #variable# placeholders from template body
             const extractVars = (body) => {
-              const matches = body?.match(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g) || [];
-              return matches.map((m, i) => ({ index: i + 1, name: m.replace(/[{}]/g, ''), raw: m }));
+              const matches = body?.match(/#([a-zA-Z_][a-zA-Z0-9_]*)#/g) || [];
+              return matches.map((m, i) => ({ index: i + 1, name: m.replace(/#/g, ''), raw: m }));
             };
 
             const hasWACredentials = !!(waApiToken?.trim() && waPhoneId?.trim());
@@ -1255,9 +1255,9 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                 `-d "template_id=${t.templateId || '{template-id}'}" \\`,
               ];
               vars.forEach(v => {
-                lines.push(`-d "templateVariable-${v.name}-${v.index}={${v.name}}" \\`);
+                lines.push(`-d "templateVariable-${v.name}-${v.index}=#${v.name}#" \\`);
               });
-              lines.push(`-d "phone_number={phone}"`);
+              lines.push(`-d "phone_number=#phone#"`);
               return lines.join('\n');
             };
 
@@ -1275,7 +1275,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
               </div>
               <div style={{ padding: '20px' }}>
                 <div className="sub" style={{ marginBottom: 20 }}>
-                  Create WhatsApp message templates with <code>{'{variable}'}</code> placeholders. The curl command is auto-generated based on variables in your template.
+                  Create WhatsApp message templates with <code>#variable#</code> placeholders. The curl command is auto-generated based on variables in your template.
                 </div>
 
                 {/* ── WhatsApp API Credentials Status ── */}
@@ -1303,12 +1303,12 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                 {/* ── How it works ── */}
                 <div style={{ marginBottom: 24, padding: 14, background: '#f0f9ff', borderRadius: 10, border: '1px solid #bae6fd', fontSize: 12, color: '#0369a1', lineHeight: 1.6 }}>
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>💡 How it works</div>
-                  <div>1. Create your template in <strong>WhatsApp Manager (Meta)</strong> with numbered variables like <code>{'{{1}}'}</code>, <code>{'{{2}}'}</code>, etc.</div>
-                  <div>2. Add the template here with the <strong>same message</strong> but use <code>{'{variable_name}'}</code> instead of numbers.</div>
+                  <div>1. Create your template in <strong>Waprochat / Meta</strong> using <code>#variable#</code> format (same as here).</div>
+                  <div>2. Add the template here with the <strong>same message</strong> — use <code>#variable_name#</code> for dynamic values.</div>
                   <div>3. The CRM auto-generates the curl command using your <strong>API Token</strong> & <strong>Phone Number ID</strong> from WhatsApp settings.</div>
                   <div>4. Click <strong>Edit</strong> on any template to view and customize the curl command.</div>
                   <div style={{ marginTop: 6, color: '#1e40af', fontWeight: 600 }}>
-                    Example: <code>{'Hello {client}, Invoice {invoiceno} for Rs.{amt}/-'}</code> → <code>client=1, invoiceno=2, amt=3</code>
+                    Example: <code>Hello #client#, Invoice #invoiceno# for Rs.#amt#/-</code> → <code>client=1, invoiceno=2, amt=3</code>
                   </div>
                 </div>
 
@@ -1321,9 +1321,9 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                     <div className="fg"><label>Template Name *</label><input placeholder="e.g. Invoice Notification" id="new_wa_name" /></div>
                     <div className="fg"><label>Waprochat Template ID *</label><input placeholder="e.g. invoice_notify_01" id="new_wa_id" /></div>
                     <div className="fg span2">
-                      <label>Template Message (use <code>{'{variable}'}</code> for dynamic values)</label>
+                      <label>Template Message (use <code>#variable#</code> for dynamic values)</label>
                       <textarea 
-                        placeholder="Hello {client}, Thank you for your order with TechToGrow! Your Invoice No : {invoiceno} Amount Rupees.{amt}/- is attached below." 
+                        placeholder="Hello #User-Name#, Thank you for your order with TechToGrow! Your Invoice No : #invoiceno# Amount Rupees.#amt#/- is attached below." 
                         id="new_wa_body" 
                         style={{ minHeight: 80, lineHeight: 1.6 }} 
                       />
@@ -1331,24 +1331,24 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                         <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--muted)', marginBottom: 5, textTransform: 'uppercase' }}>Insert Variable</div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                           {[
-                            { var: '{client}', label: 'Client Name' },
-                            { var: '{email}', label: 'Email' },
-                            { var: '{phone}', label: 'Phone' },
-                            { var: '{stage}', label: 'Lead Stage' },
-                            { var: '{source}', label: 'Lead Source' },
-                            { var: '{assignee}', label: 'Assignee' },
-                            { var: '{followupDate}', label: 'Follow-up Date' },
-                            { var: '{bizName}', label: 'Business Name' },
-                            { var: '{date}', label: "Today's Date" },
-                            { var: '{amount}', label: 'Amount' },
-                            { var: '{contractNo}', label: 'Contract No.' },
-                            { var: '{apptDate}', label: 'Appt Date' },
-                            { var: '{apptTime}', label: 'Appt Time' },
-                            { var: '{service}', label: 'Service Name' },
-                            { var: '{orderId}', label: 'Order ID' },
-                            { var: '{orderStatus}', label: 'Order Status' },
-                            { var: '{orderAmount}', label: 'Order Total' },
-                            { var: '{invoiceno}', label: 'Invoice No' },
+                            { var: '#client#', label: 'Client Name' },
+                            { var: '#email#', label: 'Email' },
+                            { var: '#phone#', label: 'Phone' },
+                            { var: '#stage#', label: 'Lead Stage' },
+                            { var: '#source#', label: 'Lead Source' },
+                            { var: '#assignee#', label: 'Assignee' },
+                            { var: '#followupDate#', label: 'Follow-up Date' },
+                            { var: '#bizName#', label: 'Business Name' },
+                            { var: '#date#', label: "Today's Date" },
+                            { var: '#amount#', label: 'Amount' },
+                            { var: '#contractNo#', label: 'Contract No.' },
+                            { var: '#apptDate#', label: 'Appt Date' },
+                            { var: '#apptTime#', label: 'Appt Time' },
+                            { var: '#service#', label: 'Service Name' },
+                            { var: '#orderId#', label: 'Order ID' },
+                            { var: '#orderStatus#', label: 'Order Status' },
+                            { var: '#orderAmount#', label: 'Order Total' },
+                            { var: '#invoiceno#', label: 'Invoice No' },
                           ].map(v => (
                             <button key={v.var} onClick={() => {
                               const el = document.getElementById('new_wa_body');
@@ -1523,7 +1523,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                                 {vars.map(v => (
                                   <span key={v.index} style={{ fontSize: 10, padding: '3px 8px', background: '#dbeafe', color: '#1e40af', borderRadius: 12, fontWeight: 600, border: '1px solid #93c5fd' }}>
-                                    Variable {v.index}: {'{' + v.name + '}'}
+                                    Variable {v.index}: {'#' + v.name + '#'}
                                   </span>
                                 ))}
                               </div>
