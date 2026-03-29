@@ -441,7 +441,17 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     if (newVal !== null && newVal.trim() !== '' && newVal !== currentVal) {
       const newList = [...list];
       newList[idx] = newVal.trim();
-      saveList(key, newList);
+      // If renaming a requirement, also update partnerVisibleRequirements to keep the selection
+      if (key === 'requirements' && profileId) {
+        const currentVisible = data?.userProfiles?.[0]?.partnerVisibleRequirements || [];
+        const updatedVisible = currentVisible.map(r => r === currentVal ? newVal.trim() : r);
+        const payload = { requirements: newList, partnerVisibleRequirements: updatedVisible, userId: ownerId };
+        db.transact(db.tx.userProfiles[profileId].update(payload))
+          .then(() => toast('Saved!', 'success'))
+          .catch(e => toast('Save failed: ' + e.message, 'error'));
+      } else {
+        saveList(key, newList);
+      }
     }
   };
 
