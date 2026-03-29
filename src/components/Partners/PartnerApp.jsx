@@ -101,7 +101,8 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
   const products = data?.products || [];
   const ownerProfile = data?.userProfiles?.[0] || {};
   const partnerApp = data?.partnerApplications?.[0];
-  const visibleRequirements = ownerProfile?.partnerVisibleRequirements || [];
+  const allRequirements = ownerProfile?.requirements || [];
+  const visibleRequirements = (ownerProfile?.partnerVisibleRequirements || []).filter(r => allRequirements.includes(r));
   
   const handleToggleProduct = (pId) => {
     setSelectedProducts(prev => {

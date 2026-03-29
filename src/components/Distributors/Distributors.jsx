@@ -130,7 +130,8 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
           defaultRetailerCommission: parseFloat(settingsForm.defaultRetailerCommission) || 0,
           distributorAlias: (settingsForm.distributorAlias || '').trim() || null,
           retailerAlias: (settingsForm.retailerAlias || '').trim() || null,
-          partnerVisibleRequirements: settingsForm.partnerVisibleRequirements || [],
+          // Filter out any stale requirement names that no longer exist
+          partnerVisibleRequirements: (settingsForm.partnerVisibleRequirements || []).filter(r => allRequirements.includes(r)),
           partnerLeadSource: (settingsForm.partnerLeadSource || '').trim() || null
         })
       );
@@ -161,7 +162,8 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
       defaultRetailerCommission: profile?.defaultRetailerCommission || 0,
       distributorAlias: profile?.distributorAlias || '',
       retailerAlias: profile?.retailerAlias || '',
-      partnerVisibleRequirements: profile?.partnerVisibleRequirements || [],
+      // Filter out any stale requirement names that no longer exist in the current list
+      partnerVisibleRequirements: (profile?.partnerVisibleRequirements || []).filter(r => allRequirements.includes(r)),
       partnerLeadSource: profile?.partnerLeadSource || ''
     });
     setSettingsModal(true);
