@@ -1184,7 +1184,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                       type="password"
                       value={waApiToken}
                       onChange={e => setWaApiToken(e.target.value)}
-                      placeholder="e.g. 98745tokenkAWM9fev71ad4c47"
+                      placeholder="Paste your Waprochat API token here"
                     />
                   </div>
                   <div className="fg">
@@ -1192,7 +1192,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                     <input
                       value={waPhoneId}
                       onChange={e => setWaPhoneId(e.target.value)}
-                      placeholder="e.g. 667652836439455"
+                      placeholder="e.g. 1234567890123456"
                     />
                   </div>
                   <div className="fg">
@@ -1201,7 +1201,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                       <input
                         value={waTestNumber}
                         onChange={e => setWaTestNumber(e.target.value)}
-                        placeholder="+919876543210"
+                        placeholder="+91XXXXXXXXXX"
                         style={{ flex: 1 }}
                       />
                       <button className="btn btn-secondary btn-sm" onClick={testWA}>Test Send</button>
