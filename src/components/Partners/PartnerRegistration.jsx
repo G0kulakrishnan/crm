@@ -35,6 +35,7 @@ export default function PartnerRegistration({ params }) {
   const profile = data?.userProfiles?.[0];
   const settings = data?.globalSettings?.[0] || {};
   const ownerId = profile?.userId || settings?.userId;
+  const config = profile?.partnerFormConfig || { reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional' };
 
   if (!ownerId && cleanSlug) {
     return (
@@ -184,45 +185,57 @@ export default function PartnerRegistration({ params }) {
               </div>
             </div>
 
-            <div>
-              <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Business / Company Name</label>
-              <input 
-                value={form.companyName} 
-                onChange={e => setForm(p => ({ ...p, companyName: e.target.value }))}
-                placeholder="Doe Enterprises" 
-                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
-              />
-            </div>
+            {config.reqCompany !== 'Hidden' && (
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Business / Company Name {config.reqCompany === 'Required' && '*'}</label>
+                <input 
+                  value={form.companyName} 
+                  onChange={e => setForm(p => ({ ...p, companyName: e.target.value }))}
+                  placeholder="Doe Enterprises" 
+                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                  required={config.reqCompany === 'Required'}
+                />
+              </div>
+            )}
 
-            <div>
-              <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Business Address</label>
-              <textarea 
-                value={form.address} 
-                onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
-                placeholder="Full operational address..." 
-                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', minHeight: 70, resize: 'vertical' }}
-              />
-            </div>
+            {config.reqAddress !== 'Hidden' && (
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Business Address {config.reqAddress === 'Required' && '*'}</label>
+                <textarea 
+                  value={form.address} 
+                  onChange={e => setForm(p => ({ ...p, address: e.target.value }))}
+                  placeholder="Full operational address..." 
+                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', minHeight: 70, resize: 'vertical' }}
+                  required={config.reqAddress === 'Required'}
+                />
+              </div>
+            )}
 
-            <div>
-              <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Tax ID (GSTIN / VAT)</label>
-              <input 
-                value={form.taxId} 
-                onChange={e => setForm(p => ({ ...p, taxId: e.target.value }))}
-                placeholder="e.g. 29ABCDE1234F2Z5" 
-                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
-              />
-            </div>
+            {config.reqTax !== 'Hidden' && (
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Tax ID (GSTIN / VAT) {config.reqTax === 'Required' && '*'}</label>
+                <input 
+                  value={form.taxId} 
+                  onChange={e => setForm(p => ({ ...p, taxId: e.target.value }))}
+                  placeholder="e.g. 29ABCDE1234F2Z5" 
+                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }}
+                  required={config.reqTax === 'Required'}
+                />
+              </div>
+            )}
 
-            <div>
-              <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Other details or questions</label>
-              <textarea 
-                value={form.notes} 
-                onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
-                placeholder="Optional notes..." 
-                style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', minHeight: 60, resize: 'vertical' }}
-              />
-            </div>
+            {config.reqNotes !== 'Hidden' && (
+              <div>
+                <label style={{ display: 'block', fontWeight: 600, fontSize: 13, color: '#334155', marginBottom: 6 }}>Other details or questions {config.reqNotes === 'Required' && '*'}</label>
+                <textarea 
+                  value={form.notes} 
+                  onChange={e => setForm(p => ({ ...p, notes: e.target.value }))}
+                  placeholder="Optional notes..." 
+                  style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, fontSize: 14, boxSizing: 'border-box', minHeight: 60, resize: 'vertical' }}
+                  required={config.reqNotes === 'Required'}
+                />
+              </div>
+            )}
 
             <button 
               type="submit" 

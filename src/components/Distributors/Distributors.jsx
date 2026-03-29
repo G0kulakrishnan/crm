@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import db from '../../instant';
+import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { fmtD } from '../../utils/helpers';
 
@@ -10,13 +11,21 @@ export default function Distributors({ user, ownerId, perms }) {
   const [commission, setCommission] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [onboardModal, setOnboardModal] = useState(false);
+  const [settingsModal, setSettingsModal] = useState(false);
+  const [onboardForm, setOnboardForm] = useState({ name: '', email: '', phone: '', companyName: '', role: 'Retailer', commission: 0, password: '' });
+  const [settingsForm, setSettingsForm] = useState({ reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional' });
   const toast = useToast();
 
   const { data, isLoading } = db.useQuery({
     partnerApplications: { $: { where: { userId: ownerId } } },
-    partnerCommissions: { $: { where: { userId: ownerId } } }
+    partnerCommissions: { $: { where: { userId: ownerId } } },
+    products: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } }
   });
   const commissions = useMemo(() => data?.partnerCommissions || [], [data?.partnerCommissions]);
+  const products = useMemo(() => data?.products || [], [data?.products]);
+  const profile = data?.userProfiles?.[0] || {};
 
   const applications = useMemo(() => data?.partnerApplications || [], [data?.partnerApplications]);
   
@@ -32,6 +41,83 @@ export default function Distributors({ user, ownerId, perms }) {
       })
       .sort((a, b) => b.appliedAt - a.appliedAt);
   }, [applications, tab, search]);
+
+  const handleOnboardSubmit = async (e) => {
+    e.preventDefault();
+    if (!onboardForm.password || onboardForm.password.length < 6) return toast('Password min 6 chars', 'error');
+    if (!onboardForm.name || !onboardForm.email || !onboardForm.phone) return toast('Name, Email, Phone required', 'error');
+    
+    setSubmitting(true);
+    try {
+      const pId = id();
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'set-partner-password',
+          email: onboardForm.email.trim(),
+          password: onboardForm.password,
+          ownerUserId: ownerId,
+          partnerId: pId
+        })
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || 'Failed to create partner login');
+
+      await db.transact(
+        db.tx.partnerApplications[pId].update({
+          name: onboardForm.name.trim(),
+          email: onboardForm.email.trim(),
+          phone: onboardForm.phone.trim(),
+          companyName: onboardForm.companyName.trim(),
+          role: onboardForm.role,
+          commission: parseFloat(onboardForm.commission) || 0,
+          status: 'Approved',
+          appliedAt: Date.now(),
+          approvedAt: Date.now(),
+          userId: ownerId
+        }),
+        db.tx.activityLogs[db.id()].update({
+          entityId: pId, entityType: 'partner',
+          text: `Manually onboarded Partner ${onboardForm.name} as ${onboardForm.role}.`,
+          userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+        })
+      );
+
+      toast('Partner onboarded successfully!', 'success');
+      setOnboardModal(false);
+      setOnboardForm({ name: '', email: '', phone: '', companyName: '', role: 'Retailer', commission: 0, password: '' });
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleSettingsSave = async (e) => {
+    e.preventDefault();
+    if (!profile.id) return toast('Profile not found', 'error');
+    setSubmitting(true);
+    try {
+      await db.transact(
+        db.tx.userProfiles[profile.id].update({
+          partnerFormConfig: settingsForm
+        })
+      );
+      toast('Form settings saved!', 'success');
+      setSettingsModal(false);
+    } catch (err) {
+      toast(err.message, 'error');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const openSettings = () => {
+    const ex = profile?.partnerFormConfig || { reqCompany: 'Optional', reqAddress: 'Optional', reqTax: 'Optional', reqNotes: 'Optional' };
+    setSettingsForm(ex);
+    setSettingsModal(true);
+  };
 
   if (isLoading) return <div className="p-xl">Loading...</div>;
 
@@ -97,29 +183,44 @@ export default function Distributors({ user, ownerId, perms }) {
 
   return (
     <div>
-      <div className="sh">
+      <div className="sh" style={{ alignItems: 'flex-start' }}>
         <div>
           <h2>Channel Partners</h2>
           <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
-            Direct registration link:{' '}
-            <a href="/partner/register" target="_blank" rel="noreferrer" style={{ color: 'var(--accent)', fontWeight: 600, textDecoration: 'none' }}>
-              /partner/register
-            </a>
+            Control center for your distributor and retailer network.
           </p>
+        </div>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 6, display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+            <div style={{ padding: '6px 12px', fontSize: 13, color: '#475569', whiteSpace: 'nowrap', fontFamily: 'monospace' }}>
+              {`${window.location.origin}/${profile?.slug || 'my_business'}/partner/register`}
+            </div>
+            <button className="btn btn-secondary btn-sm" style={{ border: 'none', borderRadius: 0, borderLeft: '1px solid #e2e8f0', background: '#fff', padding: '6px 12px' }} onClick={() => {
+              navigator.clipboard.writeText(`${window.location.origin}/${profile?.slug || 'my_business'}/partner/register`);
+              toast('Link copied!', 'success');
+            }}>
+              Copy
+            </button>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={openSettings}>⚙️ Form Config</button>
+          <button className="btn btn-primary btn-sm" onClick={() => {
+             setOnboardForm(p => ({ ...p, password: Math.random().toString(36).slice(-8) }));
+             setOnboardModal(true);
+          }}>➕ Onboard Partner</button>
         </div>
       </div>
       
       <div className="tabs">
-        {['Pending', 'Approved', 'Rejected', 'Payouts'].map(t => (
+        {['Pending', 'Approved', 'Rejected', 'Payouts', 'Products'].map(t => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>
-            {t} {t !== 'Payouts' && `(${applications.filter(a => a.status === t).length})`}
+            {t} {!['Payouts', 'Products'].includes(t) && `(${applications.filter(a => a.status === t).length})`}
           </div>
         ))}
       </div>
 
       <div className="tw">
         <div className="tw-head">
-          <h3>{tab === 'Payouts' ? 'Commission Payouts' : `${tab} Partners`}</h3>
+          <h3>{tab === 'Payouts' ? 'Commission Payouts' : tab === 'Products' ? 'Partner Products' : `${tab} Partners`}</h3>
           <div className="sw">
             <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
             <input className="si" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
@@ -128,6 +229,8 @@ export default function Distributors({ user, ownerId, perms }) {
         <div className="tw-scroll">
           {tab === 'Payouts' ? (
             <PayoutsView commissions={commissions} applications={applications} search={search} ownerId={ownerId} user={user} toast={toast} />
+          ) : tab === 'Products' ? (
+            <ProductsView products={products} search={search} />
           ) : (
             <table>
               <thead>
@@ -223,6 +326,118 @@ export default function Distributors({ user, ownerId, perms }) {
                   <button type="button" className="btn btn-secondary" onClick={() => setApproveModal(null)}>Cancel</button>
                   <button type="submit" className="btn btn-primary" disabled={submitting}>
                     {submitting ? 'Approving...' : 'Confirm Approval'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {settingsModal && (
+        <div className="mo open">
+          <div className="mo-box" style={{ width: 460 }}>
+            <div className="mo-head">
+              <h3>Public Form Config</h3>
+              <button className="btn-icon" onClick={() => setSettingsModal(null)}>✕</button>
+            </div>
+            <div className="mo-body" style={{ padding: 20 }}>
+              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>
+                Configure the fields shown to users dynamically on your public registration page. Name, Email, Phone, and Role are permanently mandatory.
+              </p>
+              
+              <form onSubmit={handleSettingsSave}>
+                {['Company', 'Address', 'Tax', 'Notes'].map(field => {
+                  const key = `req${field}`;
+                  return (
+                    <div className="form-group" style={{ marginBottom: 15 }} key={field}>
+                      <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>{field === 'Tax' ? 'Tax ID' : field} Field</span>
+                        <select 
+                          value={settingsForm[key]} 
+                          onChange={e => setSettingsForm(p => ({ ...p, [key]: e.target.value }))}
+                          style={{ width: 140, padding: 4 }}
+                        >
+                          <option value="Hidden">Hidden</option>
+                          <option value="Optional">Optional</option>
+                          <option value="Required">Required</option>
+                        </select>
+                      </label>
+                    </div>
+                  );
+                })}
+                <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setSettingsModal(null)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>
+                    {submitting ? 'Saving...' : 'Save Settings'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {onboardModal && (
+        <div className="mo open">
+          <div className="mo-box" style={{ width: 500 }}>
+            <div className="mo-head">
+              <h3>Onboard Partner</h3>
+              <button className="btn-icon" onClick={() => setOnboardModal(false)}>✕</button>
+            </div>
+            <div className="mo-body" style={{ padding: 20, maxHeight: '80vh', overflow: 'auto' }}>
+              <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 20 }}>
+                Manually register a partner. This bypasses the public form and instantly adds them to your approved list.
+              </p>
+              
+              <form onSubmit={handleOnboardSubmit}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginBottom: 15 }}>
+                  <div className="form-group">
+                    <label>Full Name *</label>
+                    <input type="text" required value={onboardForm.name} onChange={e => setOnboardForm(p => ({ ...p, name: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>Role *</label>
+                    <select required value={onboardForm.role} onChange={e => setOnboardForm(p => ({ ...p, role: e.target.value }))}>
+                      <option value="Distributor">Distributor</option>
+                      <option value="Retailer">Retailer</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 15, marginBottom: 15 }}>
+                  <div className="form-group">
+                    <label>Email *</label>
+                    <input type="email" required value={onboardForm.email} onChange={e => setOnboardForm(p => ({ ...p, email: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>Phone *</label>
+                    <input type="tel" required value={onboardForm.phone} onChange={e => setOnboardForm(p => ({ ...p, phone: e.target.value }))} />
+                  </div>
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 15 }}>
+                  <label>Company Name</label>
+                  <input type="text" value={onboardForm.companyName} onChange={e => setOnboardForm(p => ({ ...p, companyName: e.target.value }))} />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 15 }}>
+                  <label>Starting Commission (%) *</label>
+                  <input type="number" step="0.1" required value={onboardForm.commission} onChange={e => setOnboardForm(p => ({ ...p, commission: e.target.value }))} />
+                </div>
+
+                <div className="form-group" style={{ marginBottom: 15 }}>
+                  <label>Initial Login Password *</label>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input type="text" required value={onboardForm.password} onChange={e => setOnboardForm(p => ({ ...p, password: e.target.value }))} style={{ flex: 1 }} />
+                    <button type="button" className="btn btn-secondary" onClick={() => setOnboardForm(p => ({ ...p, password: Math.random().toString(36).slice(-8) }))}>Generate</button>
+                  </div>
+                </div>
+                
+                <div style={{ display: 'flex', gap: 10, marginTop: 24 }}>
+                  <button type="button" className="btn btn-secondary" onClick={() => setOnboardModal(false)}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={submitting}>
+                    {submitting ? 'Creating...' : 'Create Partner'}
                   </button>
                 </div>
               </form>
@@ -338,5 +553,39 @@ function PayoutsView({ commissions, applications, search, ownerId, user, toast }
         </tbody>
       </table>
     </>
+  );
+}
+
+function ProductsView({ products, search }) {
+  const partnerProducts = useMemo(() => {
+    return products.filter(p => p.isPartnerAvailable)
+      .filter(p => !search || p.name.toLowerCase().includes(search.toLowerCase()));
+  }, [products, search]);
+
+  return (
+    <table>
+      <thead>
+        <tr>
+          <th>Product Name</th>
+          <th>Category</th>
+          <th>Stock</th>
+          <th>Price Setting</th>
+          <th>Visibility</th>
+        </tr>
+      </thead>
+      <tbody>
+        {partnerProducts.length === 0 ? (
+          <tr><td colSpan={5} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No products listed for partners.</td></tr>
+        ) : partnerProducts.map(p => (
+          <tr key={p.id}>
+            <td style={{ fontWeight: 600 }}>{p.name}</td>
+            <td>{p.category || '-'}</td>
+            <td>{p.trackStock ? p.stock : 'N/A'}</td>
+            <td>Hidden (Commission based)</td>
+            <td><span className="badge bg-green">Visible in Portal</span></td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
