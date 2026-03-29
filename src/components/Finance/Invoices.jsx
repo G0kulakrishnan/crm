@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
-import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS, INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
+import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS, INDIAN_STATES, COUNTRIES, getInvoiceStatus } from '../../utils/helpers';
 import DocumentTemplate from './DocumentTemplate';
 import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
@@ -82,12 +82,15 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
   const activeCols = savedCols || allPossibleCols;
 
   const filtered = React.useMemo(() => {
-    return invoices.filter(inv => tab === 'all' || inv.status === tab)
-      .filter(inv => {
+    return invoices.filter(inv => {
+      const st = getInvoiceStatus(inv);
+      return tab === 'all' || st === tab;
+    }).filter(inv => {
         if (!search) return true;
         const s = search.toLowerCase();
+        const st = getInvoiceStatus(inv);
         const items = Array.isArray(inv.items) ? inv.items : (inv.items ? JSON.parse(inv.items) : []);
-        return [inv.no, inv.client, inv.status, inv.notes, inv.terms].some(v => (v || '').toLowerCase().includes(s)) ||
+        return [inv.no, inv.client, st, inv.notes, inv.terms].some(v => (v || '').toLowerCase().includes(s)) ||
                items.some(it => (it.name || '').toLowerCase().includes(s));
       });
   }, [invoices, tab, search]);
@@ -571,7 +574,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
                           {inv.fromAmc && <span style={{ marginLeft: 6, fontSize: 10, background: '#e0e7ff', color: '#4338ca', padding: '2px 4px', borderRadius: 4, fontWeight: 600 }}>AMC</span>}
                         </td>
                         <td>{inv.client}</td>
-                        {activeCols.includes('Status') && <td><span className={`badge ${stageBadgeClass(inv.status)}`}>{inv.status}</span></td>}
+                        {activeCols.includes('Status') && <td><span className={`badge ${stageBadgeClass(getInvoiceStatus(inv))}`}>{getInvoiceStatus(inv)}</span></td>}
                         {activeCols.includes('Date') && <td style={{ fontSize: 12 }}>{fmtD(inv.date)}</td>}
                         {activeCols.includes('Due Date') && <td style={{ fontSize: 12 }}>{fmtD(inv.dueDate)}</td>}
                         <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>

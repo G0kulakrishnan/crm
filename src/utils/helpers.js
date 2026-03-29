@@ -141,3 +141,19 @@ export const numberToWords = (num) => {
   }
   return result;
 };
+
+export const getInvoiceStatus = (inv) => {
+  if (!inv || !inv.status) return 'Draft';
+  if (['Paid', 'Draft', 'Cancelled'].includes(inv.status)) return inv.status;
+  
+  if (inv.dueDate) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const due = new Date(inv.dueDate);
+    due.setHours(0, 0, 0, 0);
+    if (due < today) {
+      return 'Overdue';
+    }
+  }
+  return inv.status;
+};

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import db from '../../instant';
-import { fmt, fmtD, INDIAN_STATES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_REQUIREMENTS } from '../../utils/helpers';
+import { fmt, fmtD, INDIAN_STATES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_REQUIREMENTS, stageBadgeClass, getInvoiceStatus } from '../../utils/helpers';
 
 export default function Reports({ user, perms, ownerId, profile }) {
   const canExport = (perms?.can('Reports', 'create') === true) || (perms?.can('Reports', 'edit') === true);
@@ -350,7 +350,7 @@ export default function Reports({ user, perms, ownerId, profile }) {
                         <td style={{ fontSize: 12 }}>{inv.no}</td>
                         <td>{inv.client}</td>
                         <td style={{ fontSize: 12 }}>{fmtD(inv.date)}</td>
-                        <td><span className={`badge ${inv.status === 'Paid' ? 'bg-green' : inv.status === 'Partially Paid' ? 'bg-blue' : inv.status === 'Overdue' ? 'bg-red' : 'bg-gray'}`}>{inv.status}</span></td>
+                        <td><span className={`badge ${stageBadgeClass(getInvoiceStatus(inv))}`}>{getInvoiceStatus(inv)}</span></td>
                         <td style={{ fontWeight: 700 }}>{fmt(inv.paidAmt)}</td>
                       </tr>
                     ));
