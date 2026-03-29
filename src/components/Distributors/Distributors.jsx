@@ -42,7 +42,15 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
         const s = search.toLowerCase();
         return (a.name || '').toLowerCase().includes(s) || 
                (a.email || '').toLowerCase().includes(s) || 
-               (a.companyName || '').toLowerCase().includes(s);
+               (a.companyName || '').toLowerCase().includes(s) ||
+               (a.phone || '').toLowerCase().includes(s) ||
+               (a.role || '').toLowerCase().includes(s) ||
+               (a.village || '').toLowerCase().includes(s) ||
+               (a.city || '').toLowerCase().includes(s) ||
+               (a.district || '').toLowerCase().includes(s) ||
+               (a.state || '').toLowerCase().includes(s) ||
+               (a.pincode || '').toLowerCase().includes(s) ||
+               String(a.commission || '').includes(s);
       })
       .sort((a, b) => b.appliedAt - a.appliedAt);
   }, [applications, tab, search]);
@@ -259,7 +267,8 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
               ownerId={ownerId} 
               user={user} 
               toast={toast} 
-              profile={profile} 
+              profile={profile}
+              search={search}
             />
           ) : (
             <table>
@@ -1062,7 +1071,7 @@ function ProductsView({ products, search }) {
   );
 }
 
-function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, user, toast, profile }) {
+function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, user, toast, profile, search }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(profile?.partnerPageSize || 25);
   const [editingPartner, setEditingPartner] = useState(null);
@@ -1083,13 +1092,33 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
   const [saving, setSaving] = useState(false);
   const [colModal, setColModal] = useState(false);
 
-  const totalCount = allApprovedPartners.length;
+  // totalCount and totalPages are computed after search filtering below
+
+  const searchedPartners = useMemo(() => {
+    if (!search) return allApprovedPartners;
+    const s = search.toLowerCase();
+    return allApprovedPartners.filter(a =>
+      (a.name || '').toLowerCase().includes(s) ||
+      (a.email || '').toLowerCase().includes(s) ||
+      (a.companyName || '').toLowerCase().includes(s) ||
+      (a.phone || '').toLowerCase().includes(s) ||
+      (a.role || '').toLowerCase().includes(s) ||
+      (a.village || '').toLowerCase().includes(s) ||
+      (a.city || '').toLowerCase().includes(s) ||
+      (a.district || '').toLowerCase().includes(s) ||
+      (a.state || '').toLowerCase().includes(s) ||
+      (a.pincode || '').toLowerCase().includes(s) ||
+      String(a.commission || '').includes(s)
+    );
+  }, [allApprovedPartners, search]);
+
+  const totalCount = searchedPartners.length;
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(totalCount / pageSize);
 
   const partners = useMemo(() => {
-    if (pageSize === 'all') return allApprovedPartners;
-    return allApprovedPartners.slice((currentPage - 1) * pageSize, currentPage * pageSize);
-  }, [allApprovedPartners, currentPage, pageSize]);
+    if (pageSize === 'all') return searchedPartners;
+    return searchedPartners.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  }, [searchedPartners, currentPage, pageSize]);
 
   const savedCols = profile?.partnerCols;
   const allPossibleCols = ['Name', 'Role', 'Parent', 'Phone', 'Email', 'Commission', 'Company', 'Address'];
@@ -1390,7 +1419,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
                 <div style={{ fontSize: 12, color: 'var(--muted)' }}>Application ID: {editingPartner.id.slice(0,8)}</div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+              <div className="fgrid">
                 <div className="form-group">
                   <label>Company/Business Name</label>
                   <input value={newCompanyName} onChange={e => setNewCompanyName(e.target.value)} placeholder="Business Name" />
@@ -1411,7 +1440,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
 
               <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
                 <h4 style={{ fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 15 }}>Location & Address</h4>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 15 }}>
+                <div className="fgrid">
                   <div className="form-group">
                     <label>Village / Area</label>
                     <input value={newVillage} onChange={e => setNewVillage(e.target.value)} placeholder="Village" />
@@ -1428,45 +1457,46 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
                     <label>Pincode</label>
                     <input value={newPincode} onChange={e => setNewPincode(e.target.value)} placeholder="600001" />
                   </div>
-                  <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <div className="form-group">
                     <label>State</label>
                     <input value={newState} onChange={e => setNewState(e.target.value)} placeholder="Tamil Nadu" />
                   </div>
                 </div>
-                <div className="form-group" style={{ marginTop: 15 }}>
+                <div className="form-group" style={{ marginTop: 10 }}>
                   <label>Full Postal Address</label>
-                  <textarea value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="Enter full address details..." style={{ minHeight: 60 }} />
+                  <textarea value={newAddress} onChange={e => setNewAddress(e.target.value)} placeholder="Enter full address details..." style={{ width: '100%', minHeight: 60 }} />
                 </div>
               </div>
 
-              <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 20, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-                {editingPartner.role === 'Retailer' && (
+              <div style={{ marginTop: 20, borderTop: '1px solid var(--border)', paddingTop: 20 }}>
+                <div className="fgrid">
+                  {editingPartner.role === 'Retailer' && (
+                    <div className="form-group">
+                      <label>Parent Distributor</label>
+                      <select
+                        value={newParentId}
+                        onChange={e => setNewParentId(e.target.value)}
+                      >
+                        <option value="">-- No Parent (Direct) --</option>
+                        {availableDistributors.map(d => (
+                          <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="form-group">
-                    <label>Parent Distributor</label>
-                    <select
-                      value={newParentId}
-                      onChange={e => setNewParentId(e.target.value)}
-                      style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8, background: 'var(--surface)' }}
-                    >
-                      <option value="">-- No Parent (Direct) --</option>
-                      {availableDistributors.map(d => (
-                        <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
-                      ))}
-                    </select>
+                    <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Reset Password</span>
+                      <button type="button" style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }} onClick={() => setNewPassword(Math.random().toString(36).slice(-8))}>Generate Random</button>
+                    </label>
+                    <input type="text" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password (min 6 chars)" />
                   </div>
-                )}
-                <div className="form-group">
-                  <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>Reset Password</span>
-                    <button type="button" className="btn-link" style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', padding: 0 }} onClick={() => setNewPassword(Math.random().toString(36).slice(-8))}>Generate Random</button>
-                  </label>
-                  <input type="text" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="New password (min 6 chars)" />
                 </div>
               </div>
 
-              <div className="form-group" style={{ marginTop: 20 }}>
+              <div className="form-group" style={{ marginTop: 16 }}>
                 <label>Internal Admin Notes</label>
-                <textarea value={newNotes} onChange={e => setNewNotes(e.target.value)} placeholder="Private notes about this partner..." style={{ minHeight: 60 }} />
+                <textarea value={newNotes} onChange={e => setNewNotes(e.target.value)} placeholder="Private notes about this partner..." style={{ width: '100%', minHeight: 60 }} />
               </div>
 
               <div style={{ display: 'flex', gap: 10, marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 24 }}>
