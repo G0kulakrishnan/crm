@@ -277,7 +277,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
 
               {/* Footer Grid: Bank Details | Totals Summary */}
               <tr className="avoid-break"><td style={{ padding: '0' }}>
-                <div style={{ display: 'flex', minHeight: '150px' }}>
+                <div style={{ display: 'flex', minHeight: '150px', borderTop: '1px solid #000' }}>
                   {/* Left Side: Bank Details */}
                   <div className="bank-right-border" style={{ width: '50%', padding: '20px', borderRight: '1px solid #ddd' }}>
                     {profile.accHolder ? (
