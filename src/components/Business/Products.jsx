@@ -5,10 +5,10 @@ import { fmt, stageBadgeClass, DEFAULT_UNITS } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import StockLog from './StockLog';
 
-const EMPTY = { name: '', code: '', type: 'Product', category: 'General', unit: 'Nos', rate: '', purchasePrice: '', tax: 18, desc: '', stock: 0, lowStockThreshold: 5, trackStock: true, listInEcom: false, isPartnerAvailable: false, imageUrl: '', description: '' };
+const EMPTY = { name: '', code: '', hsn: '', type: 'Product', category: 'General', unit: 'Nos', rate: '', purchasePrice: '', tax: 18, desc: '', stock: 0, lowStockThreshold: 5, trackStock: true, listInEcom: false, isPartnerAvailable: false, imageUrl: '', description: '' };
 const generateSKU = () => 'P-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
-const CSV_HEADERS = ['Name', 'Code', 'Category', 'Type', 'Unit', 'Rate', 'PurchasePrice', 'Tax', 'Stock', 'LowStockThreshold', 'TrackStock', 'Description', 'ListInEcom', 'ImageUrl', 'FullDescription'];
+const CSV_HEADERS = ['Name', 'Code', 'HSN', 'Category', 'Type', 'Unit', 'Rate', 'PurchasePrice', 'Tax', 'Stock', 'LowStockThreshold', 'TrackStock', 'Description', 'ListInEcom', 'ImageUrl', 'FullDescription'];
 
 function parseCSV(text) {
   const lines = text.trim().split(/\r?\n/);
@@ -23,7 +23,7 @@ function parseCSV(text) {
 }
 
 function downloadCSVTemplate() {
-  const sampleRow = ['LED Bulb 9W', 'SKU-001', 'Electronics', 'Product', 'Nos', '250', '150', '18', '100', '10', 'true', 'Energy efficient LED bulb', 'false', 'https://example.com/image.jpg', 'High efficiency LED bulb - saves 80% energy'];
+  const sampleRow = ['LED Bulb 9W', 'SKU-001', '85395000', 'Electronics', 'Product', 'Nos', '250', '150', '18', '100', '10', 'true', 'Energy efficient LED bulb', 'false', 'https://example.com/image.jpg', 'High efficiency LED bulb - saves 80% energy'];
   const csv = [CSV_HEADERS.join(','), sampleRow.join(',')].join('\n');
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
@@ -179,6 +179,7 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
       stock: parseFloat(form.stock) || 0,
       lowStockThreshold: parseFloat(form.lowStockThreshold) || 5,
       isPartnerAvailable: !!form.isPartnerAvailable,
+      hsn: (form.hsn || '').trim(),
       userId: ownerId 
     };
     if (!payload.code) payload.code = '';
@@ -262,11 +263,12 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
           trackStock: String(row['TrackStock']).toLowerCase() !== 'false',
           desc: row['Description'] || '',
           listInEcom: String(row['ListInEcom']).toLowerCase() === 'true',
-          isPartnerAvailable: String(row['ListInEcom']).toLowerCase() === 'true', // Default to same as ecom on import
+          isPartnerAvailable: String(row['ListInEcom']).toLowerCase() === 'true',
           imageUrl: row['ImageUrl'] || '',
           description: row['FullDescription'] || '',
           userId: ownerId,
-          code: row['Code'] || ''
+          code: row['Code'] || '',
+          hsn: row['HSN'] || ''
         });
       });
       // Batch in chunks of 25
@@ -286,7 +288,7 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
 
   const handleExport = () => {
     if (filtered.length === 0) return toast('No products to export', 'error');
-    const headers = ['Name', 'Code', 'Category', 'Type', 'Unit', 'Purchase Price', 'Selling Rate', 'GST %', 'Stock', 'Low Stock Threshold', 'Description', 'ListInEcom', 'ImageUrl', 'FullDescription'];
+    const headers = ['Name', 'Code', 'HSN/SAC', 'Category', 'Type', 'Unit', 'Purchase Price', 'Selling Rate', 'GST %', 'Stock', 'Low Stock Threshold', 'Description', 'ListInEcom', 'ImageUrl', 'FullDescription'];
     const escapeCSV = (val) => {
       if (val === null || val === undefined) return '';
       const str = String(val).replace(/"/g, '""');
@@ -295,7 +297,7 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
     const rows = [headers.join(',')];
     filtered.forEach(p => {
       const row = [
-        escapeCSV(p.name), escapeCSV(p.code), escapeCSV(p.category), escapeCSV(p.type),
+        escapeCSV(p.name), escapeCSV(p.code), escapeCSV(p.hsn || ''), escapeCSV(p.category), escapeCSV(p.type),
         escapeCSV(p.unit), escapeCSV(p.purchasePrice), escapeCSV(p.rate), escapeCSV(p.tax),
         escapeCSV(p.stock), escapeCSV(p.lowStockThreshold), escapeCSV(p.desc),
         escapeCSV(p.listInEcom || false), escapeCSV(p.imageUrl || ''), escapeCSV(p.description || '')
@@ -399,7 +401,7 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
           <table>
             <thead><tr>
               <th><input type="checkbox" checked={paginated.length > 0 && selectedIds.size === paginated.length} onChange={toggleSelectAll} /></th>
-              <th>#</th><th>Name</th><th>Category</th><th>Code</th><th>Stock</th><th>Unit</th><th>Purchase Price</th><th>Selling Rate</th><th>GST %</th><th>E-com</th><th>Partners</th><th>Actions</th>
+              <th>#</th><th>Name</th><th>Category</th><th>Code</th><th>HSN/SAC</th><th>Stock</th><th>Unit</th><th>Purchase Price</th><th>Selling Rate</th><th>GST %</th><th>E-com</th><th>Partners</th><th>Actions</th>
             </tr></thead>
             <tbody>
               {paginated.length === 0 ? <tr><td colSpan={12} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No products found.</td></tr>
@@ -419,6 +421,7 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
                       </td>
                       <td><span style={{ fontSize: 11, background: 'var(--bg-soft)', padding: '2px 8px', borderRadius: 4 }}>{p.category || 'General'}</span></td>
                       <td style={{ fontSize: 12, fontFamily: 'monospace' }}>{p.code || '-'}</td>
+                      <td style={{ fontSize: 11, fontFamily: 'monospace', color: p.hsn ? '#334155' : 'var(--muted)' }}>{p.hsn || '—'}</td>
                       <td>
                         {p.trackStock ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -456,7 +459,7 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
-                          {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(p); setForm({ name: p.name, code: p.code || '', type: p.type, category: p.category || 'General', unit: p.unit, rate: p.rate, purchasePrice: p.purchasePrice || '', tax: p.tax, desc: p.desc || '', stock: p.stock || 0, lowStockThreshold: p.lowStockThreshold || 5, trackStock: p.trackStock !== false, listInEcom: p.listInEcom || false, isPartnerAvailable: p.isPartnerAvailable || false, imageUrl: p.imageUrl || '', description: p.description || '' }); setModal(true); }}>Edit</button>}
+                          {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(p); setForm({ name: p.name, code: p.code || '', hsn: p.hsn || '', type: p.type, category: p.category || 'General', unit: p.unit, rate: p.rate, purchasePrice: p.purchasePrice || '', tax: p.tax, desc: p.desc || '', stock: p.stock || 0, lowStockThreshold: p.lowStockThreshold || 5, trackStock: p.trackStock !== false, listInEcom: p.listInEcom || false, isPartnerAvailable: p.isPartnerAvailable || false, imageUrl: p.imageUrl || '', description: p.description || '' }); setModal(true); }}>Edit</button>}
                           {p.trackStock && <button className="btn btn-secondary btn-sm" onClick={() => setShowLog(showLog === p.id ? null : p.id)}>History</button>}
                           {canDelete && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(p.id)}>Del</button>}
                         </div>
@@ -486,7 +489,8 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
             <div className="mo-body">
               <div className="fgrid">
                 <div className="fg span2"><label>Name *</label><input value={form.name} onChange={f('name')} /></div>
-                <div className="fg"><label>Item Code</label><input value={form.code} onChange={f('code')} placeholder="SKU / HSN" /></div>
+                <div className="fg"><label>Item Code</label><input value={form.code} onChange={f('code')} placeholder="SKU-001" /></div>
+                <div className="fg"><label>HSN/SAC Code <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>(Optional - for GST filing)</span></label><input value={form.hsn} onChange={f('hsn')} placeholder="e.g. 85395000" /></div>
                 <div className="fg"><label>Category</label>
                   <select value={form.category} onChange={f('category')}>
                     {productCats.map(c => <option key={c} value={c}>{c}</option>)}
