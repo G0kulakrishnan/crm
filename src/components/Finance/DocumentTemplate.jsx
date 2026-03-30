@@ -290,7 +290,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                           <span style={{ color: '#666' }}>IFSC Code</span><span>:</span><strong style={{ color: '#111' }}>{profile.ifsc}</strong>
                           {profile.accType && <><span style={{ color: '#666' }}>Account Type</span><span>:</span><strong>{profile.accType}</strong></>}
                         </div>
-                        {profile.bankExtra && <div style={{ marginTop: '12px', fontSize: '10px', color: '#555', borderTop: '1px solid #eee', paddingTop: '10px' }}>{profile.bankExtra}</div>}
+                        {profile.bankExtra && <div style={{ marginTop: '8px', fontSize: '11px', color: '#333' }}>{profile.bankExtra}</div>}
                       </div>
                     ) : (
                       <div style={{ color: '#aaa', fontStyle: 'italic', fontSize: '11px' }}>No bank details configured.</div>
