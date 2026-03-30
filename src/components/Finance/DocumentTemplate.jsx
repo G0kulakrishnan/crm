@@ -72,10 +72,10 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             .z-summary tr.z-total td { font-weight: 800; font-size: 16px; color: #000; border-top: 2px solid #000; border-bottom: 2px double #000; padding: 15px 10px; }
             
             /* Print Frame Box - Screen Mode */
-            .print-frame { width: 100%; max-width: 210mm; margin: 0 auto; border-collapse: collapse; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif; font-size: 11px; color: #111; }
-            .print-frame-head td { height: 15px; border-top: 1px solid #ddd; border-left: 1px solid #ddd; border-right: 1px solid #ddd; }
-            .print-frame-foot td { height: 15px; border-bottom: 1px solid #ddd; border-left: 1px solid #ddd; border-right: 1px solid #ddd; }
-            .print-frame-body > tr > td { border-left: 1px solid #ddd; border-right: 1px solid #ddd; padding: 15px 30px; }
+            .print-frame { width: 100%; max-width: 210mm; margin: 0 auto; border-collapse: collapse; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif; font-size: 11px; color: #111; border: 1px solid #ddd; }
+            .print-frame-head td { height: 0; padding: 0; border: none; }
+            .print-frame-foot td { height: 0; padding: 0; border: none; }
+            .print-frame-body > tr > td { padding: 15px 30px; }
 
             /* Print-only Overrides */
             @media print {
@@ -84,7 +84,6 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               .a4-container { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; min-height: 0 !important; }
               .no-print { display: none !important; }
               
-              /* Print Frame - Use table thead/tfoot for repeating borders on every page */
               .print-frame { width: 100% !important; margin: 0 !important; border: none !important; }
               
               /* thead/tfoot repeat on every printed page — they carry the top/bottom border lines */
@@ -104,22 +103,15 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               }
               
               /* Body cells carry the left/right borders */
-              .print-frame-body > tr > td.print-content-cell { 
+              .print-frame-body > tr > td { 
                 border-left: 2px solid #000 !important; 
                 border-right: 2px solid #000 !important; 
                 border-top: none !important;
                 border-bottom: none !important;
                 padding: 0 20px !important; 
               }
-              .print-frame-body > tr > td.print-footer-cell { 
-                border-left: 2px solid #000 !important; 
-                border-right: 2px solid #000 !important; 
-                border-top: 2px solid #000 !important; 
-                border-bottom: none !important;
-                padding: 0 !important; 
-              }
 
-              .z-table { page-break-inside: auto; border-bottom: 2px solid #000; }
+              .z-table { page-break-inside: auto; }
               .z-table tr { page-break-inside: avoid; page-break-after: auto; }
               .z-table th { background: #f0f0f0 !important; color: #000 !important; border-bottom: 2px solid #000 !important; border-top: 2px solid #000 !important; }
               .z-table td { border-bottom: 1px solid #000 !important; }
@@ -130,7 +122,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               
               .print-content-row { page-break-inside: auto; }
               .avoid-break { page-break-inside: avoid; }
-              .print-border-right { border-right: 2px solid #000 !important; }
+              .bank-right-border { border-right: 2px solid #000 !important; }
             }
           `}</style>
 
@@ -255,21 +247,16 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                 </table>
               </td></tr>
 
-              {/* Terms and Notes Row */}
-              <tr className="print-content-row avoid-break"><td className="print-content-cell" style={{ padding: '0 20px' }}>
+              {/* Notes and Terms Row */}
+              {(data.notes || data.terms) && (
+              <tr className="print-content-row avoid-break"><td style={{ padding: '0 20px' }}>
                 <div style={{ padding: '10px 0 20px 0' }}>
-                  <div style={{ marginBottom: '15px' }}>
-                    <div style={{ fontSize: '10px', color: '#666', textTransform: 'uppercase', fontWeight: '700', marginBottom: '6px' }}>Total In Words</div>
-                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#111', fontStyle: 'italic' }}>{numberToWords(ptots.total)}</div>
-                  </div>
-
                   {data.notes && (
                     <div style={{ marginBottom: '15px' }}>
                       <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px', textTransform: 'uppercase' }}>Notes</div>
                       <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.notes}</div>
                     </div>
                   )}
-                  
                   {data.terms && (
                     <div>
                       <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px', textTransform: 'uppercase' }}>Terms & Conditions</div>
@@ -278,12 +265,13 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                   )}
                 </div>
               </td></tr>
+              )}
 
-              {/* The Strict Footer Grid (Bank Det | Amount) */}
-              <tr className="avoid-break"><td className="print-footer-cell">
-                <div style={{ display: 'flex', minHeight: '150px' }}>
+              {/* Footer Grid: Bank Details | Totals Summary */}
+              <tr className="avoid-break"><td style={{ padding: '0' }}>
+                <div style={{ display: 'flex', minHeight: '150px', borderTop: '1px solid #ddd' }}>
                   {/* Left Side: Bank Details */}
-                  <div className="print-border-right" style={{ width: '50%', padding: '20px', borderRight: '2px solid #ddd' }}>
+                  <div className="bank-right-border" style={{ width: '50%', padding: '20px', borderRight: '1px solid #ddd' }}>
                     {profile.accHolder ? (
                       <div>
                         <div style={{ fontSize: '12px', fontWeight: '800', color: '#111', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bank Details</div>
@@ -337,9 +325,15 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                   </div>
                 </div>
               </td></tr>
+
+              {/* Total In Words — below totals */}
+              <tr className="avoid-break"><td style={{ padding: '12px 20px', borderTop: '1px solid #ddd' }}>
+                <div style={{ fontSize: '10px', color: '#666', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>Total In Words</div>
+                <div style={{ fontSize: '13px', fontWeight: '700', color: '#111', fontStyle: 'italic' }}>{numberToWords(ptots.total)}</div>
+              </td></tr>
               
-              <tr className="print-content-row"><td className="print-content-cell">
-                {/* External Footer Branding Props */}
+              <tr className="print-content-row"><td style={{ padding: '0 20px' }}>
+                {/* Footer Branding */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px', fontSize: '10px', fontWeight: '600', color: '#666', borderTop: '1px solid #eee', paddingTop: '15px', paddingBottom: '15px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
                     {settings?.showBranding !== false && (
