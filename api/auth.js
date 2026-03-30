@@ -38,7 +38,15 @@ export default async function handler(req, res) {
         return res.status(401).json({ error: 'Invalid email or password' });
       }
       if (!user.password || !(await bcrypt.compare(password, user.password))) return res.status(401).json({ error: 'Invalid email or password' });
-      if (user.isVerified === false) return res.status(403).json({ error: 'Email verification pending', message: 'Please verify your email using the OTP sent during registration.' });
+      if (user.isVerified === false) {
+        // Check if admin already created a profile for this user — if so, auto-verify credentials
+        const { userProfiles } = await db.query({ userProfiles: { $: { where: { email: cleanEmail }, limit: 1 } } });
+        if (userProfiles?.[0]) {
+          await db.transact([tx.userCredentials[user.id].update({ isVerified: true, otp: null })]);
+        } else {
+          return res.status(403).json({ error: 'Email verification pending', message: 'Please verify your email using the OTP sent during registration.' });
+        }
+      }
       
       const token = await db.auth.createToken({ email: cleanEmail });
       const isTeamMember = !!(user.isTeamMember && user.ownerUserId);
@@ -138,9 +146,9 @@ export default async function handler(req, res) {
       const hashedPassword = await bcrypt.hash(newPassword, 10);
       if (!user) {
         if (!userId) return res.status(400).json({ error: 'userId required to create credentials' });
-        await db.transact([tx.userCredentials[id()].update({ email: cleanEmail, password: hashedPassword, userId: userId })]);
+        await db.transact([tx.userCredentials[id()].update({ email: cleanEmail, password: hashedPassword, userId: userId, isVerified: true, createdAt: Date.now() })]);
       } else {
-        await db.transact([tx.userCredentials[user.id].update({ password: hashedPassword, resetCode: null, resetExpires: null })]);
+        await db.transact([tx.userCredentials[user.id].update({ password: hashedPassword, isVerified: true, resetCode: null, resetExpires: null })]);
       }
       return res.status(200).json({ success: true, message: 'Password updated' });
     }
@@ -157,7 +165,7 @@ export default async function handler(req, res) {
         credId = id();
       }
       const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      await db.transact([tx.userCredentials[credId].update({ userId: uidToUse, email: cleanEmail, ...(!user ? { password: '' } : {}), resetCode: resetOtp, resetExpires: Date.now() + 15 * 60 * 1000 })]);
+      await db.transact([tx.userCredentials[credId].update({ userId: uidToUse, email: cleanEmail, ...(!user ? { password: '', isVerified: true } : {}), resetCode: resetOtp, resetExpires: Date.now() + 15 * 60 * 1000 })]);
       return res.status(200).json({ success: true, otp: resetOtp, message: 'OTP generated' });
     }
 
@@ -167,7 +175,7 @@ export default async function handler(req, res) {
       const user = data.userCredentials?.[0];
       if (!user || user.resetCode !== code || Date.now() > user.resetExpires) return res.status(400).json({ error: 'Invalid or expired code' });
       const hashedPassword = await bcrypt.hash(newPassword, 10);
-      await db.transact([tx.userCredentials[user.id].update({ password: hashedPassword, resetCode: null, resetExpires: null })]);
+      await db.transact([tx.userCredentials[user.id].update({ password: hashedPassword, isVerified: true, resetCode: null, resetExpires: null })]);
       return res.status(200).json({ success: true, message: 'Password updated' });
     }
 
@@ -193,7 +201,12 @@ export default async function handler(req, res) {
     if (action === 'admin-create-user') {
       if (!cleanEmail || !password) return res.status(400).json({ error: 'Email and password are required' });
       const existing = await db.query({ userCredentials: { $: { where: { email: cleanEmail } } } });
-      if (existing.userCredentials?.length > 0) return res.status(400).json({ error: 'User with this email already exists' });
+      const existingCred = existing.userCredentials?.[0];
+      
+      // If credentials exist and are already verified, reject
+      if (existingCred && existingCred.isVerified === true) {
+        return res.status(400).json({ error: 'User with this email already exists' });
+      }
 
       const hashedPassword = await bcrypt.hash(password, 10);
       const newUserId = id();
@@ -202,8 +215,10 @@ export default async function handler(req, res) {
       const duration = req.body.duration || 7;
       const planExpiry = Date.now() + (duration * 24 * 60 * 60 * 1000);
 
+      // If unverified credentials exist (from failed self-registration), update them
+      const credId = existingCred ? existingCred.id : id();
       await db.transact([
-        tx.userCredentials[id()].update({
+        tx.userCredentials[credId].update({
           email: cleanEmail,
           password: hashedPassword,
           fullName: fullName || '',
@@ -211,6 +226,7 @@ export default async function handler(req, res) {
           phone: phone || '',
           selectedPlan: plan,
           isVerified: true,
+          otp: null,
           createdAt: Date.now()
         }),
         tx.userProfiles[profileId].update({
