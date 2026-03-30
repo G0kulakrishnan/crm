@@ -81,7 +81,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             @media print {
               @page { size: A4; margin: 0; }
               body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
-              .a4-container { padding: 12mm !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; overflow: visible !important; box-sizing: border-box !important; }
+              .a4-container { padding: 0 8mm !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; overflow: visible !important; box-sizing: border-box !important; }
               .no-print { display: none !important; }
               
               /* FIXED BORDER: renders on EVERY printed page in Chrome */
@@ -99,7 +99,12 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               
               /* Table: content only, no border role */
               .print-frame { width: 100% !important; margin: 0 !important; border: none !important; border-collapse: collapse !important; }
-              .print-frame-head td, .print-frame-foot td { height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important; border: none !important; }
+              
+              /* thead/tfoot as INVISIBLE SPACERS — they repeat on every page, 
+                 pushing content below the top border and above the bottom border */
+              .print-frame-head td { height: 8mm !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important; border: none !important; }
+              .print-frame-foot td { height: 8mm !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important; border: none !important; }
+              
               .print-frame-body > tr > td { border: none !important; padding: 0 2px !important; }
 
               .z-table { page-break-inside: auto; }
