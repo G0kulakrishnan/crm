@@ -867,13 +867,9 @@ export default function AdminPanel({ user }) {
                         <th style={{ textAlign: 'left' }}>Business</th>
                         <th style={{ textAlign: 'left' }}>Plan</th>
                         <th>Total Records</th>
-                        <th>Leads</th>
-                        <th>Customers</th>
-                        <th>Invoices</th>
                         <th>Activity Logs</th>
                         <th>Msg Logs</th>
-                        <th>Products</th>
-                        <th>Team</th>
+                        <th>Team Size</th>
                         <th>30d Activity</th>
                         <th>Health</th>
                       </tr>
@@ -900,14 +896,10 @@ export default function AdminPanel({ user }) {
                               {a.totalRecords.toLocaleString()}
                               <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 400 }}>{logPct}% of DB</div>
                             </td>
-                            <td style={{ textAlign: 'center' }}>{a.counts.leads || 0}</td>
-                            <td style={{ textAlign: 'center' }}>{a.counts.customers || 0}</td>
-                            <td style={{ textAlign: 'center' }}>{a.counts.invoices || 0}</td>
                             <td style={{ textAlign: 'center', color: (a.counts.activityLogs || 0) > 1000 ? '#c2410c' : undefined, fontWeight: (a.counts.activityLogs || 0) > 1000 ? 700 : 400 }}>
                               {(a.counts.activityLogs || 0).toLocaleString()}
                             </td>
                             <td style={{ textAlign: 'center' }}>{(a.counts.messagingLogs || 0).toLocaleString()}</td>
-                            <td style={{ textAlign: 'center' }}>{a.counts.products || 0}</td>
                             <td style={{ textAlign: 'center' }}>{a.teamSize}</td>
                             <td style={{ textAlign: 'center', fontWeight: 600 }}>{a.recentActivity}</td>
                             <td style={{ textAlign: 'center', fontSize: 16 }}>{healthScore}</td>

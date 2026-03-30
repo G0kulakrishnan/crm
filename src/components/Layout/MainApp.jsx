@@ -89,6 +89,10 @@ export default function MainApp({ user, settings }) {
   const { activeView, notifOpen, setActiveView, settingsTab } = useApp();
   const toast = useToast();
   
+  // Profile Setup Gate
+  const [setupForm, setSetupForm] = useState({ fullName: '', bizName: '', phone: '' });
+  const [setupSaving, setSetupSaving] = useState(false);
+  
   // 1. Initial State for Team Info
   const [teamInfo, setTeamInfo] = useState(() => {
     try {
@@ -437,6 +441,71 @@ export default function MainApp({ user, settings }) {
   }
 
   const currentView = views[activeView] || views.dashboard;
+
+  // ── MANDATORY PROFILE SETUP GATE ──
+  // If profile exists but missing required fields, force the user to complete them
+  const needsSetup = profile && !isTeamMember && !isSuperadmin && (!profile.fullName || !profile.bizName || !profile.phone);
+
+  if (needsSetup) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)', fontFamily: 'Inter, sans-serif' }}>
+        <div style={{ width: '100%', maxWidth: 480, padding: 40, background: 'var(--card)', borderRadius: 16, border: '1px solid var(--border)', boxShadow: '0 8px 32px rgba(0,0,0,0.08)' }}>
+          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+            <div style={{ fontSize: 40, marginBottom: 8 }}>👋</div>
+            <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 700 }}>Complete Your Profile</h2>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--muted)' }}>Please fill in your details to get started with {settings?.brandName || 'the CRM'}.</p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#333' }}>Full Name <span style={{ color: '#ef4444' }}>*</span></label>
+              <input
+                value={setupForm.fullName || profile.fullName || ''}
+                onChange={e => setSetupForm(f => ({ ...f, fullName: e.target.value }))}
+                placeholder="Your full name"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, boxSizing: 'border-box' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#333' }}>Business / Company Name <span style={{ color: '#ef4444' }}>*</span></label>
+              <input
+                value={setupForm.bizName || profile.bizName || ''}
+                onChange={e => setSetupForm(f => ({ ...f, bizName: e.target.value }))}
+                placeholder="Your business name"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, boxSizing: 'border-box' }}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4, color: '#333' }}>Phone Number <span style={{ color: '#ef4444' }}>*</span></label>
+              <input
+                value={setupForm.phone || profile.phone || ''}
+                onChange={e => setSetupForm(f => ({ ...f, phone: e.target.value }))}
+                placeholder="+91 98765 43210"
+                style={{ width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 14, boxSizing: 'border-box' }}
+              />
+            </div>
+            <button
+              disabled={setupSaving}
+              onClick={async () => {
+                const fn = (setupForm.fullName || profile.fullName || '').trim();
+                const bn = (setupForm.bizName || profile.bizName || '').trim();
+                const ph = (setupForm.phone || profile.phone || '').trim();
+                if (!fn || !bn || !ph) { toast('All fields are required', 'error'); return; }
+                setSetupSaving(true);
+                try {
+                  await db.transact(db.tx.userProfiles[profile.id].update({ fullName: fn, bizName: bn, phone: ph }));
+                  toast('Profile saved! Welcome! 🎉', 'success');
+                } catch (e) { toast(e.message, 'error'); }
+                finally { setSetupSaving(false); }
+              }}
+              style={{ width: '100%', padding: '12px', borderRadius: 8, background: 'var(--accent)', color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', marginTop: 4 }}
+            >
+              {setupSaving ? 'Saving...' : 'Save & Continue →'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
