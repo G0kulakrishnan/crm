@@ -325,11 +325,11 @@ export default function Reports({ user, perms, ownerId, profile }) {
           {tab === 'pl' && (
         <div>
           <div className="stat-grid" style={{ marginBottom: 18 }}>
-            <div className="stat-card sc-green"><div className="lbl">Revenue (Paid)</div><div className="val" style={{ fontSize: 20 }}>{fmt(revenue)}</div></div>
-            <div className="stat-card sc-red"><div className="lbl">Expenses</div><div className="val" style={{ fontSize: 20 }}>{fmt(totalExp)}</div></div>
-            <div className="stat-card" style={{ background: '#faf5ff' }}><div className="lbl" style={{ color: '#7c3aed' }}>Partner Commissions</div><div className="val" style={{ fontSize: 20, color: '#7c3aed' }}>{fmt(totalCommissions)}</div></div>
-            <div className={`stat-card ${profit >= 0 ? 'sc-green' : 'sc-red'}`}><div className="lbl">Net Profit</div><div className="val" style={{ fontSize: 20 }}>{fmt(profit)}</div></div>
-            <div className="stat-card sc-blue"><div className="lbl">GST Collected</div><div className="val" style={{ fontSize: 20 }}>{fmt(gst)}</div></div>
+            <div className="stat-card sc-green"><div className="lbl">Revenue (Paid)</div><div className="val" style={{ fontSize: 'clamp(16px, 1.5vw, 20px)', wordBreak: 'break-word', lineHeight: '1.2' }}>{fmt(revenue)}</div></div>
+            <div className="stat-card sc-red"><div className="lbl">Expenses</div><div className="val" style={{ fontSize: 'clamp(16px, 1.5vw, 20px)', wordBreak: 'break-word', lineHeight: '1.2' }}>{fmt(totalExp)}</div></div>
+            <div className="stat-card" style={{ background: '#faf5ff' }}><div className="lbl" style={{ color: '#7c3aed' }}>Partner Commissions</div><div className="val" style={{ fontSize: 'clamp(16px, 1.5vw, 20px)', wordBreak: 'break-word', lineHeight: '1.2', color: '#7c3aed' }}>{fmt(totalCommissions)}</div></div>
+            <div className={`stat-card ${profit >= 0 ? 'sc-green' : 'sc-red'}`}><div className="lbl">Net Profit</div><div className="val" style={{ fontSize: 'clamp(16px, 1.5vw, 20px)', wordBreak: 'break-word', lineHeight: '1.2' }}>{fmt(profit)}</div></div>
+            <div className="stat-card sc-blue"><div className="lbl">GST Collected</div><div className="val" style={{ fontSize: 'clamp(16px, 1.5vw, 20px)', wordBreak: 'break-word', lineHeight: '1.2' }}>{fmt(gst)}</div></div>
           </div>
           <div className="tw">
             <div className="tw-head"><h3>Invoice Breakdown</h3></div>
@@ -368,9 +368,9 @@ export default function Reports({ user, perms, ownerId, profile }) {
       {tab === 'gst' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div className="stat-grid">
-            <div className="stat-card sc-green"><div className="lbl">Output GST (Collected)</div><div className="val" style={{ fontSize: 20 }}>{fmt(gst)}</div></div>
-            <div className="stat-card sc-red"><div className="lbl">Input GST (Paid)</div><div className="val" style={{ fontSize: 20 }}>{fmt(inputGst)}</div></div>
-            <div className="stat-card sc-purple"><div className="lbl">Net GST Payable</div><div className="val" style={{ fontSize: 20 }}>{fmt(netGst)}</div></div>
+            <div className="stat-card sc-green"><div className="lbl">Output GST (Collected)</div><div className="val" style={{ fontSize: 'clamp(16px, 1.5vw, 20px)', wordBreak: 'break-word', lineHeight: '1.2' }}>{fmt(gst)}</div></div>
+            <div className="stat-card sc-red"><div className="lbl">Input GST (Paid)</div><div className="val" style={{ fontSize: 'clamp(16px, 1.5vw, 20px)', wordBreak: 'break-word', lineHeight: '1.2' }}>{fmt(inputGst)}</div></div>
+            <div className="stat-card sc-purple"><div className="lbl">Net GST Payable</div><div className="val" style={{ fontSize: 'clamp(16px, 1.5vw, 20px)', wordBreak: 'break-word', lineHeight: '1.2' }}>{fmt(netGst)}</div></div>
           </div>
 
           <div className="tw">
