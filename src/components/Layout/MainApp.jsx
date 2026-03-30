@@ -70,6 +70,14 @@ export default function MainApp({ user, settings }) {
   const discoveryLoading = discQuery ? reqLoading : false;
   const isDiscovering = !teamInfo && !!user.email && discoveryLoading;
 
+  // 2b. Partner Discovery: check if this user is a partner (defense-in-depth)
+  const storedPartnerCheck = localStorage.getItem('tc_channel_partner');
+  const partnerDiscQuery = (!storedPartnerCheck && user.email && !isSuperadmin)
+    ? { partnerApplications: { $: { where: { email: String(user.email).toLowerCase() }, limit: 1 } } }
+    : null;
+  const { data: partnerDiscovery, isLoading: partnerDiscLoading } = db.useQuery(partnerDiscQuery);
+  const isDiscoveringPartner = !!partnerDiscQuery && partnerDiscLoading;
+
   // Sync discovered team info
   useEffect(() => {
     if (discovery?.teamMembers?.[0] && !teamInfo) {
@@ -83,6 +91,26 @@ export default function MainApp({ user, settings }) {
       localStorage.setItem('tc_team_member', JSON.stringify(discovered));
     }
   }, [discovery, teamInfo]);
+
+  // Redirect discovered partners back to the partner portal
+  useEffect(() => {
+    if (partnerDiscovery?.partnerApplications?.[0]) {
+      const p = partnerDiscovery.partnerApplications[0];
+      console.log("🔍 [MainApp] Discovered partner account, redirecting:", p.email, p.role, p.status);
+      const partnerInfo = {
+        isPartner: true,
+        ownerUserId: p.userId,
+        partnerId: p.id,
+        role: p.role,
+        status: p.status
+      };
+      if (p.status === 'Approved') {
+        localStorage.setItem('tc_channel_partner', JSON.stringify(partnerInfo));
+      }
+      // Force reload so App.jsx picks up the partner and routes correctly
+      window.location.reload();
+    }
+  }, [partnerDiscovery]);
 
   // 3. Main Data Fetch (target the owner's data)
   const targetUserId = (teamInfo?.isTeamMember && !isSuperadmin) ? teamInfo.ownerUserId : user.id;
@@ -164,6 +192,12 @@ export default function MainApp({ user, settings }) {
             createdAt: Date.now()
          })).then(() => syncRef.current = false).catch(() => syncRef.current = false);
       }
+      return;
+    }
+
+    // HARD BLOCK: If partner discovery found this user is a partner, do NOT create a profile
+    if (partnerDiscovery?.partnerApplications?.[0]) {
+      console.log("🛡 [MainApp] Blocked profile creation for partner:", user.email);
       return;
     }
 
@@ -356,12 +390,12 @@ export default function MainApp({ user, settings }) {
 
 
 
-  if (isDiscovering || mainLoading || !perms) {
+  if (isDiscovering || isDiscoveringPartner || mainLoading || !perms) {
     return (
       <div className="loading-screen">
         <div className="logo">{settings?.brandShort || ''}</div>
         <div className="spinner" />
-        <p>{isDiscovering ? 'Discovering Workspace...' : `Loading ${settings?.brandName || ''}...`}</p>
+        <p>{(isDiscovering || isDiscoveringPartner) ? 'Discovering Workspace...' : `Loading ${settings?.brandName || ''}...`}</p>
       </div>
     );
   }
