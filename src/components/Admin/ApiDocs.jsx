@@ -113,6 +113,138 @@ const API_LIST = [
       { name: 'Delete Invoice (DELETE)', method: 'DELETE', body: { module: 'invoices', id: 'INV_ID', ownerId: '...' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
     ]
   },
+  {
+    group: 'AMC Contracts',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Annual Maintenance Contracts management. Module key: amc',
+    actions: [
+      { name: 'Create AMC (POST)', method: 'POST', body: { module: 'amc', ownerId: '...', actorId: '...', client: 'Acme Corp', plan: 'Premium Support', amount: 25000, startDate: '2026-04-01', endDate: '2027-03-31', billingCycle: 'Yearly', status: 'Active' }, resp: { success: true, id: '...', message: 'Record created successfully' }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'List AMC (GET)', method: 'GET', query: 'module=amc&ownerId=...', resp: { success: true, data: [{ id: '...', client: 'Acme Corp', status: 'Active' }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Update AMC (PATCH)', method: 'PATCH', body: { module: 'amc', id: 'AMC_ID', ownerId: '...', status: 'Expired' }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] },
+      { name: 'Delete AMC (DELETE)', method: 'DELETE', body: { module: 'amc', id: 'AMC_ID', ownerId: '...' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
+    ]
+  },
+  {
+    group: 'Expenses',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Track business expenses and costs. Module key: expenses',
+    actions: [
+      { name: 'Create Expense (POST)', method: 'POST', body: { module: 'expenses', ownerId: '...', actorId: '...', title: 'Office Supplies', amount: 5000, category: 'Operations', date: '2026-03-22' }, resp: { success: true, id: '...', message: 'Record created successfully' }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'List Expenses (GET)', method: 'GET', query: 'module=expenses&ownerId=...', resp: { success: true, data: [{ id: '...', title: 'Office Supplies', amount: 5000 }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Update Expense (PATCH)', method: 'PATCH', body: { module: 'expenses', id: 'EXP_ID', ownerId: '...', amount: 5500 }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] },
+      { name: 'Delete Expense (DELETE)', method: 'DELETE', body: { module: 'expenses', id: 'EXP_ID', ownerId: '...' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
+    ]
+  },
+  {
+    group: 'Products / Inventory',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Manage product catalog and stock tracking. Module key: products',
+    actions: [
+      { name: 'Create Product (POST)', method: 'POST', body: { module: 'products', ownerId: '...', actorId: '...', name: 'Wireless Mouse', code: 'WM-001', rate: 500, tax: 18, stock: 100, trackStock: true, unit: 'Nos' }, resp: { success: true, id: '...', message: 'Record created successfully' }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'List Products (GET)', method: 'GET', query: 'module=products&ownerId=...', resp: { success: true, data: [{ id: '...', name: 'Wireless Mouse', stock: 100, rate: 500 }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Update Product (PATCH)', method: 'PATCH', body: { module: 'products', id: 'PROD_ID', ownerId: '...', stock: 85 }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] },
+      { name: 'Delete Product (DELETE)', method: 'DELETE', body: { module: 'products', id: 'PROD_ID', ownerId: '...' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
+    ]
+  },
+  {
+    group: 'Vendors',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Manage vendor/supplier contacts. Module key: vendors',
+    actions: [
+      { name: 'Create Vendor (POST)', method: 'POST', body: { module: 'vendors', ownerId: '...', actorId: '...', name: 'Supplier Inc', email: 'sales@supplier.com', phone: '9988776655' }, resp: { success: true, id: '...', message: 'Record created successfully' }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'List Vendors (GET)', method: 'GET', query: 'module=vendors&ownerId=...', resp: { success: true, data: [{ id: '...', name: 'Supplier Inc' }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Update Vendor (PATCH)', method: 'PATCH', body: { module: 'vendors', id: 'V_ID', ownerId: '...', name: 'Updated Supplier' }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] },
+      { name: 'Delete Vendor (DELETE)', method: 'DELETE', body: { module: 'vendors', id: 'V_ID', ownerId: '...' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
+    ]
+  },
+  {
+    group: 'Purchase Orders',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Create and manage vendor purchase orders. Module key: purchase-orders',
+    actions: [
+      { name: 'Create PO (POST)', method: 'POST', body: { module: 'purchase-orders', ownerId: '...', actorId: '...', vendor: 'Supplier Inc', items: [{ name: 'Raw Material', qty: 50, rate: 200 }], total: 10000, status: 'Draft' }, resp: { success: true, id: '...', message: 'Record created successfully' }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'List POs (GET)', method: 'GET', query: 'module=purchase-orders&ownerId=...', resp: { success: true, data: [{ id: '...', vendor: 'Supplier Inc', total: 10000 }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Update PO (PATCH)', method: 'PATCH', body: { module: 'purchase-orders', id: 'PO_ID', ownerId: '...', status: 'Ordered' }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] },
+      { name: 'Delete PO (DELETE)', method: 'DELETE', body: { module: 'purchase-orders', id: 'PO_ID', ownerId: '...' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
+    ]
+  },
+  {
+    group: 'Team Members',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Manage team member accounts and roles. Module key: teams',
+    actions: [
+      { name: 'Create Member (POST)', method: 'POST', body: { module: 'teams', ownerId: '...', actorId: '...', name: 'John Staff', email: 'john@company.com', role: 'Sales Rep' }, resp: { success: true, id: '...', message: 'Record created successfully' }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'List Members (GET)', method: 'GET', query: 'module=teams&ownerId=...', resp: { success: true, data: [{ id: '...', name: 'John Staff', role: 'Sales Rep' }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Update Member (PATCH)', method: 'PATCH', body: { module: 'teams', id: 'MEMBER_ID', ownerId: '...', role: 'Manager' }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] },
+      { name: 'Delete Member (DELETE)', method: 'DELETE', body: { module: 'teams', id: 'MEMBER_ID', ownerId: '...' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
+    ]
+  },
+  {
+    group: 'Activity Logs',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Read and manage system activity logs. Module key: logs',
+    actions: [
+      { name: 'List Logs (GET)', method: 'GET', query: 'module=logs&ownerId=...', resp: { success: true, data: [{ id: '...', entityType: 'lead', text: 'Stage changed to Contacted', createdAt: 1711234567890 }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Delete Log (DELETE)', method: 'DELETE', body: { module: 'logs', id: 'LOG_ID', ownerId: '...' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
+    ]
+  },
+  {
+    group: 'Subscriptions',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Manage recurring billing subscriptions. Module key: subs',
+    actions: [
+      { name: 'Create Sub (POST)', method: 'POST', body: { module: 'subs', ownerId: '...', actorId: '...', client: 'Acme Corp', plan: 'Monthly Plan', amount: 999, cycle: 'Monthly', status: 'Active' }, resp: { success: true, id: '...', message: 'Record created successfully' }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'List Subs (GET)', method: 'GET', query: 'module=subs&ownerId=...', resp: { success: true, data: [{ id: '...', client: 'Acme Corp', status: 'Active' }] }, errors: [{ status: 400, error: 'ownerId is required' }] }
+    ]
+  },
+  {
+    group: 'Ecommerce Orders',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'View and manage e-commerce orders placed through storefront. Module key: orders',
+    actions: [
+      { name: 'List Orders (GET)', method: 'GET', query: 'module=orders&ownerId=...', resp: { success: true, data: [{ id: '...', customerName: 'Jane Doe', total: 1500, status: 'Pending' }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Update Order (PATCH)', method: 'PATCH', body: { module: 'orders', id: 'ORDER_ID', ownerId: '...', status: 'Shipped' }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] }
+    ]
+  },
+  {
+    group: 'Ecom Settings & Customers',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Manage storefront settings and storefront-specific customer data. Module keys: ecomSettings, ecomCustomers',
+    actions: [
+      { name: 'Get Ecom Settings (GET)', method: 'GET', query: 'module=ecomSettings&ownerId=...', resp: { success: true, data: [{ id: '...', storeName: 'My Store', slug: 'my-store' }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Get Ecom Customers (GET)', method: 'GET', query: 'module=ecomCustomers&ownerId=...', resp: { success: true, data: [{ id: '...', name: 'Jane Doe' }] }, errors: [{ status: 400, error: 'ownerId is required' }] }
+    ]
+  },
+  {
+    group: 'Appointments (Internal)',
+    path: '/api/data',
+    method: 'ALL',
+    desc: 'Manage appointments from admin side. Module keys: appointments, appointmentSettings',
+    actions: [
+      { name: 'List Appointments (GET)', method: 'GET', query: 'module=appointments&ownerId=...', resp: { success: true, data: [{ id: '...', customerName: 'Alice', service: 'Consultation', date: '2026-03-25', time: '10:00 AM', status: 'Pending' }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Update Appointment (PATCH)', method: 'PATCH', body: { module: 'appointments', id: 'APT_ID', ownerId: '...', status: 'Completed' }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] },
+      { name: 'Get Appointment Settings (GET)', method: 'GET', query: 'module=appointmentSettings&ownerId=...', resp: { success: true, data: [{ id: '...', maxPerSlot: 3, workingHours: { start: '09:00', end: '18:00' } }] }, errors: [{ status: 400, error: 'ownerId is required' }] }
+    ]
+  },
+  {
+    group: 'Member Stats',
+    path: '/api/data',
+    method: 'GET',
+    desc: 'Daily activity statistics per team member. Module key: memberStats. Auto-updated by the system.',
+    actions: [
+      { name: 'List Stats (GET)', method: 'GET', query: 'module=memberStats&ownerId=...', resp: { success: true, data: [{ id: '...', memberId: 'M_ID', date: '2026-03-25', leadsWorked: 5, tasksCompleted: 3, otherWorks: 2 }] }, errors: [{ status: 400, error: 'ownerId is required' }] }
+    ]
+  },
   { 
     group: 'POS Billing', 
     path: '/api/finance', 

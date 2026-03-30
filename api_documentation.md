@@ -369,21 +369,28 @@ Supports CRUD operations for all modules. Uses HTTP methods: `GET`, `POST`, `PAT
 
 ### Available Modules
 
-| Module Key | Collection | Actions |
+| Module Key | Collection | Description |
 |:---|:---|:---|
-| `leads` | `leads` | Create, Read, Update, Delete |
-| `customers` | `customers` | Create, Read, Update, Delete |
-| `quotations` | `quotations` | Create, Read, Update, Delete |
-| `invoices` | `invoices` | Create, Read, Update, Delete |
-| `amc` | `amc` | Create, Read, Update, Delete |
-| `expenses` | `expenses` | Create, Read, Update, Delete |
-| `products` | `products` | Create, Read, Update, Delete |
-| `vendors` | `vendors` | Create, Read, Update, Delete |
-| `purchase-orders` | `purchaseOrders` | Create, Read, Update, Delete |
-| `projects` | `projects` | Create, Read, Update, Delete |
-| `tasks` | `tasks` | Create, Read, Update, Delete |
-| `teams` | `teamMembers` | Create, Read, Update, Delete |
-| `logs` | `activityLogs` | Create, Read, Update, Delete |
+| `leads` | `leads` | CRM leads / enquiries |
+| `customers` | `customers` | Verified clients |
+| `quotations` | `quotations` | Sales quotes |
+| `invoices` | `invoices` | Tax invoices |
+| `amc` | `amc` | AMC contracts |
+| `expenses` | `expenses` | Business expenses |
+| `products` | `products` | Product catalog & stock |
+| `vendors` | `vendors` | Supplier contacts |
+| `purchase-orders` | `purchaseOrders` | Vendor purchase orders |
+| `projects` | `projects` | Work projects |
+| `tasks` | `tasks` | Individual tasks |
+| `teams` | `teamMembers` | Team member accounts |
+| `subs` | `subs` | Recurring subscriptions |
+| `logs` | `activityLogs` | System activity logs |
+| `ecomSettings` | `ecomSettings` | Storefront configuration |
+| `orders` | `orders` | E-commerce orders |
+| `appointments` | `appointments` | Booked appointments |
+| `appointmentSettings` | `appointmentSettings` | Appointment configuration |
+| `ecomCustomers` | `ecomCustomers` | Storefront customers |
+| `memberStats` | `memberStats` | Daily team stats (auto-populated) |
 
 ---
 
