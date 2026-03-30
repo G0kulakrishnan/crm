@@ -29,7 +29,15 @@ export default async function handler(req, res) {
       if (!cleanEmail || !password) return res.status(400).json({ error: 'Email and password are required' });
       const data = await db.query({ userCredentials: { $: { where: { email: cleanEmail } } } });
       const user = data.userCredentials?.[0];
-      if (!user || !(await bcrypt.compare(password, user.password))) return res.status(401).json({ error: 'Invalid email or password' });
+      if (!user) {
+        // Check if user exists via profile (magic-code registered) but has no password credentials
+        const { userProfiles } = await db.query({ userProfiles: { $: { where: { email: cleanEmail }, limit: 1 } } });
+        if (userProfiles?.[0]) {
+          return res.status(401).json({ error: 'No password set for this account. Please use Magic Code to sign in, or use Forgot Password to set one.' });
+        }
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+      if (!user.password || !(await bcrypt.compare(password, user.password))) return res.status(401).json({ error: 'Invalid email or password' });
       if (user.isVerified === false) return res.status(403).json({ error: 'Email verification pending', message: 'Please verify your email using the OTP sent during registration.' });
       
       const token = await db.auth.createToken({ email: cleanEmail });

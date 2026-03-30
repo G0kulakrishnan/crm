@@ -78,37 +78,42 @@ export default function AuthScreen({ settings }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Authentication failed');
       
-      // Attempt to sign in with custom token
-      await db.auth.signInWithToken(data.token);
-      
-      if (data.isTeamMember) {
-        localStorage.setItem('tc_team_member', JSON.stringify({
-          isTeamMember: true,
-          ownerUserId: data.ownerUserId,
-          teamMemberId: data.teamMemberId
-        }));
-      } else {
-        localStorage.removeItem('tc_team_member');
-      }
-
-      if (data.isPartner) {
-        localStorage.setItem('tc_channel_partner', JSON.stringify({
-          isPartner: true,
-          ownerUserId: data.ownerUserId,
-          partnerId: data.partnerId,
-          role: data.role
-        }));
-      } else {
-        localStorage.removeItem('tc_channel_partner');
-      }
-
       if (tab === 'register') {
+        // Registration returns OTP, not a token — go to OTP verification step
         localStorage.setItem('tc_reg_data', JSON.stringify({
           bizName, fullName, phone, selectedPlan: selectedPlan || 'Trial'
         }));
-      }
+        localStorage.setItem('tc_pending_otp', data.otp || ''); // Dev mode: store for easy testing
+        console.log('REGISTRATION OTP (Dev Mode):', data.otp);
+        setStep('otp-verify');
+        toast('Account created! Enter the OTP to verify your email.', 'success');
+      } else {
+        // Login returns a token — sign in immediately
+        await db.auth.signInWithToken(data.token);
+        
+        if (data.isTeamMember) {
+          localStorage.setItem('tc_team_member', JSON.stringify({
+            isTeamMember: true,
+            ownerUserId: data.ownerUserId,
+            teamMemberId: data.teamMemberId
+          }));
+        } else {
+          localStorage.removeItem('tc_team_member');
+        }
 
-      toast(tab === 'login' ? 'Welcome Back! 👋' : 'Account created successfully! 🎉', 'success');
+        if (data.isPartner) {
+          localStorage.setItem('tc_channel_partner', JSON.stringify({
+            isPartner: true,
+            ownerUserId: data.ownerUserId,
+            partnerId: data.partnerId,
+            role: data.role
+          }));
+        } else {
+          localStorage.removeItem('tc_channel_partner');
+        }
+
+        toast('Welcome Back! 👋', 'success');
+      }
     } catch (err) {
       toast(err.message, 'error');
     } finally {
@@ -168,6 +173,30 @@ export default function AuthScreen({ settings }) {
     }
   };
 
+  const handleOtpVerify = async (e) => {
+    e.preventDefault();
+    if (!code.trim()) { toast('Enter the OTP from your email', 'error'); return; }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify-otp', email: email.trim(), otp: code.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Verification failed');
+
+      // OTP verified — sign in with the token
+      await db.auth.signInWithToken(data.token);
+      toast('Email verified! Welcome! 🎉', 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+      setCode('');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="auth-screen">
       {/* LEFT PANEL */}
@@ -200,10 +229,12 @@ export default function AuthScreen({ settings }) {
       {/* RIGHT PANEL */}
       <div className="auth-right">
         <div className="auth-box">
-          <h2>{step === 'email' ? 'Welcome 👋' : step === 'reset' ? 'Reset Password 🔑' : 'Check Your Email 📧'}</h2>
+          <h2>{step === 'email' ? 'Welcome 👋' : step === 'otp-verify' ? 'Verify Your Email ✉️' : step === 'reset' ? 'Reset Password 🔑' : 'Check Your Email 📧'}</h2>
           <p className="sub">
             {step === 'email'
               ? `Sign in to your ${settings?.brandName || 'T2GCRM'} workspace`
+              : step === 'otp-verify'
+              ? `We sent a verification code to ${email}`
               : step === 'reset'
               ? 'Enter the 6-digit code and a new password'
               : `We sent a 6-digit code to ${email}`}
@@ -354,6 +385,33 @@ export default function AuthScreen({ settings }) {
               <button type="submit" className="btn btn-primary" style={{ marginTop: 6 }} disabled={loading}>
                 {loading ? 'Reseting...' : 'Update Password ✓'}
               </button>
+            </form>
+          )}
+
+          {/* REGISTRATION OTP VERIFY STEP */}
+          {step === 'otp-verify' && (
+            <form onSubmit={handleOtpVerify}>
+              <div className="form-group">
+                <label>6-Digit Verification Code</label>
+                <input
+                  type="text" value={code}
+                  onChange={e => setCode(e.target.value)}
+                  placeholder="123456" required autoFocus
+                  style={{ letterSpacing: '0.3em', fontSize: 22, textAlign: 'center', fontWeight: 700 }}
+                  maxLength={6}
+                />
+              </div>
+              <button type="submit" className="btn btn-primary" style={{ marginTop: 6 }} disabled={loading}>
+                {loading ? 'Verifying...' : 'Verify & Sign In ✓'}
+              </button>
+              <div style={{ textAlign: 'center', marginTop: 14 }}>
+                <span
+                  style={{ fontSize: 12, color: '#64748b', cursor: 'pointer', fontWeight: 600 }}
+                  onClick={() => { setStep('email'); setTab('login'); setCode(''); }}
+                >
+                  ← Back to Sign In
+                </span>
+              </div>
             </form>
           )}
 
