@@ -79,15 +79,19 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
 
             /* Print-only Overrides */
             @media print {
-              @page { size: A4; margin: 0; }
-              body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
-              .a4-container { padding: 8mm !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; min-height: 100vh !important; box-sizing: border-box !important; }
+              @page { size: A4; margin: 8mm; }
+              body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
+              .a4-container { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; min-height: auto !important; overflow: visible !important; }
               .no-print { display: none !important; }
               
-              /* Table frame: Use separate borders with 0 spacing so repeating elements construct a continuous outline natively */
-              .print-frame { width: 100% !important; margin: 0 !important; border: none !important; border-collapse: separate !important; border-spacing: 0 !important; height: 100% !important; }
+              /* Table frame */
+              .print-frame { width: 100% !important; margin: 0 !important; border: none !important; border-collapse: separate !important; border-spacing: 0 !important; }
               
-              /* thead repeats on every page top — provides top + side borders */
+              /* Force thead/tfoot to repeat on every printed page */
+              .print-frame-head { display: table-header-group !important; }
+              .print-frame-foot { display: table-footer-group !important; }
+              
+              /* thead = top border + side borders on every page */
               .print-frame-head td { 
                 height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important;
                 border-top: 2px solid #000 !important; 
@@ -95,7 +99,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                 border-right: 2px solid #000 !important; 
                 border-bottom: none !important;
               }
-              /* tfoot repeats on every page bottom — provides bottom + side borders */
+              /* tfoot = bottom border + side borders on every page */
               .print-frame-foot td { 
                 height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important;
                 border-bottom: 2px solid #000 !important; 
@@ -104,7 +108,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                 border-top: none !important;
               }
               
-              /* Body cells — side borders for continuity across pages */
+              /* tbody cells = left + right side borders continuing across pages */
               .print-frame-body > tr > td { 
                 border-left: 2px solid #000 !important; 
                 border-right: 2px solid #000 !important; 
@@ -126,8 +130,8 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               .avoid-break { page-break-inside: avoid; }
               .bank-right-border { border-right: 1px solid #000 !important; }
               
-              /* Spacer row fills remaining page height so side borders reach the bottom */
-              .print-spacer td { height: 100% !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important; }
+              /* Spacer fills remaining space on short invoices */
+              .print-spacer td { height: auto !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important; }
             }
           `}</style>
 
