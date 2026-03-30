@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
-import { sendEmail, sendWhatsApp, sendWhatsAppMock } from '../../utils/messaging';
+import { sendEmail } from '../../utils/messaging';
 import { fmtD, INDIAN_STATES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_REQUIREMENTS } from '../../utils/helpers';
 
 const TEMPLATES = [
@@ -40,7 +40,7 @@ export default function Campaigns({ user, perms, ownerId }) {
   const [showManualAdd, setShowManualAdd] = useState(false);
   
   // Composer
-  const [channel, setChannel] = useState('email'); // 'email' | 'whatsapp'
+  const channel = 'email';
   const [campaignName, setCampaignName] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -87,8 +87,7 @@ export default function Campaigns({ user, perms, ownerId }) {
       const custMatch = customers.find(c => c.name === l.name);
       const effEmail = l.email || custMatch?.email;
       const effPhone = l.phone || custMatch?.phone;
-      if (channel === 'email' && !effEmail) return;
-      if (channel === 'whatsapp' && !effPhone) return;
+      if (!effEmail) return;
       list.push({
         id: `lead_${l.id}`,
         entityId: l.id,
@@ -102,8 +101,7 @@ export default function Campaigns({ user, perms, ownerId }) {
 
     // Process Customers
     customers.forEach(c => {
-      if (channel === 'email' && !c.email) return;
-      if (channel === 'whatsapp' && !c.phone) return;
+      if (!c.email) return;
       list.push({
         id: `cust_${c.id}`,
         entityId: c.id,
@@ -254,11 +252,9 @@ export default function Campaigns({ user, perms, ownerId }) {
   const handleSend = async () => {
     if (!canCreate) { toast('Permission denied: cannot send campaigns', 'error'); return; }
     if (!campaignName.trim()) return toast('Please enter a Campaign Name', 'error');
-    if (channel === 'email' && !profile?.smtpHost) return toast('Please configure your SMTP settings in the Settings page first', 'error');
-    if (channel === 'whatsapp' && !profile?.waPhoneNumberId) return toast('Please configure your WhatsApp API credentials in Settings > WhatsApp first', 'error');
+    if (!profile?.smtpHost) return toast('Please configure your SMTP settings in the Settings page first', 'error');
     if (targetAudience.length === 0) return toast('No leads match your selected filters. Please adjust your audience.', 'error');
-    if (channel === 'email' && (!subject.trim() || !body.trim())) return toast('Please enter a subject and email body.', 'error');
-    if (channel === 'whatsapp' && !body.trim()) return toast('Please enter a message body.', 'error');
+    if (!subject.trim() || !body.trim()) return toast('Please enter a subject and email body.', 'error');
     
     if (sendMode === 'schedule') {
       if (!scheduleTime) return toast('Please select a date and time to schedule this campaign.', 'error');
@@ -270,7 +266,7 @@ export default function Campaigns({ user, perms, ownerId }) {
         userId: ownerId,
         name: campaignName,
         channel: channel,
-        subject: channel === 'email' ? subject : null,
+        subject: subject,
         body: body,
         audienceSize: targetAudience.length,
         status: 'Scheduled',
@@ -288,7 +284,7 @@ export default function Campaigns({ user, perms, ownerId }) {
       return;
     }
 
-    if (!confirm(`Are you sure you want to send this ${channel.toUpperCase()} campaign to ${targetAudience.length} leads now?`)) return;
+    if (!confirm(`Are you sure you want to send this EMAIL campaign to ${targetAudience.length} leads now?`)) return;
 
     setSending(true);
     setProgress(0);
@@ -301,7 +297,7 @@ export default function Campaigns({ user, perms, ownerId }) {
       userId: ownerId,
       name: campaignName,
       channel: channel,
-      subject: channel === 'email' ? subject : null,
+      subject: subject,
       body: body,
       audienceSize: targetAudience.length,
       status: 'Sending...',
@@ -315,23 +311,12 @@ export default function Campaigns({ user, perms, ownerId }) {
       const effPhone = recipient.phone;
 
       try {
-        const pSubj = channel === 'email' ? subject.replace(/{{name}}/g, recipient.name || 'Friend').replace(/{{email}}/g, effEmail) : '';
+        const pSubj = subject.replace(/{{name}}/g, recipient.name || 'Friend').replace(/{{email}}/g, effEmail);
         const pBody = body.replace(/{{name}}/g, recipient.name || 'Friend').replace(/{{email}}/g, effEmail);
         
-        const logText = channel === 'email' 
-          ? `Received email campaign: "${campaignName}"\nSubject: ${pSubj}`
-          : `Received WhatsApp campaign: "${campaignName}"`;
+        const logText = `Received email campaign: "${campaignName}"\nSubject: ${pSubj}`;
 
-        if (channel === 'email') {
-          await sendEmail(effEmail, pSubj, pBody, ownerId, profile?.bizName, ownerId);
-        } else {
-          // Use real WhatsApp API if configured
-          if (profile?.isWaEnabled || (profile?.waToken && profile?.waPhoneNumberId)) {
-            await sendWhatsApp(effPhone, pBody, ownerId, ownerId);
-          } else {
-            await sendWhatsAppMock(ownerId, effPhone, pBody, { entityId: recipient.entityId, entityType: recipient.type.toLowerCase() });
-          }
-        }
+        await sendEmail(effEmail, pSubj, pBody, ownerId, profile?.bizName, ownerId);
         
         // Log to timeline
           await db.transact(db.tx.activityLogs[id()].update({
@@ -661,19 +646,7 @@ export default function Campaigns({ user, perms, ownerId }) {
           {/* RIGHT SIDE: Composer */}
           <div className="tw" style={{ padding: 25 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3>2. Compose Message</h3>
-              <div style={{ display: 'flex', background: 'var(--bg)', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--border)' }}>
-                <button 
-                  className={`btn btn-sm ${channel === 'email' ? 'btn-primary' : 'btn-ghost'}`} 
-                  style={{ borderRadius: 0, border: 'none' }} 
-                  onClick={() => setChannel('email')} disabled={sending}
-                >📧 Email</button>
-                <button 
-                  className={`btn btn-sm ${channel === 'whatsapp' ? 'btn-primary' : 'btn-ghost'}`} 
-                  style={{ borderRadius: 0, border: 'none' }} 
-                  onClick={() => setChannel('whatsapp')} disabled={sending}
-                >💬 WhatsApp</button>
-              </div>
+              <h3>2. Compose Email</h3>
             </div>
             
             <div className="fg" style={{ marginTop: 20 }}>
@@ -695,25 +668,22 @@ export default function Campaigns({ user, perms, ownerId }) {
               </select>
             </div>
 
-            {channel === 'email' && (
-              <div className="fg" style={{ marginTop: 20 }}>
-                <label style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Email Subject</span>
-                  <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>Supports {'{{name}}'}, {'{{email}}'}</span>
-                </label>
-                <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Enter subject line..." disabled={sending} />
-              </div>
-            )}
+            <div className="fg" style={{ marginTop: 20 }}>
+              <label style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span>Email Subject</span>
+                <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>Supports {'{{name}}'}, {'{{email}}'}</span>
+              </label>
+              <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Enter subject line..." disabled={sending} />
+            </div>
 
             <div className="fg" style={{ marginTop: 20 }}>
               <label style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>{channel === 'email' ? 'Email Body' : 'WhatsApp Message'}</span>
-                {channel === 'whatsapp' && <span style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>Supports {'{{name}}'}, {'{{email}}'}</span>}
+                <span>Email Body</span>
               </label>
               <textarea 
                 value={body} 
                 onChange={e => setBody(e.target.value)} 
-                placeholder={channel === 'email' ? "Write your email content here..." : "Write your WhatsApp message here..."}
+                placeholder="Write your email content here..."
                 style={{ height: 250, resize: 'vertical' }}
                 disabled={sending}
               />
