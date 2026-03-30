@@ -84,9 +84,10 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               .a4-container { padding: 8mm !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; min-height: 0 !important; box-sizing: border-box !important; }
               .no-print { display: none !important; }
               
-              .print-frame { width: 100% !important; margin: 0 !important; border: none !important; }
+              /* Table frame: border-collapse merges table + cell borders into one seamless line */
+              .print-frame { width: 100% !important; margin: 0 !important; border: 3px solid #000 !important; border-collapse: collapse !important; }
               
-              /* thead/tfoot repeat on every printed page — they carry the top/bottom border lines */
+              /* thead repeats on every page top — provides top + side borders */
               .print-frame-head td { 
                 height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important;
                 border-top: 3px solid #000 !important; 
@@ -94,6 +95,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                 border-right: 3px solid #000 !important; 
                 border-bottom: none !important;
               }
+              /* tfoot repeats on every page bottom — provides bottom + side borders */
               .print-frame-foot td { 
                 height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important;
                 border-bottom: 3px solid #000 !important; 
@@ -102,13 +104,13 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                 border-top: none !important;
               }
               
-              /* Body cells carry the left/right borders */
+              /* Body cells — side borders for continuity across pages */
               .print-frame-body > tr > td { 
                 border-left: 3px solid #000 !important; 
                 border-right: 3px solid #000 !important; 
                 border-top: none !important;
                 border-bottom: none !important;
-                padding: 0 15mm !important; 
+                padding: 0 20px !important; 
               }
 
               .z-table { page-break-inside: auto; }
