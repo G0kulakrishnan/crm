@@ -119,8 +119,8 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               .print-content-row { page-break-inside: auto; }
               .avoid-break { page-break-inside: avoid; }
               .bank-right-border { border-right: 1px solid #000 !important; }
-              
-              .print-spacer td { height: auto !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important; }
+              /* Spacer row expands to fill remaining page height, pushing bank/totals to bottom */
+              .print-spacer td { height: 100% !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important; }
             }
           `}</style>
 
