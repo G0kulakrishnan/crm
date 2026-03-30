@@ -77,27 +77,47 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             .print-frame-foot td { height: 15px; border-bottom: 1px solid #ddd; border-left: 1px solid #ddd; border-right: 1px solid #ddd; }
             .print-frame-body > tr > td { border-left: 1px solid #ddd; border-right: 1px solid #ddd; padding: 15px 30px; }
 
-            /* Fixed A4 Boundary Overlay for Print */
-            .fixed-page-border { display: none; }
-            
-            /* Print-only Overrides (Rigid #000 Borders for perfect PDFs) */
+            /* Print-only Overrides */
             @media print {
-              .fixed-page-border {
-                 display: block; position: fixed;
-                 top: 10mm; left: 10mm; right: 10mm; bottom: 10mm;
-                 border: 2px solid #000;
-                 z-index: 10; pointer-events: none;
-              }
-              @page { size: A4; margin: 0; } /* Forces removal of browser Data & URLs */
+              @page { size: A4; margin: 10mm; }
               body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
               .a4-container { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; min-height: 0 !important; }
               .no-print { display: none !important; }
               
-              /* Print Frame Box - Print Mode (Unbroken Repeating Borders) */
-              .print-frame { width: calc(100% - 20mm) !important; margin: 10mm auto !important; }
-              .print-frame-head td, .print-frame-foot td { height: 10mm !important; border-color: transparent !important; }
-              .print-frame-body > tr > td.print-content-cell { border-color: transparent !important; padding: 0 10mm !important; }
-              .print-frame-body > tr > td.print-footer-cell { border-left-color: transparent !important; border-right-color: transparent !important; border-top: 2px solid #000 !important; border-bottom: 2px solid #000 !important; padding: 0 !important; }
+              /* Print Frame - Use table thead/tfoot for repeating borders on every page */
+              .print-frame { width: 100% !important; margin: 0 !important; border: none !important; }
+              
+              /* thead/tfoot repeat on every printed page — they carry the top/bottom border lines */
+              .print-frame-head td { 
+                height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important;
+                border-top: 2px solid #000 !important; 
+                border-left: 2px solid #000 !important; 
+                border-right: 2px solid #000 !important; 
+                border-bottom: none !important;
+              }
+              .print-frame-foot td { 
+                height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important;
+                border-bottom: 2px solid #000 !important; 
+                border-left: 2px solid #000 !important; 
+                border-right: 2px solid #000 !important; 
+                border-top: none !important;
+              }
+              
+              /* Body cells carry the left/right borders */
+              .print-frame-body > tr > td.print-content-cell { 
+                border-left: 2px solid #000 !important; 
+                border-right: 2px solid #000 !important; 
+                border-top: none !important;
+                border-bottom: none !important;
+                padding: 0 20px !important; 
+              }
+              .print-frame-body > tr > td.print-footer-cell { 
+                border-left: 2px solid #000 !important; 
+                border-right: 2px solid #000 !important; 
+                border-top: 2px solid #000 !important; 
+                border-bottom: none !important;
+                padding: 0 !important; 
+              }
 
               .z-table { page-break-inside: auto; border-bottom: 2px solid #000; }
               .z-table tr { page-break-inside: avoid; page-break-after: auto; }
@@ -114,7 +134,6 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             }
           `}</style>
 
-          <div className="fixed-page-border"></div>
           <table className="print-frame">
             <thead className="print-frame-head">
               <tr><td>&nbsp;</td></tr>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, Suspense } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useApp } from '../../context/AppContext';
@@ -10,35 +10,46 @@ import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import NotifPanel from './NotifPanel';
 import useAutomationEngine from '../../hooks/useAutomationEngine';
+
+// Eagerly loaded (shown on first render)
 import Dashboard from '../Dashboard/Dashboard';
-import LeadsView from '../Leads/LeadsView';
-import Quotations from '../Finance/Quotations';
-import Invoices from '../Finance/Invoices';
-import POSBilling from '../Finance/POSBilling';
-import AMC from '../Clients/AMC';
-import Customers from '../Clients/Customers';
-import Expenses from '../Business/Expenses';
-import Products from '../Business/Products';
-import Vendors from '../Business/Vendors';
-import PurchaseOrders from '../Business/PurchaseOrders';
-import Campaigns from '../Marketing/Campaigns';
-import Projects from '../Work/Projects';
-import AllTasks from '../Work/AllTasks';
-import Teams from '../Work/Teams';
-import TeamReports from '../Work/TeamReports';
-import AutomationView from '../Automation/AutomationView';
-import Reports from '../Reports/Reports';
-import Settings from '../Settings/Settings';
-import MessagingLogs from '../System/MessagingLogs';
-import AdminPanel from '../Admin/AdminPanel';
-import ApiDocs from '../Admin/ApiDocs';
-import Integrations from '../System/Integrations';
-import UserManual from '../System/UserManual';
-import UserProfile from '../Settings/UserProfile';
-import EcomSettings from '../Ecommerce/EcomSettings';
-import EcomOrders from '../Ecommerce/EcomOrders';
-import Appointments from '../Appointments/Appointments';
-import Distributors from '../Distributors/Distributors';
+
+// Lazy loaded (loaded on-demand when navigated to)
+const LeadsView = React.lazy(() => import('../Leads/LeadsView'));
+const Quotations = React.lazy(() => import('../Finance/Quotations'));
+const Invoices = React.lazy(() => import('../Finance/Invoices'));
+const POSBilling = React.lazy(() => import('../Finance/POSBilling'));
+const AMC = React.lazy(() => import('../Clients/AMC'));
+const Customers = React.lazy(() => import('../Clients/Customers'));
+const Expenses = React.lazy(() => import('../Business/Expenses'));
+const Products = React.lazy(() => import('../Business/Products'));
+const Vendors = React.lazy(() => import('../Business/Vendors'));
+const PurchaseOrders = React.lazy(() => import('../Business/PurchaseOrders'));
+const Campaigns = React.lazy(() => import('../Marketing/Campaigns'));
+const Projects = React.lazy(() => import('../Work/Projects'));
+const AllTasks = React.lazy(() => import('../Work/AllTasks'));
+const Teams = React.lazy(() => import('../Work/Teams'));
+const TeamReports = React.lazy(() => import('../Work/TeamReports'));
+const AutomationView = React.lazy(() => import('../Automation/AutomationView'));
+const Reports = React.lazy(() => import('../Reports/Reports'));
+const Settings = React.lazy(() => import('../Settings/Settings'));
+const MessagingLogs = React.lazy(() => import('../System/MessagingLogs'));
+const AdminPanel = React.lazy(() => import('../Admin/AdminPanel'));
+const ApiDocs = React.lazy(() => import('../Admin/ApiDocs'));
+const Integrations = React.lazy(() => import('../System/Integrations'));
+const UserManual = React.lazy(() => import('../System/UserManual'));
+const UserProfile = React.lazy(() => import('../Settings/UserProfile'));
+const EcomSettings = React.lazy(() => import('../Ecommerce/EcomSettings'));
+const EcomOrders = React.lazy(() => import('../Ecommerce/EcomOrders'));
+const Appointments = React.lazy(() => import('../Appointments/Appointments'));
+const Distributors = React.lazy(() => import('../Distributors/Distributors'));
+
+const LazyFallback = () => (
+  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60, color: '#64748b', gap: 12 }}>
+    <div className="spinner" style={{ width: 20, height: 20 }} />
+    <span>Loading module...</span>
+  </div>
+);
 
 const TRIAL_DAYS = 7;
 const SUPERADMIN_KEY = 'santhanam.gokul@gmail.com';
@@ -416,7 +427,9 @@ export default function MainApp({ user, settings }) {
       <div className="main">
         <Topbar user={{ ...user, profile }} notifCount={liveNotifs.filter(n => n.unread).length} isExpired={isExpired} teamInfo={teamInfo} teamMembers={teamMembers} />
         <div className="content">
-          {currentView.component ? React.cloneElement(currentView.component, { perms, planEnforcement }) : <div className="p-xl">View not found or access denied</div>}
+          <Suspense fallback={<LazyFallback />}>
+            {currentView.component ? React.cloneElement(currentView.component, { perms, planEnforcement }) : <div className="p-xl">View not found or access denied</div>}
+          </Suspense>
         </div>
       </div>
       <NotifPanel notifications={liveNotifs} onMarkRead={() => {}} onMarkAllRead={() => {}} />

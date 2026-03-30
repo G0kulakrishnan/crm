@@ -101,4 +101,16 @@ const vercelApiPlugin = () => ({
 
 export default defineConfig({
   plugins: [react(), vercelApiPlugin()],
+  build: {
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core vendor libraries
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-instant': ['@instantdb/react'],
+        }
+      }
+    }
+  }
 })
