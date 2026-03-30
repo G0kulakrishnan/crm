@@ -222,7 +222,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                             {it.sku && <div style={{ fontSize: '10px', fontWeight: '500', color: '#666', marginTop: '4px' }}>Code: {it.sku}</div>}
                             {it.desc && <div style={{ fontSize: '11px', color: '#444', marginTop: '4px', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{it.desc}</div>}
                           </td>
-                          <td style={{ textAlign: 'center' }}>{it.qty.toFixed(2)} {it.unit || ''}</td>
+                          <td style={{ textAlign: 'center' }}>{Number(it.qty)} {it.unit || ''}</td>
                           <td style={{ textAlign: 'right' }}>{fmt(it.rate).replace('₹', '')}</td>
                           {isInterState ? (
                             <td style={{ textAlign: 'right', color: '#555' }}>
