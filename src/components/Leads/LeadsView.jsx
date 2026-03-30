@@ -438,7 +438,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
           val = m.value;
         }
 
-        if (['name', 'email', 'phone', 'source', 'stage', 'requirement', 'notes', 'followup', 'assign'].includes(field)) {
+        if (['name', 'companyName', 'email', 'phone', 'source', 'stage', 'label', 'requirement', 'notes', 'followup', 'assign'].includes(field)) {
           lead[field] = val;
         } else {
           lead.custom[field] = val;
@@ -471,6 +471,16 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     } catch (err) {
       toast('Error importing leads', 'error');
     }
+  };
+
+  const getExcelCol = (idx) => {
+    let name = '';
+    let i = idx;
+    while (i >= 0) {
+      name = String.fromCharCode((i % 26) + 65) + name;
+      i = Math.floor(i / 26) - 1;
+    }
+    return name;
   };
 
   const handleExportExcel = () => {
@@ -1374,7 +1384,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                       <select style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)' }} value={m.value} onChange={e => setM({ value: e.target.value })}>
                         <option value="">(Select Column)</option>
                         {importHeaders.map((h, idx) => (
-                           <option key={idx} value={h}>{h} {importSample?.[idx] ? `(e.g. ${importSample[idx]})` : ''}</option>
+                           <option key={idx} value={h}>[Col. {getExcelCol(idx)}] {h} {importSample?.[idx] ? `(e.g. ${importSample[idx]})` : ''}</option>
                         ))}
                       </select>
                     ) : (
@@ -1406,7 +1416,9 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                      {m.type === 'column' ? (
                        <select style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)' }} value={m.value} onChange={e => setM({ value: e.target.value })}>
                          <option value="">(Select Column)</option>
-                         {importHeaders.map((h, idx) => <option key={idx} value={h}>{h}</option>)}
+                         {importHeaders.map((h, idx) => (
+                            <option key={idx} value={h}>[Col. {getExcelCol(idx)}] {h} {importSample?.[idx] ? `(e.g. ${importSample[idx]})` : ''}</option>
+                         ))}
                        </select>
                      ) : (
                        <input type="text" style={{ flex: 1, padding: '6px 10px', fontSize: 12, borderRadius: 6, border: '1px solid var(--border)' }} value={m.value} onChange={e => setM({ value: e.target.value })} placeholder="Fixed value..." />
