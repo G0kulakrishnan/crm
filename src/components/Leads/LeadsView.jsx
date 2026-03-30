@@ -400,9 +400,9 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       headers.forEach(h => {
         const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
         for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
-          if (newMapping[field] && newMapping[field].type === 'column' && !newMapping[field].value) {
+          if (newMapping[field] && !newMapping[field].value) {
             if (aliases.includes(cleanH)) {
-              newMapping[field].value = h;
+              newMapping[field] = { type: 'column', value: h };
               break;
             }
           }
