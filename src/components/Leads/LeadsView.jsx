@@ -11,10 +11,12 @@ import SearchableSelect from '../UI/SearchableSelect';
 
 const DEFAULT_IMPORT_MAPPING = {
   name: { type: 'column', value: '' },
+  companyName: { type: 'column', value: '' },
   email: { type: 'column', value: '' },
   phone: { type: 'column', value: '' },
   source: { type: 'fixed', value: '' },
   stage: { type: 'fixed', value: '' },
+  requirement: { type: 'fixed', value: '' },
   label: { type: 'fixed', value: '' },
   assign: { type: 'fixed', value: '' },
   notes: { type: 'fixed', value: '' },
@@ -341,6 +343,17 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     } catch (e) {
       toast('Error deleting lead', 'error');
     }
+  };
+
+  const downloadLeadsTemplate = () => {
+    const headers = ['Name', 'Company Name', 'Email', 'Phone', 'Source', 'Stage', 'Requirement', 'Notes'];
+    const sample = ['John Doe', 'Acme Corp', 'john@example.com', '9876543210', 'Website', 'New', 'Enterprise Plan', 'Interested in annual plan'];
+    const csv = [headers.join(','), sample.join(',')].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = 'leads_import_template.csv'; a.click();
+    URL.revokeObjectURL(url);
   };
 
   const handleBulkImport = async (e) => {
@@ -828,6 +841,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
           <button className={`btn btn-sm ${view === 'kanban' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setView('kanban')}>⊞ Kanban</button>
           {canCreate && (
             <>
+              <button className="btn btn-secondary btn-sm" onClick={downloadLeadsTemplate}>⬇ Sample CSV</button>
               <button className="btn btn-secondary btn-sm" onClick={() => document.getElementById('bulk-import').click()}>⇪ Bulk Import</button>
               <input type="file" id="bulk-import" accept=".csv" style={{ display: 'none' }} onChange={handleBulkImport} />
             </>
@@ -1325,7 +1339,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                 { label: 'Notes', icon: '📝', field: 'notes' },
                 { label: 'Follow-up Date', icon: '📅', field: 'followup', type: 'datetime-local' }
               ].map(row => {
-                const m = importMapping[row.field];
+                const m = importMapping[row.field] || { type: 'column', value: '' };
                 const setM = (val) => setImportMapping({ ...importMapping, [row.field]: { ...m, ...val } });
                 
                 return (
