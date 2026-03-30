@@ -70,52 +70,37 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             .z-summary td { padding: 8px 10px; font-size: 12px; text-align: right; border: none; }
             .z-summary td:first-child { color: #555; text-align: left; }
             .z-summary tr.z-total td { font-weight: 800; font-size: 16px; color: #000; border-top: 2px solid #000; border-bottom: 2px double #000; padding: 15px 10px; }
-            
             /* Print Frame Box - Screen Mode */
-            .print-frame { width: 100%; max-width: 210mm; margin: 0 auto; border-collapse: collapse; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif; font-size: 11px; color: #111; border: 2px solid #000; height: 100%; }
+            .print-frame { width: 100%; max-width: 210mm; margin: 0 auto; border-collapse: collapse; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif; font-size: 11px; color: #111; border: 2px solid #000; }
             .print-frame-head td { height: 0; padding: 0; border: none; }
             .print-frame-foot td { height: 0; padding: 0; border: none; }
             .print-frame-body > tr > td { padding: 15px 30px; }
+            .print-page-border { display: none; }
 
             /* Print-only Overrides */
             @media print {
-              @page { size: A4; margin: 8mm; }
+              @page { size: A4; margin: 0; }
               body { -webkit-print-color-adjust: exact; print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
-              .a4-container { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; min-height: auto !important; overflow: visible !important; }
+              .a4-container { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; overflow: visible !important; }
               .no-print { display: none !important; }
               
-              /* Table frame */
-              .print-frame { width: 100% !important; margin: 0 !important; border: none !important; border-collapse: separate !important; border-spacing: 0 !important; }
-              
-              /* Force thead/tfoot to repeat on every printed page */
-              .print-frame-head { display: table-header-group !important; }
-              .print-frame-foot { display: table-footer-group !important; }
-              
-              /* thead = top border + side borders on every page */
-              .print-frame-head td { 
-                height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important;
-                border-top: 2px solid #000 !important; 
-                border-left: 2px solid #000 !important; 
-                border-right: 2px solid #000 !important; 
-                border-bottom: none !important;
-              }
-              /* tfoot = bottom border + side borders on every page */
-              .print-frame-foot td { 
-                height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important;
-                border-bottom: 2px solid #000 !important; 
-                border-left: 2px solid #000 !important; 
-                border-right: 2px solid #000 !important; 
-                border-top: none !important;
+              /* FIXED BORDER: renders on EVERY printed page in Chrome */
+              .print-page-border {
+                display: block !important;
+                position: fixed !important;
+                top: 8mm !important;
+                left: 8mm !important;
+                right: 8mm !important;
+                bottom: 8mm !important;
+                border: 2px solid #000 !important;
+                pointer-events: none !important;
+                z-index: 9999 !important;
               }
               
-              /* tbody cells = left + right side borders continuing across pages */
-              .print-frame-body > tr > td { 
-                border-left: 2px solid #000 !important; 
-                border-right: 2px solid #000 !important; 
-                border-top: none !important;
-                border-bottom: none !important;
-                padding: 0 20px !important; 
-              }
+              /* Table: content only, no border role */
+              .print-frame { width: 100% !important; margin: 0 !important; border: none !important; border-collapse: collapse !important; }
+              .print-frame-head td, .print-frame-foot td { height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important; border: none !important; }
+              .print-frame-body > tr > td { border: none !important; padding: 0 10mm !important; }
 
               .z-table { page-break-inside: auto; }
               .z-table tr { page-break-inside: avoid; page-break-after: auto; }
@@ -130,10 +115,12 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               .avoid-break { page-break-inside: avoid; }
               .bank-right-border { border-right: 1px solid #000 !important; }
               
-              /* Spacer fills remaining space on short invoices */
               .print-spacer td { height: auto !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important; }
             }
           `}</style>
+
+          {/* Fixed border frame — renders on EVERY printed page via position:fixed */}
+          <div className="print-page-border" />
 
           <table className="print-frame">
             <thead className="print-frame-head">
