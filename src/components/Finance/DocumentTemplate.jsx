@@ -277,7 +277,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
 
               {/* Footer Grid: Bank Details | Totals Summary */}
               <tr className="avoid-break"><td style={{ padding: '0' }}>
-                <div style={{ display: 'flex', minHeight: '150px', borderTop: '1px solid #ddd', flex: 1 }}>
+                <div style={{ display: 'flex', minHeight: '150px' }}>
                   {/* Left Side: Bank Details */}
                   <div className="bank-right-border" style={{ width: '50%', padding: '20px', borderRight: '1px solid #ddd' }}>
                     {profile.accHolder ? (
@@ -298,7 +298,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                   </div>
 
                   {/* Right Side: Totals Summary */}
-                  <div style={{ width: '50%', padding: '20px', background: '#fafafa' }}>
+                  <div style={{ width: '50%', padding: '20px' }}>
                     <table className="z-summary">
                       <tbody>
                         <tr><td>Sub Total</td><td style={{ fontWeight: '600' }}>{fmt(ptots.sub).replace('₹', '')}</td></tr>
@@ -339,7 +339,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               </td></tr>
 
               {settings?.showBranding !== false && (
-              <tr><td style={{ padding: '8px 20px', borderTop: '1px solid #eee' }}>
+              <tr><td style={{ padding: '8px 20px' }}>
                 <div style={{ fontSize: '10px', fontWeight: '600', color: '#999' }}>POWERED BY <strong style={{ color: '#555' }}>{settings?.brandName || 'T2GCRM'}</strong></div>
               </td></tr>
               )}
