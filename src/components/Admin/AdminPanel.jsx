@@ -342,9 +342,9 @@ export default function AdminPanel({ user }) {
           </div>
           <div className="tw-scroll">
             <table>
-              <thead><tr><th>#</th><th>User Contact</th><th>Phone</th><th>Business</th><th>Plan</th><th>Expiry</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+              <thead><tr><th>#</th><th>User Contact</th><th>Phone</th><th>Business</th><th>Plan</th><th>Expiry</th><th>Created</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
               <tbody>
-                {users.length === 0 ? <tr><td colSpan={9} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No users yet</td></tr>
+                {users.length === 0 ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No users yet</td></tr>
                   : users.map((u, i) => (
                     <tr key={u.id}>
                       <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
@@ -369,6 +369,7 @@ export default function AdminPanel({ user }) {
                         </select>
                       </td>
                       <td style={{ fontSize: 11 }}>{u.planExpiry ? fmtD(u.planExpiry) : '-'}</td>
+                      <td style={{ fontSize: 11 }}>{u.createdAt ? fmtD(u.createdAt) : '-'}</td>
                       <td><span className={`badge ${u.role === 'superadmin' ? 'bg-purple' : 'bg-gray'}`}>{u.role || 'user'}</span></td>
                       <td><span className={`badge ${u.banned ? 'bg-red' : 'bg-green'}`}>{u.banned ? 'Banned' : 'Active'}</span></td>
                       <td>
