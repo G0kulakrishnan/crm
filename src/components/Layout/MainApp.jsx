@@ -14,35 +14,60 @@ import useAutomationEngine from '../../hooks/useAutomationEngine';
 // Eagerly loaded (shown on first render)
 import Dashboard from '../Dashboard/Dashboard';
 
+// Wrapper to prevent "Failed to fetch dynamically imported module" crash upon new deployments
+const lazyWithRetry = (importFunc) => {
+  return React.lazy(() => {
+    return new Promise((resolve, reject) => {
+      importFunc()
+        .then((module) => {
+          sessionStorage.removeItem('tc_chunk_retry');
+          resolve(module);
+        })
+        .catch((error) => {
+          const isChunkLoadError = error?.message?.includes('dynamically imported module') || error?.name === 'ChunkLoadError';
+          const hasRetried = sessionStorage.getItem('tc_chunk_retry');
+          
+          if (isChunkLoadError && !hasRetried) {
+            sessionStorage.setItem('tc_chunk_retry', 'true');
+            window.location.reload();
+          } else {
+            sessionStorage.removeItem('tc_chunk_retry');
+            reject(error);
+          }
+        });
+    });
+  });
+};
+
 // Lazy loaded (loaded on-demand when navigated to)
-const LeadsView = React.lazy(() => import('../Leads/LeadsView'));
-const Quotations = React.lazy(() => import('../Finance/Quotations'));
-const Invoices = React.lazy(() => import('../Finance/Invoices'));
-const POSBilling = React.lazy(() => import('../Finance/POSBilling'));
-const AMC = React.lazy(() => import('../Clients/AMC'));
-const Customers = React.lazy(() => import('../Clients/Customers'));
-const Expenses = React.lazy(() => import('../Business/Expenses'));
-const Products = React.lazy(() => import('../Business/Products'));
-const Vendors = React.lazy(() => import('../Business/Vendors'));
-const PurchaseOrders = React.lazy(() => import('../Business/PurchaseOrders'));
-const Campaigns = React.lazy(() => import('../Marketing/Campaigns'));
-const Projects = React.lazy(() => import('../Work/Projects'));
-const AllTasks = React.lazy(() => import('../Work/AllTasks'));
-const Teams = React.lazy(() => import('../Work/Teams'));
-const TeamReports = React.lazy(() => import('../Work/TeamReports'));
-const AutomationView = React.lazy(() => import('../Automation/AutomationView'));
-const Reports = React.lazy(() => import('../Reports/Reports'));
-const Settings = React.lazy(() => import('../Settings/Settings'));
-const MessagingLogs = React.lazy(() => import('../System/MessagingLogs'));
-const AdminPanel = React.lazy(() => import('../Admin/AdminPanel'));
-const ApiDocs = React.lazy(() => import('../Admin/ApiDocs'));
-const Integrations = React.lazy(() => import('../System/Integrations'));
-const UserManual = React.lazy(() => import('../System/UserManual'));
-const UserProfile = React.lazy(() => import('../Settings/UserProfile'));
-const EcomSettings = React.lazy(() => import('../Ecommerce/EcomSettings'));
-const EcomOrders = React.lazy(() => import('../Ecommerce/EcomOrders'));
-const Appointments = React.lazy(() => import('../Appointments/Appointments'));
-const Distributors = React.lazy(() => import('../Distributors/Distributors'));
+const LeadsView = lazyWithRetry(() => import('../Leads/LeadsView'));
+const Quotations = lazyWithRetry(() => import('../Finance/Quotations'));
+const Invoices = lazyWithRetry(() => import('../Finance/Invoices'));
+const POSBilling = lazyWithRetry(() => import('../Finance/POSBilling'));
+const AMC = lazyWithRetry(() => import('../Clients/AMC'));
+const Customers = lazyWithRetry(() => import('../Clients/Customers'));
+const Expenses = lazyWithRetry(() => import('../Business/Expenses'));
+const Products = lazyWithRetry(() => import('../Business/Products'));
+const Vendors = lazyWithRetry(() => import('../Business/Vendors'));
+const PurchaseOrders = lazyWithRetry(() => import('../Business/PurchaseOrders'));
+const Campaigns = lazyWithRetry(() => import('../Marketing/Campaigns'));
+const Projects = lazyWithRetry(() => import('../Work/Projects'));
+const AllTasks = lazyWithRetry(() => import('../Work/AllTasks'));
+const Teams = lazyWithRetry(() => import('../Work/Teams'));
+const TeamReports = lazyWithRetry(() => import('../Work/TeamReports'));
+const AutomationView = lazyWithRetry(() => import('../Automation/AutomationView'));
+const Reports = lazyWithRetry(() => import('../Reports/Reports'));
+const Settings = lazyWithRetry(() => import('../Settings/Settings'));
+const MessagingLogs = lazyWithRetry(() => import('../System/MessagingLogs'));
+const AdminPanel = lazyWithRetry(() => import('../Admin/AdminPanel'));
+const ApiDocs = lazyWithRetry(() => import('../Admin/ApiDocs'));
+const Integrations = lazyWithRetry(() => import('../System/Integrations'));
+const UserManual = lazyWithRetry(() => import('../System/UserManual'));
+const UserProfile = lazyWithRetry(() => import('../Settings/UserProfile'));
+const EcomSettings = lazyWithRetry(() => import('../Ecommerce/EcomSettings'));
+const EcomOrders = lazyWithRetry(() => import('../Ecommerce/EcomOrders'));
+const Appointments = lazyWithRetry(() => import('../Appointments/Appointments'));
+const Distributors = lazyWithRetry(() => import('../Distributors/Distributors'));
 
 const LazyFallback = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60, color: '#64748b', gap: 12 }}>
