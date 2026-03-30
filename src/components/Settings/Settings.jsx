@@ -247,6 +247,34 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     }
   }, [profileId, data?.userProfiles, data?.leads]);
 
+  // Auto-migration: Rename custom field "requirement" -> "Service Type" to avoid clash with built-in field
+  useEffect(() => {
+    if (!profileId) return;
+    const rawProfile = data?.userProfiles?.[0];
+    const cfs = rawProfile?.customFields || [];
+    const conflictIdx = cfs.findIndex(cf => cf.name.toLowerCase() === 'requirement');
+    if (conflictIdx === -1) return;
+
+    const txs = [];
+    const newName = 'Service Type';
+    const updatedCFs = [...cfs];
+    updatedCFs[conflictIdx] = { ...updatedCFs[conflictIdx], name: newName };
+    txs.push(db.tx.userProfiles[profileId].update({ customFields: updatedCFs }));
+
+    // Migrate lead custom data: move custom.requirement -> custom["Service Type"]
+    (data?.leads || []).forEach(l => {
+      if (l.custom?.requirement) {
+        const newCustom = { ...l.custom, [newName]: l.custom.requirement };
+        delete newCustom.requirement;
+        txs.push(db.tx.leads[l.id].update({ custom: newCustom }));
+      }
+    });
+
+    db.transact(txs).then(() => {
+      console.log('✅ Custom field "requirement" renamed to "Service Type"');
+    }).catch(e => console.error('❌ Custom field rename failed:', e));
+  }, [profileId, data?.userProfiles, data?.leads]);
+
   const handleFile = (e, callback, fieldName = null) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -411,8 +439,14 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     reset('');
   };
 
+  const RESERVED_FIELD_NAMES = ['name', 'companyname', 'email', 'phone', 'source', 'stage', 'assign', 'followup', 'requirement', 'notes', 'label', 'productcat', 'created', 'createdat', 'reminder', 'assigned', 'distributor', 'retailer'];
+
   const addCF = () => {
     if (!newCF.name.trim()) return;
+    const cleanName = newCF.name.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (RESERVED_FIELD_NAMES.includes(cleanName)) {
+      return toast(`"${newCF.name.trim()}" conflicts with a built-in field name. Please choose a different name.`, 'error');
+    }
     if (editingCFIndex !== null) {
       const updatedList = [...customFields];
       updatedList[editingCFIndex] = { ...newCF, name: newCF.name.trim() };
@@ -576,18 +610,20 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
 
               <h4 style={{ marginBottom: 15 }}>Upgrade Options</h4>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 15 }}>
-                {[
-                  { name: 'Trial', duration: 7, price: 0, desc: 'Perfect for exploring the CRM' },
-                  { name: 'Premium', duration: 30, price: 2999, desc: 'For growing businesses' },
-                  { name: 'START-UP', duration: 365, price: 24999, desc: 'Cost-effective annual plan' },
-                  { name: 'Premium Pro', duration: 365, price: 29999, desc: 'Unlimited power for teams' },
-                ].map(p => (
+                {(settings?.plans || [
+                  { name: 'Trial', duration: 7, price: 0, features: 'Perfect for exploring the CRM' },
+                  { name: 'Premium', duration: 30, price: 2999, features: 'For growing businesses' },
+                  { name: 'START-UP', duration: 365, price: 24999, features: 'Cost-effective annual plan' },
+                  { name: 'Premium Pro', duration: 365, price: 29999, features: 'Unlimited power for teams' },
+                ])
+                  .filter(p => !p.hidden || p.name === profile?.plan)
+                  .map(p => (
                   <div key={p.name} className={`plan-card ${profile?.plan === p.name ? 'featured' : ''}`} style={{ border: profile?.plan === p.name ? '2px solid var(--accent)' : '1px solid var(--border)', padding: 20, borderRadius: 12, position: 'relative' }}>
                     {profile?.plan === p.name && <div style={{ position: 'absolute', top: -10, right: 10, background: 'var(--accent)', color: 'white', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>ACTIVE</div>}
                     <div style={{ fontWeight: 700, fontSize: 16 }}>{p.name}</div>
-                    <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 10 }}>{p.desc}</div>
+                    <div style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 10 }}>{p.features || p.desc || ''}</div>
                     <div style={{ fontSize: 24, fontWeight: 800, margin: '10px 0', color: 'var(--accent)' }}>
-                      {(p.price || 0) === 0 ? 'Free' : `₹${(p.price || 0).toLocaleString()}`}
+                      {(+(p.price || 0)) === 0 ? 'Free' : `₹${(+(p.price || 0)).toLocaleString()}`}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 15 }}>per {p.duration} days</div>
                     

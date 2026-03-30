@@ -40,6 +40,7 @@ const DEFAULT_LIMITS = Object.fromEntries(ALL_MODULES.filter(m => m.hasLimit).ma
 
 const EMPTY_PLAN = { name: '', duration: 30, price: 0, features: '', modules: { ...DEFAULT_MODULES }, limits: { ...DEFAULT_LIMITS } };
 
+const EMPTY_BIZ = { fullName: '', email: '', phone: '', bizName: '', password: '', plan: 'Trial' };
 
 
 export default function AdminPanel({ user }) {
@@ -54,7 +55,16 @@ export default function AdminPanel({ user }) {
   const [editUserData, setEditUserData] = useState(null);
   const [editUserForm, setEditUserForm] = useState({ newPassword: '', expiry: '', role: '' });
   const [editUserLoading, setEditUserLoading] = useState(false);
-  const hasSettingsLoaded = React.useRef(false); // Robust flag to prevent overwriting user typing
+  // Create Business
+  const [createBizModal, setCreateBizModal] = useState(false);
+  const [createBizForm, setCreateBizForm] = useState(EMPTY_BIZ);
+  const [createBizLoading, setCreateBizLoading] = useState(false);
+  // Delete Business
+  const [deleteModal, setDeleteModal] = useState(null); // holds user object
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [deleteLoading, setDeleteLoading] = useState(false);
+
+  const hasSettingsLoaded = React.useRef(false);
   const toast = useToast();
 
   const { data, error } = db.useQuery({
@@ -70,12 +80,10 @@ export default function AdminPanel({ user }) {
   const coupons = data?.coupons || [];
   const transactions = data?.transactions || [];
   const globalSettings = data?.globalSettings?.[0] || {};
-  // SINGLETON ID: Always use a valid UUID to ensure we update a single record
   const settingsId = globalSettings.id || '73f6063d-4c3d-4d51-9f93-111111111111';
   const plans = globalSettings.plans ? JSON.parse(globalSettings.plans) : FALLBACK_PLANS;
 
   React.useEffect(() => {
-    // Only initialize the form ONCE when the query returns data
     if (data?.globalSettings?.[0] && !hasSettingsLoaded.current) {
         hasSettingsLoaded.current = true;
         const s = data.globalSettings[0];
@@ -184,6 +192,65 @@ export default function AdminPanel({ user }) {
     toast('Phone updated', 'success');
   };
 
+  /* ──────────── CREATE BUSINESS ──────────── */
+  const createBusiness = async () => {
+    if (!createBizForm.email.trim() || !createBizForm.password.trim()) { toast('Email and password are required', 'error'); return; }
+    if (createBizForm.password.length < 6) { toast('Password must be at least 6 characters', 'error'); return; }
+    setCreateBizLoading(true);
+    try {
+      const planObj = plans.find(p => p.name === createBizForm.plan);
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'admin-create-user',
+          email: createBizForm.email.trim(),
+          password: createBizForm.password,
+          fullName: createBizForm.fullName.trim(),
+          bizName: createBizForm.bizName.trim(),
+          phone: createBizForm.phone.trim(),
+          selectedPlan: createBizForm.plan,
+          duration: planObj?.duration || 7
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create business');
+      toast(data.message || 'Business created!', 'success');
+      setCreateBizModal(false);
+      setCreateBizForm(EMPTY_BIZ);
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setCreateBizLoading(false); }
+  };
+
+  /* ──────────── DELETE BUSINESS ──────────── */
+  const deleteBusiness = async () => {
+    if (!deleteModal) return;
+    const expectedText = (deleteModal.bizName || deleteModal.email || '').trim();
+    if (deleteConfirmText.trim().toLowerCase() !== expectedText.toLowerCase()) {
+      toast('Confirmation text does not match. Please type the exact business name.', 'error');
+      return;
+    }
+    setDeleteLoading(true);
+    try {
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'admin-delete-user',
+          profileId: deleteModal.id,
+          targetUserId: deleteModal.userId,
+          ownerEmail: deleteModal.email
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to delete');
+      toast(`Business deleted. ${data.deletedCount || 0} records removed.`, 'success');
+      setDeleteModal(null);
+      setDeleteConfirmText('');
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setDeleteLoading(false); }
+  };
+
   /* ──────────── PLANS ──────────── */
   const savePlan = async () => {
     if (!planForm.name.trim()) { toast('Plan name required', 'error'); return; }
@@ -203,10 +270,16 @@ export default function AdminPanel({ user }) {
     toast('Plan deleted', 'error');
   };
 
+  const togglePlanVisibility = async (idx) => {
+    const newPlans = [...plans];
+    newPlans[idx] = { ...newPlans[idx], hidden: !newPlans[idx].hidden };
+    await db.transact(db.tx.globalSettings[settingsId].update({ plans: JSON.stringify(newPlans) }));
+    toast(newPlans[idx].hidden ? `"${newPlans[idx].name}" is now hidden from users` : `"${newPlans[idx].name}" is now visible to all`, 'success');
+  };
+
   /* ──────────── SETTINGS ──────────── */
   const saveSettings = async () => {
     try {
-      console.log("💾 [AdminPanel] Saving settings to:", settingsId, settingsForm);
       await db.transact(db.tx.globalSettings[settingsId].update({
         brandName: settingsForm.brandName || '',
         brandShort: settingsForm.brandShort || '',
@@ -218,7 +291,6 @@ export default function AdminPanel({ user }) {
       }));
       toast('Platform Settings Updated', 'success');
     } catch (err) {
-      console.error("❌ [AdminPanel] Save failed:", err);
       toast(`Save Failed: ${err.message || 'Unknown Error'}`, 'error');
     }
   };
@@ -257,9 +329,12 @@ export default function AdminPanel({ user }) {
           <div className="tw-head">
             <div style={{ display: 'flex', flexDirection: 'column' }}>
               <h3>All Registered Profiles ({users.length})</h3>
-              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>Note: Users only appear here after their first successful login.</div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>Manage business accounts, plans, and access.</div>
             </div>
-            <button className="btn btn-secondary btn-sm" onClick={repairData}>🛠 Repair &amp; Refresh All</button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-primary btn-sm" onClick={() => { setCreateBizForm({ ...EMPTY_BIZ, plan: plans[0]?.name || 'Trial' }); setCreateBizModal(true); }}>➕ Create Business</button>
+              <button className="btn btn-secondary btn-sm" onClick={repairData}>🛠 Repair All</button>
+            </div>
           </div>
           <div className="tw-scroll">
             <table>
@@ -286,17 +361,20 @@ export default function AdminPanel({ user }) {
                       <td style={{ fontSize: 12 }}>{u.bizName || '-'}</td>
                       <td>
                         <select value={u.plan || 'Trial'} onChange={e => updateUserPlan(u.id, e.target.value)} style={{ padding: '4px 8px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 12, fontFamily: 'inherit' }}>
-                          {plans.map(p => <option key={p.name}>{p.name}</option>)}
+                          {plans.map(p => <option key={p.name} value={p.name}>{p.name}{p.hidden ? ' 🔒' : ''}</option>)}
                         </select>
                       </td>
                       <td style={{ fontSize: 11 }}>{u.planExpiry ? fmtD(u.planExpiry) : '-'}</td>
                       <td><span className={`badge ${u.role === 'superadmin' ? 'bg-purple' : 'bg-gray'}`}>{u.role || 'user'}</span></td>
                       <td><span className={`badge ${u.banned ? 'bg-red' : 'bg-green'}`}>{u.banned ? 'Banned' : 'Active'}</span></td>
-                      <td style={{ display: 'flex', gap: 4 }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => openEditUser(u)}>✏️ Edit</button>
-                        <button className="btn btn-sm" style={{ background: u.banned ? '#dcfce7' : '#fee2e2', color: u.banned ? '#166534' : '#991b1b' }} onClick={() => banUser(u.id, u.banned)}>
-                          {u.banned ? '✓ Reinstate' : '⊘ Ban'}
-                        </button>
+                      <td>
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button className="btn btn-secondary btn-sm" onClick={() => openEditUser(u)}>✏️ Edit</button>
+                          <button className="btn btn-sm" style={{ background: u.banned ? '#dcfce7' : '#fee2e2', color: u.banned ? '#166534' : '#991b1b' }} onClick={() => banUser(u.id, u.banned)}>
+                            {u.banned ? '✓ Reinstate' : '⊘ Ban'}
+                          </button>
+                          <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => { setDeleteModal(u); setDeleteConfirmText(''); }} title="Delete Business">🗑</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -309,15 +387,22 @@ export default function AdminPanel({ user }) {
       {/* ── PLANS ── */}
       {tab === 'plans' && (
         <div>
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+              <span style={{ background: '#fef3c7', color: '#92400e', padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600 }}>🔒 Hidden</span>
+              <span style={{ marginLeft: 8 }}>plans are only visible to assigned businesses</span>
+            </div>
             <button className="btn btn-primary btn-sm" onClick={() => { setEditPlanIdx(null); setPlanForm(EMPTY_PLAN); setPlanModal(true); }}>+ Add Plan</button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(280px,1fr))', gap: 14 }}>
             {plans.map((p, i) => {
               const enabledMods = ALL_MODULES.filter(m => p.modules ? p.modules[m.key] !== false : true);
+              const isHidden = !!p.hidden;
+              const assignedCount = users.filter(u => u.plan === p.name).length;
               return (
-                <div key={p.id || p.name} className={`plan-card${i === 1 ? ' featured' : ''}`} style={{ position: 'relative' }}>
-                  {i === 1 && <div className="plan-badge">Popular</div>}
+                <div key={p.id || p.name} className={`plan-card${i === 1 && !isHidden ? ' featured' : ''}`} style={{ position: 'relative', opacity: isHidden ? 0.7 : 1, border: isHidden ? '2px dashed #fbbf24' : undefined }}>
+                  {i === 1 && !isHidden && <div className="plan-badge">Popular</div>}
+                  {isHidden && <div style={{ position: 'absolute', top: -10, right: 10, background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: 4, fontSize: 10, fontWeight: 700 }}>🔒 Hidden</div>}
                   <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 5 }}>{p.name}</div>
                   <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent)', marginBottom: 4 }}>
                     {+(p.price || 0) === 0 ? 'Free' : `₹${(+(p.price || 0)).toLocaleString()}`}
@@ -335,8 +420,40 @@ export default function AdminPanel({ user }) {
                       ))}
                     </div>
                   )}
+                  {assignedCount > 0 && (
+                    <div style={{ fontSize: 11, color: 'var(--accent)', fontWeight: 600, marginBottom: 8 }}>
+                      👥 {assignedCount} business{assignedCount !== 1 ? 'es' : ''} using this plan
+                    </div>
+                  )}
+
+                  {/* Visibility Toggle */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '6px 0', borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, fontWeight: 500, flex: 1 }}>
+                      <div
+                        onClick={() => togglePlanVisibility(i)}
+                        style={{
+                          width: 38, height: 20, borderRadius: 10,
+                          background: isHidden ? '#fbbf24' : '#22c55e',
+                          position: 'relative', cursor: 'pointer',
+                          transition: 'background 0.2s'
+                        }}
+                      >
+                        <div style={{
+                          width: 16, height: 16, borderRadius: '50%', background: '#fff',
+                          position: 'absolute', top: 2,
+                          left: isHidden ? 2 : 20,
+                          transition: 'left 0.2s',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.2)'
+                        }} />
+                      </div>
+                      <span style={{ color: isHidden ? '#92400e' : '#166534' }}>
+                        {isHidden ? 'Hidden from users' : 'Visible to all'}
+                      </span>
+                    </label>
+                  </div>
+
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => { setEditPlanIdx(i); setPlanForm({ name: p.name, duration: p.duration, price: p.price, features: p.features || '', modules: { ...DEFAULT_MODULES, ...(p.modules || {}) }, limits: { ...DEFAULT_LIMITS, ...(p.limits || { maxLeads: p.maxLeads, maxUsers: p.maxUsers }) } }); setPlanModal(true); }}>Edit</button>
+                    <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => { setEditPlanIdx(i); setPlanForm({ name: p.name, duration: p.duration, price: p.price, features: p.features || '', modules: { ...DEFAULT_MODULES, ...(p.modules || {}) }, limits: { ...DEFAULT_LIMITS, ...(p.limits || { maxLeads: p.maxLeads, maxUsers: p.maxUsers }) }, hidden: p.hidden || false }); setPlanModal(true); }}>Edit</button>
                     <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => deletePlan(i)}>Del</button>
                   </div>
                 </div>
@@ -521,6 +638,86 @@ export default function AdminPanel({ user }) {
               </div>
             </div>
             <div className="mo-foot"><button className="btn btn-secondary btn-sm" onClick={() => setCouponModal(false)}>Cancel</button><button className="btn btn-primary btn-sm" onClick={saveCoupon}>Create Coupon</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* ── CREATE BUSINESS MODAL ── */}
+      {createBizModal && (
+        <div className="mo open">
+          <div className="mo-box" style={{ maxWidth: 550 }}>
+            <div className="mo-head"><h3>➕ Create New Business</h3><button className="btn-icon" onClick={() => setCreateBizModal(false)}>✕</button></div>
+            <div className="mo-body">
+              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 12, color: '#1e40af' }}>
+                This creates a fully verified business account. The user can log in immediately with the credentials you set.
+              </div>
+              <div className="fgrid">
+                <div className="fg"><label>Full Name *</label><input value={createBizForm.fullName} onChange={e => setCreateBizForm(f => ({ ...f, fullName: e.target.value }))} placeholder="John Doe" /></div>
+                <div className="fg"><label>Business Name</label><input value={createBizForm.bizName} onChange={e => setCreateBizForm(f => ({ ...f, bizName: e.target.value }))} placeholder="Acme Corp" /></div>
+                <div className="fg"><label>Email *</label><input type="email" value={createBizForm.email} onChange={e => setCreateBizForm(f => ({ ...f, email: e.target.value }))} placeholder="user@business.com" /></div>
+                <div className="fg"><label>Phone</label><input value={createBizForm.phone} onChange={e => setCreateBizForm(f => ({ ...f, phone: e.target.value }))} placeholder="+91..." /></div>
+                <div className="fg"><label>Password *</label><input type="text" value={createBizForm.password} onChange={e => setCreateBizForm(f => ({ ...f, password: e.target.value }))} placeholder="Min. 6 characters" /></div>
+                <div className="fg"><label>Assign Plan</label>
+                  <select value={createBizForm.plan} onChange={e => setCreateBizForm(f => ({ ...f, plan: e.target.value }))}>
+                    {plans.map(p => <option key={p.name} value={p.name}>{p.name}{p.hidden ? ' 🔒' : ''} — ₹{p.price || 0}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="mo-foot">
+              <button className="btn btn-secondary btn-sm" onClick={() => setCreateBizModal(false)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={createBusiness} disabled={createBizLoading}>
+                {createBizLoading ? 'Creating...' : 'Create Business'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── DELETE BUSINESS MODAL ── */}
+      {deleteModal && (
+        <div className="mo open">
+          <div className="mo-box" style={{ maxWidth: 500 }}>
+            <div className="mo-head"><h3 style={{ color: '#dc2626' }}>⚠️ Delete Business</h3><button className="btn-icon" onClick={() => setDeleteModal(null)}>✕</button></div>
+            <div className="mo-body">
+              <div style={{ background: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+                <div style={{ fontWeight: 700, color: '#991b1b', fontSize: 14, marginBottom: 8 }}>🚨 This action is PERMANENT and IRREVERSIBLE!</div>
+                <div style={{ fontSize: 12, color: '#7f1d1d', lineHeight: 1.6 }}>
+                  Deleting <strong>"{deleteModal.bizName || deleteModal.email}"</strong> will permanently remove:
+                </div>
+                <ul style={{ fontSize: 12, color: '#7f1d1d', margin: '8px 0 0 16px', lineHeight: 1.8 }}>
+                  <li>All <strong>leads, customers, invoices, quotes</strong></li>
+                  <li>All <strong>tasks, projects, expenses, products</strong></li>
+                  <li>All <strong>team member accounts & credentials</strong></li>
+                  <li>All <strong>partner/distributor accounts & credentials</strong></li>
+                  <li>All <strong>automation flows, campaigns, appointments</strong></li>
+                  <li>The <strong>business owner's login credentials</strong></li>
+                </ul>
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, marginBottom: 6, display: 'block' }}>
+                  To confirm, type <strong style={{ color: '#dc2626', background: '#fef2f2', padding: '1px 6px', borderRadius: 4 }}>{deleteModal.bizName || deleteModal.email}</strong> below:
+                </label>
+                <input
+                  value={deleteConfirmText}
+                  onChange={e => setDeleteConfirmText(e.target.value)}
+                  placeholder="Type business name to confirm..."
+                  style={{ width: '100%', border: '2px solid #fca5a5', borderRadius: 8, padding: '10px 14px', fontSize: 13, fontFamily: 'inherit' }}
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="mo-foot">
+              <button className="btn btn-secondary btn-sm" onClick={() => setDeleteModal(null)}>Cancel</button>
+              <button
+                className="btn btn-sm"
+                style={{ background: '#dc2626', color: '#fff', opacity: deleteConfirmText.trim().toLowerCase() === (deleteModal.bizName || deleteModal.email || '').trim().toLowerCase() ? 1 : 0.4 }}
+                onClick={deleteBusiness}
+                disabled={deleteLoading || deleteConfirmText.trim().toLowerCase() !== (deleteModal.bizName || deleteModal.email || '').trim().toLowerCase()}
+              >
+                {deleteLoading ? 'Deleting...' : '🗑 Delete Everything Permanently'}
+              </button>
+            </div>
           </div>
         </div>
       )}

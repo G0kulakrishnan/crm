@@ -181,6 +181,123 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, message: 'Partner password set' });
     }
 
+    /* ──────────── ADMIN: CREATE BUSINESS ──────────── */
+    if (action === 'admin-create-user') {
+      if (!cleanEmail || !password) return res.status(400).json({ error: 'Email and password are required' });
+      const existing = await db.query({ userCredentials: { $: { where: { email: cleanEmail } } } });
+      if (existing.userCredentials?.length > 0) return res.status(400).json({ error: 'User with this email already exists' });
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const newUserId = id();
+      const profileId = id();
+      const plan = selectedPlan || 'Trial';
+      const duration = req.body.duration || 7;
+      const planExpiry = Date.now() + (duration * 24 * 60 * 60 * 1000);
+
+      await db.transact([
+        tx.userCredentials[id()].update({
+          email: cleanEmail,
+          password: hashedPassword,
+          fullName: fullName || '',
+          bizName: bizName || '',
+          phone: phone || '',
+          selectedPlan: plan,
+          isVerified: true,
+          createdAt: Date.now()
+        }),
+        tx.userProfiles[profileId].update({
+          userId: newUserId,
+          email: cleanEmail,
+          fullName: fullName || '',
+          bizName: bizName || '',
+          phone: phone || '',
+          plan,
+          planExpiry,
+          role: 'user',
+          createdAt: Date.now()
+        })
+      ]);
+
+      // Create auth token so profile gets linked to the correct userId
+      await db.auth.createToken({ email: cleanEmail });
+
+      return res.status(200).json({ success: true, message: `Business "${bizName || cleanEmail}" created successfully`, userId: newUserId, profileId });
+    }
+
+    /* ──────────── ADMIN: DELETE BUSINESS ──────────── */
+    if (action === 'admin-delete-user') {
+      const targetProfileId = req.body.profileId;
+      const targetUserId = req.body.targetUserId;
+      if (!targetProfileId || !targetUserId) return res.status(400).json({ error: 'profileId and targetUserId are required' });
+
+      const tables = [
+        'leads', 'customers', 'invoices', 'quotes', 'tasks', 'projects',
+        'activityLogs', 'teamMembers', 'partnerApplications', 'expenses',
+        'products', 'campaigns', 'ecomSettings', 'appointmentSettings',
+        'ecomOrders', 'automationFlows', 'purchaseOrders', 'vendors',
+        'amcContracts', 'messagingLogs'
+      ];
+
+      const txs = [];
+
+      // Delete all business data from each table
+      for (const table of tables) {
+        try {
+          const result = await db.query({ [table]: { $: { where: { userId: targetUserId } } } });
+          const records = result[table] || [];
+          records.forEach(r => txs.push(tx[table][r.id].delete()));
+        } catch (e) {
+          // Table might not exist, skip silently
+        }
+      }
+
+      // Delete team member credentials
+      const teamData = await db.query({ teamMembers: { $: { where: { userId: targetUserId } } } });
+      const teamMembers = teamData.teamMembers || [];
+      for (const member of teamMembers) {
+        if (member.email) {
+          try {
+            const creds = await db.query({ userCredentials: { $: { where: { email: member.email.trim().toLowerCase() } } } });
+            (creds.userCredentials || []).forEach(c => txs.push(tx.userCredentials[c.id].delete()));
+          } catch (e) {}
+        }
+      }
+
+      // Delete partner credentials
+      const partnerData = await db.query({ partnerApplications: { $: { where: { userId: targetUserId } } } });
+      const partners = partnerData.partnerApplications || [];
+      for (const partner of partners) {
+        if (partner.email) {
+          try {
+            const creds = await db.query({ userCredentials: { $: { where: { email: partner.email.trim().toLowerCase() } } } });
+            (creds.userCredentials || []).forEach(c => txs.push(tx.userCredentials[c.id].delete()));
+          } catch (e) {}
+        }
+      }
+
+      // Delete the owner's own credentials
+      const ownerEmail = req.body.ownerEmail?.trim().toLowerCase();
+      if (ownerEmail) {
+        try {
+          const creds = await db.query({ userCredentials: { $: { where: { email: ownerEmail } } } });
+          (creds.userCredentials || []).forEach(c => txs.push(tx.userCredentials[c.id].delete()));
+        } catch (e) {}
+      }
+
+      // Delete the user profile itself
+      txs.push(tx.userProfiles[targetProfileId].delete());
+
+      if (txs.length > 0) {
+        // Batch in chunks of 100 to avoid oversized transactions
+        const batchSize = 100;
+        for (let i = 0; i < txs.length; i += batchSize) {
+          await db.transact(txs.slice(i, i + batchSize));
+        }
+      }
+
+      return res.status(200).json({ success: true, message: `Business deleted. ${txs.length} records removed.`, deletedCount: txs.length });
+    }
+
     return res.status(405).json({ error: 'Action not allowed' });
   } catch (err) {
     console.error('Auth API error:', err);

@@ -105,7 +105,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     }
   }, [savedDefaultPageSize]);
 
-  const allPossibleCols = ['Created', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Label', 'Reminder', ...(showPartners ? ['Distributor', 'Retailer'] : []), ...customFields.map(c => c.name)];
+  const allPossibleCols = ['Created', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Requirement', 'Reminder', ...(showPartners ? ['Distributor', 'Retailer'] : []), ...customFields.map(c => c.name)];
   const activeCols = savedCols || allPossibleCols;
 
   // activeStages is for visual components (Kanban/List), should exclude deleted & disabled
@@ -486,33 +486,47 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const handleExportExcel = () => {
     if (leads.length === 0) return toast('No leads to export', 'error');
     
-    // Header
-    const standardFields = ['Name', 'Email', 'Phone', 'Source', 'Stage', 'Assigned', 'Follow Up', 'Requirement', 'Notes', 'Created At'];
-    const customFieldNames = customFields.map(cf => cf.name);
-    const headers = [...standardFields, ...customFieldNames];
-
     const escapeCSV = (val) => {
       if (val === null || val === undefined) return '';
       const str = String(val).replace(/"/g, '""');
       return str.includes(',') || str.includes('"') || str.includes('\n') ? `"${str}"` : str;
     };
 
+    // Build columns dynamically to match the UI table exactly
+    const customFieldNames = customFields.map(cf => cf.name);
+
+    // Column definitions: { header, getValue(lead) }
+    const columnDefs = [
+      { header: 'Name', getValue: l => l.companyName || l.name },
+      { header: 'Contact Name', getValue: l => l.companyName ? l.name : '' },
+    ];
+
+    // Add columns in the same order as the UI table
+    if (activeCols.includes('Created')) columnDefs.push({ header: 'Created At', getValue: l => l.createdAt ? new Date(l.createdAt).toLocaleString() : '' });
+    if (activeCols.includes('Phone')) columnDefs.push({ header: 'Phone', getValue: l => l.phone || '' });
+    columnDefs.push({ header: 'Email', getValue: l => l.email || '' }); // Always include email
+    if (activeCols.includes('Source')) columnDefs.push({ header: 'Source', getValue: l => l.source || '' });
+    if (activeCols.includes('Stage')) columnDefs.push({ header: 'Stage', getValue: l => l.stage || '' });
+    if (activeCols.includes('Assigned')) columnDefs.push({ header: 'Assigned', getValue: l => l.assign || '' });
+    if (activeCols.includes('Follow Up')) columnDefs.push({ header: 'Follow Up', getValue: l => l.followup ? new Date(l.followup).toLocaleString() : '' });
+    if (activeCols.includes('Requirement')) columnDefs.push({ header: 'Requirement', getValue: l => l.requirement || '' });
+    if (activeCols.includes('Reminder')) columnDefs.push({ header: 'Reminder', getValue: l => [l.remWA && 'WhatsApp', l.remEmail !== false && 'Email', l.remSMS && 'SMS'].filter(Boolean).join(', ') || '' });
+    if (activeCols.includes('Distributor')) columnDefs.push({ header: 'Distributor', getValue: l => l.distributorId ? (partners.find(p => p.id === l.distributorId)?.companyName || partners.find(p => p.id === l.distributorId)?.name || '') : '' });
+    if (activeCols.includes('Retailer')) columnDefs.push({ header: 'Retailer', getValue: l => l.retailerId ? (partners.find(p => p.id === l.retailerId)?.companyName || partners.find(p => p.id === l.retailerId)?.name || '') : '' });
+
+    // Add custom fields that are visible in the UI
+    customFields.filter(cf => activeCols.includes(cf.name)).forEach(cf => {
+      columnDefs.push({ header: cf.name, getValue: l => l.custom?.[cf.name] || '' });
+    });
+
+    // Always include notes at the end
+    columnDefs.push({ header: 'Notes', getValue: l => l.notes || '' });
+
+    const headers = columnDefs.map(c => c.header);
     const csvRows = [headers.join(',')];
     
     filtered.forEach(l => {
-      const row = [
-        escapeCSV(l.name),
-        escapeCSV(l.email),
-        escapeCSV(l.phone),
-        escapeCSV(l.source),
-        escapeCSV(l.stage),
-        escapeCSV(l.assign),
-        escapeCSV(l.followup ? new Date(l.followup).toLocaleDateString() : ''),
-        escapeCSV(l.requirement),
-        escapeCSV(l.notes),
-        escapeCSV(new Date(l.createdAt).toLocaleString()),
-        ...customFieldNames.map(cfName => escapeCSV(l.custom?.[cfName] || ''))
-      ];
+      const row = columnDefs.map(c => escapeCSV(c.getValue(l)));
       csvRows.push(row.join(','));
     });
 
