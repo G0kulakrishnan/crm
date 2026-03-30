@@ -21,6 +21,15 @@ class ErrorBoundary extends React.Component {
   }
   componentDidCatch(error, errorInfo) {
     console.error("T2GCRM Crash:", error, errorInfo);
+    // Auto-reload on chunk load failures (happens after deployment when old assets are gone)
+    if (error?.message?.includes('Failed to fetch dynamically imported module') || error?.message?.includes('Loading chunk')) {
+      if (!sessionStorage.getItem('chunk_reload')) {
+        sessionStorage.setItem('chunk_reload', '1');
+        window.location.reload();
+        return;
+      }
+      sessionStorage.removeItem('chunk_reload');
+    }
   }
   render() {
     if (this.state.hasError) {
