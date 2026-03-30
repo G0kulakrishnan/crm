@@ -162,6 +162,8 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
     if (!editData && !canCreate) { toast('Permission denied: cannot create invoices', 'error'); return; }
     if (!editData && planEnforcement && !planEnforcement.isWithinLimit('maxInvoices', invoices.length)) { toast('Invoice limit reached for your plan. Please upgrade.', 'error'); return; }
     if (!form.client.trim()) { toast('Client required', 'error'); return; }
+    const validItems = (form.items || []).filter(it => it.name?.trim());
+    if (validItems.length === 0) { toast('Add at least one item with a product name', 'error'); return; }
     if (profile.reqShipping === 'Mandatory' && !form.shipTo?.trim()) { toast('Shipping Address is required', 'error'); return; }
     
     // Extract auto-amc trigger fields vs actual invoice fields

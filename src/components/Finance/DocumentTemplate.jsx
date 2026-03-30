@@ -79,7 +79,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
 
             /* Print-only Overrides */
             @media print {
-              @page { size: A4; margin: 10mm; }
+              @page { size: A4; margin: 0; }
               body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
               .a4-container { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; min-height: 0 !important; }
               .no-print { display: none !important; }
@@ -108,7 +108,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                 border-right: 2px solid #000 !important; 
                 border-top: none !important;
                 border-bottom: none !important;
-                padding: 0 20px !important; 
+                padding: 0 15mm !important; 
               }
 
               .z-table { page-break-inside: auto; }
@@ -133,7 +133,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             <tbody className="print-frame-body">
               
               {/* Header Row */}
-              <tr className="print-content-row"><td className="print-content-cell" style={{ padding: '0 20px' }}>
+              <tr className="print-content-row"><td style={{ padding: '0 20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', alignItems: 'flex-start', paddingTop: '15px' }}>
                   <div style={{ width: '55%' }}>
                     {profile.logo && <img src={profile.logo} alt="Logo" style={{ height: '70px', maxWidth: '200px', objectFit: 'contain', marginBottom: '15px' }} />}
@@ -322,26 +322,19 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                         )}
                       </tbody>
                     </table>
+                    <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #ddd' }}>
+                      <div style={{ fontSize: '9px', color: '#666', textTransform: 'uppercase', fontWeight: '700', marginBottom: '2px' }}>Total In Words</div>
+                      <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', fontStyle: 'italic' }}>{numberToWords(ptots.total)}</div>
+                    </div>
                   </div>
                 </div>
               </td></tr>
 
-              {/* Total In Words — below totals */}
-              <tr className="avoid-break"><td style={{ padding: '12px 20px', borderTop: '1px solid #ddd' }}>
-                <div style={{ fontSize: '10px', color: '#666', textTransform: 'uppercase', fontWeight: '700', marginBottom: '4px' }}>Total In Words</div>
-                <div style={{ fontSize: '13px', fontWeight: '700', color: '#111', fontStyle: 'italic' }}>{numberToWords(ptots.total)}</div>
+              {settings?.showBranding !== false && (
+              <tr><td style={{ padding: '8px 20px', borderTop: '1px solid #eee' }}>
+                <div style={{ fontSize: '10px', fontWeight: '600', color: '#999' }}>POWERED BY <strong style={{ color: '#555' }}>{settings?.brandName || 'T2GCRM'}</strong></div>
               </td></tr>
-              
-              <tr className="print-content-row"><td style={{ padding: '0 20px' }}>
-                {/* Footer Branding */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '15px', fontSize: '10px', fontWeight: '600', color: '#666', borderTop: '1px solid #eee', paddingTop: '15px', paddingBottom: '15px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                    {settings?.showBranding !== false && (
-                      <>POWERED BY <strong style={{ color: '#000', marginLeft: '4px' }}>{settings?.brandName || 'T2GCRM'}</strong></>
-                    )}
-                  </div>
-                </div>
-              </td></tr>
+              )}
 
             </tbody>
             <tfoot className="print-frame-foot">
@@ -357,9 +350,9 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
       <div style={{ fontFamily: t === 'Modern' ? 'Outfit, sans-serif' : 'sans-serif' }}>
         <style>{`
           @media print {
-            @page { size: A4; margin: 10mm; }
+            @page { size: A4; margin: 0; }
             body { margin: 0; padding: 0; background: #fff; -webkit-print-color-adjust: exact; }
-            .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 0 !important; width: auto !important; height: auto !important; min-height: auto !important; }
+            .a4-container { box-shadow: none !important; margin: 0 !important; border: none !important; padding: 15mm !important; width: auto !important; height: auto !important; min-height: auto !important; }
             .no-print { display: none !important; }
           }
         `}</style>

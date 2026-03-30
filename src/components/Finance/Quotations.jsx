@@ -145,6 +145,8 @@ export default function Quotations({ user, perms, ownerId, settings }) {
     if (editData && !canEdit) { toast('Permission denied: cannot edit quotations', 'error'); return; }
     if (!editData && !canCreate) { toast('Permission denied: cannot create quotations', 'error'); return; }
     if (!form.client) { toast('Client required', 'error'); return; }
+    const validItems = (form.items || []).filter(it => it.name?.trim());
+    if (validItems.length === 0) { toast('Add at least one item with a product name', 'error'); return; }
     if (profile.reqShipping === 'Mandatory' && !form.shipTo?.trim()) { toast('Shipping Address is required', 'error'); return; }
     
     const { addShipping, ...qPayload } = form;
