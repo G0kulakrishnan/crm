@@ -9,9 +9,36 @@ const API_LIST = [
     method: 'POST', 
     desc: 'Unified authentication gateway for user identity and security.',
     actions: [
-      { name: 'Login', method: 'POST', body: { action: 'login', email: 'user@example.com', password: 'yourpassword' }, resp: { success: true, user: { id: '...', email: '...' } } },
-      { name: 'Register', method: 'POST', body: { action: 'register', email: 'user@example.com', password: 'yourpassword', name: 'John Doe' }, resp: { success: true, id: '...' } },
-      { name: 'OTP Verify', method: 'POST', body: { action: 'verify-otp', email: 'user@example.com', otp: '123456' }, resp: { success: true, token: '...' } }
+      { name: 'Login', method: 'POST', body: { action: 'login', email: 'user@example.com', password: 'yourpassword' }, resp: { success: true, token: '...', isTeamMember: false, isPartner: false, role: 'Owner', perms: null, ownerUserId: 'WORKSPACE_ID', teamMemberId: null, partnerId: null }, errors: [{ status: 400, error: 'Email and password are required' }, { status: 401, error: 'Invalid email or password' }, { status: 403, error: 'Email verification pending' }] },
+      { name: 'Register', method: 'POST', body: { action: 'register', email: 'user@example.com', password: 'yourpassword', fullName: 'John Doe', bizName: 'Acme Corp', phone: '9876543210', selectedPlan: 'Trial' }, resp: { success: true, otp: '123456', message: 'Registration successful. Verify OTP.' }, errors: [{ status: 400, error: 'Email and password are required' }, { status: 400, error: 'User already exists' }] },
+      { name: 'Verify OTP', method: 'POST', body: { action: 'verify-otp', email: 'user@example.com', otp: '123456' }, resp: { success: true, token: '...', message: 'Verified and logged in' }, errors: [{ status: 400, error: 'Email and OTP are required' }, { status: 400, error: 'Already verified' }, { status: 401, error: 'Invalid OTP' }, { status: 404, error: 'User not found' }] },
+      { name: 'Roles Lookup', method: 'POST', body: { action: 'roles', email: 'user@example.com' }, resp: { success: true, isOwner: true, isTeamMember: false, isPartner: false, role: 'Owner', perms: null, ownerUserId: 'WORKSPACE_ID' }, errors: [{ status: 400, error: 'Email is required' }, { status: 404, error: 'User not found in any business' }, { status: 404, error: 'Business profile not found' }] },
+      { name: 'Change Password', method: 'POST', body: { action: 'change-password', email: 'user@example.com', newPassword: 'newSecurePass123' }, resp: { success: true, message: 'Password updated' }, errors: [{ status: 400, error: 'Required fields missing' }, { status: 400, error: 'userId required to create credentials' }] },
+      { name: 'Reset Password (Request OTP)', method: 'POST', body: { action: 'reset-password-request', email: 'user@example.com' }, resp: { success: true, otp: '654321', message: 'OTP generated' }, errors: [{ status: 400, error: 'Email required' }, { status: 404, error: 'User not found' }] },
+      { name: 'Reset Password (Verify & Set)', method: 'POST', body: { action: 'reset-password-verify', email: 'user@example.com', code: '654321', newPassword: 'newSecurePass' }, resp: { success: true, message: 'Password updated' }, errors: [{ status: 400, error: 'Required fields missing' }, { status: 400, error: 'Invalid or expired code' }] },
+      { name: 'Set Team Member Password', method: 'POST', body: { action: 'set-team-password', email: 'member@team.com', password: 'teamPass123', ownerUserId: 'WORKSPACE_ID', teamMemberId: 'MEMBER_ID' }, resp: { success: true, message: 'Password set' }, errors: [{ status: 400, error: 'Required fields missing' }] },
+      { name: 'Set Partner Password', method: 'POST', body: { action: 'set-partner-password', email: 'partner@biz.com', password: 'partnerPass123', ownerUserId: 'WORKSPACE_ID', partnerId: 'PARTNER_ID' }, resp: { success: true, message: 'Partner password set' }, errors: [{ status: 400, error: 'Required fields missing' }] }
+    ]
+  },
+  {
+    group: 'Admin Management',
+    path: '/api/auth',
+    method: 'POST',
+    desc: 'Superadmin-only endpoints for business account lifecycle management.',
+    actions: [
+      { 
+        name: 'Create Business (Admin)', method: 'POST', 
+        body: { action: 'admin-create-user', email: 'newbiz@example.com', password: 'securePass123', fullName: 'Jane Smith', bizName: 'Smith Corp', phone: '9876543210', selectedPlan: 'Premium', duration: 30 }, 
+        resp: { success: true, message: 'Business "Smith Corp" created successfully', userId: 'NEW_USER_ID', profileId: 'NEW_PROFILE_ID' },
+        errors: [{ status: 400, error: 'Email and password are required' }, { status: 400, error: 'User with this email already exists' }]
+      },
+      { 
+        name: 'Delete Business (Admin)', method: 'POST', 
+        desc: '⚠️ IRREVERSIBLE — Cascading delete of ALL data: leads, customers, invoices, tasks, projects, team/partner credentials, expenses, products, campaigns, automation flows, etc.',
+        body: { action: 'admin-delete-user', profileId: 'PROFILE_ID', targetUserId: 'USER_ID', ownerEmail: 'owner@example.com' }, 
+        resp: { success: true, message: 'Business deleted. 142 records removed.', deletedCount: 142 },
+        errors: [{ status: 400, error: 'profileId and targetUserId are required' }]
+      }
     ]
   },
   {
@@ -20,10 +47,10 @@ const API_LIST = [
     method: 'ALL',
     desc: 'Manage potential clients and inquiries.',
     actions: [
-      { name: 'Create Lead (POST)', method: 'POST', body: { ownerId: 'WORKSPACE_ID', actorId: 'USER_ID', name: 'John Smith', email: 'john@example.com', phone: '9876543210', source: 'Website', stage: 'New', notes: 'Initial inquiry' }, resp: { success: true, id: '12345...' } },
-      { name: 'List Leads (GET)', method: 'GET', query: 'ownerId=WORKSPACE_ID', resp: { success: true, data: [{ id: '123', name: 'John Smith', stage: 'New' }] } },
-      { name: 'Update Lead (PATCH)', method: 'PATCH', body: { id: 'LEAD_ID', ownerId: 'WORKSPACE_ID', stage: 'Contacted' }, resp: { success: true, message: 'Updated' } },
-      { name: 'Delete Lead (DELETE)', method: 'DELETE', body: { id: 'LEAD_ID', ownerId: 'WORKSPACE_ID' }, resp: { success: true, message: 'Deleted' } }
+      { name: 'Create Lead (POST)', method: 'POST', body: { ownerId: 'WORKSPACE_ID', actorId: 'USER_ID', module: 'leads', name: 'John Smith', email: 'john@example.com', phone: '9876543210', source: 'Website', stage: 'New', logText: 'Lead captured via app' }, resp: { success: true, id: '12345...', message: 'Record created successfully' }, errors: [{ status: 400, error: 'Invalid or missing module' }, { status: 400, error: 'ownerId is required to identify the workspace context' }] },
+      { name: 'List Leads (GET)', method: 'GET', query: 'module=leads&ownerId=WORKSPACE_ID', resp: { success: true, data: [{ id: '123', name: 'John Smith', stage: 'New' }] }, errors: [{ status: 400, error: 'Invalid or missing module' }, { status: 400, error: 'ownerId is required' }] },
+      { name: 'Update Lead (PATCH)', method: 'PATCH', body: { module: 'leads', id: 'LEAD_ID', ownerId: 'WORKSPACE_ID', stage: 'Contacted', logText: 'Called client' }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] },
+      { name: 'Delete Lead (DELETE)', method: 'DELETE', body: { module: 'leads', id: 'LEAD_ID', ownerId: 'WORKSPACE_ID' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
     ]
   },
   {
@@ -32,34 +59,34 @@ const API_LIST = [
     method: 'ALL',
     desc: 'Manage your verified clients and their details.',
     actions: [
-      { name: 'Create Customer (POST)', method: 'POST', body: { ownerId: '...', actorId: '...', name: 'Acme Corp', email: 'billing@acme.com', phone: '9988776655', address: '123 Street', state: 'Tamil Nadu', country: 'India', gstin: '22AAAAA0000A1Z5' }, resp: { success: true, id: '...' } },
-      { name: 'List Customers (GET)', method: 'GET', query: 'ownerId=...', resp: { success: true, data: [{ id: '...', name: 'Acme Corp' }] } },
-      { name: 'Update Customer (PATCH)', method: 'PATCH', body: { id: 'CUST_ID', ownerId: '...', email: 'new@acme.com' }, resp: { success: true, message: 'Updated' } },
-      { name: 'Delete Customer (DELETE)', method: 'DELETE', body: { id: 'CUST_ID', ownerId: '...' }, resp: { success: true, message: 'Deleted' } }
+      { name: 'Create Customer (POST)', method: 'POST', body: { module: 'customers', ownerId: '...', actorId: '...', name: 'Acme Corp', email: 'billing@acme.com', phone: '9988776655', address: '123 Street', state: 'Tamil Nadu', country: 'India', gstin: '22AAAAA0000A1Z5' }, resp: { success: true, id: '...', message: 'Record created successfully' }, errors: [{ status: 400, error: 'Invalid or missing module' }, { status: 400, error: 'ownerId is required' }] },
+      { name: 'List Customers (GET)', method: 'GET', query: 'module=customers&ownerId=...', resp: { success: true, data: [{ id: '...', name: 'Acme Corp' }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Update Customer (PATCH)', method: 'PATCH', body: { module: 'customers', id: 'CUST_ID', ownerId: '...', email: 'new@acme.com' }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] },
+      { name: 'Delete Customer (DELETE)', method: 'DELETE', body: { module: 'customers', id: 'CUST_ID', ownerId: '...' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
     ]
   },
   {
     group: 'Projects',
     path: '/api/data/projects',
     method: 'ALL',
-    desc: 'Manage ongoing work and client projects.',
+    desc: 'Manage ongoing work and client projects. Creating a project auto-converts matching leads to Won.',
     actions: [
-      { name: 'Create Project (POST)', method: 'POST', body: { ownerId: '...', actorId: '...', name: 'Website Redesign', client: 'Acme Corp', status: 'In Progress', budget: 50000, deadline: '2026-12-31' }, resp: { success: true, id: '...' } },
-      { name: 'List Projects (GET)', method: 'GET', query: 'ownerId=...', resp: { success: true, data: [{ id: '...', name: 'Website Redesign', status: 'In Progress' }] } },
-      { name: 'Update Project (PATCH)', method: 'PATCH', body: { id: 'PROJ_ID', ownerId: '...', status: 'Completed' }, resp: { success: true, message: 'Updated' } },
-      { name: 'Delete Project (DELETE)', method: 'DELETE', body: { id: 'PROJ_ID', ownerId: '...' }, resp: { success: true, message: 'Deleted' } }
+      { name: 'Create Project (POST)', method: 'POST', body: { module: 'projects', ownerId: '...', actorId: '...', name: 'Website Redesign', client: 'Acme Corp', status: 'In Progress', budget: 50000, deadline: '2026-12-31' }, resp: { success: true, id: '...', message: 'Record created successfully' }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'List Projects (GET)', method: 'GET', query: 'module=projects&ownerId=...', resp: { success: true, data: [{ id: '...', name: 'Website Redesign', status: 'In Progress' }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Update Project (PATCH)', method: 'PATCH', body: { module: 'projects', id: 'PROJ_ID', ownerId: '...', status: 'Completed' }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] },
+      { name: 'Delete Project (DELETE)', method: 'DELETE', desc: 'Also deletes all child tasks under this project.', body: { module: 'projects', id: 'PROJ_ID', ownerId: '...' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
     ]
   },
   {
     group: 'Tasks',
     path: '/api/data/tasks',
     method: 'ALL',
-    desc: 'Manage individual tasks within projects or independently.',
+    desc: 'Manage individual tasks. Auto-assigns sequential task numbers (T-101, T-102...).',
     actions: [
-      { name: 'Create Task (POST)', method: 'POST', body: { ownerId: '...', actorId: '...', title: 'Design Homepage', projectId: 'PROJ_ID', priority: 'High', status: 'Pending', assignedTo: 'Designer Name' }, resp: { success: true, id: '...' } },
-      { name: 'List Tasks (GET)', method: 'GET', query: 'ownerId=...', resp: { success: true, data: [{ id: '...', title: 'Design Homepage', status: 'Pending' }] } },
-      { name: 'Update Task (PATCH)', method: 'PATCH', body: { id: 'TASK_ID', ownerId: '...', status: 'Completed' }, resp: { success: true, message: 'Updated' } },
-      { name: 'Delete Task (DELETE)', method: 'DELETE', body: { id: 'TASK_ID', ownerId: '...' }, resp: { success: true, message: 'Deleted' } }
+      { name: 'Create Task (POST)', method: 'POST', body: { module: 'tasks', ownerId: '...', actorId: '...', title: 'Design Homepage', projectId: 'PROJ_ID', priority: 'High', status: 'Pending', assignedTo: 'Designer' }, resp: { success: true, id: '...', message: 'Record created successfully' }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'List Tasks (GET)', method: 'GET', query: 'module=tasks&ownerId=...', resp: { success: true, data: [{ id: '...', title: 'Design Homepage', status: 'Pending', taskNumber: 101 }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Update Task (PATCH)', method: 'PATCH', desc: 'Setting status to "Completed" auto-increments team member stats.', body: { module: 'tasks', id: 'TASK_ID', ownerId: '...', status: 'Completed' }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] },
+      { name: 'Delete Task (DELETE)', method: 'DELETE', body: { module: 'tasks', id: 'TASK_ID', ownerId: '...' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
     ]
   },
   {
@@ -68,10 +95,10 @@ const API_LIST = [
     method: 'ALL',
     desc: 'Generate and manage sales quotes.',
     actions: [
-      { name: 'Create Quote (POST)', method: 'POST', body: { no: 'QUOTE/2026/001', client: 'Acme Corp', date: '2026-03-22', validUntil: '2026-04-05', status: 'Created', items: [{ name: 'Web Dev', qty: 1, rate: 10000, taxRate: 18 }], sub: 10000, taxAmt: 1800, total: 11800 }, resp: { success: true, id: '...' } },
-      { name: 'List Quotes (GET)', method: 'GET', query: 'ownerId=...', resp: { success: true, data: [{ id: '...', no: 'QUOTE/2026/001' }] } },
-      { name: 'Update Quote (PATCH)', method: 'PATCH', body: { id: 'QUOTE_ID', ownerId: '...', status: 'Sent' }, resp: { success: true, message: 'Updated' } },
-      { name: 'Delete Quote (DELETE)', method: 'DELETE', body: { id: 'QUOTE_ID', ownerId: '...' }, resp: { success: true, message: 'Deleted' } }
+      { name: 'Create Quote (POST)', method: 'POST', body: { module: 'quotations', ownerId: '...', no: 'QUOTE/2026/001', client: 'Acme Corp', date: '2026-03-22', validUntil: '2026-04-05', status: 'Created', items: [{ name: 'Web Dev', qty: 1, rate: 10000, taxRate: 18 }], sub: 10000, taxAmt: 1800, total: 11800 }, resp: { success: true, id: '...', message: 'Record created successfully' }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'List Quotes (GET)', method: 'GET', query: 'module=quotations&ownerId=...', resp: { success: true, data: [{ id: '...', no: 'QUOTE/2026/001' }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Update Quote (PATCH)', method: 'PATCH', body: { module: 'quotations', id: 'QUOTE_ID', ownerId: '...', status: 'Sent' }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] },
+      { name: 'Delete Quote (DELETE)', method: 'DELETE', body: { module: 'quotations', id: 'QUOTE_ID', ownerId: '...' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
     ]
   },
   {
@@ -80,81 +107,78 @@ const API_LIST = [
     method: 'ALL',
     desc: 'Generate, manage, and track tax invoices.',
     actions: [
-      { name: 'Create Invoice (POST)', method: 'POST', body: { no: 'INV/2026/001', client: 'Acme Corp', date: '2026-03-22', dueDate: '2026-04-05', status: 'Draft', items: [{ name: 'Web Dev', qty: 1, rate: 10000, taxRate: 18 }], sub: 10000, taxAmt: 1800, total: 11800, isAmc: false }, resp: { success: true, id: '...' } },
-      { name: 'List Invoices (GET)', method: 'GET', query: 'ownerId=...', resp: { success: true, data: [{ id: '...', no: 'INV/2026/001', total: 11800 }] } },
-      { name: 'Update Invoice & Payment (PATCH)', method: 'PATCH', body: { id: 'INV_ID', ownerId: '...', status: 'Partially Paid', payments: [{ amount: 5000, date: 1711234567890 }] }, resp: { success: true, message: 'Updated' } },
-      { name: 'Delete Invoice (DELETE)', method: 'DELETE', body: { id: 'INV_ID', ownerId: '...' }, resp: { success: true, message: 'Deleted' } }
+      { name: 'Create Invoice (POST)', method: 'POST', body: { module: 'invoices', ownerId: '...', no: 'INV/2026/001', client: 'Acme Corp', date: '2026-03-22', dueDate: '2026-04-05', status: 'Draft', items: [{ name: 'Web Dev', qty: 1, rate: 10000, taxRate: 18 }], sub: 10000, taxAmt: 1800, total: 11800 }, resp: { success: true, id: '...', message: 'Record created successfully' }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'List Invoices (GET)', method: 'GET', query: 'module=invoices&ownerId=...', resp: { success: true, data: [{ id: '...', no: 'INV/2026/001', total: 11800 }] }, errors: [{ status: 400, error: 'ownerId is required' }] },
+      { name: 'Update Invoice & Payment (PATCH)', method: 'PATCH', body: { module: 'invoices', id: 'INV_ID', ownerId: '...', status: 'Partially Paid', payments: [{ amount: 5000, date: 1711234567890 }] }, resp: { success: true, message: 'Record updated successfully' }, errors: [{ status: 400, error: 'Record ID is required for updates' }] },
+      { name: 'Delete Invoice (DELETE)', method: 'DELETE', body: { module: 'invoices', id: 'INV_ID', ownerId: '...' }, resp: { success: true, message: 'Record deleted successfully' }, errors: [{ status: 400, error: 'Record ID is required for deletion' }] }
     ]
   },
   { 
     group: 'POS Billing', 
     path: '/api/finance', 
     method: 'POST', 
-    desc: 'Retail checkout logic processing.',
+    desc: 'Retail checkout processing. Auto-deducts stock and converts matching leads to Won.',
     actions: [
-      { name: 'Generate Retail Bill', method: 'POST', body: { action: 'generate-bill', cart: [{ id: 'PROD_ID', name: 'Wireless Mouse', qty: 2, rate: 500, tax: 18 }], customer: { id: 'CUST_ID', name: 'Walk-in', phone: '9000000000' }, payMode: 'UPI', userId: 'WORKSPACE_ID', actorId: 'USER_ID' }, resp: { success: true, invoice: { no: 'BILL/2026/001', total: 1180 } } }
+      { name: 'Generate Retail Bill', method: 'POST', body: { action: 'generate-bill', cart: [{ id: 'PROD_ID', name: 'Wireless Mouse', qty: 2, rate: 500, tax: 18 }], customer: { id: 'CUST_ID', name: 'Walk-in', phone: '9000000000' }, payMode: 'UPI', userId: 'WORKSPACE_ID', actorId: 'USER_ID' }, resp: { success: true, invoice: { id: '...', no: 'POS-123456', client: 'Walk-in', total: 1180, status: 'Paid' } }, errors: [{ status: 400, error: 'Missing checkout data' }, { status: 400, error: 'Insufficient stock for Wireless Mouse' }, { status: 405, error: 'Action not allowed' }, { status: 500, error: 'Missing InstantDB credentials' }] }
     ]
   },
   { 
     group: 'Messaging', 
     path: '/api/notify', 
     method: 'POST', 
-    desc: 'Send transactional emails or WhatsApp messages.',
+    desc: 'Send transactional emails or WhatsApp messages. Includes server-side deduplication.',
     actions: [
-      { name: 'Send Email', method: 'POST', body: { type: 'email', to: 'client@example.com', subject: 'Invoice #123', body: 'Hi, find attached...', ownerId: 'WORKSPACE_ID' }, resp: { success: true, msgId: '...' } },
-      { name: 'Send WhatsApp (Prompt)', method: 'POST', body: { type: 'whatsapp', to: '919876543210', message: 'Your order is ready!', ownerId: 'WORKSPACE_ID' }, resp: { success: true, sid: '...' } },
-      { name: 'Send WhatsApp (Template)', method: 'POST', body: { type: 'whatsapp', to: '919876543210', templateId: '329129', variables: ['12345', 'Service A', '2026-03-25'], ownerId: 'WORKSPACE_ID' }, resp: { success: true, sid: '...' } }
+      { name: 'Send Email', method: 'POST', body: { type: 'email', to: 'client@example.com', subject: 'Invoice #123', body: 'Hi, find attached...', ownerId: 'WORKSPACE_ID', processedKey: 'unique-dedup-key' }, resp: { success: true, messageId: '<msg-id@smtp>' }, errors: [{ status: 400, error: 'Missing required fields' }, { status: 400, error: 'SMTP not configured' }, { status: 500, error: 'SMTP connection / auth error' }] },
+      { name: 'Send WhatsApp (Template)', method: 'POST', body: { type: 'whatsapp', to: '919876543210', templateId: '329129', variables: [{ field: 'body', index: 1, value: 'John' }], ownerId: 'WORKSPACE_ID', processedKey: 'unique-dedup-key' }, resp: { success: true, messageId: 'wamid.xxx' }, errors: [{ status: 400, error: 'WhatsApp not configured' }, { status: 400, error: 'Template ID required for WhatsApp' }, { status: 400, error: 'Waprochat template fail' }] },
+      { name: 'Deduplicated (Skipped)', method: 'POST', desc: 'Returned when a duplicate message is detected within the same minute window.', body: { type: 'email', to: '...', body: '...', ownerId: '...', processedKey: 'same-key-again' }, resp: { success: true, skipped: true, message: 'Duplicate blocked by server-side guard' }, errors: [] }
     ]
   },
   {
-    group: 'Ecommerce (Public)',
+    group: 'Ecommerce Checkout (Public)',
     path: '/api/ecom/checkout',
     method: 'POST',
-    desc: 'Public endpoint for store checkouts, creating leads/orders automatically.',
+    desc: 'Public endpoint for store checkouts. Auto-creates lead + invoice.',
     actions: [
       { 
-        name: 'Submit Order', 
-        method: 'POST', 
-        body: { 
-          ownerId: 'WORKSPACE_ID', 
-          ecomName: 'slug', 
-          customer: { name: 'Jane Doe', email: 'jane@example.com', phone: '9876543210', address: '123 Main St' },
-          items: [{ name: 'Product A', qty: 1, rate: 100 }],
-          total: 100
-        }, 
-        resp: { success: true, orderId: '...' } 
-      },
-      {
-        name: 'Validation: Strict Match',
-        method: 'POST',
-        desc: 'Returns error if email exists with diff phone, or phone exists with diff email.',
-        body: { customer: { email: 'existing@mail.com', phone: 'NEW_PHONE' } },
-        resp: { success: false, error: 'Mail ID or phone number mismatch' }
+        name: 'Submit Order', method: 'POST', 
+        body: { ownerId: 'WORKSPACE_ID', ecomName: 'store-slug', customer: { name: 'Jane Doe', email: 'jane@example.com', phone: '9876543210', address: '123 Main St' }, items: [{ name: 'Product A', qty: 1, rate: 100 }], total: 100 }, 
+        resp: { success: true, orderId: '...', invoiceId: '...', invoiceNo: 'ECOM/2026/1234' },
+        errors: [{ status: 400, error: 'Missing required fields: ownerId, customer, items' }, { status: 400, error: 'Mail ID or phone number mismatch with existing record' }, { status: 405, error: 'Method not allowed' }, { status: 500, error: 'Checkout failed' }]
       }
     ]
   },
   {
-    group: 'Appointments (Public)',
+    group: 'Appointment Booking (Public)',
     path: '/api/appointments/book',
     method: 'POST',
-    desc: 'Public booking endpoint for client appointments.',
+    desc: 'Public booking endpoint. Respects maxPerSlot from settings. Auto-creates lead.',
     actions: [
       { 
-        name: 'Book Slot', 
-        method: 'POST', 
-        body: { 
-          ownerId: 'WORKSPACE_ID', 
-          serviceId: 'SERVICE_ID', 
-          slot: '2026-03-25T10:00:00Z',
-          customer: { name: 'Alice Smith', email: 'alice@example.com', phone: '9988776655' }
-        }, 
-        resp: { success: true, bookingId: '...' } 
+        name: 'Book Slot', method: 'POST', 
+        body: { ownerId: 'WORKSPACE_ID', slug: 'store-slug', service: 'Hair Cut', date: '2026-03-25', time: '10:00 AM', customer: { name: 'Alice Smith', email: 'alice@example.com', phone: '9988776655' } }, 
+        resp: { success: true, appointmentId: '...' },
+        errors: [{ status: 400, error: 'Missing required fields: ownerId, date, time, customer.name, customer.phone' }, { status: 400, error: 'Mail ID or phone number mismatch with existing record' }, { status: 409, error: 'This time slot is fully booked (max N per slot)' }, { status: 405, error: 'Method not allowed' }, { status: 500, error: 'Booking failed' }]
+      }
+    ]
+  },
+  {
+    group: 'Google Sheets Webhook',
+    path: '/api/webhook/gsheets',
+    method: 'POST',
+    desc: 'Receives lead data from Google Sheets via Apps Script automation.',
+    actions: [
+      { 
+        name: 'Receive Lead', method: 'POST', 
+        body: { userId: 'WORKSPACE_ID', actorId: 'USER_ID', type: 'lead', data: ['John Doe', 'john@example.com', '9876543210', 'Website', 'New'] }, 
+        resp: { success: true, message: 'Lead processed and added to CRM', leadId: '...' },
+        errors: [{ status: 400, error: 'Invalid payload structure' }, { status: 400, error: 'No active Google Sheets mapping found for this user' }, { status: 400, error: 'Incomplete integration configuration' }, { status: 404, error: 'User profile not found' }, { status: 405, error: 'Method Not Allowed' }, { status: 500, error: 'Internal server error processing webhook' }]
       },
-      {
-        name: 'Error: Data Mismatch',
-        method: 'POST',
-        body: { customer: { email: 'existing@mail.com', phone: 'DIFFERENT_PHONE' } },
-        resp: { success: false, error: 'Mail ID or phone number mismatch' }
+      { 
+        name: 'Duplicate Lead (Auto-logged)', method: 'POST', 
+        desc: 'When a lead with matching email/phone already exists, an activity log is added instead of creating a duplicate.',
+        body: { userId: '...', data: ['...', 'existing@mail.com', '...'] }, 
+        resp: { success: true, message: 'Lead already exists, added log', leadId: 'existing-lead-id' },
+        errors: []
       }
     ]
   }
@@ -339,7 +363,7 @@ export default function ApiDocs({ ownerId }) {
                     </div>
                     
                     <div style={{ padding: 18 }}>
-
+                      {action.desc && <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12, fontStyle: 'italic' }}>{action.desc}</div>}
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, width: '100%' }}>
                         <div style={{ minWidth: 0 }}>
                           <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8, display: 'flex', justifyContent: 'space-between' }}>
@@ -351,10 +375,23 @@ export default function ApiDocs({ ownerId }) {
                           </pre>
                         </div>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Expected Response</div>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#0369a1', textTransform: 'uppercase', marginBottom: 8 }}>✅ Success Response</div>
                           <pre style={{ margin: 0, fontSize: 12, background: '#e0f2fe', color: '#0369a1', padding: '14px', borderRadius: 8, border: '1px solid #bae6fd', minHeight: 120, overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
                             {JSON.stringify(action.resp, null, 2)}
                           </pre>
+                          {action.errors && action.errors.length > 0 && (
+                            <div style={{ marginTop: 12 }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#991b1b', textTransform: 'uppercase', marginBottom: 8 }}>❌ Error Responses</div>
+                              <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 8, overflow: 'hidden' }}>
+                                {action.errors.map((err, eIdx) => (
+                                  <div key={eIdx} style={{ padding: '8px 12px', borderBottom: eIdx < action.errors.length - 1 ? '1px solid #fca5a5' : 'none', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 6px', borderRadius: 4, background: '#ef4444', color: '#fff', flexShrink: 0 }}>{err.status}</span>
+                                    <code style={{ fontSize: 11, color: '#991b1b', wordBreak: 'break-word' }}>{err.error}</code>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

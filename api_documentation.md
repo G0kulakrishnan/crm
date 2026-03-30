@@ -1,108 +1,417 @@
-# TechCRM API Documentation
-
-This document outlines the API structure and data models for TechCRM, to assist in independent mobile app development.
 # T2GCRM API Documentation
 
-This document provides a comprehensive technical reference for the T2GCRM API endpoints. All requests should include the appropriate headers and follow the structure outlined below.
+Complete technical reference for the T2GCRM backend API. All endpoints use JSON payloads and return JSON responses.
+
+**Base URL**: `https://crm.t2gcrm.in` (or your custom CRM domain)
 
 ---
 
-## **1. Authentication APIs**
+## 1. Authentication — `/api/auth`
 
-### `POST` **Login API**
-Authenticate a user and retrieve a JWT token for session authorization.
+All auth endpoints accept `POST` with `action` field to determine the operation.
 
-#### **Endpoint**
-> `https://crm.t2gcrm.in/api/auth/login`
+---
 
-#### **Request Body**
+### `login` — Authenticate User
+
+**Request**
 ```json
 {
+  "action": "login",
   "email": "user@example.com",
-  "password": "your_secure_password"
+  "password": "yourpassword"
 }
 ```
 
-#### **Response (Success)**
+**Success Response** `200`
 ```json
 {
-  "message": "Login successfully!",
-  "token": "1|abc123tokenXYZ",
-  "user": {
-    "id": "user-uuid-1",
-    "name": "John Doe",
-    "email": "user@example.com"
-  },
-  "perms": {
-    "Leads": ["list", "create", "edit", "delete"],
-    "Invoices": ["list", "create"]
-  },
+  "success": true,
+  "token": "eyJhbGci...",
   "isTeamMember": false,
+  "isPartner": false,
   "role": "Owner",
-  "status_code": 200,
-  "status": true
+  "perms": null,
+  "ownerUserId": "WORKSPACE_ID",
+  "teamMemberId": null,
+  "partnerId": null
 }
 ```
 
-#### **Response (Error)**
-```json
-{
-  "message": "Invalid email or password",
-  "status_code": 401,
-  "status": false
-}
-```
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Email and password are required" }` |
+| `401` | `{ "error": "Invalid email or password" }` |
+| `403` | `{ "error": "Email verification pending", "message": "Please verify your email using the OTP sent during registration." }` |
 
 ---
 
-### `POST` **Register API**
-Create a new business workspace and owner account.
+### `register` — Create New Account
 
-#### **Endpoint**
-> `https://crm.t2gcrm.in/api/auth/register`
-
-#### **Request Body**
+**Request**
 ```json
 {
-  "email": "newuser@example.com",
-  "password": "strongpassword123",
-  "fullName": "Jane Smith",
-  "bizName": "Smith Solutions",
+  "action": "register",
+  "email": "user@example.com",
+  "password": "strongpassword",
+  "fullName": "John Doe",
+  "bizName": "Acme Corp",
   "phone": "9876543210",
   "selectedPlan": "Trial"
 }
 ```
 
-#### **Response (Success)**
+**Success Response** `200`
 ```json
 {
-  "message": "Registered successfully!",
-  "token": "1|newuser-token-789",
-  "status_code": 200,
-  "status": true
+  "success": true,
+  "otp": "123456",
+  "message": "Registration successful. Verify OTP."
 }
 ```
 
-#### **Response (Error)**
-```json
-{
-  "message": "Email already registered",
-  "status_code": 409,
-  "status": false
-}
-```
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Email and password are required" }` |
+| `400` | `{ "error": "User already exists" }` |
 
 ---
 
-## **2. Core Data APIs (Universal)**
+### `verify-otp` — Verify Email OTP
 
-### `POST` **Create/Update Record**
-Create or update entries in any module (Leads, Customers, Expenses, etc.). Automatic activity logs are created.
+**Request**
+```json
+{
+  "action": "verify-otp",
+  "email": "user@example.com",
+  "otp": "123456"
+}
+```
 
-#### **Endpoint**
-> `https://crm.t2gcrm.in/api/data`
+**Success Response** `200`
+```json
+{
+  "success": true,
+  "token": "eyJhbGci...",
+  "message": "Verified and logged in"
+}
+```
 
-#### **Request Body (New Lead)**
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Email and OTP are required" }` |
+| `400` | `{ "error": "Already verified" }` |
+| `401` | `{ "error": "Invalid OTP" }` |
+| `404` | `{ "error": "User not found" }` |
+
+---
+
+### `roles` — Lookup User Role & Workspace
+
+**Request**
+```json
+{
+  "action": "roles",
+  "email": "user@example.com"
+}
+```
+
+**Success Response (Owner)** `200`
+```json
+{
+  "success": true,
+  "isOwner": true,
+  "isTeamMember": false,
+  "isPartner": false,
+  "role": "Owner",
+  "perms": null,
+  "ownerUserId": "WORKSPACE_ID"
+}
+```
+
+**Success Response (Team Member)** `200`
+```json
+{
+  "success": true,
+  "isOwner": false,
+  "isTeamMember": true,
+  "isPartner": false,
+  "role": "Sales Manager",
+  "perms": { "Leads": ["list", "create", "edit"] },
+  "ownerUserId": "WORKSPACE_ID",
+  "teamMemberId": "MEMBER_ID",
+  "name": "John Doe"
+}
+```
+
+**Success Response (Partner)** `200`
+```json
+{
+  "success": true,
+  "isOwner": false,
+  "isTeamMember": false,
+  "isPartner": true,
+  "role": "Distributor",
+  "perms": null,
+  "ownerUserId": "WORKSPACE_ID",
+  "partnerId": "PARTNER_ID",
+  "name": "Partner Corp"
+}
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Email is required" }` |
+| `404` | `{ "error": "User not found in any business" }` |
+| `404` | `{ "error": "Business profile not found" }` |
+
+---
+
+### `change-password` — Update Password
+
+**Request**
+```json
+{
+  "action": "change-password",
+  "email": "user@example.com",
+  "newPassword": "newSecurePass123"
+}
+```
+
+**Success Response** `200`
+```json
+{ "success": true, "message": "Password updated" }
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Required fields missing" }` |
+| `400` | `{ "error": "userId required to create credentials" }` |
+
+---
+
+### `reset-password-request` — Request Password Reset OTP
+
+**Request**
+```json
+{
+  "action": "reset-password-request",
+  "email": "user@example.com"
+}
+```
+
+**Success Response** `200`
+```json
+{ "success": true, "otp": "654321", "message": "OTP generated" }
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Email required" }` |
+| `404` | `{ "error": "User not found" }` |
+
+---
+
+### `reset-password-verify` — Verify OTP & Set New Password
+
+**Request**
+```json
+{
+  "action": "reset-password-verify",
+  "email": "user@example.com",
+  "code": "654321",
+  "newPassword": "newSecurePass"
+}
+```
+
+**Success Response** `200`
+```json
+{ "success": true, "message": "Password updated" }
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Required fields missing" }` |
+| `400` | `{ "error": "Invalid or expired code" }` |
+
+---
+
+### `set-team-password` — Set Team Member Credentials
+
+**Request**
+```json
+{
+  "action": "set-team-password",
+  "email": "member@team.com",
+  "password": "teamPass123",
+  "ownerUserId": "WORKSPACE_ID",
+  "teamMemberId": "MEMBER_ID"
+}
+```
+
+**Success Response** `200`
+```json
+{ "success": true, "message": "Password set" }
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Required fields missing" }` |
+
+---
+
+### `set-partner-password` — Set Partner Credentials
+
+**Request**
+```json
+{
+  "action": "set-partner-password",
+  "email": "partner@biz.com",
+  "password": "partnerPass123",
+  "ownerUserId": "WORKSPACE_ID",
+  "partnerId": "PARTNER_ID"
+}
+```
+
+**Success Response** `200`
+```json
+{ "success": true, "message": "Partner password set" }
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Required fields missing" }` |
+
+---
+
+## 2. Admin Management — `/api/auth` (Superadmin Only)
+
+---
+
+### `admin-create-user` — Create Business Account
+
+Creates a fully verified business account with credentials and profile in one shot.
+
+**Request**
+```json
+{
+  "action": "admin-create-user",
+  "email": "newbiz@example.com",
+  "password": "securePass123",
+  "fullName": "Jane Smith",
+  "bizName": "Smith Corp",
+  "phone": "9876543210",
+  "selectedPlan": "Premium",
+  "duration": 30
+}
+```
+
+**Success Response** `200`
+```json
+{
+  "success": true,
+  "message": "Business \"Smith Corp\" created successfully",
+  "userId": "NEW_USER_ID",
+  "profileId": "NEW_PROFILE_ID"
+}
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Email and password are required" }` |
+| `400` | `{ "error": "User with this email already exists" }` |
+
+---
+
+### `admin-delete-user` — Delete Business (Cascading)
+
+Permanently deletes ALL business data: leads, customers, invoices, quotes, tasks, projects, expenses, products, team members, partners, activity logs, automation flows, and all associated credentials.
+
+**Request**
+```json
+{
+  "action": "admin-delete-user",
+  "profileId": "PROFILE_ID",
+  "targetUserId": "USER_ID",
+  "ownerEmail": "owner@example.com"
+}
+```
+
+**Success Response** `200`
+```json
+{
+  "success": true,
+  "message": "Business deleted. 142 records removed.",
+  "deletedCount": 142
+}
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "profileId and targetUserId are required" }` |
+
+---
+
+## 3. Universal Data API — `/api/data`
+
+Supports CRUD operations for all modules. Uses HTTP methods: `GET`, `POST`, `PATCH`, `DELETE`.
+
+### Available Modules
+
+| Module Key | Collection | Actions |
+|:---|:---|:---|
+| `leads` | `leads` | Create, Read, Update, Delete |
+| `customers` | `customers` | Create, Read, Update, Delete |
+| `quotations` | `quotations` | Create, Read, Update, Delete |
+| `invoices` | `invoices` | Create, Read, Update, Delete |
+| `amc` | `amc` | Create, Read, Update, Delete |
+| `expenses` | `expenses` | Create, Read, Update, Delete |
+| `products` | `products` | Create, Read, Update, Delete |
+| `vendors` | `vendors` | Create, Read, Update, Delete |
+| `purchase-orders` | `purchaseOrders` | Create, Read, Update, Delete |
+| `projects` | `projects` | Create, Read, Update, Delete |
+| `tasks` | `tasks` | Create, Read, Update, Delete |
+| `teams` | `teamMembers` | Create, Read, Update, Delete |
+| `logs` | `activityLogs` | Create, Read, Update, Delete |
+
+---
+
+### `GET` — List Records
+
+**Endpoint**: `/api/data?module=leads&ownerId=WORKSPACE_ID`
+
+**Success Response** `200`
+```json
+{
+  "success": true,
+  "data": [
+    { "id": "lead-123", "name": "John Smith", "stage": "New", "createdAt": 1711234567890 }
+  ]
+}
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Invalid or missing module. Received: xyz. Allowed: leads, customers, ..." }` |
+| `400` | `{ "error": "ownerId is required to identify the workspace context" }` |
+
+---
+
+### `POST` — Create Record
+
+**Request**
 ```json
 {
   "module": "leads",
@@ -118,175 +427,329 @@ Create or update entries in any module (Leads, Customers, Expenses, etc.). Autom
 }
 ```
 
-#### **Response (Success)**
+**Success Response** `200`
 ```json
 {
-  "message": "Record saved successfully!",
-  "id": "new-lead-uuid-444",
-  "status_code": 200,
-  "status": true
+  "success": true,
+  "id": "new-record-uuid",
+  "message": "Record created successfully"
 }
 ```
 
-#### **Response (Error - Missing Payload)**
-```json
-{
-  "message": "Payload name is required for this module",
-  "status_code": 400,
-  "status": false
-}
-```
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Invalid or missing module..." }` |
+| `400` | `{ "error": "ownerId is required to identify the workspace context" }` |
+| `500` | `{ "error": "Internal server error" }` |
+
+> **Note**: Creating a `projects` record auto-converts matching leads to Won stage. Creating `tasks` auto-assigns sequential task numbers (T-101, T-102...).
 
 ---
 
-### `DELETE` **Delete Record (Cascading)**
-Permanently remove a record AND its associated activity logs/tasks.
+### `PATCH` — Update Record
 
-#### **Endpoint**
-> `https://crm.t2gcrm.in/api/data`
-
-#### **Request Body**
+**Request**
 ```json
 {
-  "method": "DELETE",
   "module": "leads",
+  "id": "LEAD_ID",
   "ownerId": "WORKSPACE_ID",
-  "id": "lead-uuid-to-delete",
-  "logText": "User initiated delete via mobile"
+  "actorId": "USER_ID",
+  "stage": "Contacted",
+  "logText": "Contacted via phone call"
 }
 ```
 
-#### **Response (Success)**
+**Success Response** `200`
 ```json
-{
-  "message": "Record and associated logs/tasks deleted",
-  "status_code": 200,
-  "status": true
-}
+{ "success": true, "message": "Record updated successfully" }
 ```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Record ID is required for updates" }` |
 
 ---
 
-## **3. Communication APIs**
+### `DELETE` — Delete Record (Cascading)
 
-### `POST` **WhatsApp Notification**
-Send a manual or automated WhatsApp message via Waprochat.
+Deletes the record plus associated activity logs. For `projects`, also deletes child tasks. For `leads`/`customers`, also deletes linked tasks.
 
-#### **Endpoint**
-> `https://crm.t2gcrm.in/api/notify`
-
-#### **Request Body**
+**Request**
 ```json
 {
-  "to": "919123456789",
-  "message": "Your project status is updated to: In Progress.",
+  "module": "leads",
+  "id": "LEAD_ID",
   "ownerId": "WORKSPACE_ID"
 }
 ```
 
-#### **Response (Success)**
+**Success Response** `200`
+```json
+{ "success": true, "message": "Record deleted successfully" }
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Record ID is required for deletion" }` |
+| `405` | `{ "error": "Method not allowed" }` |
+
+---
+
+## 4. Messaging — `/api/notify`
+
+### Send Email
+
+**Request**
 ```json
 {
-  "message": "Message sent successfully!",
-  "status_code": 200,
-  "status": true
+  "type": "email",
+  "to": "client@example.com",
+  "subject": "Invoice #123",
+  "body": "Hi, please find your invoice attached.",
+  "ownerId": "WORKSPACE_ID",
+  "processedKey": "unique-dedup-key"
 }
 ```
 
-#### **Response (Error - Invalid Token)**
+**Success Response** `200`
 ```json
-{
-  "message": "WhatsApp API token is missing or invalid in settings",
-  "status_code": 500,
-  "status": false
-}
+{ "success": true, "messageId": "<msg-id@smtp.server>" }
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Missing required fields" }` |
+| `400` | `{ "error": "SMTP not configured" }` |
+| `500` | `{ "error": "SMTP connection error message" }` |
+
+**Deduplicated Response** `200`
+```json
+{ "success": true, "skipped": true, "message": "Duplicate blocked by server-side guard" }
 ```
 
 ---
 
-## **4. Finance APIs (Invoices/Quotes)**
+### Send WhatsApp (Template)
 
-### `POST` **Create Invoice**
-Generate a new invoice with line items and customer link.
-
-#### **Endpoint**
-> `https://crm.t2gcrm.in/api/data` (Module: `invoices`)
-
-#### **Request Body**
+**Request**
 ```json
 {
-  "module": "invoices",
-  "ownerId": "WORKSPACE_ID",
-  "client": "John Customer",
-  "no": "INV/2026/05",
-  "date": "2026-03-25",
-  "items": [
-    { "name": "Consulting", "qty": 1, "rate": 5000, "taxRate": 18 },
-    { "name": "Travel", "qty": 2, "rate": 500, "taxRate": 5 }
+  "type": "whatsapp",
+  "to": "919876543210",
+  "templateId": "329129",
+  "variables": [
+    { "field": "body", "index": 1, "value": "John" },
+    { "field": "body", "index": 2, "value": "INV-001" }
   ],
-  "total": 6100,
-  "logText": "Invoice #05 generated"
+  "ownerId": "WORKSPACE_ID",
+  "processedKey": "unique-dedup-key"
 }
 ```
 
-#### **Response (Success)**
+**Success Response** `200`
 ```json
-{
-  "message": "Invoice generated successfully",
-  "id": "inv-uuid-888",
-  "status_code": 200,
-  "status": true
-}
+{ "success": true, "messageId": "wamid.xxx" }
 ```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "WhatsApp not configured" }` |
+| `400` | `{ "error": "Template ID required for WhatsApp" }` |
+| `400` | `{ "error": "Waprochat template fail" }` |
 
 ---
 
-## **5. Public Store & Booking APIs**
+## 5. POS Billing — `/api/finance`
 
-### `POST` **Ecommerce Checkout**
-Place an order from the public store side.
+### Generate Retail Bill
 
-#### **Endpoint**
-> `https://crm.t2gcrm.in/api/ecom/checkout`
+**Request**
+```json
+{
+  "action": "generate-bill",
+  "cart": [
+    { "id": "PROD_ID", "name": "Wireless Mouse", "qty": 2, "rate": 500, "tax": 18 }
+  ],
+  "customer": { "id": "CUST_ID", "name": "Walk-in Customer", "phone": "9000000000" },
+  "payMode": "UPI",
+  "userId": "WORKSPACE_ID",
+  "actorId": "USER_ID"
+}
+```
 
-#### **Request Body**
+**Success Response** `200`
+```json
+{
+  "success": true,
+  "invoice": {
+    "id": "invoice-uuid",
+    "no": "POS-123456",
+    "client": "Walk-in Customer",
+    "total": 1180,
+    "status": "Paid",
+    "payMode": "UPI"
+  }
+}
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Missing checkout data" }` |
+| `400` | `{ "error": "Insufficient stock for Wireless Mouse" }` |
+| `405` | `{ "error": "Method not allowed" }` |
+| `405` | `{ "error": "Action not allowed" }` |
+| `500` | `{ "error": "Internal server error" }` |
+
+> **Note**: Automatically deducts stock for tracked products and auto-converts matching leads to Won stage.
+
+---
+
+## 6. Ecommerce Checkout — `/api/ecom/checkout` (Public)
+
+### Submit Order
+
+**Request**
 ```json
 {
   "ownerId": "WORKSPACE_ID",
-  "ecomName": "my-cool-store",
+  "ecomName": "store-slug",
   "customer": {
-    "name": "Sarah Buyer",
-    "email": "sarah@gmail.com",
-    "phone": "9988776655",
-    "address": "456 Park Avenue, NY"
+    "name": "Jane Doe",
+    "email": "jane@example.com",
+    "phone": "9876543210",
+    "address": "123 Main St"
   },
-  "items": [{ "name": "Gadget X", "qty": 2, "rate": 200 }],
-  "total": 400
+  "items": [{ "name": "Product A", "qty": 1, "rate": 100 }],
+  "total": 100
 }
 ```
 
-#### **Response (Error - Mismatch)**
+**Success Response** `200`
 ```json
 {
-  "message": "Mail ID or phone number mismatch with an existing record found in the CRM",
-  "status_code": 400,
-  "status": false
+  "success": true,
+  "orderId": "order-uuid",
+  "invoiceId": "invoice-uuid",
+  "invoiceNo": "ECOM/2026/1234"
 }
 ```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Missing required fields: ownerId, customer, items" }` |
+| `400` | `{ "error": "Mail ID or phone number mismatch with existing record" }` |
+| `405` | `{ "error": "Method not allowed" }` |
+| `500` | `{ "error": "Checkout failed" }` |
+
+> **Note**: Auto-creates a lead if no existing customer/lead found. Auto-generates an invoice tagged as `ecom`.
 
 ---
 
-## **Module Keys Table**
-When calling the `/api/data` endpoint, use these keys for the `"module"` property.
+## 7. Appointment Booking — `/api/appointments/book` (Public)
 
-| Module Key | Database Table | Actions |
-| :--- | :--- | :--- |
-| `leads` | `leads` | Create, Update, Delete |
-| `customers` | `customers` | Create, Update, Delete |
-| `quotations` | `quotes` | Create, Update, Delete |
-| `invoices` | `invoices` | Create, Update, Delete |
-| `projects` | `projects` | Create, Update, Delete |
-| `tasks` | `tasks` | Create, Update, Delete |
-| `expenses` | `expenses` | Create, Update, Delete |
-| `products` | `products` | Create, Update, Delete |
-| `logs` | `activityLogs` | Create, Delete |
+### Book Slot
+
+**Request**
+```json
+{
+  "ownerId": "WORKSPACE_ID",
+  "slug": "store-slug",
+  "service": "Hair Cut",
+  "date": "2026-03-25",
+  "time": "10:00 AM",
+  "customer": {
+    "name": "Alice Smith",
+    "email": "alice@example.com",
+    "phone": "9988776655",
+    "notes": "First visit"
+  }
+}
+```
+
+**Success Response** `200`
+```json
+{ "success": true, "appointmentId": "appointment-uuid" }
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "error": "Missing required fields: ownerId, date, time, customer.name, customer.phone" }` |
+| `400` | `{ "error": "Mail ID or phone number mismatch with existing record" }` |
+| `409` | `{ "error": "This time slot is fully booked (max 3 per slot)" }` |
+| `405` | `{ "error": "Method not allowed" }` |
+| `500` | `{ "error": "Booking failed" }` |
+
+> **Note**: Auto-creates a lead if no existing customer/lead found. Respects `maxPerSlot` from appointment settings.
+
+---
+
+## 8. Google Sheets Webhook — `/api/webhook/gsheets`
+
+### Receive Lead from Google Sheets
+
+**Request**
+```json
+{
+  "userId": "WORKSPACE_ID",
+  "actorId": "USER_ID",
+  "type": "lead",
+  "data": ["John Doe", "john@example.com", "9876543210", "Website", "New"]
+}
+```
+
+**Success Response (New Lead)** `200`
+```json
+{
+  "success": true,
+  "message": "Lead processed and added to CRM",
+  "leadId": "new-lead-uuid"
+}
+```
+
+**Success Response (Existing Lead)** `200`
+```json
+{
+  "success": true,
+  "message": "Lead already exists, added log",
+  "leadId": "existing-lead-uuid"
+}
+```
+
+**Error Responses**
+| Status | Response |
+|--------|----------|
+| `400` | `{ "success": false, "message": "Invalid payload structure" }` |
+| `400` | `{ "success": false, "message": "No active Google Sheets mapping found for this user" }` |
+| `400` | `{ "success": false, "message": "Incomplete integration configuration" }` |
+| `404` | `{ "success": false, "message": "User profile not found" }` |
+| `405` | `{ "success": false, "message": "Method Not Allowed" }` |
+| `500` | `{ "success": false, "message": "Internal server error processing webhook" }` |
+
+---
+
+## Global Error Response
+
+All endpoints return this format for unhandled errors:
+
+```json
+{ "error": "Error description" }
+```
+
+| Status | Meaning |
+|--------|---------|
+| `400` | Bad Request — missing or invalid parameters |
+| `401` | Unauthorized — invalid credentials |
+| `403` | Forbidden — account not verified |
+| `404` | Not Found — record/user doesn't exist |
+| `405` | Method Not Allowed — wrong HTTP method or action |
+| `409` | Conflict — resource already taken (slot, etc.) |
+| `500` | Server Error — backend configuration or runtime failure |

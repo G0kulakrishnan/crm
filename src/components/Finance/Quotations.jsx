@@ -32,6 +32,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
   const [printing, setPrinting] = useState(null);
   const [custModal, setCustModal] = useState(false);
   const [newCustForm, setNewCustForm] = useState(EMPTY_CUSTOMER);
+  const [saving, setSaving] = useState(false);
   const toast = useToast();
 
   const { data, isLoading } = db.useQuery({
