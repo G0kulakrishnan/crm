@@ -92,9 +92,13 @@ export default function TeamReports({ user, ownerId, perms }) {
     } else if (filter === 'This Month') {
       start.setHours(0, 0, 0, 0);
       start.setDate(1);
+      end.setMonth(now.getMonth() + 1, 0);
+      end.setHours(23, 59, 59, 999);
     } else if (filter === 'This Year') {
       start.setMonth(0, 1);
       start.setHours(0, 0, 0, 0);
+      end.setMonth(11, 31);
+      end.setHours(23, 59, 59, 999);
     } else if (filter === 'Custom' && customRange.start && customRange.end) {
       return { start: new Date(customRange.start).getTime(), end: new Date(customRange.end).getTime() + 86400000 };
     }
