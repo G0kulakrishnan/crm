@@ -81,7 +81,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             @media print {
               @page { size: A4; margin: 0; }
               body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
-              .a4-container { padding: 8mm !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: 100vh !important; min-height: 100vh !important; box-sizing: border-box !important; }
+              .a4-container { padding: 8mm !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; min-height: 100vh !important; box-sizing: border-box !important; }
               .no-print { display: none !important; }
               
               /* Table frame: Use separate borders with 0 spacing so repeating elements construct a continuous outline natively */
