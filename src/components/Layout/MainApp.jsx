@@ -390,7 +390,7 @@ export default function MainApp({ user, settings }) {
 
 
 
-  if (isDiscovering || isDiscoveringPartner || mainLoading || !perms) {
+  if (isDiscovering || isDiscoveringPartner || mainLoading || !perms || !planEnforcement) {
     return (
       <div className="loading-screen">
         <div className="logo">{settings?.brandShort || ''}</div>

@@ -41,7 +41,8 @@ export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, 
   const { activeView, setActiveView, setSettingsTab, sidebarExpanded, setSidebarExpanded, mobileSidebarOpen, setMobileSidebarOpen } = useApp();
 
   // Filter NAV_ITEMS based on permissions AND plan module access
-  const filteredItems = NAV_ITEMS.filter(item => {
+  // Deny-by-default: if perms or planEnforcement isn't loaded yet, show nothing
+  const filteredItems = (!perms || !planEnforcement) ? [] : NAV_ITEMS.filter(item => {
     if (item.group) return true;
     if (item.id === 'userprofile') return true; // Everyone can see their profile
 
