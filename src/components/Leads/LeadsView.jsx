@@ -382,18 +382,31 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       setImportData(lines.slice(1).map(parseLine));
       setImportSample(parseLine(lines[1]));
 
-      // Auto-mapping
+      // Auto-mapping using explicit aliases (prevents false positives like "Company Name" → "name")
+      const HEADER_ALIASES = {
+        name: ['name', 'leadname', 'contactname', 'fullname', 'firstname', 'person'],
+        companyName: ['companyname', 'company', 'organization', 'org', 'business', 'businessname', 'firm'],
+        email: ['email', 'emailaddress', 'mail', 'emailid'],
+        phone: ['phone', 'phonenumber', 'mobile', 'mobilenumber', 'contact', 'tel', 'telephone', 'contactnumber'],
+        source: ['source', 'leadsource', 'channel', 'medium'],
+        stage: ['stage', 'status', 'leadstage', 'leadstatus'],
+        requirement: ['requirement', 'requirements', 'need', 'product', 'interest'],
+        notes: ['notes', 'note', 'comment', 'comments', 'description', 'remark', 'remarks'],
+        followup: ['followup', 'followupdate', 'nextfollowup', 'callback', 'callbackdate'],
+        assign: ['assign', 'assignedto', 'assigned', 'staff', 'agent', 'owner', 'salesperson'],
+        label: ['label', 'tag', 'priority'],
+      };
       const newMapping = JSON.parse(JSON.stringify(DEFAULT_IMPORT_MAPPING));
       headers.forEach(h => {
         const cleanH = h.toLowerCase().replace(/[^a-z0-9]/g, '');
-        Object.keys(newMapping).forEach(field => {
-          const cleanF = field.toLowerCase();
-          if (cleanH === cleanF || cleanH.includes(cleanF) || cleanF.includes(cleanH)) {
-            if (newMapping[field].type === 'column' && !newMapping[field].value) {
+        for (const [field, aliases] of Object.entries(HEADER_ALIASES)) {
+          if (newMapping[field] && newMapping[field].type === 'column' && !newMapping[field].value) {
+            if (aliases.includes(cleanH)) {
               newMapping[field].value = h;
+              break;
             }
           }
-        });
+        }
       });
       setImportMapping(newMapping);
       setImportMappingModal(true);
