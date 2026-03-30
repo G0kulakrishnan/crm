@@ -81,7 +81,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             @media print {
               @page { size: A4; margin: 0; }
               body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
-              .a4-container { padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; min-height: 0 !important; }
+              .a4-container { padding: 8mm !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; min-height: 0 !important; box-sizing: border-box !important; }
               .no-print { display: none !important; }
               
               .print-frame { width: 100% !important; margin: 0 !important; border: none !important; }
