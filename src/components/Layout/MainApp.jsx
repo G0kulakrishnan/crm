@@ -401,7 +401,7 @@ export default function MainApp({ user, settings }) {
 
 
 
-  if (isDiscovering || isDiscoveringPartner || mainLoading || !perms || !planEnforcement) {
+  if (isDiscovering || isDiscoveringPartner || mainLoading || (profile && (!perms || !planEnforcement))) {
     return (
       <div className="loading-screen">
         <div className="logo">{settings?.brandShort || ''}</div>
