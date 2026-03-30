@@ -55,6 +55,13 @@ function AppInner() {
     plans: rawSettings.plans ? JSON.parse(rawSettings.plans) : null,
   };
 
+  // Partner discovery — MUST be before any early returns (Rules of Hooks)
+  const storedPartner = localStorage.getItem('tc_channel_partner');
+  const partnerQuery = (!storedPartner && user?.email)
+    ? { partnerApplications: { $: { where: { email: String(user.email).toLowerCase() }, limit: 1 } } }
+    : null;
+  const { data: partnerData, isLoading: partnerLoading } = db.useQuery(partnerQuery);
+
   React.useEffect(() => {
     document.title = settings.title || settings.brandName || 'T2GCRM';
     let link = document.querySelector("link[rel~='icon']");
@@ -67,6 +74,8 @@ function AppInner() {
       link.href = settings.favicon;
     }
   }, [settings.title, settings.brandName, settings.favicon]);
+
+  // --- All hooks above. Early returns below are safe. ---
 
   if (isLoading) {
     return (
@@ -95,13 +104,7 @@ function AppInner() {
     return <AuthScreen settings={settings} />;
   }
 
-  const storedPartner = localStorage.getItem('tc_channel_partner');
-  
-  const partnerQuery = (!storedPartner && user?.email) 
-    ? { partnerApplications: { $: { where: { email: String(user.email).toLowerCase() }, limit: 1 } } }
-    : null;
-    
-  const { data: partnerData, isLoading: partnerLoading } = db.useQuery(partnerQuery);
+  // Partner discovery (hooks already called above)
   const isDiscoveringPartner = !!partnerQuery && partnerLoading;
 
   if (isDiscoveringPartner) {
