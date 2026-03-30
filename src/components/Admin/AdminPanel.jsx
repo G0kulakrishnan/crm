@@ -45,6 +45,9 @@ const EMPTY_BIZ = { fullName: '', email: '', phone: '', bizName: '', password: '
 
 export default function AdminPanel({ user }) {
   const [tab, setTab] = useState('users');
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
+  const [cleanupLoading, setCleanupLoading] = useState(false);
   const [couponModal, setCouponModal] = useState(false);
   const [couponForm, setCouponForm] = useState({ code: '', discount: 20, type: 'Percentage', maxUses: 100 });
   const [settingsForm, setSettingsForm] = useState({ brandName: '', brandShort: '', brandLogo: '', title: '', favicon: '', crmDomain: '', showBranding: true });
@@ -317,6 +320,7 @@ export default function AdminPanel({ user }) {
           ['plans', 'Plans'], 
           ['coupons', 'Coupons'], 
           ['transactions', 'Transactions'], 
+          ['analytics', '📊 Business Report'],
           ['settings', 'Platform Branding']
         ].map(([t, l]) => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{l}</div>
@@ -773,6 +777,162 @@ export default function AdminPanel({ user }) {
           </div>
         </div>
       )}
+
+      {/* ── BUSINESS REPORT ── */}
+      {tab === 'analytics' && (
+        <div className="tw">
+          <div className="tw-head">
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <h3>📊 Business Report</h3>
+              <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>Database consumption, growth, and performance analysis per business.</div>
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className="btn btn-sm" disabled={cleanupLoading} onClick={async () => {
+                if (!window.confirm('This will permanently delete all activity logs and messaging logs older than 3 months across ALL businesses. Continue?')) return;
+                setCleanupLoading(true);
+                try {
+                  const r = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cleanup-old-logs', months: 3 }) });
+                  const d = await r.json();
+                  if (!r.ok) throw new Error(d.error);
+                  toast(`🧹 ${d.message}`, 'success');
+                  // Refresh analytics
+                  setAnalyticsData(null);
+                } catch (e) { toast(e.message, 'error'); }
+                finally { setCleanupLoading(false); }
+              }} style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fbbf24' }}>
+                {cleanupLoading ? 'Cleaning...' : '🧹 Cleanup Old Logs (3mo)'}
+              </button>
+              <button className="btn btn-primary btn-sm" disabled={analyticsLoading} onClick={async () => {
+                setAnalyticsLoading(true);
+                try {
+                  const r = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'business-analytics' }) });
+                  const d = await r.json();
+                  if (!r.ok) throw new Error(d.error);
+                  setAnalyticsData(d.analytics);
+                } catch (e) { toast(e.message, 'error'); }
+                finally { setAnalyticsLoading(false); }
+              }}>
+                {analyticsLoading ? 'Loading...' : '🔄 Load Report'}
+              </button>
+            </div>
+          </div>
+
+          {!analyticsData && !analyticsLoading && (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
+              <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>Click "Load Report" to generate analytics</div>
+              <div style={{ fontSize: 12 }}>This scans all businesses and calculates database consumption, growth metrics, and health indicators.</div>
+            </div>
+          )}
+
+          {analyticsLoading && (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
+              <div style={{ fontSize: 32, marginBottom: 12 }}>⏳</div>
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Scanning all businesses... This may take a moment.</div>
+            </div>
+          )}
+
+          {analyticsData && (() => {
+            const totalRecordsAll = analyticsData.reduce((s, a) => s + a.totalRecords, 0);
+            const totalLogs = analyticsData.reduce((s, a) => s + (a.counts.activityLogs || 0), 0);
+            const totalMsgLogs = analyticsData.reduce((s, a) => s + (a.counts.messagingLogs || 0), 0);
+            const avgRecords = analyticsData.length ? Math.round(totalRecordsAll / analyticsData.length) : 0;
+            const heaviestBiz = analyticsData[0];
+            const activeBiz = analyticsData.filter(a => a.recentActivity > 0).length;
+            const estSizeKB = (totalRecordsAll * 0.5).toFixed(0); // ~0.5KB per record estimate
+            
+            return (
+              <>
+                {/* Summary Cards */}
+                <div className="stat-grid" style={{ marginBottom: 20 }}>
+                  <div className="stat-card sc-blue"><div className="lbl">Total Records</div><div className="val">{totalRecordsAll.toLocaleString()}</div></div>
+                  <div className="stat-card sc-green"><div className="lbl">Active Businesses (30d)</div><div className="val">{activeBiz}/{analyticsData.length}</div></div>
+                  <div className="stat-card sc-yellow"><div className="lbl">Est. DB Size</div><div className="val" style={{ fontSize: 16 }}>{(estSizeKB / 1024).toFixed(1)} MB</div></div>
+                  <div className="stat-card sc-purple"><div className="lbl">Activity Logs</div><div className="val">{totalLogs.toLocaleString()}</div></div>
+                </div>
+
+                {/* Alert for high log counts */}
+                {totalLogs > 5000 && (
+                  <div style={{ background: '#fef3c7', border: '1px solid #fbbf24', borderRadius: 8, padding: '12px 16px', marginBottom: 16, fontSize: 12, color: '#92400e', fontWeight: 500 }}>
+                    ⚠️ <strong>{totalLogs.toLocaleString()}</strong> activity logs + <strong>{totalMsgLogs.toLocaleString()}</strong> messaging logs in database. Consider running "Cleanup Old Logs" to remove records older than 3 months.
+                  </div>
+                )}
+
+                {/* Per-Business Table */}
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="mod-table" style={{ fontSize: 11 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: 'left' }}>#</th>
+                        <th style={{ textAlign: 'left' }}>Business</th>
+                        <th style={{ textAlign: 'left' }}>Plan</th>
+                        <th>Total Records</th>
+                        <th>Leads</th>
+                        <th>Customers</th>
+                        <th>Invoices</th>
+                        <th>Activity Logs</th>
+                        <th>Msg Logs</th>
+                        <th>Products</th>
+                        <th>Team</th>
+                        <th>30d Activity</th>
+                        <th>Health</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {analyticsData.map((a, i) => {
+                        const isExpired = a.planExpiry && a.planExpiry < Date.now();
+                        const logPct = totalRecordsAll > 0 ? ((a.totalRecords / totalRecordsAll) * 100).toFixed(1) : 0;
+                        const healthScore = a.recentActivity > 50 ? '🟢' : a.recentActivity > 10 ? '🟡' : a.recentActivity > 0 ? '🟠' : '🔴';
+                        const isHeavy = a.totalRecords > avgRecords * 2;
+                        return (
+                          <tr key={a.id} style={{ background: isHeavy ? '#fff7ed' : undefined }}>
+                            <td style={{ color: 'var(--muted)' }}>{i + 1}</td>
+                            <td>
+                              <div style={{ fontWeight: 600, color: '#111' }}>{a.bizName || '(unnamed)'}</div>
+                              <div style={{ fontSize: 10, color: 'var(--muted)' }}>{a.email}</div>
+                            </td>
+                            <td>
+                              <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, fontWeight: 600, background: isExpired ? '#fee2e2' : '#dcfce7', color: isExpired ? '#991b1b' : '#166534' }}>
+                                {a.plan}{isExpired ? ' ⏰' : ''}
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'center', fontWeight: 700, color: isHeavy ? '#c2410c' : '#111' }}>
+                              {a.totalRecords.toLocaleString()}
+                              <div style={{ fontSize: 9, color: 'var(--muted)', fontWeight: 400 }}>{logPct}% of DB</div>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>{a.counts.leads || 0}</td>
+                            <td style={{ textAlign: 'center' }}>{a.counts.customers || 0}</td>
+                            <td style={{ textAlign: 'center' }}>{a.counts.invoices || 0}</td>
+                            <td style={{ textAlign: 'center', color: (a.counts.activityLogs || 0) > 1000 ? '#c2410c' : undefined, fontWeight: (a.counts.activityLogs || 0) > 1000 ? 700 : 400 }}>
+                              {(a.counts.activityLogs || 0).toLocaleString()}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>{(a.counts.messagingLogs || 0).toLocaleString()}</td>
+                            <td style={{ textAlign: 'center' }}>{a.counts.products || 0}</td>
+                            <td style={{ textAlign: 'center' }}>{a.teamSize}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 600 }}>{a.recentActivity}</td>
+                            <td style={{ textAlign: 'center', fontSize: 16 }}>{healthScore}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Legend */}
+                <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--card)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)' }}>
+                  <strong style={{ color: '#111' }}>Legend:</strong>&nbsp;
+                  🟢 Highly active (50+ actions/30d) &nbsp;·&nbsp;
+                  🟡 Active (10-50) &nbsp;·&nbsp;
+                  🟠 Low activity (1-10) &nbsp;·&nbsp;
+                  🔴 Inactive &nbsp;·&nbsp;
+                  <span style={{ background: '#fff7ed', padding: '1px 6px', borderRadius: 3 }}>Orange row</span> = consuming 2×  avg records
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      )}
+
     </div>
   );
 }

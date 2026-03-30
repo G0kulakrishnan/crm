@@ -322,6 +322,108 @@ export default async function handler(req, res) {
       return res.status(200).json({ success: true, message: `Business deleted. ${txs.length} records removed.`, deletedCount: txs.length });
     }
 
+    /* ──────────── ADMIN: BUSINESS ANALYTICS ──────────── */
+    if (action === 'business-analytics') {
+      const tables = ['leads', 'customers', 'invoices', 'quotes', 'tasks', 'projects', 'activityLogs', 'teamMembers', 'partnerApplications', 'expenses', 'products', 'campaigns', 'messagingLogs', 'purchaseOrders', 'vendors', 'amcContracts', 'automationFlows'];
+      
+      const { userProfiles } = await db.query({ userProfiles: {} });
+      const profiles = userProfiles || [];
+      
+      const analytics = [];
+      for (const profile of profiles) {
+        const uid = profile.userId;
+        if (!uid) continue;
+        
+        const counts = {};
+        let totalRecords = 0;
+        
+        for (const table of tables) {
+          try {
+            const result = await db.query({ [table]: { $: { where: { userId: uid } } } });
+            const count = (result[table] || []).length;
+            counts[table] = count;
+            totalRecords += count;
+          } catch { counts[table] = 0; }
+        }
+        
+        // Get recent activity (last 30 days)
+        const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+        let recentActivity = 0;
+        try {
+          const logs = await db.query({ activityLogs: { $: { where: { userId: uid } } } });
+          const allLogs = logs.activityLogs || [];
+          recentActivity = allLogs.filter(l => (l.createdAt || l.ts || 0) > thirtyDaysAgo).length;
+        } catch {}
+        
+        analytics.push({
+          id: profile.id,
+          userId: uid,
+          email: profile.email || '',
+          bizName: profile.bizName || '',
+          plan: profile.plan || 'Trial',
+          planExpiry: profile.planExpiry || 0,
+          createdAt: profile.createdAt || 0,
+          totalRecords,
+          counts,
+          recentActivity,
+          teamSize: counts.teamMembers || 0,
+        });
+      }
+      
+      // Sort by totalRecords descending (heaviest users first)
+      analytics.sort((a, b) => b.totalRecords - a.totalRecords);
+      
+      return res.status(200).json({ success: true, analytics });
+    }
+
+    /* ──────────── ADMIN: CLEANUP OLD LOGS ──────────── */
+    if (action === 'cleanup-old-logs') {
+      const months = req.body.months || 3;
+      const cutoff = Date.now() - (months * 30 * 24 * 60 * 60 * 1000);
+      const targetUserId = req.body.targetUserId; // optional: cleanup specific business
+      
+      const txs = [];
+      let totalDeleted = 0;
+      
+      // Cleanup activity logs
+      const logQuery = targetUserId 
+        ? { activityLogs: { $: { where: { userId: targetUserId } } } }
+        : { activityLogs: {} };
+      const logData = await db.query(logQuery);
+      const allLogs = logData.activityLogs || [];
+      const oldLogs = allLogs.filter(l => (l.createdAt || l.ts || 0) < cutoff);
+      oldLogs.forEach(l => txs.push(tx.activityLogs[l.id].delete()));
+      
+      // Cleanup messaging logs
+      const msgQuery = targetUserId
+        ? { messagingLogs: { $: { where: { userId: targetUserId } } } }
+        : { messagingLogs: {} };
+      try {
+        const msgData = await db.query(msgQuery);
+        const allMsgs = msgData.messagingLogs || [];
+        const oldMsgs = allMsgs.filter(m => (m.createdAt || m.ts || 0) < cutoff);
+        oldMsgs.forEach(m => txs.push(tx.messagingLogs[m.id].delete()));
+      } catch {}
+      
+      totalDeleted = txs.length;
+      
+      // Batch delete in chunks of 100
+      if (txs.length > 0) {
+        const batchSize = 100;
+        for (let i = 0; i < txs.length; i += batchSize) {
+          await db.transact(txs.slice(i, i + batchSize));
+        }
+      }
+      
+      return res.status(200).json({ 
+        success: true, 
+        message: `Cleaned up ${totalDeleted} old records (older than ${months} months)`,
+        deleted: totalDeleted,
+        activityLogs: oldLogs.length,
+        messagingLogs: totalDeleted - oldLogs.length
+      });
+    }
+
     return res.status(405).json({ error: 'Action not allowed' });
   } catch (err) {
     console.error('Auth API error:', err);

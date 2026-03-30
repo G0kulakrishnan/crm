@@ -46,7 +46,7 @@ export default function Reports({ user, perms, ownerId, profile }) {
     tasks: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    activityLogs: { $: { where: { userId: ownerId } } },
+    activityLogs: { $: { where: { userId: ownerId }, limit: 500 } },
     partnerCommissions: { $: { where: { userId: ownerId } } },
   });
 
