@@ -74,9 +74,11 @@ export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, 
       <nav style={{ width: '100%', flex: 1, overflowY: 'auto' }}>
         {filteredItems.map((item, i) => {
           if (item.group) {
-            // Only show group label if it has accessible items below it
-            const nextIdx = filteredItems.findIndex((next, idx) => idx > i && !next.group);
-            const groupHasItems = nextIdx !== -1 && i < nextIdx;
+            // Only show group label if it has accessible items directly below it (before the next group)
+            const nextGroupIdx = filteredItems.findIndex((next, idx) => idx > i && next.group);
+            const nextItemIdx = filteredItems.findIndex((next, idx) => idx > i && !next.group);
+            // Group has items only if a nav item exists before the next group header (or at end of list)
+            const groupHasItems = nextItemIdx !== -1 && (nextGroupIdx === -1 || nextItemIdx < nextGroupIdx);
             if (!groupHasItems) return null;
             return <div key={i} className="nav-group-label">{item.group}</div>;
           }
