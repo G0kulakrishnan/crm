@@ -81,7 +81,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             @media print {
               @page { size: A4; margin: 0; }
               body { -webkit-print-color-adjust: exact; margin: 0; padding: 0; background: #fff; }
-              .a4-container { padding: 8mm !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: auto !important; min-height: 0 !important; box-sizing: border-box !important; }
+              .a4-container { padding: 8mm !important; margin: 0 !important; box-shadow: none !important; border: none !important; width: 100% !important; height: 100vh !important; min-height: 100vh !important; box-sizing: border-box !important; }
               .no-print { display: none !important; }
               
               /* Table frame: Use separate borders with 0 spacing so repeating elements construct a continuous outline natively */
@@ -125,6 +125,9 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               .print-content-row { page-break-inside: auto; }
               .avoid-break { page-break-inside: avoid; }
               .bank-right-border { border-right: 1px solid #000 !important; }
+              
+              /* Spacer row fills remaining page height so side borders reach the bottom */
+              .print-spacer td { height: 100% !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important; }
             }
           `}</style>
 
@@ -337,6 +340,9 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                 <div style={{ fontSize: '10px', fontWeight: '600', color: '#999' }}>POWERED BY <strong style={{ color: '#555' }}>{settings?.brandName || 'T2GCRM'}</strong></div>
               </td></tr>
               )}
+
+              {/* Spacer row — expands to fill remaining page height so borders reach the bottom */}
+              <tr className="print-spacer"><td>&nbsp;</td></tr>
 
             </tbody>
             <tfoot className="print-frame-foot">
