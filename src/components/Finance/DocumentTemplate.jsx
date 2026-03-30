@@ -72,7 +72,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             .z-summary tr.z-total td { font-weight: 800; font-size: 16px; color: #000; border-top: 2px solid #000; border-bottom: 2px double #000; padding: 15px 10px; }
             
             /* Print Frame Box - Screen Mode */
-            .print-frame { width: 100%; max-width: 210mm; margin: 0 auto; border-collapse: collapse; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif; font-size: 11px; color: #111; border: 1px solid #ddd; }
+            .print-frame { width: 100%; max-width: 210mm; margin: 0 auto; border-collapse: collapse; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif; font-size: 11px; color: #111; border: 3px solid #000; }
             .print-frame-head td { height: 0; padding: 0; border: none; }
             .print-frame-foot td { height: 0; padding: 0; border: none; }
             .print-frame-body > tr > td { padding: 15px 30px; }
@@ -89,23 +89,23 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               /* thead/tfoot repeat on every printed page — they carry the top/bottom border lines */
               .print-frame-head td { 
                 height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important;
-                border-top: 2px solid #000 !important; 
-                border-left: 2px solid #000 !important; 
-                border-right: 2px solid #000 !important; 
+                border-top: 3px solid #000 !important; 
+                border-left: 3px solid #000 !important; 
+                border-right: 3px solid #000 !important; 
                 border-bottom: none !important;
               }
               .print-frame-foot td { 
                 height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important;
-                border-bottom: 2px solid #000 !important; 
-                border-left: 2px solid #000 !important; 
-                border-right: 2px solid #000 !important; 
+                border-bottom: 3px solid #000 !important; 
+                border-left: 3px solid #000 !important; 
+                border-right: 3px solid #000 !important; 
                 border-top: none !important;
               }
               
               /* Body cells carry the left/right borders */
               .print-frame-body > tr > td { 
-                border-left: 2px solid #000 !important; 
-                border-right: 2px solid #000 !important; 
+                border-left: 3px solid #000 !important; 
+                border-right: 3px solid #000 !important; 
                 border-top: none !important;
                 border-bottom: none !important;
                 padding: 0 15mm !important; 
@@ -122,7 +122,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               
               .print-content-row { page-break-inside: auto; }
               .avoid-break { page-break-inside: avoid; }
-              .bank-right-border { border-right: 2px solid #000 !important; }
+              .bank-right-border { border-right: 3px solid #000 !important; }
             }
           `}</style>
 
