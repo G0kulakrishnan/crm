@@ -72,7 +72,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             .z-summary tr.z-total td { font-weight: 800; font-size: 16px; color: #000; border-top: 2px solid #000; border-bottom: 2px double #000; padding: 15px 10px; }
             
             /* Print Frame Box - Screen Mode */
-            .print-frame { width: 100%; max-width: 210mm; margin: 0 auto; border-collapse: collapse; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif; font-size: 11px; color: #111; border: 3px solid #000; }
+            .print-frame { width: 100%; max-width: 210mm; margin: 0 auto; border-collapse: collapse; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif; font-size: 11px; color: #111; border: 3px solid #000; height: 100%; }
             .print-frame-head td { height: 0; padding: 0; border: none; }
             .print-frame-foot td { height: 0; padding: 0; border: none; }
             .print-frame-body > tr > td { padding: 15px 30px; }
@@ -85,7 +85,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               .no-print { display: none !important; }
               
               /* Table frame: Use separate borders with 0 spacing so repeating elements construct a continuous outline natively */
-              .print-frame { width: 100% !important; margin: 0 !important; border: none !important; border-collapse: separate !important; border-spacing: 0 !important; }
+              .print-frame { width: 100% !important; margin: 0 !important; border: none !important; border-collapse: separate !important; border-spacing: 0 !important; height: 100% !important; }
               
               /* thead repeats on every page top — provides top + side borders */
               .print-frame-head td { 
@@ -124,7 +124,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               
               .print-content-row { page-break-inside: auto; }
               .avoid-break { page-break-inside: avoid; }
-              .bank-right-border { border-right: 3px solid #000 !important; }
+              .bank-right-border { border-right: 1px solid #000 !important; }
             }
           `}</style>
 
@@ -271,7 +271,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
 
               {/* Footer Grid: Bank Details | Totals Summary */}
               <tr className="avoid-break"><td style={{ padding: '0' }}>
-                <div style={{ display: 'flex', minHeight: '150px', borderTop: '1px solid #ddd' }}>
+                <div style={{ display: 'flex', minHeight: '150px', borderTop: '1px solid #ddd', flex: 1 }}>
                   {/* Left Side: Bank Details */}
                   <div className="bank-right-border" style={{ width: '50%', padding: '20px', borderRight: '1px solid #ddd' }}>
                     {profile.accHolder ? (
