@@ -48,6 +48,8 @@ export default function AdminPanel({ user }) {
   const [analyticsData, setAnalyticsData] = useState(null);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
   const [cleanupLoading, setCleanupLoading] = useState(false);
+  const [selectedBizIds, setSelectedBizIds] = useState(new Set());
+  const [cleanupDays, setCleanupDays] = useState(90);
   const [couponModal, setCouponModal] = useState(false);
   const [couponForm, setCouponForm] = useState({ code: '', discount: 20, type: 'Percentage', maxUses: 100 });
   const [settingsForm, setSettingsForm] = useState({ brandName: '', brandShort: '', brandLogo: '', title: '', favicon: '', crmDomain: '', showBranding: true });
@@ -788,21 +790,6 @@ export default function AdminPanel({ user }) {
               <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 400 }}>Database consumption, growth, and performance analysis per business.</div>
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="btn btn-sm" disabled={cleanupLoading} onClick={async () => {
-                if (!window.confirm('This will permanently delete all activity logs and messaging logs older than 3 months across ALL businesses. Continue?')) return;
-                setCleanupLoading(true);
-                try {
-                  const r = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cleanup-old-logs', months: 3 }) });
-                  const d = await r.json();
-                  if (!r.ok) throw new Error(d.error);
-                  toast(`🧹 ${d.message}`, 'success');
-                  // Refresh analytics
-                  setAnalyticsData(null);
-                } catch (e) { toast(e.message, 'error'); }
-                finally { setCleanupLoading(false); }
-              }} style={{ background: '#fef3c7', color: '#92400e', border: '1px solid #fbbf24' }}>
-                {cleanupLoading ? 'Cleaning...' : '🧹 Cleanup Old Logs (3mo)'}
-              </button>
               <button className="btn btn-primary btn-sm" disabled={analyticsLoading} onClick={async () => {
                 setAnalyticsLoading(true);
                 try {
@@ -864,6 +851,12 @@ export default function AdminPanel({ user }) {
                   <table className="mod-table" style={{ fontSize: 11 }}>
                     <thead>
                       <tr>
+                        <th style={{ textAlign: 'center', width: 36 }}>
+                          <input type="checkbox" checked={analyticsData && selectedBizIds.size === analyticsData.length} onChange={e => {
+                            if (e.target.checked) setSelectedBizIds(new Set(analyticsData.map(a => a.userId)));
+                            else setSelectedBizIds(new Set());
+                          }} style={{ accentColor: 'var(--accent)' }} />
+                        </th>
                         <th style={{ textAlign: 'left' }}>#</th>
                         <th style={{ textAlign: 'left' }}>Business</th>
                         <th style={{ textAlign: 'left' }}>Plan</th>
@@ -882,7 +875,15 @@ export default function AdminPanel({ user }) {
                         const healthScore = a.recentActivity > 50 ? '🟢' : a.recentActivity > 10 ? '🟡' : a.recentActivity > 0 ? '🟠' : '🔴';
                         const isHeavy = a.totalRecords > avgRecords * 2;
                         return (
-                          <tr key={a.id} style={{ background: isHeavy ? '#fff7ed' : undefined }}>
+                          <tr key={a.id} style={{ background: selectedBizIds.has(a.userId) ? '#eff6ff' : isHeavy ? '#fff7ed' : undefined }}>
+                            <td style={{ textAlign: 'center' }}>
+                              <input type="checkbox" checked={selectedBizIds.has(a.userId)} onChange={() => {
+                                const next = new Set(selectedBizIds);
+                                if (next.has(a.userId)) next.delete(a.userId);
+                                else next.add(a.userId);
+                                setSelectedBizIds(next);
+                              }} style={{ accentColor: 'var(--accent)' }} />
+                            </td>
                             <td style={{ color: 'var(--muted)' }}>{i + 1}</td>
                             <td>
                               <div style={{ fontWeight: 600, color: '#111' }}>{a.bizName || '(unnamed)'}</div>
@@ -910,6 +911,48 @@ export default function AdminPanel({ user }) {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Cleanup Action Bar */}
+                {selectedBizIds.size > 0 && (
+                  <div style={{ marginTop: 16, padding: '14px 18px', background: '#eff6ff', borderRadius: 10, border: '1px solid #93c5fd', display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1e40af' }}>
+                      🧹 {selectedBizIds.size} business{selectedBizIds.size > 1 ? 'es' : ''} selected
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flex: 1 }}>
+                      <label style={{ fontSize: 12, fontWeight: 600, color: '#1e40af', whiteSpace: 'nowrap' }}>Delete logs older than</label>
+                      <input
+                        type="number"
+                        value={cleanupDays}
+                        onChange={e => setCleanupDays(Math.max(1, parseInt(e.target.value) || 1))}
+                        min={1}
+                        style={{ width: 70, padding: '6px 10px', borderRadius: 6, border: '1px solid #93c5fd', fontSize: 13, fontWeight: 700, textAlign: 'center' }}
+                      />
+                      <span style={{ fontSize: 12, color: '#1e40af', fontWeight: 600 }}>days</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-sm" style={{ background: '#fff', color: '#64748b', border: '1px solid #cbd5e1' }} onClick={() => setSelectedBizIds(new Set())}>Cancel</button>
+                      <button className="btn btn-sm" disabled={cleanupLoading} onClick={async () => {
+                        const bizNames = analyticsData.filter(a => selectedBizIds.has(a.userId)).map(a => a.bizName || a.email).join(', ');
+                        if (!window.confirm(`Delete activity logs & messaging logs older than ${cleanupDays} days for:\n\n${bizNames}\n\nThis action cannot be undone. Continue?`)) return;
+                        setCleanupLoading(true);
+                        try {
+                          let totalDeleted = 0;
+                          for (const uid of selectedBizIds) {
+                            const r = await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'cleanup-old-logs', months: cleanupDays / 30, targetUserId: uid }) });
+                            const d = await r.json();
+                            if (r.ok) totalDeleted += (d.deleted || 0);
+                          }
+                          toast(`🧹 Cleaned up ${totalDeleted} old records from ${selectedBizIds.size} business(es)`, 'success');
+                          setSelectedBizIds(new Set());
+                          setAnalyticsData(null);
+                        } catch (e) { toast(e.message, 'error'); }
+                        finally { setCleanupLoading(false); }
+                      }} style={{ background: '#dc2626', color: '#fff', border: 'none', fontWeight: 700 }}>
+                        {cleanupLoading ? 'Cleaning...' : `🧹 Cleanup Now`}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* Legend */}
                 <div style={{ marginTop: 16, padding: '12px 16px', background: 'var(--card)', borderRadius: 8, border: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)' }}>
