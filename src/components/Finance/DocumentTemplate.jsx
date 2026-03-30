@@ -72,7 +72,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             .z-summary tr.z-total td { font-weight: 800; font-size: 16px; color: #000; border-top: 2px solid #000; border-bottom: 2px double #000; padding: 15px 10px; }
             
             /* Print Frame Box - Screen Mode */
-            .print-frame { width: 100%; max-width: 210mm; margin: 0 auto; border-collapse: collapse; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif; font-size: 11px; color: #111; border: 3px solid #000; height: 100%; }
+            .print-frame { width: 100%; max-width: 210mm; margin: 0 auto; border-collapse: collapse; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif; font-size: 11px; color: #111; border: 2px solid #000; height: 100%; }
             .print-frame-head td { height: 0; padding: 0; border: none; }
             .print-frame-foot td { height: 0; padding: 0; border: none; }
             .print-frame-body > tr > td { padding: 15px 30px; }
@@ -90,24 +90,24 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               /* thead repeats on every page top — provides top + side borders */
               .print-frame-head td { 
                 height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important;
-                border-top: 3px solid #000 !important; 
-                border-left: 3px solid #000 !important; 
-                border-right: 3px solid #000 !important; 
+                border-top: 2px solid #000 !important; 
+                border-left: 2px solid #000 !important; 
+                border-right: 2px solid #000 !important; 
                 border-bottom: none !important;
               }
               /* tfoot repeats on every page bottom — provides bottom + side borders */
               .print-frame-foot td { 
                 height: 0 !important; padding: 0 !important; font-size: 0 !important; line-height: 0 !important;
-                border-bottom: 3px solid #000 !important; 
-                border-left: 3px solid #000 !important; 
-                border-right: 3px solid #000 !important; 
+                border-bottom: 2px solid #000 !important; 
+                border-left: 2px solid #000 !important; 
+                border-right: 2px solid #000 !important; 
                 border-top: none !important;
               }
               
               /* Body cells — side borders for continuity across pages */
               .print-frame-body > tr > td { 
-                border-left: 3px solid #000 !important; 
-                border-right: 3px solid #000 !important; 
+                border-left: 2px solid #000 !important; 
+                border-right: 2px solid #000 !important; 
                 border-top: none !important;
                 border-bottom: none !important;
                 padding: 0 20px !important; 
@@ -272,6 +272,9 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               </td></tr>
               )}
 
+              {/* Spacer row — expands to fill remaining page height, pushing bank/totals to page bottom */}
+              <tr className="print-spacer"><td>&nbsp;</td></tr>
+
               {/* Footer Grid: Bank Details | Totals Summary */}
               <tr className="avoid-break"><td style={{ padding: '0' }}>
                 <div style={{ display: 'flex', minHeight: '150px', borderTop: '1px solid #ddd', flex: 1 }}>
@@ -340,9 +343,6 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                 <div style={{ fontSize: '10px', fontWeight: '600', color: '#999' }}>POWERED BY <strong style={{ color: '#555' }}>{settings?.brandName || 'T2GCRM'}</strong></div>
               </td></tr>
               )}
-
-              {/* Spacer row — expands to fill remaining page height so borders reach the bottom */}
-              <tr className="print-spacer"><td>&nbsp;</td></tr>
 
             </tbody>
             <tfoot className="print-frame-foot">
