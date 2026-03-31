@@ -88,10 +88,10 @@ export default function BookingPage() {
   }, [selectedDate, workingHours, currentDuration, maxPerSlot, data?.appointments, ownerId]);
 
   // --- 3. Early Returns (Rules of Hooks safe) ---
-  if (isLoading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>Loading...</div>;
+  if (isLoading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: "'DM Sans', sans-serif" }}>Loading...</div>;
   
   if (!ownerId) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#6b7280' }}>
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", color: '#6b7f74' }}>
       <div style={{ textAlign: 'center' }}><div style={{ fontSize: 64, marginBottom: 16 }}>📅</div><h2>Booking page not found</h2><p>The link might be incorrect or the business has moved.</p></div>
     </div>
   );
@@ -160,30 +160,30 @@ export default function BookingPage() {
 
 
 
-  const accentColor = '#6366f1';
+  const accentColor = apptSettings?.primaryColor || '#22c55e';
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f9fafb', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: '#f0f4f1', fontFamily: "'DM Sans', sans-serif", color: '#1a2e24' }}>
       {/* Header */}
       <div style={{ background: accentColor, color: '#fff', padding: '20px 24px', textAlign: 'center' }}>
-        {bizLogo && <img src={bizLogo} alt="Logo" style={{ height: 48, marginBottom: 8, display: 'block', margin: '0 auto 8px', borderRadius: 8 }} />}
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>{bizTitle}</h1>
+        {bizLogo && <img src={bizLogo} alt="Logo" style={{ height: 48, marginBottom: 8, display: 'block', margin: '0 auto 8px', borderRadius: 10 }} />}
+        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 700 }}>{bizTitle}</h1>
         {bizTagline && <p style={{ margin: '6px 0 0', opacity: 0.85, fontSize: 14 }}>{bizTagline}</p>}
       </div>
 
       {done ? (
         <div style={{ maxWidth: 480, margin: '48px auto', textAlign: 'center', padding: 24 }}>
           <div style={{ fontSize: 72, marginBottom: 16 }}>✅</div>
-          <h2 style={{ color: '#166534' }}>Booking Confirmed!</h2>
-          <div style={{ background: '#dcfce7', padding: 20, borderRadius: 12, margin: '16px 0', textAlign: 'left' }}>
-            <div><strong>Name:</strong> {form.name}</div>
-            <div><strong>Service:</strong> {selectedService}</div>
-            <div><strong>Date:</strong> {selectedDate}</div>
-            <div><strong>Time:</strong> {selectedTime}</div>
-            <div><strong>Phone:</strong> {form.phone}</div>
+          <h2 style={{ color: '#166534', fontWeight: 700 }}>Booking Confirmed!</h2>
+          <div style={{ background: '#fff', padding: 20, borderRadius: 12, margin: '16px 0', textAlign: 'left', border: '1px solid #e2e8e4' }}>
+            <div style={{ padding: '8px 0', borderBottom: '1px solid #f0f4f1', fontSize: 14 }}><strong>Name:</strong> {form.name}</div>
+            <div style={{ padding: '8px 0', borderBottom: '1px solid #f0f4f1', fontSize: 14 }}><strong>Service:</strong> {selectedService}</div>
+            <div style={{ padding: '8px 0', borderBottom: '1px solid #f0f4f1', fontSize: 14 }}><strong>Date:</strong> {selectedDate}</div>
+            <div style={{ padding: '8px 0', borderBottom: '1px solid #f0f4f1', fontSize: 14 }}><strong>Time:</strong> {selectedTime}</div>
+            <div style={{ padding: '8px 0', fontSize: 14 }}><strong>Phone:</strong> {form.phone}</div>
           </div>
-          <p style={{ color: '#6b7280', fontSize: 13 }}>We'll send a confirmation to {form.email || form.phone}. See you soon!</p>
-          <button onClick={() => window.location.reload()} style={{ padding: '10px 24px', background: accentColor, color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 700 }}>
+          <p style={{ color: '#6b7f74', fontSize: 13 }}>We'll send a confirmation to {form.email || form.phone}. See you soon!</p>
+          <button onClick={() => window.location.reload()} style={{ padding: '10px 24px', background: accentColor, color: '#fff', border: 'none', borderRadius: 9, cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit', fontSize: 13 }}>
             Book Another Appointment
           </button>
         </div>
@@ -194,21 +194,21 @@ export default function BookingPage() {
             {['Service', 'Date', 'Time', 'Details'].map((label, i) => (
               <div key={label} style={{ display: 'flex', alignItems: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: step > i + 1 ? '#16a34a' : step === i + 1 ? accentColor : '#e5e7eb', color: step >= i + 1 ? '#fff' : '#6b7280', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: step > i + 1 ? '#16a34a' : step === i + 1 ? accentColor : '#e2e8e4', color: step >= i + 1 ? '#fff' : '#6b7f74', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13 }}>
                     {step > i + 1 ? '✓' : i + 1}
                   </div>
-                  <span style={{ fontSize: 10, color: step === i + 1 ? accentColor : '#6b7280', fontWeight: step === i + 1 ? 700 : 400 }}>{label}</span>
+                  <span style={{ fontSize: 10, color: step === i + 1 ? accentColor : '#6b7f74', fontWeight: step === i + 1 ? 700 : 400 }}>{label}</span>
                 </div>
-                {i < 3 && <div style={{ width: 60, height: 2, background: step > i + 1 ? '#16a34a' : '#e5e7eb', margin: '0 4px', marginBottom: 20 }} />}
+                {i < 3 && <div style={{ width: 60, height: 2, background: step > i + 1 ? '#16a34a' : '#e2e8e4', margin: '0 4px', marginBottom: 20 }} />}
               </div>
             ))}
           </div>
 
-          <div style={{ background: '#fff', borderRadius: 16, padding: 28, boxShadow: '0 1px 12px rgba(0,0,0,0.08)' }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, border: '1px solid #e2e8e4' }}>
             {/* Step 1: Service */}
             {step === 1 && (
               <div>
-                <h3 style={{ marginBottom: 20, fontSize: 18 }}>Select a Service</h3>
+                <h3 style={{ marginBottom: 20, fontSize: 18, fontWeight: 700 }}>Select a Service</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {services.map((svc, si) => {
                     const sName = typeof svc === 'object' ? svc.name : svc;
@@ -216,10 +216,10 @@ export default function BookingPage() {
                     const sDur = typeof svc === 'object' ? svc.duration : '';
                     const durationText = sDur ? `${sDur} mins` : (slotDuration ? `${slotDuration} mins` : '');
                     return (
-                      <button key={si} onClick={() => { setSelectedService(sName); setStep(2); }}
-                        style={{ padding: '14px 18px', borderRadius: 10, border: `2px solid ${selectedService === sName ? accentColor : '#e5e7eb'}`, background: selectedService === sName ? `rgba(99,102,241,0.05)` : '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 15, textAlign: 'left', color: '#1f2937', transition: 'all .15s', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <button key={si} onClick={() => { setSelectedService(sName); setStep(2); }} className="booking-svc"
+                        style={{ padding: '14px 18px', borderRadius: 9, border: `1.5px solid ${selectedService === sName ? accentColor : '#e2e8e4'}`, background: selectedService === sName ? `${accentColor}0a` : '#fff', cursor: 'pointer', fontWeight: 600, fontSize: 14, textAlign: 'left', color: '#1a2e24', transition: 'all .15s', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: 'inherit' }}>
                         <span>📋 {sName}</span>
-                        {durationText && <span style={{ fontSize: 13, color: '#6b7280', fontWeight: 500 }}>{durationText}</span>}
+                        {durationText && <span style={{ fontSize: 12, color: '#6b7f74', fontWeight: 500 }}>{durationText}</span>}
                       </button>
                     );
                   })}
@@ -231,9 +231,9 @@ export default function BookingPage() {
             {step === 2 && (
               <div>
                 <h3 style={{ marginBottom: 4, fontSize: 18 }}>Select a Date</h3>
-                <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>Service: <strong>{selectedService}</strong></p>
+                <p style={{ color: '#6b7f74', fontSize: 13, marginBottom: 20 }}>Service: <strong>{selectedService}</strong></p>
                 {dateOptions.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 32, color: '#6b7280' }}>No available dates in the next 30 days.</div>
+                  <div style={{ textAlign: 'center', padding: 32, color: '#6b7f74' }}>No available dates in the next 30 days.</div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                     {dateOptions.map(dt => {
@@ -241,14 +241,14 @@ export default function BookingPage() {
                       const label = d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
                       return (
                         <button key={dt} onClick={() => { setSelectedDate(dt); setStep(3); }}
-                          style={{ padding: '10px 6px', border: `2px solid ${selectedDate === dt ? accentColor : '#e5e7eb'}`, background: selectedDate === dt ? `rgba(99,102,241,0.08)` : '#f9fafb', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#1f2937', textAlign: 'center' }}>
+                          style={{ padding: '10px 6px', border: `1.5px solid ${selectedDate === dt ? accentColor : '#e2e8e4'}`, background: selectedDate === dt ? `${accentColor}14` : '#fff', borderRadius: 9, cursor: 'pointer', fontSize: 11, fontWeight: 600, color: '#1a2e24', textAlign: 'center', fontFamily: 'inherit', transition: '.15s' }}>
                           {label}
                         </button>
                       );
                     })}
                   </div>
                 )}
-                <button onClick={() => setStep(1)} style={{ marginTop: 20, background: 'none', border: 'none', color: accentColor, cursor: 'pointer', fontWeight: 600 }}>← Back</button>
+                <button onClick={() => setStep(1)} style={{ marginTop: 20, background: 'none', border: 'none', color: accentColor, cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit', fontSize: 13 }}>← Back</button>
               </div>
             )}
 
@@ -256,20 +256,20 @@ export default function BookingPage() {
             {step === 3 && (
               <div>
                 <h3 style={{ marginBottom: 4, fontSize: 18 }}>Select a Time</h3>
-                <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>{selectedDate} — {selectedService}</p>
+                <p style={{ color: '#6b7f74', fontSize: 13, marginBottom: 20 }}>{selectedDate} — {selectedService}</p>
                 {availableSlots.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: 32, color: '#6b7280' }}>No available slots for this date.</div>
+                  <div style={{ textAlign: 'center', padding: 32, color: '#6b7f74' }}>No available slots for this date.</div>
                 ) : (
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
                     {availableSlots.map(slot => (
                       <button key={slot} onClick={() => { setSelectedTime(slot); setStep(4); }}
-                        style={{ padding: '10px 6px', border: `2px solid ${selectedTime === slot ? accentColor : '#e5e7eb'}`, background: selectedTime === slot ? `rgba(99,102,241,0.08)` : '#f9fafb', borderRadius: 8, cursor: 'pointer', fontWeight: 700, fontSize: 13, color: '#1f2937' }}>
+                        style={{ padding: '10px 6px', border: `1.5px solid ${selectedTime === slot ? accentColor : '#e2e8e4'}`, background: selectedTime === slot ? `${accentColor}14` : '#fff', borderRadius: 9, cursor: 'pointer', fontWeight: 700, fontSize: 13, color: '#1a2e24', fontFamily: 'inherit', transition: '.15s' }}>
                         {slot}
                       </button>
                     ))}
                   </div>
                 )}
-                <button onClick={() => setStep(2)} style={{ marginTop: 20, background: 'none', border: 'none', color: accentColor, cursor: 'pointer', fontWeight: 600 }}>← Back</button>
+                <button onClick={() => setStep(2)} style={{ marginTop: 20, background: 'none', border: 'none', color: accentColor, cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit', fontSize: 13 }}>← Back</button>
               </div>
             )}
 
@@ -277,23 +277,23 @@ export default function BookingPage() {
             {step === 4 && (
               <div>
                 <h3 style={{ marginBottom: 4, fontSize: 18 }}>Your Details</h3>
-                <p style={{ color: '#6b7280', fontSize: 13, marginBottom: 20 }}>{selectedDate} at {selectedTime} — {selectedService}</p>
+                <p style={{ color: '#6b7f74', fontSize: 13, marginBottom: 20 }}>{selectedDate} at {selectedTime} — {selectedService}</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                   {[['name', 'Full Name *', 'text'], ['phone', 'Phone Number *', 'tel'], ['email', 'Email (optional)', 'email'], ['notes', 'Notes / Special Requests', 'text']].map(([key, label, type]) => (
                     <div key={key}>
-                      <label style={{ display: 'block', fontWeight: 600, fontSize: 13, marginBottom: 5, color: '#374151' }}>{label}</label>
+                      <label style={{ display: 'block', fontWeight: 600, fontSize: 12, marginBottom: 5, color: '#6b7f74' }}>{label}</label>
                       {key === 'notes' ? (
-                        <textarea value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, resize: 'none', height: 72, boxSizing: 'border-box' }} />
+                        <textarea value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8e4', borderRadius: 9, fontSize: 13, resize: 'none', height: 72, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }} />
                       ) : (
-                        <input type={type} value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 14, boxSizing: 'border-box' }} />
+                        <input type={type} value={form[key]} onChange={e => setForm(p => ({ ...p, [key]: e.target.value }))} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8e4', borderRadius: 9, fontSize: 13, boxSizing: 'border-box', fontFamily: 'inherit', outline: 'none' }} />
                       )}
                     </div>
                   ))}
                 </div>
                 <div style={{ marginTop: 20, display: 'flex', gap: 10 }}>
-                  <button onClick={() => setStep(3)} style={{ padding: '10px 18px', background: '#f3f4f6', border: 'none', borderRadius: 8, cursor: 'pointer', fontWeight: 600 }}>← Back</button>
+                  <button onClick={() => setStep(3)} style={{ padding: '10px 18px', background: '#f0f4f1', border: '1.5px solid #e2e8e4', borderRadius: 9, cursor: 'pointer', fontWeight: 600, fontFamily: 'inherit', fontSize: 13, color: '#1a2e24' }}>← Back</button>
                   <button onClick={submit} disabled={submitting || !form.name || !form.phone}
-                    style={{ flex: 1, padding: '12px', background: accentColor, color: '#fff', border: 'none', borderRadius: 10, cursor: 'pointer', fontWeight: 700, fontSize: 15, opacity: (!form.name || !form.phone) ? 0.7 : 1 }}>
+                    style={{ flex: 1, padding: '12px', background: accentColor, color: '#fff', border: 'none', borderRadius: 9, cursor: 'pointer', fontWeight: 600, fontSize: 14, opacity: (!form.name || !form.phone) ? 0.7 : 1, fontFamily: 'inherit' }}>
                     {submitting ? 'Booking...' : '📅 Confirm Booking'}
                   </button>
                 </div>

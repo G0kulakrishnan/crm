@@ -186,37 +186,37 @@ function CheckoutModal({ cart, ownerId, ecomName, customerSession, onClose, onSu
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(6px)', zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-       <div style={{ background: '#fff', width: '95%', maxWidth: 460, borderRadius: 28, padding: 28, position: 'relative', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)', color: '#1e293b' }}>
+       <div style={{ background: '#fff', width: '95%', maxWidth: 460, borderRadius: 12, padding: 28, position: 'relative', border: '1px solid #e2e8e4', color: '#1a2e24' }}>
              <div onClick={onClose} style={{ position: 'absolute', top: 20, right: 20, cursor: 'pointer', opacity: 0.6, fontSize: 20, fontWeight: 300 }}>✕</div>
              
              {done ? (
                 <div style={{ textAlign: 'center', padding: '10px 0' }}>
                    <div style={{ fontSize: 72 }}>✅</div>
-                   <h2 style={{ fontSize: 22, fontWeight: 900, marginBottom: 8, color: '#1e293b' }}>Order Placed!</h2>
-                   <p style={{ color: '#64748b', marginBottom: 24, fontSize: 14 }}>Thank you, {form.name}. We'll process your order soon.</p>
-                   <button onClick={onClose} style={{ width: '100%', padding: 16, background: primaryC, color: '#fff', border: 'none', borderRadius: 16, fontWeight: 800, fontSize: 15, cursor: 'pointer', boxShadow: `0 8px 15px ${primaryC}33` }}>Finish</button>
+                   <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8, color: '#1a2e24' }}>Order Placed!</h2>
+                   <p style={{ color: '#6b7f74', marginBottom: 24, fontSize: 14 }}>Thank you, {form.name}. We'll process your order soon.</p>
+                   <button onClick={onClose} style={{ width: '100%', padding: 14, background: primaryC, color: '#fff', border: 'none', borderRadius: 9, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>Finish</button>
                 </div>
             ) : (
                <>
-                  <h3 style={{ fontSize: 22, fontWeight: 900, marginBottom: 20, color: '#1e293b' }}>Complete Order</h3>
+                  <h3 style={{ fontSize: 22, fontWeight: 700, marginBottom: 20, color: '#1a2e24' }}>Complete Order</h3>
                   
                   <div style={{ display: 'grid', gap: 16 }}>
-                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Full Name</label><input placeholder="Required" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, color: '#1e293b', outline: 'none', background: '#fff', boxSizing: 'border-box' }} /></div>
-                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Email Address</label><input type="email" placeholder="Required" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, color: '#1e293b', outline: 'none', background: '#fff', boxSizing: 'border-box' }} /></div>
-                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Phone Number</label><input placeholder="Required" value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, color: '#1e293b', outline: 'none', background: '#fff', boxSizing: 'border-box' }} /></div>
-                     <div><label style={{ fontSize: 13, fontWeight: 700, display: 'block', marginBottom: 6, color: '#475569' }}>Delivery Address</label><textarea placeholder="Optional" value={form.address} onChange={e => setForm(f => ({...f, address: e.target.value}))} style={{ width: '100%', padding: 14, border: '1.5px solid #e2e8f0', borderRadius: 10, height: 100, color: '#1e293b', outline: 'none', background: '#fff', boxSizing: 'border-box', resize: 'none' }} /></div>
+                     <div><label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 5, color: '#6b7f74' }}>Full Name</label><input placeholder="Required" value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8e4', borderRadius: 9, color: '#1a2e24', outline: 'none', background: '#fff', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 13 }} /></div>
+                     <div><label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 5, color: '#6b7f74' }}>Email Address</label><input type="email" placeholder="Required" value={form.email} onChange={e => setForm(f => ({...f, email: e.target.value}))} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8e4', borderRadius: 9, color: '#1a2e24', outline: 'none', background: '#fff', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 13 }} /></div>
+                     <div><label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 5, color: '#6b7f74' }}>Phone Number</label><input placeholder="Required" value={form.phone} onChange={e => setForm(f => ({...f, phone: e.target.value}))} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8e4', borderRadius: 9, color: '#1a2e24', outline: 'none', background: '#fff', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: 13 }} /></div>
+                     <div><label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 5, color: '#6b7f74' }}>Delivery Address</label><textarea placeholder="Optional" value={form.address} onChange={e => setForm(f => ({...f, address: e.target.value}))} style={{ width: '100%', padding: '10px 12px', border: '1.5px solid #e2e8e4', borderRadius: 9, height: 80, color: '#1a2e24', outline: 'none', background: '#fff', boxSizing: 'border-box', resize: 'none', fontFamily: 'inherit', fontSize: 13 }} /></div>
                   </div>
 
-                  <div style={{ margin: '20px 0', padding: 18, background: '#f8fafc', borderRadius: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #f1f5f9' }}>
-                     <span style={{ fontSize: 12, fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Amount</span>
-                     <span style={{ fontSize: 22, fontWeight: 900, color: '#1e293b' }}>₹{total.toLocaleString()}</span>
+                  <div style={{ margin: '20px 0', padding: 16, background: '#f0f4f1', borderRadius: 9, display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid #e2e8e4' }}>
+                     <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7f74', textTransform: 'uppercase', letterSpacing: 0.5 }}>Total Amount</span>
+                     <span style={{ fontSize: 22, fontWeight: 700, color: '#1a2e24' }}>₹{total.toLocaleString()}</span>
                   </div>
 
-                  <button disabled={submitting} onClick={submit} style={{ width: '100%', padding: 16, background: primaryC, color: '#fff', border: 'none', borderRadius: 16, fontWeight: 900, fontSize: 15, cursor: 'pointer', transition: 'transform 0.2s', boxShadow: `0 8px 20px ${primaryC}44` }}>
+                  <button disabled={submitting} onClick={submit} style={{ width: '100%', padding: 14, background: primaryC, color: '#fff', border: 'none', borderRadius: 9, fontWeight: 600, fontSize: 14, cursor: 'pointer', fontFamily: 'inherit' }}>
                      {submitting ? 'Processing...' : 'CONFIRM ORDER'}
                   </button>
                   
-                  <div onClick={onClose} style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: '#94a3b8', cursor: 'pointer', fontWeight: 700 }}>Go Back</div>
+                  <div onClick={onClose} style={{ textAlign: 'center', marginTop: 16, fontSize: 13, color: '#6b7f74', cursor: 'pointer', fontWeight: 600 }}>Go Back</div>
                </>
             )}
         </div>
@@ -269,8 +269,8 @@ export default function StorePage() {
     return list;
   }, [allProducts, cat, search]);
 
-  if (isLoading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif' }}>Loading...</div>;
-  if (!ownerId) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: 'sans-serif', color: '#6b7280' }}><h2>🏪 Store Not Found</h2></div>;
+  if (isLoading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: "'DM Sans', sans-serif" }}>Loading...</div>;
+  if (!ownerId) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', fontFamily: "'DM Sans', sans-serif", color: '#6b7f74' }}><h2>🏪 Store Not Found</h2></div>;
 
   const templateId = Number(settings?.template) || 1;
   const primaryC = settings.primaryColor || '#6366f1';
@@ -284,19 +284,19 @@ export default function StorePage() {
   const removeFromCart = (pid) => setCart(prev => { const ex = prev.find(i => i.id === pid); if (ex?.qty <= 1) return prev.filter(i => i.id !== pid); return prev.map(i => i.id === pid ? { ...i, qty: i.qty - 1 } : i); });
 
   return (
-    <div style={{ fontFamily: 'Inter, system-ui, sans-serif', minHeight: '100vh', background: isDark ? '#0f172a' : '#f8fafc', color: isDark ? '#f1f5f9' : '#1e293b' }}>
+    <div style={{ fontFamily: "'DM Sans', sans-serif", minHeight: '100vh', background: isDark ? '#0f172a' : '#f0f4f1', color: isDark ? '#f1f5f9' : '#1a2e24' }}>
       <style>{RESPONSIVE_CSS}</style>
       
       {/* Header */}
-      <header style={{ background: isDark ? `${primaryC}99` : '#fff', borderBottom: `2px solid ${primaryC}`, padding: '0 20px', position: 'sticky', top: 0, zIndex: 100, backdropFilter: isDark ? 'blur(10px)' : 'none' }}>
+      <header style={{ background: isDark ? `${primaryC}99` : '#fff', borderBottom: `1.5px solid ${isDark ? primaryC : '#e2e8e4'}`, padding: '0 20px', position: 'sticky', top: 0, zIndex: 100, backdropFilter: isDark ? 'blur(10px)' : 'none' }}>
         <div style={{ maxWidth: 1200, margin: '0 auto', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', height: 64 }}>
            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 12 }}>
              {settings.logo && <img src={settings.logo} alt="Logo" style={{ height: 36, width: 36, objectFit: 'contain', borderRadius: 6 }} />}
-             <div style={{ fontWeight: 900, fontSize: 18 }}>{settings.title || 'Store'}</div>
+             <div style={{ fontWeight: 700, fontSize: 18 }}>{settings.title || 'Store'}</div>
            </div>
            <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 14 }}>
              {customerSession && <a href={`/${ecomName}/orders`} style={{ fontSize: 13, color: isDark ? '#fff' : primaryC, fontWeight: 700, textDecoration: 'none' }}>ORDERS</a>}
-             <div onClick={() => setShowCheckout(true)} style={{ background: isDark ? a : primaryC, color: isDark ? '#000' : '#fff', padding: '10px 20px', borderRadius: 12, cursor: 'pointer', fontWeight: 900, fontSize: 13, display: 'flex', alignItems: 'center', gap: 10, boxShadow: `0 4px 15px ${primaryC}33` }}>
+             <div onClick={() => setShowCheckout(true)} style={{ background: isDark ? a : primaryC, color: isDark ? '#000' : '#fff', padding: '10px 20px', borderRadius: 9, cursor: 'pointer', fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderRight: `1px solid ${isDark ? 'rgba(0,0,0,0.1)' : 'rgba(255,255,255,0.2)'}`, paddingRight: 10 }}>
                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.9 }}>
                      <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
@@ -328,12 +328,12 @@ export default function StorePage() {
               <input 
                 placeholder="Search products..." 
                 value={search} onChange={e => setSearch(e.target.value)} 
-                style={{ width: '100%', padding: '14px 16px', borderRadius: 12, border: `1.5px solid ${isDark ? '#334155' : '#e2e8f0'}`, background: isDark ? 'rgba(255,255,255,0.05)' : '#fff', color: isDark ? '#fff' : '#1e293b', fontSize: 14, outline: 'none' }} 
+                style={{ width: '100%', padding: '10px 14px', borderRadius: 9, border: `1.5px solid ${isDark ? '#334155' : '#e2e8e4'}`, background: isDark ? 'rgba(255,255,255,0.05)' : '#fff', color: isDark ? '#fff' : '#1a2e24', fontSize: 13, outline: 'none', fontFamily: 'inherit' }} 
               />
             </div>
             <div className="hide-scroll" style={{ display: 'flex', flexDirection: 'row', gap: 8, flex: 2, overflowX: 'auto', paddingBottom: 4 }}>
                {['All', ...categories].map(c => (
-                  <button key={c} onClick={() => setCat(c)} style={{ padding: '10px 18px', borderRadius: 25, border: `1.5px solid ${cat === c ? primaryC : (isDark ? '#334155' : '#e2e8f0')}`, background: cat === c ? primaryC : (isDark ? 'rgba(255,255,255,0.05)' : '#fff'), color: cat === c ? '#fff' : (isDark ? '#94a3b8' : '#64748b'), fontWeight: 800, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap' }}>{c}</button>
+                  <button key={c} onClick={() => setCat(c)} style={{ padding: '8px 16px', borderRadius: 20, border: `1.5px solid ${cat === c ? primaryC : (isDark ? '#334155' : '#e2e8e4')}`, background: cat === c ? primaryC : (isDark ? 'rgba(255,255,255,0.05)' : '#fff'), color: cat === c ? '#fff' : (isDark ? '#94a3b8' : '#6b7f74'), fontWeight: 600, fontSize: 12, cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit' }}>{c}</button>
                ))}
             </div>
          </div>
