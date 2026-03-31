@@ -204,7 +204,7 @@ export default function EcomSettings({ ownerId, globalSettings }) {
             <h4 style={{ marginBottom: 20, fontSize: 13, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.8px', fontWeight: 700 }}>Store Layout</h4>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
               {TEMPLATES.map(t => (
-                <label key={t.id} style={{ 
+                <label key={t.id} onClick={() => setForm(p => ({ ...p, template: t.id }))} style={{ 
                   display: 'flex', alignItems: 'center', gap: 14, padding: '16px', 
                   background: form.template === t.id ? '#f8fafc' : '#fff', 
                   border: `2px solid ${form.template === t.id ? form.primaryColor : '#e2e8f0'}`, 
