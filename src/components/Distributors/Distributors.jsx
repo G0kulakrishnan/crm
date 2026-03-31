@@ -1827,6 +1827,27 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
     }
   };
 
+  const deletePartner = async (partner) => {
+    const confirmMsg = `Are you sure you want to delete partner "${partner.name || partner.companyName}"?\n\nThis will also delete:\n• Their login credentials\n• All commission records\n\nThis action cannot be undone.`;
+    if (!window.confirm(confirmMsg)) return;
+    try {
+      const txs = [db.tx.partnerApplications[partner.id].delete()];
+      // Delete associated commissions
+      const commData = await db.query({ partnerCommissions: { $: { where: { partnerId: partner.id, userId: ownerId } } } });
+      (commData?.partnerCommissions || []).forEach(c => txs.push(db.tx.partnerCommissions[c.id].delete()));
+      // Activity log
+      txs.push(db.tx.activityLogs[id()].update({ entityId: partner.id, entityType: 'partner', text: `Partner "${partner.name}" (${partner.role}) deleted by admin. ${(commData?.partnerCommissions || []).length} commission records removed.`, userId: ownerId, actorId: user.id, createdAt: Date.now() }));
+      await db.transact(txs);
+      // Delete credentials via API
+      if (partner.email) {
+        await fetch('/api/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete-partner-credentials', email: partner.email.trim().toLowerCase() }) }).catch(() => {});
+      }
+      toast(`Partner "${partner.name}" deleted successfully`, 'success');
+    } catch (err) {
+      toast(err.message, 'error');
+    }
+  };
+
   const saveViewConfig = async (cols, size) => {
     try {
       await db.transact(db.tx.userProfiles[profile.id].update({ partnerCols: cols, partnerPageSize: size }));
@@ -1982,7 +2003,10 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
                 {activeCols.includes('Address') && <td style={{ fontSize: 12, maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.address}>{p.address || '-'}</td>}
                 {activeCols.includes('Actions') && (
                   <td>
-                    <button className="btn btn-secondary btn-sm" onClick={() => openEdit(p)}>Edit</button>
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button className="btn btn-secondary btn-sm" onClick={() => openEdit(p)}>Edit</button>
+                      <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca' }} onClick={(e) => { e.stopPropagation(); deletePartner(p); }}>Delete</button>
+                    </div>
                   </td>
                 )}
               </tr>

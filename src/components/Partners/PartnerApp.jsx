@@ -186,7 +186,7 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
           createdAt: Date.now(),
           updatedAt: Date.now()
         }),
-        db.tx.activityLogs[db.id()].update({
+        db.tx.activityLogs[id()].update({
           entityId: leadId,
           entityType: 'lead',
           text: `Requirement added by Channel Partner`,
@@ -484,10 +484,10 @@ function MyEarningsView({ ownerId, partnerId }) {
 // ------ PROFILE SETTINGS VIEW ------
 function ProfileSettingsView({ ownerId, partnerId }) {
   const { data, isLoading } = db.useQuery({
-    partner: { partnerApplications: { $: { where: { id: partnerId } } } }
+    partnerApplications: { $: { where: { id: partnerId } } }
   });
 
-  const partner = data?.partner?.partnerApplications?.[0];
+  const partner = data?.partnerApplications?.[0];
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [newPass, setNewPass] = useState('');
@@ -540,7 +540,7 @@ function ProfileSettingsView({ ownerId, partnerId }) {
           ...form,
           updatedAt: Date.now()
         }),
-        db.tx.activityLogs[db.id()].update({
+        db.tx.activityLogs[id()].update({
           entityId: partnerId,
           entityType: 'partner',
           text: logText,

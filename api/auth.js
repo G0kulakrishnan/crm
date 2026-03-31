@@ -158,14 +158,24 @@ export default async function handler(req, res) {
       const data = await db.query({ userCredentials: { $: { where: { email: cleanEmail } } } });
       const user = data.userCredentials?.[0];
       let uidToUse = user ? user.userId : null, credId = user ? user.id : null;
+      let partnerExtra = {}; // Extra fields if creating credentials for a partner
       if (!user) {
         const profileData = await db.query({ userProfiles: { $: { where: { email: cleanEmail } } } });
-        if (!profileData.userProfiles?.[0]) return res.status(404).json({ error: 'User not found' });
-        uidToUse = profileData.userProfiles[0].userId;
-        credId = id();
+        if (profileData.userProfiles?.[0]) {
+          uidToUse = profileData.userProfiles[0].userId;
+          credId = id();
+        } else {
+          // Also check partnerApplications for channel partners
+          const partnerData = await db.query({ partnerApplications: { $: { where: { email: cleanEmail, status: 'Approved' } } } });
+          const partner = partnerData.partnerApplications?.[0];
+          if (!partner) return res.status(404).json({ error: 'User not found' });
+          uidToUse = partner.userId;
+          credId = id();
+          partnerExtra = { isPartner: true, partnerId: partner.id, ownerUserId: partner.userId };
+        }
       }
       const resetOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      await db.transact([tx.userCredentials[credId].update({ userId: uidToUse, email: cleanEmail, ...(!user ? { password: '', isVerified: true } : {}), resetCode: resetOtp, resetExpires: Date.now() + 15 * 60 * 1000 })]);
+      await db.transact([tx.userCredentials[credId].update({ userId: uidToUse, email: cleanEmail, ...(!user ? { password: '', isVerified: true, ...partnerExtra } : {}), resetCode: resetOtp, resetExpires: Date.now() + 15 * 60 * 1000 })]);
       return res.status(200).json({ success: true, otp: resetOtp, message: 'OTP generated' });
     }
 
@@ -195,6 +205,17 @@ export default async function handler(req, res) {
       const credId = existing.userCredentials?.[0]?.id || id();
       await db.transact([tx.userCredentials[credId].update({ email: cleanEmail, password: hashedPassword, ownerUserId, partnerId, isPartner: true, updatedAt: Date.now(), ...(existing.userCredentials?.[0]?.id ? {} : { createdAt: Date.now() }) })]);
       return res.status(200).json({ success: true, message: 'Partner password set' });
+    }
+
+    if (action === 'delete-partner-credentials') {
+      if (!cleanEmail) return res.status(400).json({ error: 'Email required' });
+      const data = await db.query({ userCredentials: { $: { where: { email: cleanEmail } } } });
+      const creds = data.userCredentials || [];
+      const partnerCreds = creds.filter(c => c.isPartner);
+      if (partnerCreds.length > 0) {
+        await db.transact(partnerCreds.map(c => tx.userCredentials[c.id].delete()));
+      }
+      return res.status(200).json({ success: true, message: `Deleted ${partnerCreds.length} credential(s)` });
     }
 
     /* ──────────── ADMIN: CREATE BUSINESS ──────────── */
