@@ -353,54 +353,57 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
 
 // ------ MY CUSTOMERS VIEW ------
 function MyCustomersView({ ownerId, partnerId }) {
+  const [search, setSearch] = useState('');
   const { data, isLoading } = db.useQuery({
-    leads: { $: { where: { userId: ownerId } } },
-    customers: { $: { where: { userId: ownerId } } }
+    leads: { $: { where: { userId: ownerId } } }
   });
 
-  const records = useMemo(() => {
-    return [
-      ...(data?.leads || []).filter(l => l.partnerId === partnerId || l.distributorId === partnerId || l.retailerId === partnerId).map(l => ({ ...l, __type: 'Lead' })),
-      ...(data?.customers || []).filter(c => c.partnerId === partnerId || c.distributorId === partnerId || c.retailerId === partnerId).map(c => ({ ...c, __type: 'Customer' }))
-    ].sort((a, b) => b.createdAt - a.createdAt);
+  const allLeads = useMemo(() => {
+    return (data?.leads || [])
+      .filter(l => l.partnerId === partnerId || l.distributorId === partnerId || l.retailerId === partnerId)
+      .sort((a, b) => b.createdAt - a.createdAt);
   }, [data, partnerId]);
+
+  const filtered = useMemo(() => {
+    if (!search) return allLeads;
+    const q = search.toLowerCase();
+    return allLeads.filter(l =>
+      (l.name || '').toLowerCase().includes(q) ||
+      (l.phone || '').toLowerCase().includes(q) ||
+      (l.email || '').toLowerCase().includes(q) ||
+      (l.stage || '').toLowerCase().includes(q)
+    );
+  }, [allLeads, search]);
 
   if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>;
 
-  const leadCount = records.filter(r => r.__type === 'Lead').length;
-  const customerCount = records.filter(r => r.__type === 'Customer').length;
-
   return (
     <div>
-      {/* Summary Cards */}
+      {/* Summary Card */}
       <div className="stat-grid" style={{ marginBottom: 22 }}>
         <div className="card" style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ width: 40, height: 40, borderRadius: 10, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📋</div>
           <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>Active Leads</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#1e40af' }}>{leadCount}</div>
-          </div>
-        </div>
-        <div className="card" style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✅</div>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>Converted Customers</div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: '#166534' }}>{customerCount}</div>
-          </div>
-        </div>
-        <div className="card" style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: '#f0f4f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📊</div>
-          <div>
-            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total Referrals</div>
-            <div style={{ fontSize: 20, fontWeight: 700 }}>{records.length}</div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total Leads</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#1e40af' }}>{allLeads.length}</div>
           </div>
         </div>
       </div>
 
       {/* Table */}
       <div className="card" style={{ overflow: 'hidden' }}>
-        <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h3 style={{ fontSize: 16, margin: 0 }}>My Leads & Customers</h3>
+        <div style={{ padding: '14px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <h3 style={{ fontSize: 16, margin: 0 }}>My Leads</h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '6px 12px', maxWidth: 280, flex: 1 }}>
+            <svg viewBox="0 0 24 24" width="14" height="14" stroke="var(--muted)" strokeWidth="2" fill="none"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input
+              placeholder="Search by name, phone, email..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, width: '100%', color: 'var(--text)' }}
+            />
+            {search && <button onClick={() => setSearch('')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 14, padding: 0 }}>✕</button>}
+          </div>
         </div>
 
         <div style={{ overflowX: 'auto' }}>
@@ -415,24 +418,20 @@ function MyCustomersView({ ownerId, partnerId }) {
               </tr>
             </thead>
             <tbody>
-              {records.length === 0 ? (
+              {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={5} style={{ padding: '40px 22px', textAlign: 'center', color: 'var(--muted)' }}>
-                    You haven't onboarded any customers yet. Use "New Requirement" to add your first lead.
+                    {search ? 'No leads match your search.' : 'You haven\'t created any leads yet. Use "New Requirement" to add your first lead.'}
                   </td>
                 </tr>
-              ) : records.map(r => (
+              ) : filtered.map(r => (
                 <tr key={r.id}>
                   <td style={{ fontSize: 12 }}>{fmtD(r.createdAt)}</td>
                   <td style={{ fontWeight: 600 }}>{r.name}</td>
                   <td style={{ fontSize: 13 }}>{r.phone || '-'}</td>
                   <td style={{ fontSize: 13 }}>{r.email || '-'}</td>
                   <td>
-                    {r.__type === 'Customer' ? (
-                      <span className="badge" style={{ background: '#dcfce7', color: '#166534' }}>Customer</span>
-                    ) : (
-                      <span className="badge" style={{ background: '#dbeafe', color: '#1e40af' }}>{r.stage || 'New'}</span>
-                    )}
+                    <span className="badge" style={{ background: '#dbeafe', color: '#1e40af' }}>{r.stage || 'New'}</span>
                   </td>
                 </tr>
               ))}
