@@ -352,16 +352,16 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
 // ------ MY CUSTOMERS VIEW ------
 function MyCustomersView({ ownerId, partnerId }) {
   const { data, isLoading } = db.useQuery({
-    leads: { $: { where: { userId: ownerId, partnerId } } },
-    customers: { $: { where: { userId: ownerId, partnerId } } }
+    leads: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId } } }
   });
 
   const records = useMemo(() => {
     return [
-      ...(data?.leads || []).map(l => ({ ...l, __type: 'Lead' })),
-      ...(data?.customers || []).map(c => ({ ...c, __type: 'Customer' }))
+      ...(data?.leads || []).filter(l => l.partnerId === partnerId || l.distributorId === partnerId || l.retailerId === partnerId).map(l => ({ ...l, __type: 'Lead' })),
+      ...(data?.customers || []).filter(c => c.partnerId === partnerId || c.distributorId === partnerId || c.retailerId === partnerId).map(c => ({ ...c, __type: 'Customer' }))
     ].sort((a, b) => b.createdAt - a.createdAt);
-  }, [data]);
+  }, [data, partnerId]);
 
   if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>;
 
