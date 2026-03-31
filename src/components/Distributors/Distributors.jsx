@@ -82,7 +82,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
       const resData = await res.json();
       if (!res.ok) throw new Error(resData.error || 'Failed to create partner login');
 
-      await db.transact(
+      await db.transact([
         db.tx.partnerApplications[pId].update({
           name: onboardForm.name.trim(),
           email: onboardForm.email.trim(),
@@ -107,7 +107,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
           text: `Manually onboarded Partner ${onboardForm.name} as ${onboardForm.role}.`,
           userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
         })
-      );
+      ]);
 
       toast('Partner onboarded successfully!', 'success');
       setOnboardModal(false);
@@ -197,7 +197,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
       if (!res.ok) throw new Error(resData.error || 'Failed to create partner login');
 
       // 2. Update the application status in DB
-      await db.transact(
+      await db.transact([
         db.tx.partnerApplications[approveModal.id].update({
           status: 'Approved',
           commission: parseFloat(commission) || 0,
@@ -213,7 +213,7 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
           userName: user.email,
           createdAt: Date.now()
         })
-      );
+      ]);
 
       toast('Partner approved successfully!', 'success');
       setApproveModal(null);
@@ -1806,7 +1806,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
         updateData.parentDistributorId = newParentId || null;
       }
 
-      await db.transact(
+      await db.transact([
         db.tx.partnerApplications[editingPartner.id].update(updateData),
         db.tx.activityLogs[id()].update({
           entityId: editingPartner.id,
@@ -1817,7 +1817,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
           userName: user.email,
           createdAt: Date.now()
         })
-      );
+      ]);
       toast('Partner details updated!', 'success');
       setEditingPartner(null);
     } catch (err) {

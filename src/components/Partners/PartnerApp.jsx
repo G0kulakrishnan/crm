@@ -212,7 +212,7 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
       }
 
       const leadId = id();
-      await db.transact(
+      await db.transact([
         db.tx.leads[leadId].update({
           name: form.name.trim(),
           phone: form.phone.trim(),
@@ -237,7 +237,7 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
           userId: ownerId,
           createdAt: Date.now()
         })
-      );
+      ]);
 
       toast('Requirement submitted successfully!', 'success');
       setForm({ name: '', phone: '', email: '', address: '', notes: '', selectedRequirement: '' });
@@ -564,7 +564,7 @@ function ProfileSettingsView({ ownerId, partnerId }) {
         ? `Profile updated by partner: ${changes.join(', ')}`
         : 'Profile updated by partner (no field changes detected)';
 
-      await db.transact(
+      await db.transact([
         db.tx.partnerApplications[partnerId].update({
           ...form,
           updatedAt: Date.now()
@@ -576,7 +576,7 @@ function ProfileSettingsView({ ownerId, partnerId }) {
           userId: ownerId,
           createdAt: Date.now()
         })
-      );
+      ]);
       toast('Profile updated successfully!', 'success');
     } catch (err) {
       toast(err.message, 'error');
