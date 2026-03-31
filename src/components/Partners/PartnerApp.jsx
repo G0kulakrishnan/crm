@@ -536,10 +536,20 @@ function MyEarningsView({ ownerId, partnerId }) {
 // ------ PROFILE SETTINGS VIEW ------
 function ProfileSettingsView({ ownerId, partnerId }) {
   const { data, isLoading } = db.useQuery({
-    partnerApplications: { $: { where: { id: partnerId } } }
+    partnerApplications: { $: { where: { userId: ownerId, status: 'Approved' } } },
+    userProfiles: { $: { where: { userId: ownerId } } }
   });
 
-  const partner = data?.partnerApplications?.[0];
+  const partner = data?.partnerApplications?.find(p => p.id === partnerId);
+  const ownerProfile = data?.userProfiles?.[0] || {};
+  const allPartners = data?.partnerApplications || [];
+  const parentDistributor = partner?.role === 'Retailer' && partner?.parentDistributorId 
+    ? allPartners.find(p => p.id === partner.parentDistributorId) 
+    : null;
+  const myRetailers = partner?.role === 'Distributor' 
+    ? allPartners.filter(p => p.role === 'Retailer' && p.parentDistributorId === partnerId) 
+    : [];
+
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
   const [newPass, setNewPass] = useState('');
@@ -640,9 +650,123 @@ function ProfileSettingsView({ ownerId, partnerId }) {
   if (isLoading || !form) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading profile...</div>;
 
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
+  const dAlias = ownerProfile?.distributorAlias || 'Distributor';
+  const rAlias = ownerProfile?.retailerAlias || 'Retailer';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 22 }}>
+
+      {/* Company Info (from owner) */}
+      <div className="card" style={{ padding: 24 }}>
+        <h3 style={{ fontSize: 16, marginBottom: 4 }}>🏢 Company Information</h3>
+        <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 16 }}>Details of the company you are partnered with.</p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.5, marginBottom: 4 }}>Your Name</div>
+            <div style={{ fontSize: 17, fontWeight: 700 }}>{partner.name}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.5, marginBottom: 4 }}>Your Role</div>
+            <span className="badge" style={{ background: partner.role === 'Distributor' ? '#ede9fe' : '#dbeafe', color: partner.role === 'Distributor' ? '#6d28d9' : '#1e40af', fontSize: 12 }}>{partner.role === 'Distributor' ? dAlias : rAlias}</span>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.5, marginBottom: 4 }}>Company Name</div>
+            <div style={{ fontSize: 15, fontWeight: 600 }}>{ownerProfile.bizName || ownerProfile.businessName || '-'}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.5, marginBottom: 4 }}>Commission Rate</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--accent)' }}>{partner.commission || 0}%</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.5, marginBottom: 4 }}>Member Since</div>
+            <div style={{ fontSize: 14 }}>{fmtD(partner.approvedAt || partner.appliedAt)}</div>
+          </div>
+        </div>
+      </div>
+
+      {/* Parent Distributor (for Retailers only) */}
+      {partner.role === 'Retailer' && (
+        <div className="card" style={{ padding: 24 }}>
+          <h3 style={{ fontSize: 16, marginBottom: 4 }}>👤 My {dAlias}</h3>
+          <p style={{ color: 'var(--muted)', fontSize: 12, marginBottom: 16 }}>Your assigned {dAlias.toLowerCase()} who manages your account.</p>
+          {parentDistributor ? (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, background: 'var(--bg)', padding: 18, borderRadius: 10, border: '1px solid var(--border)' }}>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.5, marginBottom: 4 }}>{dAlias} Name</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#6d28d9' }}>{parentDistributor.name}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.5, marginBottom: 4 }}>Company</div>
+                <div style={{ fontSize: 14 }}>{parentDistributor.companyName || 'Independent'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.5, marginBottom: 4 }}>Phone</div>
+                <div style={{ fontSize: 14 }}>{parentDistributor.phone || '-'}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.5, marginBottom: 4 }}>Email</div>
+                <div style={{ fontSize: 14 }}>{parentDistributor.email || '-'}</div>
+              </div>
+              {parentDistributor.city && (
+                <div style={{ gridColumn: 'span 2' }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', letterSpacing: 0.5, marginBottom: 4 }}>Location</div>
+                  <div style={{ fontSize: 14 }}>{[parentDistributor.city, parentDistributor.district, parentDistributor.state].filter(Boolean).join(', ')}</div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ background: '#dbeafe', color: '#1e40af', padding: '12px 16px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>
+              Direct Partner — You report directly to the company.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* My Retailers (for Distributors only) */}
+      {partner.role === 'Distributor' && (
+        <div className="card" style={{ overflow: 'hidden' }}>
+          <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <h3 style={{ fontSize: 16, margin: 0 }}>👥 My {rAlias}s</h3>
+              <p style={{ color: 'var(--muted)', fontSize: 12, margin: '4px 0 0' }}>{rAlias}s assigned under your distribution network.</p>
+            </div>
+            <span className="badge" style={{ background: '#ede9fe', color: '#6d28d9', fontWeight: 700 }}>{myRetailers.length} {rAlias}{myRetailers.length !== 1 ? 's' : ''}</span>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Name</th>
+                  <th>Company</th>
+                  <th>Phone</th>
+                  <th>Email</th>
+                  <th>Location</th>
+                </tr>
+              </thead>
+              <tbody>
+                {myRetailers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ padding: '30px 22px', textAlign: 'center', color: 'var(--muted)' }}>
+                      No {rAlias.toLowerCase()}s assigned under you yet.
+                    </td>
+                  </tr>
+                ) : myRetailers.map((r, i) => (
+                  <tr key={r.id}>
+                    <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
+                    <td style={{ fontWeight: 600 }}>{r.name}</td>
+                    <td style={{ fontSize: 13 }}>{r.companyName || 'Independent'}</td>
+                    <td style={{ fontSize: 13 }}>{r.phone || '-'}</td>
+                    <td style={{ fontSize: 13 }}>{r.email || '-'}</td>
+                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{[r.city, r.district].filter(Boolean).join(', ') || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Business Info Card */}
       <div className="card" style={{ padding: 24 }}>
         <h3 style={{ fontSize: 16, marginBottom: 4 }}>Business Profile</h3>
