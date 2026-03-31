@@ -1728,8 +1728,8 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
   }, [searchedPartners, currentPage, pageSize]);
 
   const savedCols = profile?.partnerCols;
-  const allPossibleCols = ['Name', 'Role', 'Parent', 'Phone', 'Email', 'Commission', 'Company', 'Address', 'Retailers', 'Customers'];
-  const activeCols = savedCols || ['Name', 'Role', 'Parent', 'Phone', 'Commission', 'Retailers', 'Customers', 'Actions'];
+  const allPossibleCols = ['Name', 'Role', 'Parent', 'Phone', 'Email', 'Commission', 'Company', 'Address', 'Retailers', 'Leads'];
+  const activeCols = savedCols || ['Name', 'Role', 'Parent', 'Phone', 'Commission', 'Retailers', 'Leads', 'Actions'];
 
   const [tempCols, setTempCols] = useState(activeCols);
   const [tempPageSize, setTempPageSize] = useState(pageSize);
@@ -1893,7 +1893,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
     if (p.role !== 'Distributor') return 0;
     return allApprovedPartners.filter(r => r.role === 'Retailer' && r.parentDistributorId === p.id).length;
   };
-  const getCustomerCount = (p) => {
+  const getLeadCount = (p) => {
     const allRecords = [...(globalLeads || []), ...(globalCustomers || [])];
     if (p.role === 'Distributor') {
       // Direct customers only (distributorId matches but no retailerId)
@@ -1974,7 +1974,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
               {activeCols.includes('Company') && <th>Company</th>}
               {activeCols.includes('Address') && <th>Address</th>}
               {activeCols.includes('Retailers') && <th>{rAlias}s</th>}
-              {activeCols.includes('Customers') && <th>Customers</th>}
+              {activeCols.includes('Leads') && <th>Leads</th>}
               {activeCols.includes('Actions') && <th>Actions</th>}
             </tr>
           </thead>
@@ -2046,9 +2046,9 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
                     )}
                   </td>
                 )}
-                {activeCols.includes('Customers') && (
+                {activeCols.includes('Leads') && (
                   <td style={{ textAlign: 'center' }}>
-                    <span style={{ fontWeight: 700, color: '#047857' }}>{getCustomerCount(p)}</span>
+                    <span style={{ fontWeight: 700, color: '#047857' }}>{getLeadCount(p)}</span>
                   </td>
                 )}
                 {activeCols.includes('Actions') && (
