@@ -12,60 +12,7 @@ const TEMPLATES = [
   { id: 5, name: 'Compact Catalog', desc: 'No images, maximum density layout', color: '#10b981', type: 'catalog' },
 ];
 
-function TemplatePreview({ type, active }) {
-  const isDark = type === 'bold';
-  const isList = type === 'list' || type === 'catalog';
-  const isCatalog = type === 'catalog';
-  const isSerif = type === 'serif';
-  const accent = type === 'bold' ? '#8b5cf6' : type === 'catalog' ? '#10b981' : type === 'list' ? '#ff9800' : type === 'serif' ? '#1c1917' : '#6366f1';
-  
-  return (
-    <div style={{ 
-      width: 220, height: 140, borderRadius: 20, background: isDark ? '#0f172a' : isSerif ? '#fafaf8' : '#fff', 
-      border: `4px solid ${active ? accent : '#f1f5f9'}`, position: 'relative', overflow: 'hidden', padding: 15,
-      boxShadow: active ? `0 20px 40px -12px ${accent}66` : '0 4px 12px rgba(0,0,0,0.06)',
-      transition: 'all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)', cursor: 'pointer'
-    }}>
-      {/* Mini Header */}
-      <div style={{ height: 22, background: (type === 'bold' || type === 'grid') ? accent : '#fff', borderBottom: '1px solid rgba(0,0,0,0.08)', marginBottom: 15, borderRadius: 8, display: 'flex', alignItems: 'center', padding: '0 10px', gap: 8 }}>
-        <div style={{ width: 10, height: 10, borderRadius: '50%', background: isDark ? '#fff' : '#e2e8f0' }} />
-        <div style={{ width: 40, height: 5, borderRadius: 3, background: isDark ? '#fff' : '#e2e8f0', opacity: 0.7 }} />
-      </div>
-      
-      {/* Mock Content */}
-      <div style={{ display: 'grid', gridTemplateColumns: isList ? '1fr' : '1fr 1fr', gap: 10 }}>
-        {[1, 2, 3, 4].map(i => (
-            <div style={{ 
-              height: isList ? (isCatalog ? 30 : 14) : 40, 
-              background: isDark ? '#1e293b' : '#fff', 
-              border: `2px solid ${isDark ? '#334155' : '#f8fafc'}`, 
-              borderRadius: 10, display: 'flex', gap: 8, padding: 6,
-              boxShadow: '0 2px 4px rgba(0,0,0,0.04)'
-            }}>
-              {!isCatalog && <div style={{ width: isList ? 18 : '100%', height: isList ? 12 : 20, background: isDark ? '#4b5563' : '#f1f5f9', borderRadius: 4 }} />}
-            {isList && (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <div style={{ width: '85%', height: 5, background: isDark ? '#4b5563' : '#f1f5f9', borderRadius: 2 }} />
-                <div style={{ width: '55%', height: 4, background: isDark ? '#4b5563' : '#f1f5f9', borderRadius: 2 }} />
-              </div>
-            )}
-            {isList && <div style={{ width: 30, height: 12, background: accent, borderRadius: 4, opacity: 0.9 }} />}
-          </div>
-        ))}
-      </div>
 
-      {active && (
-        <div style={{ 
-          position: 'absolute', top: 10, right: 10, width: 28, height: 28, 
-          background: accent, borderRadius: '50%', display: 'flex', 
-          alignItems: 'center', justifyContent: 'center', color: '#fff', 
-          fontSize: 16, fontWeight: 900, boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
-          zIndex: 2
-        }}>✓</div>
-      )}
-    </div>
-  );
-}
 
 export default function EcomSettings({ ownerId, globalSettings }) {
   const toast = useToast();
@@ -255,20 +202,23 @@ export default function EcomSettings({ ownerId, globalSettings }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
           <div className="tw" style={{ padding: 28, borderRadius: 20 }}>
             <h4 style={{ marginBottom: 20, fontSize: 13, textTransform: 'uppercase', color: '#64748b', letterSpacing: '0.8px', fontWeight: 700 }}>Store Layout</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
               {TEMPLATES.map(t => (
                 <label key={t.id} style={{ 
-                  display: 'flex', alignItems: 'center', gap: 16, padding: '14px', 
+                  display: 'flex', alignItems: 'center', gap: 14, padding: '16px', 
                   background: form.template === t.id ? '#f8fafc' : '#fff', 
-                  border: `2.5px solid ${form.template === t.id ? form.primaryColor : '#e2e8f0'}`, 
-                  borderRadius: 18, cursor: 'pointer', transition: 'all 0.2s',
+                  border: `2px solid ${form.template === t.id ? form.primaryColor : '#e2e8f0'}`, 
+                  borderRadius: 14, cursor: 'pointer', transition: 'all 0.2s',
                   boxShadow: form.template === t.id ? '0 4px 12px rgba(0,0,0,0.05)' : 'none'
                 }}>
-                  <input type="radio" name="template" checked={form.template === t.id} onChange={() => setForm(p => ({ ...p, template: t.id }))} style={{ display: 'none' }} />
-                  <TemplatePreview type={t.type} active={form.template === t.id} />
+                  <div style={{ 
+                    width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                    border: `6px solid ${form.template === t.id ? form.primaryColor : '#cbd5e1'}`,
+                    background: '#fff'
+                  }} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 800, fontSize: 15, color: '#0f172a' }}>{t.name}</div>
-                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 4, lineHeight: 1.4 }}>{t.desc}</div>
+                    <div style={{ fontWeight: 800, fontSize: 14, color: '#0f172a' }}>{t.name}</div>
+                    <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, lineHeight: 1.4 }}>{t.desc}</div>
                   </div>
                 </label>
               ))}
