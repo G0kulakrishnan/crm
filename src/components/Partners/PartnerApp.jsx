@@ -365,58 +365,78 @@ function MyCustomersView({ ownerId, partnerId }) {
 
   if (isLoading) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading...</div>;
 
+  const leadCount = records.filter(r => r.__type === 'Lead').length;
+  const customerCount = records.filter(r => r.__type === 'Customer').length;
+
   return (
-    <div className="card" style={{ overflow: 'hidden' }}>
-      <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h3 style={{ fontSize: 16, margin: 0 }}>My Associated Customers</h3>
-          <p style={{ color: 'var(--muted)', fontSize: 12, margin: '4px 0 0' }}>All clients and leads generated under your partner ID.</p>
+    <div>
+      {/* Summary Cards */}
+      <div className="stat-grid" style={{ marginBottom: 22 }}>
+        <div className="card" style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📋</div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>Active Leads</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#1e40af' }}>{leadCount}</div>
+          </div>
         </div>
-        <span className="badge" style={{ background: 'var(--bg)' }}>{records.length} total</span>
+        <div className="card" style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✅</div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>Converted Customers</div>
+            <div style={{ fontSize: 20, fontWeight: 700, color: '#166534' }}>{customerCount}</div>
+          </div>
+        </div>
+        <div className="card" style={{ padding: 18, display: 'flex', alignItems: 'center', gap: 14 }}>
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: '#f0f4f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>📊</div>
+          <div>
+            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase' }}>Total Referrals</div>
+            <div style={{ fontSize: 20, fontWeight: 700 }}>{records.length}</div>
+          </div>
+        </div>
       </div>
-      
-      <div style={{ overflowX: 'auto' }}>
-        <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Client Name</th>
-              <th>Contact</th>
-              <th>Status</th>
-              <th>Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {records.length === 0 ? (
+
+      {/* Table */}
+      <div className="card" style={{ overflow: 'hidden' }}>
+        <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ fontSize: 16, margin: 0 }}>My Leads & Customers</h3>
+        </div>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <thead>
               <tr>
-                <td colSpan={5} style={{ padding: '40px 22px', textAlign: 'center', color: 'var(--muted)' }}>
-                  You haven't onboarded any customers yet.
-                </td>
+                <th>Date</th>
+                <th>Client Name</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Stage</th>
               </tr>
-            ) : records.map(r => (
-              <tr key={r.id}>
-                <td>{fmtD(r.createdAt)}</td>
-                <td style={{ fontWeight: 600 }}>{r.name}</td>
-                <td>
-                  <div style={{ fontSize: 13 }}>{r.phone || '-'}</div>
-                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{r.email}</div>
-                </td>
-                <td>
-                  {r.__type === 'Customer' ? (
-                    <span className="badge" style={{ background: '#dcfce7', color: '#166534' }}>Active Customer</span>
-                  ) : (
-                    <span className="badge" style={{ background: 'var(--bg)', color: 'var(--text)' }}>Lead • {r.stage || 'New'}</span>
-                  )}
-                </td>
-                <td style={{ fontSize: 12, color: 'var(--muted)', maxWidth: 250 }}>
-                  <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {r.notes || '-'}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {records.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ padding: '40px 22px', textAlign: 'center', color: 'var(--muted)' }}>
+                    You haven't onboarded any customers yet. Use "New Requirement" to add your first lead.
+                  </td>
+                </tr>
+              ) : records.map(r => (
+                <tr key={r.id}>
+                  <td style={{ fontSize: 12 }}>{fmtD(r.createdAt)}</td>
+                  <td style={{ fontWeight: 600 }}>{r.name}</td>
+                  <td style={{ fontSize: 13 }}>{r.phone || '-'}</td>
+                  <td style={{ fontSize: 13 }}>{r.email || '-'}</td>
+                  <td>
+                    {r.__type === 'Customer' ? (
+                      <span className="badge" style={{ background: '#dcfce7', color: '#166534' }}>Customer</span>
+                    ) : (
+                      <span className="badge" style={{ background: '#dbeafe', color: '#1e40af' }}>{r.stage || 'New'}</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
