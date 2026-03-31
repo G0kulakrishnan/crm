@@ -4,6 +4,7 @@ export default function SearchableSelect({ options, value, onChange, placeholder
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const wrapperRef = useRef(null);
+  const dropdownRef = useRef(null);
 
   // Derive the display text for the current value
   const displayText = useMemo(() => {
@@ -17,12 +18,22 @@ export default function SearchableSelect({ options, value, onChange, placeholder
     function handleClickOutside(event) {
       if (wrapperRef.current && !wrapperRef.current.contains(event.target)) {
         setIsOpen(false);
-        setSearch(''); // Reset search when closed
+        setSearch('');
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [wrapperRef]);
+
+  // Position dropdown above if near bottom of viewport
+  const [dropUp, setDropUp] = useState(false);
+  useEffect(() => {
+    if (isOpen && wrapperRef.current) {
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      setDropUp(spaceBelow < 280);
+    }
+  }, [isOpen]);
 
   // Filter options based on search
   const filteredOptions = useMemo(() => {
@@ -46,6 +57,17 @@ export default function SearchableSelect({ options, value, onChange, placeholder
 
   return (
     <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
+      <style>{`
+        .ss-dropdown-list::-webkit-scrollbar { width: 8px; }
+        .ss-dropdown-list::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 0 8px 8px 0; }
+        .ss-dropdown-list::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; border: 1px solid #f1f5f9; min-height: 30px; }
+        .ss-dropdown-list::-webkit-scrollbar-thumb:hover { background: #64748b; }
+        .ss-dropdown-list { scrollbar-width: auto; scrollbar-color: #94a3b8 #f1f5f9; }
+        .ss-option { transition: background 0.1s; }
+        .ss-option:hover { background: #f0fdf4 !important; }
+        @keyframes ssDropIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes ssDropInUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+      `}</style>
       <div 
         onClick={() => !disabled && setIsOpen(!isOpen)}
         style={{
@@ -67,49 +89,59 @@ export default function SearchableSelect({ options, value, onChange, placeholder
         <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {displayText || placeholder}
         </span>
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5, transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5, transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }}>
           <polyline points="6 9 12 15 18 9"></polyline>
         </svg>
       </div>
 
       {isOpen && (
-        <div style={{
+        <div ref={dropdownRef} style={{
           position: 'absolute',
-          top: 'calc(100% + 4px)',
+          ...(dropUp ? { bottom: 'calc(100% + 4px)' } : { top: 'calc(100% + 4px)' }),
           left: 0,
           right: 0,
           background: '#fff',
           border: '1px solid var(--border)',
-          borderRadius: 8,
-          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-          zIndex: 50,
-          maxHeight: 250,
+          borderRadius: 10,
+          boxShadow: '0 12px 28px -4px rgba(0, 0, 0, 0.15), 0 4px 10px -2px rgba(0, 0, 0, 0.08)',
+          zIndex: 9999,
+          maxHeight: 300,
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          animation: dropUp ? 'ssDropInUp 0.15s ease' : 'ssDropIn 0.15s ease'
         }}>
-          <div style={{ padding: '8px 12px', borderBottom: '1px solid #f1f5f9', background: '#f8fafc' }}>
-            <input 
-              autoFocus
-              type="text" 
-              placeholder="Search..." 
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{
-                width: '100%',
-                padding: '6px 10px',
-                border: '1px solid #e2e8f0',
-                borderRadius: 4,
-                fontSize: 12,
-                outline: 'none',
-                boxSizing: 'border-box'
-              }}
-            />
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', flexShrink: 0 }}>
+            <div style={{ position: 'relative' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}>
+                <circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input 
+                autoFocus
+                type="text" 
+                placeholder="Type to search..." 
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 10px 8px 32px',
+                  border: '1.5px solid #e2e8f0',
+                  borderRadius: 6,
+                  fontSize: 13,
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  background: '#fff',
+                  fontFamily: 'inherit'
+                }}
+                onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+                onBlur={e => e.target.style.borderColor = '#e2e8f0'}
+              />
+            </div>
           </div>
           
-          <div style={{ overflowY: 'auto', flex: 1, padding: 4 }}>
+          <div className="ss-dropdown-list" style={{ overflowY: 'auto', flex: 1, padding: 6 }}>
             {filteredOptions.length === 0 ? (
-              <div style={{ padding: 12, textAlign: 'center', color: 'var(--muted)', fontSize: 12 }}>
+              <div style={{ padding: '16px 12px', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
                 No matches found
               </div>
             ) : (
@@ -121,25 +153,26 @@ export default function SearchableSelect({ options, value, onChange, placeholder
                 return (
                   <div 
                     key={i}
+                    className="ss-option"
                     onClick={() => handleSelect(opt)}
                     style={{
-                      padding: '8px 12px',
+                      padding: '9px 12px',
                       cursor: 'pointer',
-                      borderRadius: 4,
+                      borderRadius: 6,
                       fontSize: 13,
-                      background: isSelected ? '#eff6ff' : 'transparent',
-                      color: isSelected ? '#1d4ed8' : '#334155',
+                      background: isSelected ? '#f0fdf4' : 'transparent',
+                      color: isSelected ? '#15803d' : '#334155',
                       fontWeight: isSelected ? 600 : 400,
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 2
+                      gap: 2,
+                      borderLeft: isSelected ? '3px solid var(--accent)' : '3px solid transparent',
+                      marginBottom: 1
                     }}
-                    onMouseEnter={(e) => { if(!isSelected) e.currentTarget.style.background = '#f8fafc'; }}
-                    onMouseLeave={(e) => { if(!isSelected) e.currentTarget.style.background = 'transparent'; }}
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
                       <span>{text}</span>
-                      {isSelected && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"></polyline></svg>}
+                      {isSelected && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#16a34a" strokeWidth="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>}
                     </div>
                     {typeof opt === 'object' && (opt.code || opt.sku) && (
                       <div style={{ fontSize: 10, color: 'var(--muted)', fontWeight: 400 }}>

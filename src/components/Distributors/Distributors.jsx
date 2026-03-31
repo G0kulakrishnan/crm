@@ -4,6 +4,7 @@ import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { fmtD, DEFAULT_SOURCES } from '../../utils/helpers';
 import { useApp } from '../../context/AppContext';
+import SearchableSelect from '../UI/SearchableSelect';
 
 export default function Distributors({ user, ownerId, perms, initialTab }) {
   const { setActiveView, setSettingsTab } = useApp();
@@ -395,16 +396,14 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
                   <div className="form-group" style={{ marginBottom: 15 }}>
                     <label>Assign to Parent Distributor (Optional)</label>
                     <div style={{ display: 'flex', gap: 8 }}>
-                      <select 
-                        value={parentDist} 
-                        onChange={e => setParentDist(e.target.value)}
-                        style={{ flex: 1, padding: '8px 12px', border: '1.5px solid #cbd5e1', borderRadius: 8 }}
-                      >
-                        <option value="">-- No Parent (Direct) --</option>
-                        {availableDistributors.map(d => (
-                          <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
-                        ))}
-                      </select>
+                      <div style={{ flex: 1 }}>
+                        <SearchableSelect
+                          options={[{ id: '', name: '-- No Parent (Direct) --' }, ...availableDistributors.map(d => ({ id: d.id, name: `${d.companyName || d.name}` }))]}
+                          displayKey="name" returnKey="id" value={parentDist}
+                          onChange={val => setParentDist(val)}
+                          placeholder="Search distributor..."
+                        />
+                      </div>
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>This retailer will be mapped under the selected distributor in your hierarchy.</div>
                   </div>
@@ -706,12 +705,12 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
                 {onboardForm.role === 'Retailer' && (
                   <div className="form-group" style={{ marginBottom: 15 }}>
                     <label>Assign to Parent {dAlias} (Optional)</label>
-                    <select value={onboardForm.parentDistributorId} onChange={e => setOnboardForm(p => ({ ...p, parentDistributorId: e.target.value }))}>
-                      <option value="">-- No Parent (Direct) --</option>
-                      {availableDistributors.map(d => (
-                        <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
-                      ))}
-                    </select>
+                    <SearchableSelect
+                      options={[{ id: '', name: '-- No Parent (Direct) --' }, ...availableDistributors.map(d => ({ id: d.id, name: `${d.companyName || d.name}` }))]}
+                      displayKey="name" returnKey="id" value={onboardForm.parentDistributorId}
+                      onChange={val => setOnboardForm(p => ({ ...p, parentDistributorId: val }))}
+                      placeholder="Search distributor..."
+                    />
                   </div>
                 )}
 
@@ -2143,15 +2142,12 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
                   {editingPartner.role === 'Retailer' && (
                     <div className="form-group">
                       <label>Parent {dAlias}</label>
-                      <select
-                        value={newParentId}
-                        onChange={e => setNewParentId(e.target.value)}
-                      >
-                        <option value="">-- No Parent (Direct) --</option>
-                        {availableDistributors.map(d => (
-                          <option key={d.id} value={d.id}>{d.name} ({d.companyName || 'No Company'})</option>
-                        ))}
-                      </select>
+                      <SearchableSelect
+                        options={[{ id: '', name: '-- No Parent (Direct) --' }, ...availableDistributors.map(d => ({ id: d.id, name: `${d.companyName || d.name}` }))]}
+                        displayKey="name" returnKey="id" value={newParentId}
+                        onChange={val => setNewParentId(val)}
+                        placeholder="Search distributor..."
+                      />
                     </div>
                   )}
                   <div className="form-group">

@@ -506,12 +506,15 @@ export default function Quotations({ user, perms, ownerId, settings }) {
                       <SearchableSelect
                         options={[
                           { id: '', name: '-- None --' },
-                          ...(data?.partnerApplications || []).filter(p => p.role === 'Retailer' && (!form.distributorId || p.parentDistributorId === form.distributorId)).map(p => ({ id: p.id, name: p.companyName || p.name }))
+                          ...(data?.partnerApplications || []).filter(p => p.role === 'Retailer' && (!form.distributorId || p.parentDistributorId === form.distributorId)).map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${(data?.partnerApplications || []).find(d => d.id === p.parentDistributorId)?.companyName || (data?.partnerApplications || []).find(d => d.id === p.parentDistributorId)?.name || ''})` : ''}` }))
                         ]}
                         displayKey="name"
                         returnKey="id"
                         value={form.retailerId}
-                        onChange={val => setForm(p => ({ ...p, retailerId: val }))}
+                        onChange={val => {
+                          const retailer = (data?.partnerApplications || []).find(p => p.id === val);
+                          setForm(p => ({ ...p, retailerId: val, distributorId: retailer?.parentDistributorId || p.distributorId }));
+                        }}
                         placeholder="Select retailer..."
                       />
                     </div>
@@ -709,6 +712,36 @@ export default function Quotations({ user, perms, ownerId, settings }) {
                 </div>
                 <div className="fg"><label>Pincode</label><input value={newCustForm.pincode} onChange={ncf('pincode')} placeholder="Postal code" /></div>
                 <div className="fg"><label>GSTIN</label><input value={newCustForm.gstin} onChange={ncf('gstin')} placeholder="GST Number" /></div>
+                {(data?.partnerApplications || []).length > 0 && (
+                  <>
+                    <div className="fg" style={{ zIndex: 8 }}>
+                      <label>Distributor (Optional)</label>
+                      <SearchableSelect
+                        options={[{ id: '', name: '-- None --' }, ...(data?.partnerApplications || []).filter(p => p.role === 'Distributor').map(p => ({ id: p.id, name: p.companyName || p.name }))]}
+                        displayKey="name" returnKey="id" value={newCustForm.distributorId}
+                        onChange={val => setNewCustForm(p => ({ ...p, distributorId: val, retailerId: '' }))}
+                        placeholder="Search distributor..."
+                      />
+                    </div>
+                    <div className="fg" style={{ zIndex: 7 }}>
+                      <label>Retailer (Optional)</label>
+                      <SearchableSelect
+                        options={[
+                          { id: '', name: '-- None --' },
+                          ...(data?.partnerApplications || []).filter(p => p.role === 'Retailer' && (!newCustForm.distributorId || p.parentDistributorId === newCustForm.distributorId))
+                            .map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${(data?.partnerApplications || []).find(d => d.id === p.parentDistributorId)?.companyName || (data?.partnerApplications || []).find(d => d.id === p.parentDistributorId)?.name || ''})` : ''}` }))
+                        ]}
+                        displayKey="name" returnKey="id" value={newCustForm.retailerId}
+                        onChange={val => {
+                          const retailer = (data?.partnerApplications || []).find(p => p.id === val);
+                          setNewCustForm(p => ({ ...p, retailerId: val, distributorId: retailer?.parentDistributorId || p.distributorId }));
+                        }}
+                        placeholder="Search retailer..."
+                      />
+                    </div>
+                  </>
+                )}
+
                 
                 {customFields.length > 0 && <div className="fg span2" style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}>
                   <h4 style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>Custom Fields (Optional)</h4>
@@ -737,7 +770,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
                 if (!newCustForm.email.trim()) return toast('Email is mandatory for clients', 'error');
                 const newId = id();
                 await db.transact(db.tx.customers[newId].update({ ...newCustForm, name: newCustForm.name.trim(), companyName: newCustForm.companyName || '', userId: ownerId, actorId: user.id, createdAt: Date.now() }));
-                setForm(p => ({ ...p, client: newCustForm.name.trim() }));
+                setForm(p => ({ ...p, client: newCustForm.name.trim(), distributorId: newCustForm.distributorId || p.distributorId, retailerId: newCustForm.retailerId || p.retailerId }));
                 setCustModal(false);
                 setNewCustForm(EMPTY_CUSTOMER);
                 toast('Customer created!', 'success');
