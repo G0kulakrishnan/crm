@@ -58,11 +58,11 @@ export default function SearchableSelect({ options, value, onChange, placeholder
   return (
     <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
       <style>{`
-        .ss-dropdown-list::-webkit-scrollbar { width: 10px !important; display: block !important; }
-        .ss-dropdown-list::-webkit-scrollbar-track { background: #e2e8f0 !important; border-radius: 0 10px 10px 0; }
-        .ss-dropdown-list::-webkit-scrollbar-thumb { background: #64748b !important; border-radius: 5px; border: 2px solid #e2e8f0; min-height: 40px; }
-        .ss-dropdown-list::-webkit-scrollbar-thumb:hover { background: #475569 !important; }
-        .ss-dropdown-list { scrollbar-width: auto !important; scrollbar-color: #64748b #e2e8f0 !important; overflow-y: scroll !important; }
+        .ss-dropdown-list::-webkit-scrollbar { width: 14px !important; display: block !important; }
+        .ss-dropdown-list::-webkit-scrollbar-track { background: #f8fafc !important; border-radius: 0 10px 10px 0; }
+        .ss-dropdown-list::-webkit-scrollbar-thumb { background: #cbd5e0 !important; border-radius: 7px; border: 3px solid #f8fafc !important; min-height: 50px; }
+        .ss-dropdown-list::-webkit-scrollbar-thumb:hover { background: var(--accent) !important; }
+        .ss-dropdown-list { scrollbar-width: auto !important; scrollbar-color: #cbd5e0 #f8fafc !important; overflow-y: scroll !important; }
         .ss-option { transition: background 0.1s; }
         .ss-option:hover { background: #f0fdf4 !important; }
         @keyframes ssDropIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
