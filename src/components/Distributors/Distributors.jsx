@@ -2430,25 +2430,51 @@ function PartnerDetailsModal({ partnerId, onClose, onSelectPartner, ownerId, use
                       <th>Name</th>
                       <th>Phone</th>
                       <th>Email</th>
+                      {partner?.role === 'Distributor' && <th>Referred By</th>}
+                      <th>Stage</th>
                       <th>Date</th>
                     </tr>
                   </thead>
                   <tbody>
                     {[...leads, ...customers].length === 0 ? (
-                      <tr><td colSpan={5} style={{ textAlign: 'center', padding: 30, color: 'var(--muted)' }}>No customers added by this partner yet.</td></tr>
-                    ) : [...leads, ...customers].sort((a,b) => (b.createdAt || b.appliedAt) - (a.createdAt || a.appliedAt)).map((c, idx) => (
+                      <tr><td colSpan={partner?.role === 'Distributor' ? 7 : 6} style={{ textAlign: 'center', padding: 30, color: 'var(--muted)' }}>No customers added by this partner yet.</td></tr>
+                    ) : [...leads, ...customers].sort((a,b) => (b.createdAt || b.appliedAt) - (a.createdAt || a.appliedAt)).map((c, idx) => {
+                      const isLead = !!leads.find(l => l.id === c.id);
+                      const retailer = c.retailerId ? (data?.partnerApplications?.find(p => p.id === c.retailerId) || subPartners.find(p => p.id === c.retailerId)) : null;
+                      return (
                       <tr key={c.id || idx}>
                         <td>
-                          <span className={`badge ${leads.find(l => l.id === c.id) ? 'bg-blue' : 'bg-green'}`}>
-                            {leads.find(l => l.id === c.id) ? 'Lead' : 'Converted Client'}
+                          <span className={`badge ${isLead ? 'bg-blue' : 'bg-green'}`}>
+                            {isLead ? 'Lead' : 'Customer'}
                           </span>
                         </td>
                         <td><strong>{c.name}</strong></td>
                         <td style={{ fontSize: 12 }}>{c.phone || '-'}</td>
                         <td style={{ fontSize: 12 }}>{c.email || '-'}</td>
+                        {partner?.role === 'Distributor' && (
+                          <td style={{ fontSize: 12 }}>
+                            {retailer ? (
+                              <span style={{ background: '#ede9fe', color: '#6d28d9', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, cursor: 'pointer' }} onClick={() => onSelectPartner?.(retailer.id)}>
+                                {retailer.companyName || retailer.name}
+                              </span>
+                            ) : (
+                              <span style={{ background: '#dbeafe', color: '#1e40af', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700 }}>
+                                Direct
+                              </span>
+                            )}
+                          </td>
+                        )}
+                        <td>
+                          {isLead ? (
+                            <span className="badge bg-gray" style={{ fontSize: 10 }}>{c.stage || 'New'}</span>
+                          ) : (
+                            <span className="badge bg-green" style={{ fontSize: 10 }}>Converted</span>
+                          )}
+                        </td>
                         <td style={{ fontSize: 11 }}>{fmtD(c.createdAt || c.appliedAt || Date.now())}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
