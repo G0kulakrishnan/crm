@@ -1859,7 +1859,7 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
   };
 
   const exportMapping = () => {
-    const headers = ['Name', 'Role', 'Company', `Parent ${dAlias}`, 'Commission (%)', `${rAlias} Commission (%)`, 'Phone', 'Email', 'Village', 'City', 'District'];
+    const headers = ['Name', 'Role', 'Company', `Parent ${dAlias}`, 'Commission (%)', `${rAlias} Commission (%)`, 'Phone', 'Email', `${rAlias}s`, 'Leads', 'Village', 'City', 'District', 'Pincode', 'State'];
     const rows = searchedPartners.map(p => [
       p.name,
       p.role,
@@ -1869,9 +1869,13 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
       p.retailerCommission || '-',
       p.phone || '',
       p.email || '',
+      getRetailerCount(p),
+      getLeadCount(p),
       p.village || '',
       p.city || '',
-      p.district || ''
+      p.district || '',
+      p.pincode || '',
+      p.state || ''
     ]);
     const csvContent = [headers, ...rows].map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(",")).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
