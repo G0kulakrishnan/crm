@@ -58,11 +58,11 @@ export default function SearchableSelect({ options, value, onChange, placeholder
   return (
     <div ref={wrapperRef} style={{ position: 'relative', width: '100%' }}>
       <style>{`
-        .ss-dropdown-list::-webkit-scrollbar { width: 8px; }
-        .ss-dropdown-list::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 0 8px 8px 0; }
-        .ss-dropdown-list::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 4px; border: 1px solid #f1f5f9; min-height: 30px; }
-        .ss-dropdown-list::-webkit-scrollbar-thumb:hover { background: #64748b; }
-        .ss-dropdown-list { scrollbar-width: auto; scrollbar-color: #94a3b8 #f1f5f9; }
+        .ss-dropdown-list::-webkit-scrollbar { width: 10px !important; display: block !important; }
+        .ss-dropdown-list::-webkit-scrollbar-track { background: #e2e8f0 !important; border-radius: 0 10px 10px 0; }
+        .ss-dropdown-list::-webkit-scrollbar-thumb { background: #64748b !important; border-radius: 5px; border: 2px solid #e2e8f0; min-height: 40px; }
+        .ss-dropdown-list::-webkit-scrollbar-thumb:hover { background: #475569 !important; }
+        .ss-dropdown-list { scrollbar-width: auto !important; scrollbar-color: #64748b #e2e8f0 !important; overflow-y: scroll !important; }
         .ss-option { transition: background 0.1s; }
         .ss-option:hover { background: #f0fdf4 !important; }
         @keyframes ssDropIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }

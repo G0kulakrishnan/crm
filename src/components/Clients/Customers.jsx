@@ -513,7 +513,7 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
                   </div>
                   <div className="fg" style={{ zIndex: 7 }}><label>Retailer (Optional)</label>
                     <SearchableSelect
-                      options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Retailer').map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${partners.find(d => d.id === p.parentDistributorId)?.companyName || partners.find(d => d.id === p.parentDistributorId)?.name || ''})` : ''}` }))]}
+                      options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Retailer' && (!form.distributorId || p.parentDistributorId === form.distributorId)).map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${partners.find(d => d.id === p.parentDistributorId)?.companyName || partners.find(d => d.id === p.parentDistributorId)?.name || ''})` : ''}` }))]}
                       displayKey="name" returnKey="id" value={form.retailerId}
                       onChange={val => {
                         const retailer = partners.find(p => p.id === val);
@@ -696,7 +696,7 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
                 </div>
                 <div className="fg" style={{ zIndex: 7 }}><label>Retailer (Optional)</label>
                   <SearchableSelect
-                    options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Retailer').map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${partners.find(d => d.id === p.parentDistributorId)?.companyName || partners.find(d => d.id === p.parentDistributorId)?.name || ''})` : ''}` }))]}
+                    options={[{ id: '', name: '-- None --' }, ...partners.filter(p => p.role === 'Retailer' && (!form.distributorId || p.parentDistributorId === form.distributorId)).map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${partners.find(d => d.id === p.parentDistributorId)?.companyName || partners.find(d => d.id === p.parentDistributorId)?.name || ''})` : ''}` }))]}
                     displayKey="name" returnKey="id" value={form.retailerId}
                     onChange={val => {
                       const retailer = partners.find(p => p.id === val);
