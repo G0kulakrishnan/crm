@@ -1728,8 +1728,8 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
   }, [searchedPartners, currentPage, pageSize]);
 
   const savedCols = profile?.partnerCols;
-  const allPossibleCols = ['Name', 'Role', 'Parent', 'Phone', 'Email', 'Commission', 'Company', 'Address'];
-  const activeCols = savedCols || ['Name', 'Role', 'Parent', 'Phone', 'Commission', 'Actions'];
+  const allPossibleCols = ['Name', 'Role', 'Parent', 'Phone', 'Email', 'Commission', 'Company', 'Address', 'Retailers', 'Customers'];
+  const activeCols = savedCols || ['Name', 'Role', 'Parent', 'Phone', 'Commission', 'Retailers', 'Customers', 'Actions'];
 
   const [tempCols, setTempCols] = useState(activeCols);
   const [tempPageSize, setTempPageSize] = useState(pageSize);
@@ -1885,8 +1885,42 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
     document.body.removeChild(link);
   };
 
+  const totalDistributors = allApprovedPartners.filter(p => p.role === 'Distributor').length;
+  const totalRetailers = allApprovedPartners.filter(p => p.role === 'Retailer').length;
+
+  // Helper to get counts for a partner
+  const getRetailerCount = (p) => {
+    if (p.role !== 'Distributor') return 0;
+    return allApprovedPartners.filter(r => r.role === 'Retailer' && r.parentDistributorId === p.id).length;
+  };
+  const getCustomerCount = (p) => {
+    const allRecords = [...(globalLeads || []), ...(globalCustomers || [])];
+    if (p.role === 'Distributor') {
+      // Direct customers only (distributorId matches but no retailerId)
+      return allRecords.filter(r => r.distributorId === p.id && !r.retailerId).length;
+    }
+    // Retailer: all customers where retailerId matches
+    return allRecords.filter(r => r.retailerId === p.id).length;
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {/* Summary Tiles */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ padding: '16px 20px', borderRadius: 10, border: '1px solid #e0e7ff', background: '#eef2ff' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#6366f1', letterSpacing: 0.5 }}>Total {dAlias}s</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#4338ca', marginTop: 4 }}>{totalDistributors}</div>
+        </div>
+        <div style={{ padding: '16px 20px', borderRadius: 10, border: '1px solid #dbeafe', background: '#eff6ff' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#2563eb', letterSpacing: 0.5 }}>Total {rAlias}s</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#1e40af', marginTop: 4 }}>{totalRetailers}</div>
+        </div>
+        <div style={{ padding: '16px 20px', borderRadius: 10, border: '1px solid #d1fae5', background: '#ecfdf5' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#059669', letterSpacing: 0.5 }}>Total Partners</div>
+          <div style={{ fontSize: 26, fontWeight: 800, color: '#047857', marginTop: 4 }}>{allApprovedPartners.length}</div>
+        </div>
+      </div>
+
       {/* Search Header Area */}
       <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'flex-end', gap: 10, background: 'var(--bg-soft)' }}>
         <button className="btn btn-secondary btn-sm" onClick={exportMapping}>📥 Export CSV</button>
@@ -1939,6 +1973,8 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
               {activeCols.includes('Commission') && <th>Commission</th>}
               {activeCols.includes('Company') && <th>Company</th>}
               {activeCols.includes('Address') && <th>Address</th>}
+              {activeCols.includes('Retailers') && <th>{rAlias}s</th>}
+              {activeCols.includes('Customers') && <th>Customers</th>}
               {activeCols.includes('Actions') && <th>Actions</th>}
             </tr>
           </thead>
@@ -2001,6 +2037,20 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
                 {activeCols.includes('Commission') && <td style={{ fontWeight: 600 }}>{p.commission}%</td>}
                 {activeCols.includes('Company') && <td style={{ fontSize: 13 }}>{p.companyName || '-'}</td>}
                 {activeCols.includes('Address') && <td style={{ fontSize: 12, maxWidth: 200, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={p.address}>{p.address || '-'}</td>}
+                {activeCols.includes('Retailers') && (
+                  <td style={{ textAlign: 'center' }}>
+                    {p.role === 'Distributor' ? (
+                      <span style={{ fontWeight: 700, color: '#6d28d9' }}>{getRetailerCount(p)}</span>
+                    ) : (
+                      <span style={{ color: 'var(--muted)' }}>-</span>
+                    )}
+                  </td>
+                )}
+                {activeCols.includes('Customers') && (
+                  <td style={{ textAlign: 'center' }}>
+                    <span style={{ fontWeight: 700, color: '#047857' }}>{getCustomerCount(p)}</span>
+                  </td>
+                )}
                 {activeCols.includes('Actions') && (
                   <td>
                     <div style={{ display: 'flex', gap: 4 }}>
