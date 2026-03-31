@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
-import { fmtD } from '../../utils/helpers';
+import { fmtD, DEFAULT_STAGES } from '../../utils/helpers';
 
 const PARTNER_NAV = [
   { group: 'Main' },
@@ -151,6 +151,8 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
   const partnerApp = data?.partnerApplications?.[0];
   const allRequirements = ownerProfile?.requirements || [];
   const visibleRequirements = (ownerProfile?.partnerVisibleRequirements || []).filter(r => allRequirements.includes(r));
+  const ownerStages = ownerProfile?.stages || DEFAULT_STAGES;
+  const firstStage = ownerStages[0] || 'New Enquiry';
   
   const handleToggleProduct = (pId) => {
     setSelectedProducts(prev => {
@@ -221,7 +223,7 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
           notes: requirementNotes,
           requirement: form.selectedRequirement || '',
           source: ownerProfile?.partnerLeadSource || 'Channel Partners',
-          stage: 'New',
+          stage: firstStage,
           userId: ownerId,
           partnerId,
           distributorId,
