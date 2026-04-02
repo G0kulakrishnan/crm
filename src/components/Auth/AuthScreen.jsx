@@ -200,30 +200,32 @@ export default function AuthScreen({ settings }) {
   return (
     <div className="auth-screen">
       {/* LEFT PANEL */}
-      <div className="auth-left" style={{ justifyContent: 'center', alignItems: 'flex-start', padding: '0 60px' }}>
-        <div style={{ textAlign: 'left', marginBottom: 12 }}>
-          <div style={{ width: 52, height: 52, background: 'var(--accent)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, fontWeight: 800, fontSize: 18, color: '#fff' }}>{settings?.brandShort || 'T2G'}</div>
-          <h1 style={{ fontSize: 32, marginBottom: 12 }}>{settings?.brandName || 'T2GCRM'}</h1>
-          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, maxWidth: 380, textAlign: 'left', margin: 0 }}>All-in-one SaaS platform to manage leads, invoices, projects &amp; automation.</p>
-        </div>
-        
-        <div style={{ marginTop: 40, width: '100%' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            {[
-              'Real-time lead & pipeline dashboards',
-              'Quotations, Invoices & Subscriptions',
-              'Appointment & Ecommerce',
-              'Integration & Automations'
-            ].map((feature, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{ width: 22, height: 22, border: '2px solid var(--accent)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12"></polyline>
-                  </svg>
+      <div className="auth-left">
+        <div style={{ width: '100%', maxWidth: 400 }}>
+          <div style={{ textAlign: 'left', marginBottom: 12 }}>
+            <div style={{ width: 52, height: 52, background: 'var(--accent)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, fontWeight: 800, fontSize: 18, color: '#fff' }}>{settings?.brandShort || 'T2G'}</div>
+            <h1 style={{ fontSize: 32, marginBottom: 12 }}>{settings?.brandName || 'T2GCRM'}</h1>
+            <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, textAlign: 'left', margin: 0 }}>All-in-one SaaS platform to manage leads, invoices, projects &amp; automation.</p>
+          </div>
+          
+          <div style={{ marginTop: 40, width: '100%' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+              {[
+                'Real-time lead & pipeline dashboards',
+                'Quotations, Invoices & Subscriptions',
+                'Appointment & Ecommerce',
+                'Integration & Automations'
+              ].map((feature, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 22, height: 22, border: '2px solid var(--accent)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </div>
+                  <span style={{ fontSize: 15, color: '#f8fafc', fontWeight: 500 }}>{feature}</span>
                 </div>
-                <span style={{ fontSize: 15, color: '#f8fafc', fontWeight: 500 }}>{feature}</span>
-              </div>
-            ))}
+              ))}
+            </div>
           </div>
         </div>
       </div>
