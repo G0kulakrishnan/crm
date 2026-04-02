@@ -427,7 +427,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
     if (form.client && !editData && profile?.reqShipping !== 'Hidden') {
       const match = customers.find(c => c.name === form.client);
       if (match && match.address) {
-        setForm(p => ({ ...p, shipTo: match.address, addShipping: profile?.reqShipping === 'Optional' ? true : p.addShipping }));
+        setForm(p => ({ ...p, shipTo: match.address, addShipping: profile?.reqShipping === 'Mandatory' ? true : p.addShipping }));
       }
     }
   }, [form.client, customers, editData, profile?.reqShipping]);  if (printing) {

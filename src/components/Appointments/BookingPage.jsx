@@ -279,7 +279,7 @@ export default function BookingPage() {
                 <h3 style={{ marginBottom: 4, fontSize: 18 }}>Your Details</h3>
                 <p style={{ color: '#6b7f74', fontSize: 13, marginBottom: 20 }}>{selectedDate} at {selectedTime} — {selectedService}</p>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {[['name', 'Full Name *', 'text'], ['phone', 'Phone Number *', 'tel'], ['email', 'Email (optional)', 'email'], ['notes', 'Notes / Special Requests', 'text']].map(([key, label, type]) => (
+                  {[['name', 'Full Name *', 'text'], ['phone', 'Phone Number *', 'tel'], ['email', 'Email (optional)', 'text'], ['notes', 'Notes / Special Requests', 'text']].map(([key, label, type]) => (
                     <div key={key}>
                       <label style={{ display: 'block', fontWeight: 600, fontSize: 12, marginBottom: 5, color: '#6b7f74' }}>{label}</label>
                       {key === 'notes' ? (
