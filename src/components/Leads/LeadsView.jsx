@@ -419,7 +419,10 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     if (!importMapping.name.value && importMapping.name.type === 'column') return toast('Please map the Name field', 'error');
     
     const toAdd = [];
-    let skipped = 0;
+    const duplicates = [];
+    let rowIndex = 2; // Data starts at row 2 assuming row 1 is headers
+
+    const allRecords = [...leads, ...customers];
 
     importData.forEach(vals => {
       const lead = {
@@ -445,19 +448,36 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         }
       });
 
-      if (!lead.name) return;
+      if (!lead.name) {
+        rowIndex++;
+        return;
+      }
 
-      const exists = leads.find(l => 
-        (lead.email && l.email === lead.email) || (lead.phone && l.phone === lead.phone)
-      );
-      if (exists) { skipped++; return; }
+      const matchEmail = lead.email ? allRecords.find(l => l.email === lead.email) || toAdd.find(l => l.email === lead.email) : null;
+      const matchPhone = lead.phone ? allRecords.find(l => l.phone === lead.phone) || toAdd.find(l => l.phone === lead.phone) : null;
+
+      if (matchEmail || matchPhone) { 
+        const matchedOn = matchEmail ? 'Email' : 'Phone';
+        const matchedVal = matchEmail ? lead.email : lead.phone;
+        duplicates.push(`Row ${rowIndex}: ${lead.name} (${matchedOn} '${matchedVal}' already exists)`);
+        rowIndex++;
+        return;
+      }
 
       toAdd.push(lead);
+      rowIndex++;
     });
+
+    if (duplicates.length > 0) {
+      const msg = `Found ${duplicates.length} duplicate entries:\n\n${duplicates.slice(0, 10).join('\n')}${duplicates.length > 10 ? '\n...and more.' : ''}\n\nDo you want to skip these duplicates and import the remaining ${toAdd.length} leads?`;
+      if (!window.confirm(msg)) {
+        return; // User cancelled
+      }
+    }
 
     if (toAdd.length === 0) {
       setImportMappingModal(false);
-      return toast(`No new leads imported. Skipped ${skipped} duplicates.`, 'warning');
+      return toast(`No new leads imported.`, 'warning');
     }
 
     try {
@@ -466,7 +486,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         const batch = toAdd.slice(i, i + batchSize);
         await db.transact(batch.map(ld => db.tx.leads[id()].update(ld)));
       }
-      toast(`Imported ${toAdd.length} leads. ${skipped > 0 ? `Skipped ${skipped} duplicates.` : ''}`, 'success');
+      toast(`Imported ${toAdd.length} leads.`, 'success');
       setImportMappingModal(false);
     } catch (err) {
       toast('Error importing leads', 'error');
