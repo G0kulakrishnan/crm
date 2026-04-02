@@ -200,29 +200,31 @@ export default function AuthScreen({ settings }) {
   return (
     <div className="auth-screen">
       {/* LEFT PANEL */}
-      <div className="auth-left">
-        <div style={{ textAlign: 'center', marginBottom: 12 }}>
-          <div style={{ width: 52, height: 52, background: 'var(--accent)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px', fontWeight: 800, fontSize: 18, color: '#fff' }}>{settings?.brandShort || 'T2G'}</div>
-          <h1>{settings?.brandName || 'T2GCRM'}</h1>
-          <p>All-in-one SaaS CRM to manage leads,<br />invoices, projects &amp; automation.</p>
+      <div className="auth-left" style={{ justifyContent: 'center', padding: '0 60px' }}>
+        <div style={{ textAlign: 'left', marginBottom: 12 }}>
+          <div style={{ width: 52, height: 52, background: 'var(--accent)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, fontWeight: 800, fontSize: 18, color: '#fff' }}>{settings?.brandShort || 'T2G'}</div>
+          <h1 style={{ fontSize: 32, marginBottom: 12 }}>{settings?.brandName || 'T2GCRM'}</h1>
+          <p style={{ fontSize: 16, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, maxWidth: 380, textAlign: 'left', margin: 0 }}>All-in-one SaaS platform to manage leads, invoices, projects &amp; automation.</p>
         </div>
-        <div style={{ marginTop: 20, width: '100%' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.08em', color: 'rgba(255,255,255,.35)', marginBottom: 10 }}>Choose a Plan</div>
-          <div className="auth-plans">
-            {activePlans.map(p => (
-              <div
-                key={p.id}
-                className={`auth-plan-card${selectedPlan === p.name ? ' selected' : ''}`}
-                onClick={() => { setSelectedPlan(p.name); }}
-              >
-                <div className="plan-name">{p.name}</div>
-                <div className="plan-price">{p.duration} days · {(p.sale || 0) === 0 ? 'Free' : `₹${(p.sale || 0).toLocaleString()}/period`}</div>
+        
+        <div style={{ marginTop: 40, width: '100%' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            {[
+              'Real-time lead & pipeline dashboards',
+              'Quotations, Invoices & Subscriptions',
+              'WhatsApp & Email automation',
+              'Distributor network & Ecommerce'
+            ].map((feature, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ width: 22, height: 22, border: '2px solid var(--accent)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+                <span style={{ fontSize: 15, color: '#f8fafc', fontWeight: 500 }}>{feature}</span>
               </div>
             ))}
           </div>
-        </div>
-        <div style={{ marginTop: 28, color: 'rgba(255,255,255,.35)', fontSize: 11, textAlign: 'center' }}>
-          Secure · Real-time · Multi-tenant
         </div>
       </div>
 
