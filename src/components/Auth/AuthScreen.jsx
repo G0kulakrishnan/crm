@@ -212,8 +212,8 @@ export default function AuthScreen({ settings }) {
             {[
               'Real-time lead & pipeline dashboards',
               'Quotations, Invoices & Subscriptions',
-              'WhatsApp & Email automation',
-              'Distributor network & Ecommerce'
+              'Appointment & Ecommerce',
+              'Integration & Automations'
             ].map((feature, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                 <div style={{ width: 22, height: 22, border: '2px solid var(--accent)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
