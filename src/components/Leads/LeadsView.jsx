@@ -420,6 +420,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     
     const toAdd = [];
     const duplicates = [];
+    const invalidFields = [];
     let rowIndex = 2; // Data starts at row 2 assuming row 1 is headers
 
     const allRecords = [...leads, ...customers];
@@ -453,6 +454,31 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         return;
       }
 
+      let hasInvalidField = false;
+
+      // Validate Stage
+      if (!lead.stage || !allStages.includes(lead.stage)) {
+        invalidFields.push(`Row ${rowIndex}: ${lead.name} (Stage '${lead.stage || 'Empty'}' not found in business settings)`);
+        hasInvalidField = true;
+      }
+      
+      // Validate Source
+      if (lead.source && !activeSources.includes(lead.source)) {
+        invalidFields.push(`Row ${rowIndex}: ${lead.name} (Source '${lead.source}' not found in business settings)`);
+        hasInvalidField = true;
+      }
+
+      // Validate Requirement
+      if (lead.requirement && !activeRequirements.includes(lead.requirement)) {
+        invalidFields.push(`Row ${rowIndex}: ${lead.name} (Requirement '${lead.requirement}' not found in business settings)`);
+        hasInvalidField = true;
+      }
+
+      if (hasInvalidField) {
+        rowIndex++;
+        return;
+      }
+
       const matchEmail = lead.email ? allRecords.find(l => l.email === lead.email) || toAdd.find(l => l.email === lead.email) : null;
       const matchPhone = lead.phone ? allRecords.find(l => l.phone === lead.phone) || toAdd.find(l => l.phone === lead.phone) : null;
 
@@ -468,8 +494,15 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       rowIndex++;
     });
 
-    if (duplicates.length > 0) {
-      const msg = `Found ${duplicates.length} duplicate entries:\n\n${duplicates.slice(0, 10).join('\n')}${duplicates.length > 10 ? '\n...and more.' : ''}\n\nDo you want to skip these duplicates and import the remaining ${toAdd.length} leads?`;
+    if (invalidFields.length > 0 || duplicates.length > 0) {
+      let msg = '';
+      if (invalidFields.length > 0) {
+        msg += `Found ${invalidFields.length} entries with invalid fields:\n${invalidFields.slice(0, 10).join('\n')}${invalidFields.length > 10 ? '\n...and more.' : ''}\n\n`;
+      }
+      if (duplicates.length > 0) {
+        msg += `Found ${duplicates.length} duplicate entries:\n${duplicates.slice(0, 10).join('\n')}${duplicates.length > 10 ? '\n...and more.' : ''}\n\n`;
+      }
+      msg += `Do you want to skip these and import the remaining ${toAdd.length} leads?`;
       if (!window.confirm(msg)) {
         return; // User cancelled
       }
