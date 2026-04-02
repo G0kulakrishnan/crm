@@ -200,7 +200,7 @@ export default function AuthScreen({ settings }) {
   return (
     <div className="auth-screen">
       {/* LEFT PANEL */}
-      <div className="auth-left" style={{ justifyContent: 'center', padding: '0 60px' }}>
+      <div className="auth-left" style={{ justifyContent: 'center', alignItems: 'flex-start', padding: '0 60px' }}>
         <div style={{ textAlign: 'left', marginBottom: 12 }}>
           <div style={{ width: 52, height: 52, background: 'var(--accent)', borderRadius: 14, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16, fontWeight: 800, fontSize: 18, color: '#fff' }}>{settings?.brandShort || 'T2G'}</div>
           <h1 style={{ fontSize: 32, marginBottom: 12 }}>{settings?.brandName || 'T2GCRM'}</h1>
