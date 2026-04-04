@@ -773,6 +773,46 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                 </div>
 
                 <div style={{ marginTop: 30, paddingTop: 20, borderTop: '2px dashed var(--border)' }}>
+                  <h4 style={{ marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    Team Permissions
+                  </h4>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 16, background: 'var(--bg-soft)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                    <label style={{ position: 'relative', display: 'inline-block', width: 44, height: 24, flexShrink: 0 }}>
+                      <input
+                        type="checkbox"
+                        checked={profile?.teamCanSeeAllLeads !== false}
+                        onChange={async (e) => {
+                          if (profileId) {
+                            await db.transact(db.tx.userProfiles[profileId].update({ teamCanSeeAllLeads: e.target.checked }));
+                            toast(e.target.checked ? 'Team members can now see all leads' : 'Team members can only see their assigned leads', 'success');
+                          }
+                        }}
+                        style={{ opacity: 0, width: 0, height: 0 }}
+                      />
+                      <span style={{
+                        position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                        background: profile?.teamCanSeeAllLeads !== false ? 'var(--accent)' : '#cbd5e1',
+                        borderRadius: 24, transition: '.3s',
+                      }}>
+                        <span style={{
+                          position: 'absolute', height: 18, width: 18, left: profile?.teamCanSeeAllLeads !== false ? 22 : 3, bottom: 3,
+                          background: '#fff', borderRadius: '50%', transition: '.3s',
+                        }} />
+                      </span>
+                    </label>
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: 13 }}>Team members can see all leads</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                        {profile?.teamCanSeeAllLeads !== false
+                          ? 'Enabled: Team members can view all leads in the system'
+                          : 'Disabled: Team members can only see leads assigned to them'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 30, paddingTop: 20, borderTop: '2px dashed var(--border)' }}>
                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div>
                         <h4 style={{ marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
