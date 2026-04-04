@@ -96,16 +96,15 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     }
   }, [leads]);
 
-  // Fetch saved settings from user profile (owner) or localStorage (team member)
+  // Fetch saved settings from localStorage (per user)
   const profile = data?.userProfiles?.[0];
   const profileId = profile?.id;
   const myViewConfig = useMemo(() => {
-    if (perms?.isOwner) return null;
     try { return JSON.parse(localStorage.getItem(`leadView_${user.email}`)); } catch { return null; }
-  }, [perms?.isOwner, user.email]);
-  const savedCols = myViewConfig?.leadCols || profile?.leadCols;
-  const savedLeadStages = myViewConfig?.leadStages || profile?.leadStages;
-  const savedDefaultPageSize = myViewConfig?.defaultPageSize || profile?.defaultPageSize || 25;
+  }, [user.email]);
+  const savedCols = myViewConfig?.leadCols;
+  const savedLeadStages = myViewConfig?.leadStages;
+  const savedDefaultPageSize = myViewConfig?.defaultPageSize || 25;
 
   // Sync pageSize with profile default ONLY when profile loads or default changes
   useEffect(() => {
@@ -705,37 +704,22 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     }
   };
 
-  const saveViewConfig = async (colsToSave, stagesVisible, defaultSize) => {
-    if (perms?.isOwner) {
-      if (profileId) {
-        await db.transact(db.tx.userProfiles[profileId].update({
-          leadCols: colsToSave,
-          leadStages: stagesVisible,
-          defaultPageSize: defaultSize
-        }));
-      } else {
-        await db.transact(db.tx.userProfiles[id()].update({
-          leadCols: colsToSave,
-          leadStages: stagesVisible,
-          defaultPageSize: defaultSize,
-          userId: ownerId
-        }));
-      }
-    } else {
-      localStorage.setItem(`leadView_${user.email}`, JSON.stringify({
-        leadCols: colsToSave,
-        leadStages: stagesVisible,
-        defaultPageSize: defaultSize
-      }));
-    }
+  const saveViewConfig = (colsToSave, stagesVisible, defaultSize) => {
+    localStorage.setItem(`leadView_${user.email}`, JSON.stringify({
+      leadCols: colsToSave,
+      leadStages: stagesVisible,
+      defaultPageSize: defaultSize
+    }));
     setPageSize(defaultSize);
     setColModal(false);
     toast('View configuration saved', 'success');
   };
 
   const resetViewConfig = () => {
-    if (!perms?.isOwner) localStorage.removeItem(`leadView_${user.email}`);
-    saveViewConfig(allPossibleCols, allStages, 25);
+    localStorage.removeItem(`leadView_${user.email}`);
+    setPageSize(25);
+    setColModal(false);
+    toast('View reset to default', 'success');
   };
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
