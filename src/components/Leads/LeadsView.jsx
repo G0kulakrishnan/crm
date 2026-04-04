@@ -67,8 +67,10 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   });
   const teamCanSeeAllLeads = data?.userProfiles?.[0]?.teamCanSeeAllLeads !== false;
   const allLeads = (data?.leads || []).map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
+  const myTeamMember = (data?.teamMembers || []).find(t => t.email === user.email);
+  const myName = myTeamMember?.name || user.name || '';
   const leads = (!perms?.isOwner && !teamCanSeeAllLeads)
-    ? allLeads.filter(l => l.assign === user.email || l.assign === user.name)
+    ? allLeads.filter(l => l.assign === user.email || l.assign === myName)
     : allLeads;
   const customers = data?.customers || [];
   const team = data?.teamMembers || [];
@@ -168,7 +170,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       .filter(l => {
         if (!staffFilter) return true;
         if (staffFilter === 'unassigned') return !l.assign;
-        if (staffFilter === 'my') return l.assign === user.email || l.assign === user.name;
+        if (staffFilter === 'my') return l.assign === user.email || l.assign === myName;
         return l.assign === staffFilter;
       })
       .filter(l => {
