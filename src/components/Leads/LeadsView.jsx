@@ -34,7 +34,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const [search, setSearch] = useState('');
   const [srcFilter, setSrcFilter] = useState('');
   const [stgFilter, setStgFilter] = useState('');
-  const [staffFilter, setStaffFilter] = useState('');
+  const [staffFilter, setStaffFilter] = useState('my');
   const [modal, setModal] = useState(false);
   const [editData, setEditData] = useState(null);
   const [form, setForm] = useState(EMPTY_LEAD);
