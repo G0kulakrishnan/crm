@@ -182,6 +182,8 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
     return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
   }, []);
 
+  const mod = (key) => planEnforcement?.isModuleEnabled(key) !== false;
+
   const handleReminderClick = (info) => {
     if (!info) return;
     if (info.type === 'amc') {
@@ -204,38 +206,38 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
           <div className="sub">{`${greeting}! ${now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}`}</div>
         </div>
         <div style={{ display: 'flex', gap: 6 }}>
-          {stats.amcExp > 0 && <span className="rem-badge">🛡 {stats.amcExp} AMC expiring</span>}
+          {stats.amcExp > 0 && mod('amc') && <span className="rem-badge">🛡 {stats.amcExp} AMC expiring</span>}
         </div>
       </div>
 
       {/* Stats */}
       <div className="stat-grid">
-        {perms.can('Leads', 'list') === true && (
+        {perms.can('Leads', 'list') === true && mod('leads') && (
           <>
             <div className="stat-card sc-green"><div className="lbl">Total Leads</div><div className="val">{leads.length}</div></div>
             <div className="stat-card sc-blue"><div className="lbl">Active</div><div className="val">{stats.active}</div></div>
             <div className="stat-card sc-red"><div className="lbl">Overdue Follow</div><div className="val">{stats.overdue}</div></div>
           </>
         )}
-        {perms.can('Quotations', 'list') === true && (
+        {perms.can('Quotations', 'list') === true && mod('quotations') && (
           <div className="stat-card sc-yellow"><div className="lbl">Quotations</div><div className="val">{quotes.length}</div></div>
         )}
-        {perms.can('Invoices', 'list') === true && (
+        {perms.can('Invoices', 'list') === true && mod('invoices') && (
           <div className="stat-card sc-purple"><div className="lbl">Invoices</div><div className="val">{invoices.length}</div></div>
         )}
-        {perms.can('Projects', 'list') === true && (
+        {perms.can('Projects', 'list') === true && mod('projects') && (
           <div className="stat-card sc-teal"><div className="lbl">Projects</div><div className="val">{stats.inProgress}</div></div>
         )}
-        {perms.can('AMC', 'list') === true && (
+        {perms.can('AMC', 'list') === true && mod('amc') && (
           <div className="stat-card sc-red"><div className="lbl">AMC Expiring</div><div className="val">{stats.amcExp}</div></div>
         )}
-        {perms.can('Products', 'list') === true && (
+        {perms.can('Products', 'list') === true && mod('products') && (
           <>
             <div className="stat-card sc-red" style={{ background: '#fff5f5', borderColor: '#feb2b2' }}><div className="lbl" style={{ color: '#c53030' }}>Out of Stock</div><div className="val" style={{ color: '#c53030' }}>{stats.outOfStock}</div></div>
             <div className="stat-card sc-yellow" style={{ background: '#fffff0', borderColor: '#faf089' }}><div className="lbl" style={{ color: '#b7791f' }}>Low Stock</div><div className="val" style={{ color: '#b7791f' }}>{stats.lowStock}</div></div>
           </>
         )}
-        {perms.can('Ecommerce', 'list') === true && (
+        {perms.can('Ecommerce', 'list') === true && mod('ecommerce') && (
           <>
             <div className="stat-card sc-blue" style={{ background: '#eff6ff', borderColor: '#bfdbfe' }}><div className="lbl" style={{ color: '#1d4ed8' }}>Store Orders</div><div className="val" style={{ color: '#1d4ed8' }}>{ecomStats.total}</div></div>
             <div className="stat-card sc-green" style={{ background: '#f0fdf4', borderColor: '#bbf7d0' }}><div className="lbl" style={{ color: '#15803d' }}>Store Revenue</div><div className="val" style={{ color: '#15803d' }}>{fmt(ecomStats.revenue)}</div></div>
@@ -246,7 +248,7 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
       {/* Charts Row */}
       <div className="dash-grid-2">
         {/* Source Chart */}
-        {perms.can('Leads', 'list') === true && (
+        {perms.can('Leads', 'list') === true && mod('leads') && (
           <div className="tw">
             <div className="tw-head"><h3>Leads by Source</h3></div>
             <div style={{ padding: '14px 16px' }}>
@@ -264,7 +266,7 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
         )}
 
         {/* Reminders */}
-        {(perms.can('Leads', 'list') === true || perms.can('AMC', 'list') === true) && (
+        {((perms.can('Leads', 'list') === true && mod('leads')) || (perms.can('AMC', 'list') === true && mod('amc'))) && (
           <div className="tw">
             <div className="tw-head"><h3>⏰ Upcoming Reminders</h3></div>
             <div style={{ padding: '6px 0' }}>
@@ -283,7 +285,7 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
 
       {/* Recent Leads + Calendar */}
       <div className="dash-grid-2">
-        {perms.can('Leads', 'list') === true && (
+        {perms.can('Leads', 'list') === true && mod('leads') && (
           <>
             <div className="tw">
               <div className="tw-head"><h3>Recent Leads</h3></div>
@@ -328,7 +330,7 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
         )}
 
         {/* P&L Summary */}
-        {perms.can('Invoices', 'list') === true && (
+        {perms.can('Invoices', 'list') === true && mod('invoices') && (
           <div className="tw">
             <div className="tw-head"><h3>💰 Profit &amp; Loss Summary</h3><span style={{ fontSize: 11, color: 'var(--muted)' }}>Based on Paid Invoices</span></div>
             <div className="pnl-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
@@ -351,7 +353,7 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
         )}
 
         {/* Revenue Trend */}
-        {perms.can('Invoices', 'list') === true && (
+        {perms.can('Invoices', 'list') === true && mod('invoices') && (
           <div className="tw">
             <div className="tw-head"><h3>📈 Monthly Revenue Trend</h3></div>
             <div style={{ padding: '24px 20px', display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, height: 160 }}>
@@ -370,7 +372,7 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
         )}
 
         {/* Calendar */}
-        {perms.can('Leads', 'list') === true && (
+        {perms.can('Leads', 'list') === true && mod('leads') && (
           <div className="tw">
             <div className="tw-head">
               <h3>Follow-Up Calendar</h3>
@@ -402,7 +404,7 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
 
       {/* Ecom & Appointments Row */}
       <div className="dash-grid-2" style={{ marginTop: 18 }}>
-        {perms.can('Ecommerce', 'list') === true && (
+        {perms.can('Ecommerce', 'list') === true && mod('ecommerce') && (
           <div className="tw">
             <div className="tw-head"><h3>Recent Store Orders</h3></div>
             <table>
@@ -424,7 +426,7 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
           </div>
         )}
 
-        {perms.can('Appointments', 'list') === true && (
+        {perms.can('Appointments', 'list') === true && mod('appointments') && (
           <div className="tw">
             <div className="tw-head"><h3>Appointments Today</h3></div>
             <div style={{ padding: 0 }}>
