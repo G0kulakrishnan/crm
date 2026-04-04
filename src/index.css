@@ -277,12 +277,17 @@ tr:hover td { background: #f8faf9; }
 .notif-btn-wrap { position: relative; display: inline-flex; }
 
 /* KANBAN */
-.kanban { display: flex; gap: 12px; overflow-x: auto; padding: 5px 0 20px; min-height: 450px; scrollbar-width: thin; align-items: flex-start; justify-content: flex-start; }
+.kanban-wrapper { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.kanban { display: flex; gap: 12px; overflow-x: auto; padding: 5px 0 20px; flex: 1; min-height: 0; scrollbar-width: thin; align-items: flex-start; justify-content: flex-start; }
 .kanban::-webkit-scrollbar { height: 8px; }
 .kanban::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 .kanban::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-.kb-col { background: var(--bg); border-radius: 12px; width: 280px; min-width: 280px; flex: 0 0 280px; padding: 12px; flex-shrink: 0; display: flex; flex-direction: column; }
+.kb-col { background: var(--bg); border-radius: 12px; width: 280px; min-width: 280px; flex: 0 0 280px; padding: 12px; flex-shrink: 0; display: flex; flex-direction: column; max-height: 100%; overflow: hidden; }
+.kb-col-cards { flex: 1; overflow-y: auto; min-height: 0; scrollbar-width: thin; }
+.kb-col-cards::-webkit-scrollbar { width: 4px; }
+.kb-col-cards::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+.kb-col-cards::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 .kb-col-head { font-size: 11px; font-weight: 700; margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; flex-shrink: 0; }
 .kb-col-head span { background: var(--surface); border-radius: 20px; padding: 2px 7px; font-size: 10px; border: 1px solid var(--border); }
 .kb-card { background: var(--surface); border-radius: 8px; padding: 11px; margin-bottom: 7px; border: 1px solid var(--border); cursor: pointer; transition: .15s; position: relative; }
@@ -447,7 +452,7 @@ tr:hover td { background: #f8faf9; }
   .tab { white-space: nowrap; flex-shrink: 0; }
 
   /* Kanban */
-  .kanban { min-height: 350px; padding-bottom: 10px; }
+  .kanban { padding-bottom: 10px; }
   .kb-col { width: 260px; min-width: 260px; flex: 0 0 260px; }
   
   /* Notification Panel */
@@ -476,7 +481,7 @@ tr:hover td { background: #f8faf9; }
   .mo-head { padding: 14px 16px 10px; }
   .mo-body { padding: 16px; }
   .mo-foot { padding: 12px 16px; }
-  .kanban { min-height: 300px; }
+  .kanban { }
   .kb-col { width: 240px; min-width: 240px; flex: 0 0 240px; }
 }
 /* PRINT STYLES */

@@ -1203,7 +1203,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         </div>
       ) : (
         /* KANBAN */
-        <div className="kanban-wrapper">
+        <div className="kanban-wrapper" style={{ height: 'calc(100vh - 220px)' }}>
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 15, flexWrap: 'wrap', alignItems: 'center' }}>
               <div className="sw" style={{ width: 200 }}>
                 <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
@@ -1251,6 +1251,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                 }}
               >
                 <div className="kb-col-head">{stage} <span>{cards.length}</span></div>
+                <div className="kb-col-cards">
                 {cards.map(l => (
                   <div
                     key={l.id}
@@ -1290,6 +1291,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                     </div>
                   </div>
                 ))}
+                </div>
               </div>
             );
           })}
