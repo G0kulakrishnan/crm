@@ -139,29 +139,29 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                   <div style={{ width: '55%' }}>
                     {profile.logo && <img src={profile.logo} alt="Logo" style={{ height: '70px', maxWidth: '200px', objectFit: 'contain', marginBottom: '15px' }} />}
                     <div style={{ fontSize: '18px', fontWeight: '800', color: '#111', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '-0.5px' }}>{profile.bizName}</div>
-                    <div style={{ fontSize: '12px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6', maxWidth: '300px' }}>{profile.address}</div>
+                    <div style={{ fontSize: '12px', color: '#000', whiteSpace: 'pre-wrap', lineHeight: '1.6', maxWidth: '300px' }}>{profile.address}</div>
                     {profile.gstin && <div style={{ fontSize: '11px', marginTop: '8px', fontWeight: '700', color: '#333' }}>GSTIN: {profile.gstin}</div>}
                   </div>
                   <div style={{ width: '40%', textAlign: 'right' }}>
                     <h1 style={{ fontSize: '36px', fontWeight: '200', margin: '0 0 20px 0', color: '#000', textTransform: 'uppercase', letterSpacing: '1px' }}>{type === 'Invoice' ? 'TAX INVOICE' : 'QUOTATION'}</h1>
                     <div style={{ display: 'inline-block', textAlign: 'left', minWidth: '240px', borderTop: '2px solid #111', paddingTop: '10px' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-                        <span style={{ color: '#555', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Reference</span>
+                        <span style={{ color: '#000', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Reference</span>
                         <strong style={{ fontSize: '12px', color: '#111' }}>{data.no}</strong>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-                        <span style={{ color: '#555', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Date</span>
+                        <span style={{ color: '#000', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Date</span>
                         <strong style={{ fontSize: '12px', color: '#111' }}>{fmtD(data.date)}</strong>
                       </div>
                       {(type === 'Invoice' && data.dueDate) && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-                          <span style={{ color: '#555', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Due Date</span>
+                          <span style={{ color: '#000', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Due Date</span>
                           <strong style={{ fontSize: '12px', color: '#111' }}>{fmtD(data.dueDate)}</strong>
                         </div>
                       )}
                       {(type !== 'Invoice' && data.validUntil) && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #eee' }}>
-                          <span style={{ color: '#555', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Valid Until</span>
+                          <span style={{ color: '#000', fontSize: '11px', fontWeight: '600', textTransform: 'uppercase' }}>Valid Until</span>
                           <strong style={{ fontSize: '12px', color: '#111' }}>{fmtD(data.validUntil)}</strong>
                         </div>
                       )}
@@ -174,15 +174,15 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               <tr className="print-content-row"><td className="print-content-cell" style={{ padding: '0 20px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', paddingTop: '15px', borderTop: '1px solid #eee' }}>
                   <div style={{ width: '45%' }}>
-                    <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.5px' }}>Bill To</div>
+                    <div style={{ fontSize: '11px', color: '#000', textTransform: 'uppercase', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.5px' }}>Bill To</div>
                     <div style={{ fontSize: '16px', fontWeight: '800', color: '#111', marginBottom: '6px' }}>{clientMatch.companyName || data.companyName || data.client}</div>
-                    {clientMatch.address && <div style={{ fontSize: '12px', color: '#444', whiteSpace: 'pre-wrap', lineHeight: '1.6', marginTop: '6px' }}>{clientMatch.address}</div>}
+                    {clientMatch.address && <div style={{ fontSize: '12px', color: '#000', whiteSpace: 'pre-wrap', lineHeight: '1.6', marginTop: '6px' }}>{clientMatch.address}</div>}
                     {clientMatch.gstin && <div style={{ fontSize: '11px', marginTop: '10px', fontWeight: '700', color: '#333' }}>GSTIN: {clientMatch.gstin}</div>}
                   </div>
                   {data.shipTo ? (
                     <div style={{ width: '45%' }}>
-                      <div style={{ fontSize: '11px', color: '#888', textTransform: 'uppercase', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.5px' }}>Ship To</div>
-                      <div style={{ fontSize: '13px', color: '#444', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.shipTo}</div>
+                      <div style={{ fontSize: '11px', color: '#000', textTransform: 'uppercase', fontWeight: '700', marginBottom: '8px', letterSpacing: '0.5px' }}>Ship To</div>
+                      <div style={{ fontSize: '13px', color: '#000', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.shipTo}</div>
                     </div>
                   ) : null}
                 </div>
@@ -215,26 +215,26 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                       const taxAmt = itemTotal * taxRate / 100;
                       return (
                         <tr key={i}>
-                          <td style={{ textAlign: 'center', color: '#666' }}>{i + 1}</td>
+                          <td style={{ textAlign: 'center', color: '#000' }}>{i + 1}</td>
                           <td>
                             <div style={{ fontWeight: '700', fontSize: '12px' }}>{it.name}</div>
-                            {it.sku && <div style={{ fontSize: '10px', fontWeight: '500', color: '#666', marginTop: '4px' }}>Code: {it.sku}</div>}
-                            {it.desc && <div style={{ fontSize: '11px', color: '#444', marginTop: '4px', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{it.desc}</div>}
+                            {it.sku && <div style={{ fontSize: '10px', fontWeight: '500', color: '#000', marginTop: '4px' }}>Code: {it.sku}</div>}
+                            {it.desc && <div style={{ fontSize: '11px', color: '#000', marginTop: '4px', whiteSpace: 'pre-wrap', lineHeight: '1.5' }}>{it.desc}</div>}
                           </td>
                           <td style={{ textAlign: 'center' }}>{Number(it.qty)} {it.unit || ''}</td>
                           <td style={{ textAlign: 'right' }}>{fmt(it.rate).replace('₹', '')}</td>
                           {isInterState ? (
-                            <td style={{ textAlign: 'right', color: '#555' }}>
+                            <td style={{ textAlign: 'right', color: '#000' }}>
                               <div>{itemTotal === 0 ? '-' : fmt(taxAmt).replace('₹', '')}</div>
                               <div style={{ fontSize: '9px', opacity: 0.7 }}>({taxRate}%)</div>
                             </td>
                           ) : (
                             <>
-                              <td style={{ textAlign: 'right', color: '#555' }}>
+                              <td style={{ textAlign: 'right', color: '#000' }}>
                                 <div>{itemTotal === 0 ? '-' : fmt(taxAmt / 2).replace('₹', '')}</div>
                                 <div style={{ fontSize: '9px', opacity: 0.7 }}>({taxRate / 2}%)</div>
                               </td>
-                              <td style={{ textAlign: 'right', color: '#555' }}>
+                              <td style={{ textAlign: 'right', color: '#000' }}>
                                 <div>{itemTotal === 0 ? '-' : fmt(taxAmt / 2).replace('₹', '')}</div>
                                 <div style={{ fontSize: '9px', opacity: 0.7 }}>({taxRate / 2}%)</div>
                               </td>
@@ -255,13 +255,13 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                   {data.notes && (
                     <div style={{ marginBottom: '15px' }}>
                       <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px', textTransform: 'uppercase' }}>Notes</div>
-                      <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.notes}</div>
+                      <div style={{ fontSize: '11px', color: '#000', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.notes}</div>
                     </div>
                   )}
                   {data.terms && (
                     <div>
                       <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', marginBottom: '6px', textTransform: 'uppercase' }}>Terms & Conditions</div>
-                      <div style={{ fontSize: '11px', color: '#555', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.terms}</div>
+                      <div style={{ fontSize: '11px', color: '#000', whiteSpace: 'pre-wrap', lineHeight: '1.6' }}>{data.terms}</div>
                     </div>
                   )}
                 </div>
@@ -279,13 +279,13 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                     {profile.accHolder ? (
                       <div>
                         <div style={{ fontSize: '12px', fontWeight: '800', color: '#111', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Bank Details</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', gap: '8px', fontSize: '11px', color: '#333' }}>
-                          <span style={{ color: '#666' }}>Bank Name</span><span>:</span><strong style={{ color: '#111' }}>{profile.bankName}</strong>
-                          <span style={{ color: '#666' }}>Account Name</span><span>:</span><strong style={{ color: '#111' }}>{profile.accHolder}</strong>
-                          <span style={{ color: '#666' }}>Account No.</span><span>:</span><strong style={{ color: '#111' }}>{profile.accountNo}</strong>
-                          <span style={{ color: '#666' }}>IFSC Code</span><span>:</span><strong style={{ color: '#111' }}>{profile.ifsc}</strong>
-                          {profile.accType && <><span style={{ color: '#666' }}>Account Type</span><span>:</span><strong style={{ color: '#111' }}>{profile.accType}</strong></>}
-                          {profile.bankExtra && <><span style={{ color: '#666' }}>Branch</span><span>:</span><strong style={{ color: '#111' }}>{profile.bankExtra}</strong></>}
+                        <div style={{ display: 'grid', gridTemplateColumns: '110px 10px 1fr', gap: '8px', fontSize: '11px', color: '#000' }}>
+                          <span style={{ color: '#000' }}>Bank Name</span><span>:</span><strong style={{ color: '#000' }}>{profile.bankName}</strong>
+                          <span style={{ color: '#000' }}>Account Name</span><span>:</span><strong style={{ color: '#000' }}>{profile.accHolder}</strong>
+                          <span style={{ color: '#000' }}>Account No.</span><span>:</span><strong style={{ color: '#000' }}>{profile.accountNo}</strong>
+                          <span style={{ color: '#000' }}>IFSC Code</span><span>:</span><strong style={{ color: '#000' }}>{profile.ifsc}</strong>
+                          {profile.accType && <><span style={{ color: '#000' }}>Account Type</span><span>:</span><strong style={{ color: '#000' }}>{profile.accType}</strong></>}
+                          {profile.bankExtra && <><span style={{ color: '#000' }}>Branch</span><span>:</span><strong style={{ color: '#000' }}>{profile.bankExtra}</strong></>}
                         </div>
                       </div>
                     ) : (
@@ -319,7 +319,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                         <tr className="z-total"><td>Total</td><td style={{ whiteSpace: 'nowrap' }}>{fmt(ptots.total)}</td></tr>
                         
                         {type === 'Invoice' && ptots.paymentsTotal > 0 && (
-                          <tr><td style={{ paddingTop: '10px', color: '#555' }}>Payment Made</td><td style={{ paddingTop: '10px', color: '#dc2626', fontWeight: '600' }}>(-) {fmt(ptots.paymentsTotal).replace('₹', '')}</td></tr>
+                          <tr><td style={{ paddingTop: '10px', color: '#000' }}>Payment Made</td><td style={{ paddingTop: '10px', color: '#dc2626', fontWeight: '600' }}>(-) {fmt(ptots.paymentsTotal).replace('₹', '')}</td></tr>
                         )}
                         {type === 'Invoice' && (
                           <tr><td style={{ paddingTop: ptots.paymentsTotal > 0 ? '8px' : '15px', color: '#111', fontWeight: '800' }}>Balance Due</td><td style={{ paddingTop: ptots.paymentsTotal > 0 ? '8px' : '15px', color: '#111', fontWeight: '800', fontSize: '16px' }}>{fmt(ptots.balanceDue)}</td></tr>
@@ -327,7 +327,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
                       </tbody>
                     </table>
                     <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid #ddd' }}>
-                      <div style={{ fontSize: '9px', color: '#666', textTransform: 'uppercase', fontWeight: '700', marginBottom: '2px' }}>Total In Words</div>
+                      <div style={{ fontSize: '9px', color: '#000', textTransform: 'uppercase', fontWeight: '700', marginBottom: '2px' }}>Total In Words</div>
                       <div style={{ fontSize: '11px', fontWeight: '700', color: '#111', fontStyle: 'italic' }}>{numberToWords(ptots.total)}</div>
                     </div>
                   </div>
@@ -336,7 +336,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
 
               {settings?.showBranding !== false && (
               <tr><td style={{ padding: '8px 20px' }}>
-                <div style={{ fontSize: '10px', fontWeight: '600', color: '#999' }}>POWERED BY <strong style={{ color: '#555' }}>{settings?.brandName || 'T2GCRM'}</strong></div>
+                <div style={{ fontSize: '10px', fontWeight: '600', color: '#555' }}>POWERED BY <strong style={{ color: '#000' }}>{settings?.brandName || 'T2GCRM'}</strong></div>
               </td></tr>
               )}
 
@@ -376,7 +376,7 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
         <div style={{ marginBottom: 60, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
            <div>
              <h1 style={{ fontSize: 24, fontWeight: 300, margin: '0 0 10px 0' }}>{type} <span>#{data.no}</span></h1>
-             <div style={{ fontSize: 12, color: '#999' }}>Issued on {fmtD(data.date)}</div>
+             <div style={{ fontSize: 12, color: '#555' }}>Issued on {fmtD(data.date)}</div>
            </div>
            {profile.logo && <img src={profile.logo} alt="Logo" style={{ height: 50, width: 50, objectFit: 'contain' }} />}
         </div>
@@ -386,15 +386,15 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               {profile.logo && <img src={profile.logo} alt="Logo" style={{ height: 70, width: 70, objectFit: 'contain' }} />}
               <div>
                 <h1 style={{ margin: 0, fontSize: 32, fontWeight: 800, color: 'var(--accent)' }}>{type.toUpperCase()}</h1>
-                <div style={{ fontSize: 13, color: '#666', marginTop: 5 }}>No: <strong>{data.no}</strong></div>
-                <div style={{ fontSize: 13, color: '#666' }}>Date: {fmtD(data.date)}</div>
-                {data.dueDate && <div style={{ fontSize: 13, color: '#666' }}>Due Date: {fmtD(data.date)}</div>}
+                <div style={{ fontSize: 13, color: '#000', marginTop: 5 }}>No: <strong>{data.no}</strong></div>
+                <div style={{ fontSize: 13, color: '#000' }}>Date: {fmtD(data.date)}</div>
+                {data.dueDate && <div style={{ fontSize: 13, color: '#000' }}>Due Date: {fmtD(data.date)}</div>}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <h2 style={{ margin: 0, fontSize: 20 }}>{profile.bizName || 'Your Business'}</h2>
-              <div style={{ fontSize: 13, color: '#666', marginTop: 4, whiteSpace: 'pre-wrap' }}>{profile.address}</div>
-              {profile.gstin && <div style={{ fontSize: 13, color: '#666' }}>GSTIN: {profile.gstin}</div>}
+              <div style={{ fontSize: 13, color: '#000', marginTop: 4, whiteSpace: 'pre-wrap' }}>{profile.address}</div>
+              {profile.gstin && <div style={{ fontSize: 13, color: '#000' }}>GSTIN: {profile.gstin}</div>}
             </div>
           </div>
         )}
@@ -403,16 +403,16 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
         <div style={{ marginBottom: 40, borderLeft: t === 'Classic' ? '3px solid var(--accent)' : 'none', paddingLeft: t === 'Classic' ? 15 : 0, display: 'flex', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', gap: 60 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Billed To</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#000', textTransform: 'uppercase' }}>Billed To</div>
               <div style={{ fontSize: t === 'Modern' ? 20 : 16, fontWeight: 700, marginTop: 4 }}>
                 {clientMatch.companyName || data.companyName || data.client}
               </div>
-              {clientMatch?.address && <div style={{ fontSize: 12, color: '#666', marginTop: 10, whiteSpace: 'pre-wrap' }}>{clientMatch.address}</div>}
-              {clientMatch?.gstin && <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>GSTIN: {clientMatch.gstin}</div>}
+              {clientMatch?.address && <div style={{ fontSize: 12, color: '#000', marginTop: 10, whiteSpace: 'pre-wrap' }}>{clientMatch.address}</div>}
+              {clientMatch?.gstin && <div style={{ fontSize: 12, color: '#000', marginTop: 4 }}>GSTIN: {clientMatch.gstin}</div>}
             </div>
             {data.shipTo && (
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#666', textTransform: 'uppercase' }}>Ship To</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#000', textTransform: 'uppercase' }}>Ship To</div>
                 <div style={{ fontSize: 13, color: '#333', marginTop: 4, whiteSpace: 'pre-wrap' }}>{data.shipTo}</div>
               </div>
             )}
@@ -435,8 +435,8 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
               <tr key={i} style={{ borderBottom: '1px solid #eee' }}>
                 <td style={{ padding: '14px 8px', fontSize: 13 }}>
                   <div><strong>{it.name}</strong></div>
-                  {it.sku && <div style={{ fontSize: 10, color: '#444', marginTop: 2 }}>Code: {it.sku}</div>}
-                  {it.desc && <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>{it.desc}</div>}
+                  {it.sku && <div style={{ fontSize: 10, color: '#000', marginTop: 2 }}>Code: {it.sku}</div>}
+                  {it.desc && <div style={{ fontSize: 11, color: '#000', marginTop: 2 }}>{it.desc}</div>}
                 </td>
                 <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'center' }}>{it.qty} {it.unit || ''}</td>
                 <td style={{ padding: '14px 8px', fontSize: 13, textAlign: 'right' }}>{fmt(it.rate)}</td>
@@ -449,13 +449,13 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
 
         {/* Totals Section */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div style={{ width: '45%', fontSize: 12, color: '#555' }}>
+          <div style={{ width: '45%', fontSize: 12, color: '#000' }}>
             {data.notes && <div style={{ marginBottom: 15 }}><strong>Notes:</strong><br/>{data.notes}</div>}
             {data.terms && <div><strong>Terms:</strong><br/>{data.terms}</div>}
           </div>
           <div style={{ width: '40%', background: t === 'Modern' ? '#f8fafc' : 'transparent', padding: t === 'Modern' ? 20 : 0, borderRadius: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}>
-              <span style={{ color: '#666' }}>Subtotal</span><span>{fmt(ptots.sub)}</span>
+              <span style={{ color: '#000' }}>Subtotal</span><span>{fmt(ptots.sub)}</span>
             </div>
             {ptots.discAmt > 0 && <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13, color: '#d97706' }}><span>Discount ({data.discType === '₹' ? 'Flat' : `${data.disc}%`})</span><span>(-) {fmt(ptots.discAmt)}</span></div>}
             
@@ -497,12 +497,12 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
           <div style={{ marginTop: 40, borderTop: '1px solid #eee', paddingTop: 24, display: 'flex', justifyContent: 'space-between' }}>
             {profile.bankName && (
               <div style={{ fontSize: 12 }}>
-                <div style={{ fontWeight: 700, color: '#666', marginBottom: 8, textTransform: 'uppercase' }}>Bank Details</div>
+                <div style={{ fontWeight: 700, color: '#000', marginBottom: 8, textTransform: 'uppercase' }}>Bank Details</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', rowGap: 4 }}>
-                  <span style={{ color: '#666' }}>Account:</span><span style={{ fontWeight: 600 }}>{profile.accHolder}</span>
-                  <span style={{ color: '#666' }}>Bank:</span><span>{profile.bankName}</span>
-                  <span style={{ color: '#666' }}>A/C No:</span><span style={{ fontWeight: 600 }}>{profile.accountNo}</span>
-                  <span style={{ color: '#666' }}>IFSC:</span><span>{profile.ifsc}</span>
+                  <span style={{ color: '#000' }}>Account:</span><span style={{ fontWeight: 600 }}>{profile.accHolder}</span>
+                  <span style={{ color: '#000' }}>Bank:</span><span>{profile.bankName}</span>
+                  <span style={{ color: '#000' }}>A/C No:</span><span style={{ fontWeight: 600 }}>{profile.accountNo}</span>
+                  <span style={{ color: '#000' }}>IFSC:</span><span>{profile.ifsc}</span>
                 </div>
                 {profile.bankExtra && (
                   <div style={{ marginTop: '12px', color: '#000', whiteSpace: 'pre-wrap', borderTop: '1px solid #eee', paddingTop: '8px', fontWeight: '700', fontSize: '12px' }}>
