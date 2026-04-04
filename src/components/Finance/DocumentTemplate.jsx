@@ -63,12 +63,12 @@ export default function DocumentTemplate({ data, profile, type = 'Invoice', prev
             
             /* Screen / General Styles (Clean Modern B2B) */
             .z-table { width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px; }
-            .z-table th { background: #f8f9fa; color: #444; padding: 12px 10px; text-transform: uppercase; font-size: 10px; font-weight: 700; text-align: left; border-bottom: 2px solid #ddd; }
+            .z-table th { background: #f8f9fa; color: #000; padding: 12px 10px; text-transform: uppercase; font-size: 10px; font-weight: 700; text-align: left; border-bottom: 2px solid #ddd; }
             .z-table td { padding: 14px 10px; border-bottom: 1px solid #eee; vertical-align: top; color: #111; font-size: 11px; }
             
             .z-summary { width: 100%; border-collapse: collapse; }
             .z-summary td { padding: 8px 10px; font-size: 12px; text-align: right; border: none; }
-            .z-summary td:first-child { color: #555; text-align: left; }
+            .z-summary td:first-child { color: #000; text-align: left; }
             .z-summary tr.z-total td { font-weight: 800; font-size: 16px; color: #000; border-top: 2px solid #000; border-bottom: 2px double #000; padding: 15px 10px; }
             /* Print Frame Box - Screen Mode */
             .print-frame { width: 100%; max-width: 210mm; margin: 0 auto; border-collapse: collapse; background: #fff; box-shadow: 0 5px 20px rgba(0,0,0,0.05); font-family: 'Inter', sans-serif; font-size: 11px; color: #111; border: 2px solid #000; }
