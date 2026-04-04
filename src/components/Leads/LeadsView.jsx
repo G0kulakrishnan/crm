@@ -96,12 +96,16 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     }
   }, [leads]);
 
-  // Fetch saved settings from user profile
+  // Fetch saved settings from user profile (owner) or localStorage (team member)
   const profile = data?.userProfiles?.[0];
   const profileId = profile?.id;
-  const savedCols = profile?.leadCols;
-  const savedLeadStages = profile?.leadStages;
-  const savedDefaultPageSize = profile?.defaultPageSize || 25;
+  const myViewConfig = useMemo(() => {
+    if (perms?.isOwner) return null;
+    try { return JSON.parse(localStorage.getItem(`leadView_${user.email}`)); } catch { return null; }
+  }, [perms?.isOwner, user.email]);
+  const savedCols = myViewConfig?.leadCols || profile?.leadCols;
+  const savedLeadStages = myViewConfig?.leadStages || profile?.leadStages;
+  const savedDefaultPageSize = myViewConfig?.defaultPageSize || profile?.defaultPageSize || 25;
 
   // Sync pageSize with profile default ONLY when profile loads or default changes
   useEffect(() => {
@@ -702,26 +706,37 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   };
 
   const saveViewConfig = async (colsToSave, stagesVisible, defaultSize) => {
-    if (!perms?.isOwner) { toast('Only the business owner can change view configurations', 'error'); return; }
-    if (profileId) {
-      await db.transact(db.tx.userProfiles[profileId].update({ 
-        leadCols: colsToSave, 
-        leadStages: stagesVisible,
-        defaultPageSize: defaultSize 
-      }));
+    if (perms?.isOwner) {
+      if (profileId) {
+        await db.transact(db.tx.userProfiles[profileId].update({
+          leadCols: colsToSave,
+          leadStages: stagesVisible,
+          defaultPageSize: defaultSize
+        }));
+      } else {
+        await db.transact(db.tx.userProfiles[id()].update({
+          leadCols: colsToSave,
+          leadStages: stagesVisible,
+          defaultPageSize: defaultSize,
+          userId: ownerId
+        }));
+      }
     } else {
-      await db.transact(db.tx.userProfiles[id()].update({ 
-        leadCols: colsToSave, 
+      localStorage.setItem(`leadView_${user.email}`, JSON.stringify({
+        leadCols: colsToSave,
         leadStages: stagesVisible,
-        defaultPageSize: defaultSize,
-        userId: ownerId 
+        defaultPageSize: defaultSize
       }));
     }
+    setPageSize(defaultSize);
     setColModal(false);
     toast('View configuration saved', 'success');
   };
 
-  const resetViewConfig = () => saveViewConfig(allPossibleCols, allStages, 25);
+  const resetViewConfig = () => {
+    if (!perms?.isOwner) localStorage.removeItem(`leadView_${user.email}`);
+    saveViewConfig(allPossibleCols, allStages, 25);
+  };
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
   const cf = (k) => (e) => setForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
