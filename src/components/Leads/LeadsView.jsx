@@ -70,7 +70,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const myTeamMember = (data?.teamMembers || []).find(t => t.email === user.email);
   const myName = myTeamMember?.name || user.name || '';
   const leads = (!perms?.isOwner && !teamCanSeeAllLeads)
-    ? allLeads.filter(l => l.assign === user.email || l.assign === myName)
+    ? allLeads.filter(l => !l.assign || l.assign === user.email || l.assign === myName)
     : allLeads;
   const customers = data?.customers || [];
   const team = data?.teamMembers || [];
