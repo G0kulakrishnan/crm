@@ -119,12 +119,12 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   
   const isWon = (s) => s === wonStage;
 
-  // Initialize EMPTY_LEAD values if empty
+  // Initialize EMPTY_LEAD values if empty (only when editing, not creating)
   useEffect(() => {
-    if (form.source === '' && activeSources.length > 0) {
+    if (editData && form.source === '' && activeSources.length > 0) {
       setForm(prev => ({ ...prev, source: activeSources[0], stage: activeStages[0], requirement: activeRequirements[0] }));
     }
-  }, [activeSources, activeStages, activeRequirements, form.source]);
+  }, [activeSources, activeStages, activeRequirements, form.source, editData]);
 
   // Stage visibility filter (used for both tabs and list)
   const visibleLeads = useMemo(() => {
@@ -199,16 +199,16 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     return diff >= 0 && diff <= 7;
   }).length;
 
-  const openCreate = () => { 
-    setEditData(null); 
-    setForm({ 
-      ...EMPTY_LEAD, 
-      source: activeSources[0] || '', 
-      stage: allEnabledStages[0] || '', 
-      requirement: activeRequirements[0] || '',
+  const openCreate = () => {
+    setEditData(null);
+    setForm({
+      ...EMPTY_LEAD,
+      source: '',
+      stage: '',
+      requirement: '',
       productCat: productCats[0] || ''
-    }); 
-    setModal(true); 
+    });
+    setModal(true);
   };
   const openEdit = (l) => { 
     setEditData(l); 
@@ -239,6 +239,8 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     if (!editData && !canCreate) { toast('Permission denied: cannot create leads', 'error'); return; }
     if (!editData && planEnforcement && !planEnforcement.isWithinLimit('maxLeads', leads.length)) { toast('Lead limit reached for your plan. Please upgrade to add more leads.', 'error'); return; }
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
+    if (!form.source) { toast('Please select a source', 'error'); return; }
+    if (!form.stage) { toast('Please select a stage', 'error'); return; }
 
     // Duplicate phone/email check across leads + customers
     const checkPhone = (form.phone || '').trim().toLowerCase();
@@ -851,11 +853,13 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                   <div className="fg"><label>Email</label><input type="email" value={form.email} onChange={f('email')} /></div>
                   <div className="fg"><label>Source</label>
                     <select value={form.source} onChange={f('source')}>
+                      {!form.source && <option value="">Select Source</option>}
                       {activeSources.map(s => <option key={s}>{s}</option>)}
                     </select>
                   </div>
                   <div className="fg"><label>Stage</label>
                     <select value={form.stage} onChange={f('stage')}>
+                      {!form.stage && <option value="">Select Stage</option>}
                       {activeStages.map(s => <option key={s}>{s}</option>)}
                     </select>
                   </div>
@@ -868,6 +872,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                   <div className="fg"><label>Follow Up</label><input type="datetime-local" value={form.followup} onChange={f('followup')} /></div>
                   <div className="fg"><label>Requirement</label>
                     <select value={form.requirement} onChange={f('requirement')}>
+                      {!form.requirement && <option value="">Select Requirement</option>}
                       {activeRequirements.map(l => <option key={l}>{l}</option>)}
                     </select>
                   </div>
@@ -1315,11 +1320,13 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                 <div className="fg"><label>Email</label><input type="email" value={form.email} onChange={f('email')} /></div>
                 <div className="fg"><label>Source</label>
                   <select value={form.source} onChange={f('source')}>
+                    {!form.source && <option value="">Select Source</option>}
                     {activeSources.map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
                 <div className="fg"><label>Stage</label>
                   <select value={form.stage} onChange={f('stage')}>
+                    {!form.stage && <option value="">Select Stage</option>}
                     {allEnabledStages.map(s => <option key={s}>{s}</option>)}
                   </select>
                 </div>
@@ -1332,6 +1339,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                 <div className="fg"><label>Follow Up</label><input type="datetime-local" value={form.followup} onChange={f('followup')} /></div>
                 <div className="fg"><label>Requirement</label>
                   <select value={form.requirement} onChange={f('requirement')}>
+                    {!form.requirement && <option value="">Select Requirement</option>}
                     {activeRequirements.map(l => <option key={l}>{l}</option>)}
                   </select>
                 </div>
