@@ -1002,10 +1002,20 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                     {allStages.map(s => <option key={s}>{s}</option>)}
                   </select>
                   <select className="si" style={{ width: 130 }} value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
-                    <option value="">All Staff</option>
-                    <option value="my">My Leads</option>
-                    <option value="unassigned">Unassigned</option>
-                    {team.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                    {(perms?.isOwner || teamCanSeeAllLeads) ? (
+                      <>
+                        <option value="">All Staff</option>
+                        <option value="my">My Leads</option>
+                        <option value="unassigned">Unassigned</option>
+                        {team.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                      </>
+                    ) : (
+                      <>
+                        <option value="">All</option>
+                        <option value="my">My Leads</option>
+                        <option value="unassigned">Unassigned</option>
+                      </>
+                    )}
                   </select>
                   <button className="btn btn-secondary btn-sm" onClick={() => { 
                     setTempCols(activeCols); 
@@ -1229,10 +1239,20 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                 {allStages.map(s => <option key={s}>{s}</option>)}
               </select>
               <select className="si" style={{ width: 120, padding: '4px 8px' }} value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
-                <option value="">All Staff</option>
-                <option value="my">My Leads</option>
-                <option value="unassigned">Unassigned</option>
-                {team.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                {(perms?.isOwner || teamCanSeeAllLeads) ? (
+                  <>
+                    <option value="">All Staff</option>
+                    <option value="my">My Leads</option>
+                    <option value="unassigned">Unassigned</option>
+                    {team.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  </>
+                ) : (
+                  <>
+                    <option value="">All</option>
+                    <option value="my">My Leads</option>
+                    <option value="unassigned">Unassigned</option>
+                  </>
+                )}
               </select>
           </div>
           <div className="kanban">
