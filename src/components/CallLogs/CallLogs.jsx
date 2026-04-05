@@ -263,54 +263,57 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
 
       {/* Modal */}
       {modal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 999 }} onClick={() => setModal(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--card)', borderRadius: 12, padding: 24, width: '100%', maxWidth: 480, maxHeight: '90vh', overflowY: 'auto', border: '1px solid var(--border)' }}>
-            <h3 style={{ margin: '0 0 16px', fontSize: 16, fontWeight: 700 }}>{editData ? 'Edit Call Log' : 'Log a Call'}</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Phone Number *</label>
-                <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+91 98765 43210" style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, boxSizing: 'border-box' }} />
-                {form.phone && matchLead(form.phone) && (
-                  <div style={{ fontSize: 11, color: '#16a34a', marginTop: 4 }}>Matched lead: {matchLead(form.phone).name}</div>
-                )}
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Contact Name</label>
-                <input value={form.contactName} onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))} placeholder="Contact name" style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, boxSizing: 'border-box' }} />
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Direction</label>
-                  <select value={form.direction} onChange={e => setForm(f => ({ ...f, direction: e.target.value }))} style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }}>
+        <div className="mo open">
+          <div className="mo-box">
+            <div className="mo-head">
+              <h3>{editData ? 'Edit Call Log' : 'Log a Call'}</h3>
+              <button className="btn-icon" onClick={() => setModal(false)}>✕</button>
+            </div>
+            <div className="mo-body">
+              <div className="fgrid">
+                <div className="fg">
+                  <label>Phone Number *</label>
+                  <input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+91..." />
+                  {form.phone && matchLead(form.phone) && (
+                    <div style={{ fontSize: 11, color: '#16a34a', marginTop: 2 }}>Matched lead: {matchLead(form.phone).name}</div>
+                  )}
+                </div>
+                <div className="fg">
+                  <label>Contact Name</label>
+                  <input value={form.contactName} onChange={e => setForm(f => ({ ...f, contactName: e.target.value }))} placeholder="Contact name" />
+                </div>
+                <div className="fg">
+                  <label>Direction</label>
+                  <select value={form.direction} onChange={e => setForm(f => ({ ...f, direction: e.target.value }))}>
                     {CALL_DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Outcome</label>
-                  <select value={form.outcome} onChange={e => setForm(f => ({ ...f, outcome: e.target.value }))} style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }}>
+                <div className="fg">
+                  <label>Outcome</label>
+                  <select value={form.outcome} onChange={e => setForm(f => ({ ...f, outcome: e.target.value }))}>
                     {CALL_OUTCOMES.map(o => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </div>
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Duration (seconds)</label>
-                <input type="number" min="0" value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} placeholder="0" style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Notes</label>
-                <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Call notes..." rows={3} style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, resize: 'vertical', boxSizing: 'border-box' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 4 }}>Link to Lead</label>
-                <select value={form.leadId} onChange={e => setForm(f => ({ ...f, leadId: e.target.value }))} style={{ width: '100%', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }}>
-                  <option value="">Auto-match or select...</option>
-                  {allLeads.map(l => <option key={l.id} value={l.id}>{l.name} {l.phone ? `(${l.phone})` : ''}</option>)}
-                </select>
+                <div className="fg">
+                  <label>Duration (seconds)</label>
+                  <input type="number" min="0" value={form.duration} onChange={e => setForm(f => ({ ...f, duration: e.target.value }))} placeholder="0" />
+                </div>
+                <div className="fg">
+                  <label>Link to Lead</label>
+                  <select value={form.leadId} onChange={e => setForm(f => ({ ...f, leadId: e.target.value }))}>
+                    <option value="">Auto-match or select...</option>
+                    {allLeads.map(l => <option key={l.id} value={l.id}>{l.name} {l.phone ? `(${l.phone})` : ''}</option>)}
+                  </select>
+                </div>
+                <div className="fg span2">
+                  <label>Notes</label>
+                  <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} placeholder="Call notes..." rows={3} />
+                </div>
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
-              <button onClick={() => setModal(false)} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 13, cursor: 'pointer' }}>Cancel</button>
-              <button onClick={save} className="btn btn-primary" style={{ padding: '8px 20px', borderRadius: 8, fontSize: 13, fontWeight: 600 }}>{editData ? 'Update' : 'Save'}</button>
+            <div className="mo-foot">
+              <button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={save}>{editData ? 'Update' : 'Save'}</button>
             </div>
           </div>
         </div>
