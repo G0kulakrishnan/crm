@@ -9,6 +9,7 @@ import authHandler from './api/auth.js';
 import dataHandler from './api/data.js';
 import financeHandler from './api/finance.js';
 import notifyHandler from './api/notify.js';
+import callLogsHandler from './api/call-logs.js';
 import bookHandler from './api/appointments/book.js';
 import checkoutHandler from './api/ecom/checkout.js';
 import cronHandler from './api/cron/process-automations.js';
@@ -47,6 +48,7 @@ app.all('/api/data/:module', (req, res) => {
 // Standard APIs
 app.all('/api/auth', wrap(authHandler));
 app.all('/api/data', wrap(dataHandler));
+app.all('/api/call-logs', wrap(callLogsHandler));
 app.all('/api/finance', wrap(financeHandler));
 app.all('/api/notify', wrap(notifyHandler));
 app.all('/api/appointments/book', wrap(bookHandler));
