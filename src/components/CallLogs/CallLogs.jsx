@@ -264,7 +264,7 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
       {/* Modal */}
       {modal && (
         <div className="mo open">
-          <div className="mo-box">
+          <div className="mo-box" style={{ width: 600 }}>
             <div className="mo-head">
               <h3>{editData ? 'Edit Call Log' : 'Log a Call'}</h3>
               <button className="btn-icon" onClick={() => setModal(false)}>✕</button>
