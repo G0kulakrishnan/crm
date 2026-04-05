@@ -68,6 +68,7 @@ const EcomSettings = lazyWithRetry(() => import('../Ecommerce/EcomSettings'));
 const EcomOrders = lazyWithRetry(() => import('../Ecommerce/EcomOrders'));
 const Appointments = lazyWithRetry(() => import('../Appointments/Appointments'));
 const Distributors = lazyWithRetry(() => import('../Distributors/Distributors'));
+const CallLogs = lazyWithRetry(() => import('../CallLogs/CallLogs'));
 
 const LazyFallback = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60, color: '#64748b', gap: 12 }}>
@@ -376,6 +377,7 @@ export default function MainApp({ user, settings }) {
     appointments: { component: <Appointments ownerId={targetUserId} perms={perms} settings={settings} />, label: 'Appointments' },
     'appointment-settings': { component: <Appointments ownerId={targetUserId} perms={perms} initialTab="settings" settings={settings} />, label: 'Appointments' },
     distributors: { component: <Distributors user={user} ownerId={targetUserId} perms={perms} />, label: 'Distributors' },
+    'call-logs': { component: <CallLogs user={user} perms={perms} ownerId={targetUserId} />, label: 'CallLogs' },
     distributor_performance: { component: <Distributors user={user} ownerId={targetUserId} perms={perms} initialTab="Reports" />, label: 'Distributors' },
     userprofile: { component: <UserProfile user={user} profile={profile} perms={perms} memberProfile={memberProfile} ownerId={targetUserId} />, label: 'Public' },
     manual: { component: <UserManual settings={settings} />, label: 'Public' },

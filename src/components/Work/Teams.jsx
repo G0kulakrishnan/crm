@@ -24,6 +24,7 @@ const MODULES = [
   { key: 'Ecommerce', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'Appointments', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'Integrations', actions: ['view', 'edit'] },
+  { key: 'CallLogs', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'MessagingLogs', actions: ['list'] },
   { key: 'Distributors', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'Settings', actions: ['view'] },

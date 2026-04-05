@@ -25,6 +25,8 @@ const COLLECTION_MAP = {
   'appointmentSettings': 'appointmentSettings',
   'ecomCustomers': 'ecomCustomers',
   'memberStats': 'memberStats',
+  'call-logs': 'callLogs',
+  'callLogs': 'callLogs',
 };
 
 // Normalize module keys to singular entity types for activity logs
@@ -44,6 +46,8 @@ const ENTITY_TYPE_MAP = {
   'subs': 'sub',
   'orders': 'order',
   'appointments': 'appointment',
+  'call-logs': 'callLog',
+  'callLogs': 'callLog',
 };
 
 async function getStatsTx(db, ownerId, actorId, type) {
