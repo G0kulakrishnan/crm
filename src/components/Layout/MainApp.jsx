@@ -54,7 +54,6 @@ const Campaigns = lazyWithRetry(() => import('../Marketing/Campaigns'));
 const Projects = lazyWithRetry(() => import('../Work/Projects'));
 const AllTasks = lazyWithRetry(() => import('../Work/AllTasks'));
 const Teams = lazyWithRetry(() => import('../Work/Teams'));
-const TeamReports = lazyWithRetry(() => import('../Work/TeamReports'));
 const AutomationView = lazyWithRetry(() => import('../Automation/AutomationView'));
 const Reports = lazyWithRetry(() => import('../Reports/Reports'));
 const Settings = lazyWithRetry(() => import('../Settings/Settings'));
@@ -68,7 +67,6 @@ const EcomSettings = lazyWithRetry(() => import('../Ecommerce/EcomSettings'));
 const EcomOrders = lazyWithRetry(() => import('../Ecommerce/EcomOrders'));
 const Appointments = lazyWithRetry(() => import('../Appointments/Appointments'));
 const Distributors = lazyWithRetry(() => import('../Distributors/Distributors'));
-const CallLogs = lazyWithRetry(() => import('../CallLogs/CallLogs'));
 
 const LazyFallback = () => (
   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60, color: '#64748b', gap: 12 }}>
@@ -367,7 +365,6 @@ export default function MainApp({ user, settings }) {
     projects: { component: <Projects user={user} perms={perms} ownerId={targetUserId} />, label: 'Projects' },
     alltasks: { component: <AllTasks user={user} perms={perms} ownerId={targetUserId} />, label: 'Tasks' },
     teams: { component: <Teams user={user} ownerId={targetUserId} perms={perms} />, label: 'Teams' }, 
-    performance: { component: <TeamReports user={user} ownerId={targetUserId} perms={perms} />, label: 'Reports' },
     automation: { component: <AutomationView user={user} perms={perms} ownerId={targetUserId} />, label: 'Automation' },
     integrations: { component: <Integrations user={user} ownerId={targetUserId} />, label: 'Integrations' },
     'messaging-logs': { component: <MessagingLogs user={user} ownerId={targetUserId} />, label: 'MessagingLogs' },
@@ -377,7 +374,6 @@ export default function MainApp({ user, settings }) {
     appointments: { component: <Appointments ownerId={targetUserId} perms={perms} settings={settings} />, label: 'Appointments' },
     'appointment-settings': { component: <Appointments ownerId={targetUserId} perms={perms} initialTab="settings" settings={settings} />, label: 'Appointments' },
     distributors: { component: <Distributors user={user} ownerId={targetUserId} perms={perms} />, label: 'Distributors' },
-    'call-logs': { component: <CallLogs user={user} perms={perms} ownerId={targetUserId} />, label: 'CallLogs' },
     distributor_performance: { component: <Distributors user={user} ownerId={targetUserId} perms={perms} initialTab="Reports" />, label: 'Distributors' },
     userprofile: { component: <UserProfile user={user} profile={profile} perms={perms} memberProfile={memberProfile} ownerId={targetUserId} />, label: 'Public' },
     manual: { component: <UserManual settings={settings} />, label: 'Public' },

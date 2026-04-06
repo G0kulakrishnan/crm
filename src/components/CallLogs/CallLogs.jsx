@@ -154,7 +154,28 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
     outgoing: todayLogs.filter(l => l.direction === 'Outgoing').length,
     incoming: todayLogs.filter(l => l.direction === 'Incoming').length,
     missed: todayLogs.filter(l => l.direction === 'Missed').length,
+    toLeads: todayLogs.filter(l => l.leadId).length,
+    toUnknown: todayLogs.filter(l => !l.leadId).length,
   };
+
+  // Per-team-member call breakdown
+  const teamCallStats = useMemo(() => {
+    return team.map(m => {
+      const memberLogs = callLogs.filter(l => l.staffEmail === m.email);
+      const memberToday = memberLogs.filter(l => l.createdAt && new Date(l.createdAt).toISOString().split('T')[0] === today);
+      return {
+        name: m.name,
+        email: m.email,
+        total: memberLogs.length,
+        todayTotal: memberToday.length,
+        toLeads: memberLogs.filter(l => l.leadId).length,
+        toUnknown: memberLogs.filter(l => !l.leadId).length,
+        outgoing: memberLogs.filter(l => l.direction === 'Outgoing').length,
+        incoming: memberLogs.filter(l => l.direction === 'Incoming').length,
+        missed: memberLogs.filter(l => l.direction === 'Missed').length,
+      };
+    });
+  }, [team, callLogs, today]);
 
   // Filtered logs
   const filtered = useMemo(() => {
@@ -240,12 +261,14 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
       </div>
 
       {/* Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 12, marginBottom: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 20 }}>
         {[
           { label: "Today's Calls", value: stats.total, color: '#6366f1', bg: '#eef2ff' },
           { label: 'Outgoing', value: stats.outgoing, color: '#2563eb', bg: '#eff6ff' },
           { label: 'Incoming', value: stats.incoming, color: '#16a34a', bg: '#f0fdf4' },
           { label: 'Missed', value: stats.missed, color: '#ef4444', bg: '#fef2f2' },
+          { label: 'To Leads', value: stats.toLeads, color: '#8b5cf6', bg: '#f5f3ff' },
+          { label: 'Unknown Numbers', value: stats.toUnknown, color: '#f59e0b', bg: '#fffbeb' },
         ].map(s => (
           <div key={s.label} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
             <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</div>
@@ -253,6 +276,50 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
           </div>
         ))}
       </div>
+
+      {/* Team Member Call Summary */}
+      {(perms?.isOwner || perms?.isAdmin || perms?.isManager) && team.length > 0 && !staffFilter && (
+        <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--card)', overflow: 'hidden', marginBottom: 20 }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+            <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Team Member Call Summary</h4>
+          </div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: 'var(--bg)' }}>
+                  <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600 }}>Member</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Today</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Total</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>To Leads</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Unknown</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Outgoing</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Incoming</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Missed</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamCallStats.map(m => (
+                  <tr key={m.email} style={{ borderTop: '1px solid var(--border)', cursor: 'pointer' }} onClick={() => setStaffFilter(m.email)}>
+                    <td style={{ padding: '8px 12px', fontWeight: 600 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ width: 26, height: 26, background: 'var(--accent)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 11, fontWeight: 700 }}>{m.name.charAt(0).toUpperCase()}</div>
+                        {m.name}
+                      </div>
+                    </td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>{m.todayTotal}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>{m.total}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#8b5cf6', fontWeight: 600 }}>{m.toLeads}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#f59e0b', fontWeight: 600 }}>{m.toUnknown}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#2563eb' }}>{m.outgoing}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#16a34a' }}>{m.incoming}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#ef4444' }}>{m.missed}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>

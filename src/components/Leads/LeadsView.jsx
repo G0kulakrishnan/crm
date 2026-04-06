@@ -142,7 +142,21 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     return leads.filter(l => savedLeadStages.includes(l.stage));
   }, [leads, savedLeadStages]);
 
-  // Filtering
+  // Base filtered: applies staff, source, stage filters (but NOT tab or search)
+  // Tab counts are derived from this so they reflect active dropdown filters
+  const baseFiltered = useMemo(() => {
+    return visibleLeads
+      .filter(l => !srcFilter || l.source === srcFilter)
+      .filter(l => !stgFilter || l.stage === stgFilter)
+      .filter(l => {
+        if (!staffFilter) return true;
+        if (staffFilter === 'unassigned') return !l.assign;
+        if (staffFilter === 'my') return l.assign === user.email || l.assign === myName;
+        return l.assign === staffFilter;
+      });
+  }, [visibleLeads, srcFilter, stgFilter, staffFilter, user.email, myName]);
+
+  // Filtering: applies tab date filter and search on top of baseFiltered
   const filtered = useMemo(() => {
     const now = new Date();
     const todayStr = now.toDateString();
@@ -150,7 +164,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toDateString();
 
-    return visibleLeads.filter(l => {
+    return baseFiltered.filter(l => {
       if (tab === 'today') {
         if (!l.followup) return false;
         return new Date(l.followup).toDateString() === todayStr;
@@ -169,20 +183,12 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       if (tab === 'overdue') return l.followup && new Date(l.followup) < now;
       return true;
     })
-      .filter(l => !srcFilter || l.source === srcFilter)
-      .filter(l => !stgFilter || l.stage === stgFilter)
-      .filter(l => {
-        if (!staffFilter) return true;
-        if (staffFilter === 'unassigned') return !l.assign;
-        if (staffFilter === 'my') return l.assign === user.email || l.assign === myName;
-        return l.assign === staffFilter;
-      })
       .filter(l => {
         if (!search) return true;
         const q = search.toLowerCase();
         return [l.name, l.email, l.phone, l.source, l.stage, l.assign, l.label, l.notes].some(v => (v || '').toLowerCase().includes(q));
       });
-  }, [visibleLeads, tab, srcFilter, stgFilter, staffFilter, search, user]);
+  }, [baseFiltered, tab, search]);
 
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
   const paginated = useMemo(() => {
@@ -193,15 +199,15 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
   useEffect(() => { setCurrentPage(1); }, [tab, search, srcFilter, stgFilter, staffFilter, pageSize]);
 
-  const overdueCount = visibleLeads.filter(l => l.followup && new Date(l.followup) < new Date()).length;
-  const todayCount = visibleLeads.filter(l => l.followup && new Date(l.followup).toDateString() === new Date().toDateString()).length;
-  const tomorrowCount = visibleLeads.filter(l => {
+  const overdueCount = baseFiltered.filter(l => l.followup && new Date(l.followup) < new Date()).length;
+  const todayCount = baseFiltered.filter(l => l.followup && new Date(l.followup).toDateString() === new Date().toDateString()).length;
+  const tomorrowCount = baseFiltered.filter(l => {
     if (!l.followup) return false;
     const t = new Date();
     t.setDate(t.getDate() + 1);
     return new Date(l.followup).toDateString() === t.toDateString();
   }).length;
-  const next7Count = visibleLeads.filter(l => {
+  const next7Count = baseFiltered.filter(l => {
     if (!l.followup) return false;
     const d = new Date(l.followup); d.setHours(0,0,0,0);
     const n = new Date(); n.setHours(0,0,0,0);
@@ -1017,7 +1023,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
       <div className="tabs">
         {[
-          ['all', `All (${visibleLeads.length})`],
+          ['all', `All (${baseFiltered.length})`],
           ['today', `Today (${todayCount})`],
           ['tomorrow', `Tomorrow (${tomorrowCount})`],
           ['next7days', `Next 7 Days (${next7Count})`],
