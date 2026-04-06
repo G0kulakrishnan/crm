@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
-import { fmtD, fmtDT } from '../../utils/helpers';
+import { fmtD, fmtDT, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_REQUIREMENTS, DEFAULT_PROD_CATS } from '../../utils/helpers';
+import { EMPTY_LEAD } from '../../utils/constants';
 import { useToast } from '../../context/ToastContext';
 
 const CALL_DIRECTIONS = ['Outgoing', 'Incoming', 'Missed'];
@@ -32,22 +33,82 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
   const [staffFilter, setStaffFilter] = useState('');
   const [page, setPage] = useState(1);
   const pageSize = 25;
+  const [addLeadModal, setAddLeadModal] = useState(false);
+  const [addLeadLog, setAddLeadLog] = useState(null);
+  const [addLeadForm, setAddLeadForm] = useState({ ...EMPTY_LEAD });
+  const [savingLead, setSavingLead] = useState(false);
 
   const { data, isLoading } = db.useQuery({
     callLogs: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
+    userProfiles: { $: { where: { userId: ownerId } } },
   });
 
   const callLogs = useMemo(() => (data?.callLogs || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)), [data?.callLogs]);
   const allLeads = data?.leads || [];
   const team = data?.teamMembers || [];
+  const profile = data?.userProfiles?.[0];
+  const allStages = profile?.stages || DEFAULT_STAGES;
+  const disabledStages = profile?.disabledStages || [];
+  const activeStages = allStages.filter(s => !disabledStages.includes(s));
+  const activeSources = profile?.sources || DEFAULT_SOURCES;
+  const activeRequirements = profile?.requirements || DEFAULT_REQUIREMENTS;
+  const productCats = profile?.productCats || DEFAULT_PROD_CATS;
+  const customFields = profile?.customFields || [];
 
-  // Auto-match phone to lead
+  // Normalize phone to last 10 digits (handles +91, 091, plain formats)
+  const normalize = (p) => p ? p.replace(/\D/g, '').slice(-10) : '';
+
+  // Auto-match phone to lead using last-10-digit normalization
   const matchLead = (phone) => {
-    if (!phone) return null;
-    const clean = phone.replace(/\D/g, '');
-    return allLeads.find(l => l.phone && l.phone.replace(/\D/g, '') === clean);
+    const n = normalize(phone);
+    if (n.length < 7) return null;
+    return allLeads.find(l => l.phone && normalize(l.phone) === n);
+  };
+
+  const openAddAsLead = (log) => {
+    setAddLeadLog(log);
+    setAddLeadForm({
+      ...EMPTY_LEAD,
+      name: log.contactName || '',
+      phone: log.phone || '',
+      productCat: productCats[0] || '',
+    });
+    setAddLeadModal(true);
+  };
+
+  const lf = (key) => (e) => {
+    const val = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
+    setAddLeadForm(f => ({ ...f, [key]: val }));
+  };
+  const lcf = (fieldName) => (e) => setAddLeadForm(f => ({ ...f, custom: { ...f.custom, [fieldName]: e.target.value } }));
+
+  const saveAsLead = async () => {
+    if (!addLeadForm.name.trim()) { toast('Name is required', 'error'); return; }
+    if (!addLeadForm.source) { toast('Please select a source', 'error'); return; }
+    if (!addLeadForm.stage) { toast('Please select a stage', 'error'); return; }
+    setSavingLead(true);
+    try {
+      const newLeadId = id();
+      await db.transact([
+        db.tx.leads[newLeadId].update({
+          ...addLeadForm,
+          userId: ownerId,
+          actorId: user.id,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        }),
+        db.tx.callLogs[addLeadLog.id].update({
+          leadId: newLeadId,
+          leadName: addLeadForm.name,
+          updatedAt: Date.now(),
+        }),
+      ]);
+      toast('Lead created and call log linked', 'success');
+      setAddLeadModal(false);
+    } catch (e) { toast(e.message, 'error'); }
+    finally { setSavingLead(false); }
   };
 
   // Stats
@@ -202,7 +263,9 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
             )}
             {paged.map(log => {
               const di = directionIcon(log.direction);
-              const lead = log.leadId ? allLeads.find(l => l.id === log.leadId) : null;
+              const matchedLead = log.leadId
+                ? (allLeads.find(l => l.id === log.leadId) || matchLead(log.phone))
+                : matchLead(log.phone);
               return (
                 <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }}>
                   <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
@@ -214,10 +277,8 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
                   <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 12 }}>{log.phone}</td>
                   <td style={{ padding: '10px 12px' }}>{log.contactName || '-'}</td>
                   <td style={{ padding: '10px 12px' }}>
-                    {lead ? (
-                      <span style={{ color: '#2563eb', fontSize: 12, fontWeight: 500 }}>{lead.name}</span>
-                    ) : log.leadName ? (
-                      <span style={{ fontSize: 12, color: 'var(--muted)' }}>{log.leadName}</span>
+                    {matchedLead ? (
+                      <span style={{ color: '#2563eb', fontSize: 12, fontWeight: 500 }}>{matchedLead.name}</span>
                     ) : (
                       <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 500 }}>Unmatched</span>
                     )}
@@ -233,6 +294,11 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
                   <td style={{ padding: '10px 12px', fontSize: 12, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.notes}>{log.notes || '-'}</td>
                   <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                     <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                      {canCreate && !matchedLead && (
+                        <button onClick={() => openAddAsLead(log)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#16a34a', padding: 4 }} title="Add as Lead">
+                          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" /></svg>
+                        </button>
+                      )}
                       {canEdit && (
                         <button onClick={() => openEdit(log)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', padding: 4 }} title="Edit">
                           <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
@@ -261,7 +327,93 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
         </div>
       )}
 
-      {/* Modal */}
+      {/* Add as Lead Modal — same form as LeadsView create */}
+      {addLeadModal && (
+        <div className="mo open">
+          <div className="mo-box wide">
+            <div className="mo-head">
+              <h3>Add as Lead</h3>
+              <button className="btn-icon" onClick={() => setAddLeadModal(false)}>✕</button>
+            </div>
+            <div className="mo-body">
+              <div className="fgrid">
+                <div className="fg"><label>Name *</label><input value={addLeadForm.name} onChange={lf('name')} placeholder="Lead name" autoFocus /></div>
+                <div className="fg"><label>Company Name (Optional)</label><input value={addLeadForm.companyName} onChange={lf('companyName')} placeholder="Business name" /></div>
+                <div className="fg"><label>Phone</label><input value={addLeadForm.phone} onChange={lf('phone')} placeholder="+91..." /></div>
+                <div className="fg"><label>Email</label><input type="email" value={addLeadForm.email} onChange={lf('email')} /></div>
+                <div className="fg"><label>Source *</label>
+                  <select value={addLeadForm.source} onChange={lf('source')}>
+                    {!addLeadForm.source && <option value="">Select Source</option>}
+                    {activeSources.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>Stage *</label>
+                  <select value={addLeadForm.stage} onChange={lf('stage')}>
+                    {!addLeadForm.stage && <option value="">Select Stage</option>}
+                    {activeStages.map(s => <option key={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>Assign To</label>
+                  <select value={addLeadForm.assign} onChange={lf('assign')}>
+                    <option value="">Unassigned</option>
+                    {team.map(t => <option key={t.id}>{t.name}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>Follow Up</label><input type="datetime-local" value={addLeadForm.followup} onChange={lf('followup')} /></div>
+                <div className="fg"><label>Requirement</label>
+                  <select value={addLeadForm.requirement} onChange={lf('requirement')}>
+                    {!addLeadForm.requirement && <option value="">Select Requirement</option>}
+                    {activeRequirements.map(r => <option key={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>Product Category</label>
+                  <select value={addLeadForm.productCat} onChange={lf('productCat')}>
+                    {productCats.map(p => <option key={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div className="fg span2"><label>Notes</label><textarea value={addLeadForm.notes} onChange={lf('notes')} /></div>
+
+                {/* Dynamic Custom Fields */}
+                {customFields.length > 0 && <div className="fg span2" style={{ borderTop: '1px solid var(--border)', paddingTop: 16, marginTop: 4 }}><h4 style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>Custom Fields</h4><div className="fgrid">
+                  {customFields.map(field => (
+                    <div key={field.name} className="fg">
+                      <label>{field.name}</label>
+                      {field.type === 'dropdown' ? (
+                        <select value={addLeadForm.custom?.[field.name] || ''} onChange={lcf(field.name)}>
+                          <option value="">Select...</option>
+                          {field.options.split(',').map(o => <option key={o.trim()}>{o.trim()}</option>)}
+                        </select>
+                      ) : (
+                        <input type={field.type === 'number' ? 'number' : 'text'} value={addLeadForm.custom?.[field.name] || ''} onChange={lcf(field.name)} />
+                      )}
+                    </div>
+                  ))}
+                </div></div>}
+
+                <div className="fg span2">
+                  <label>Reminder Channels</label>
+                  <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginTop: 6, padding: 12, background: 'var(--bg)', borderRadius: 8, flexWrap: 'wrap' }}>
+                    {[['remWA', 'WhatsApp', '#25d366'], ['remEmail', 'Email', '#3b82f6'], ['remSMS', 'SMS', '#8b5cf6']].map(([k, label, color]) => (
+                      <label key={k} style={{ display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>
+                        <input type="checkbox" checked={addLeadForm[k]} onChange={lf(k)} style={{ width: 15, height: 15, accentColor: color }} />
+                        <span style={{ color }}>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="mo-foot">
+              <button className="btn btn-secondary btn-sm" onClick={() => setAddLeadModal(false)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={saveAsLead} disabled={savingLead}>
+                {savingLead ? 'Saving...' : 'Create Lead'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Log Call / Edit Modal */}
       {modal && (
         <div className="mo open">
           <div className="mo-box" style={{ width: 600 }}>
