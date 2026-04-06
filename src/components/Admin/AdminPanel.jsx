@@ -32,6 +32,7 @@ const ALL_MODULES = [
   { key: 'appointments', label: 'Appointments', hasLimit: false },
   { key: 'integrations', label: 'Integrations', hasLimit: false },
   { key: 'callLogs', label: 'Call Logs', hasLimit: false },
+  { key: 'attendance', label: 'Attendance', hasLimit: false },
   { key: 'messagingLogs', label: 'Messaging Logs', hasLimit: false },
   { key: 'distributors', label: 'Distributors & Retailers', hasLimit: false },
 ];
