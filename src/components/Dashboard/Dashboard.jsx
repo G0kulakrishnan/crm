@@ -37,17 +37,26 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
   console.log("🔍 [Dashboard] Props - ownerId:", ownerId, "perms:", perms?.isOwner ? "Owner" : "Team");
   console.log("📊 [Dashboard] Data - leadsRaw count:", leadsRaw.length);
 
+  const teamMembers = data?.teamMembers || [];
+  const myTeamMember = teamMembers.find(t => t.email === user.email);
+  const myName = myTeamMember?.name || user.name || '';
+  const teamCanSeeAllLeads = profile.teamCanSeeAllLeads !== false;
+
   const { leads, quotes, invoices, projects, amc, orders, appts } = useMemo(() => {
     const savedLeadStages = profile.leadStages;
     const disabledStages = profile.disabledStages || [];
-    const filteredLeads = leadsRaw.filter(l => {
+    let filteredLeads = leadsRaw.filter(l => {
       if (savedLeadStages?.length > 0 && !savedLeadStages.includes(l.stage)) return false;
       if (disabledStages.includes(l.stage)) return false;
       return true;
     });
-    
+    // For team members, only show their assigned leads (unless teamCanSeeAllLeads is on)
+    if (!perms?.isOwner && !teamCanSeeAllLeads) {
+      filteredLeads = filteredLeads.filter(l => !l.assign || l.assign === user.email || l.assign === myName);
+    }
+
     return { leads: filteredLeads, quotes: quotesRaw, invoices: invoicesRaw, projects: projectsRaw, amc: amcRaw, orders: ordersRaw, appts: apptsRaw };
-  }, [leadsRaw, quotesRaw, invoicesRaw, projectsRaw, amcRaw, ordersRaw, apptsRaw, profile.leadStages, profile.disabledStages]);
+  }, [leadsRaw, quotesRaw, invoicesRaw, projectsRaw, amcRaw, ordersRaw, apptsRaw, profile.leadStages, profile.disabledStages, perms?.isOwner, teamCanSeeAllLeads, user.email, myName]);
   const now = new Date();
 
   const stats = useMemo(() => {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD, INDIAN_STATES, COUNTRIES } from '../../utils/helpers';
@@ -21,7 +21,7 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
   const toast = useToast();
 
   const { data } = db.useQuery({
-    customers: { $: { where: { userId: ownerId }, limit: pageSize === 'all' ? undefined : pageSize, offset: pageSize === 'all' ? 0 : (currentPage - 1) * pageSize } },
+    customers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     projects: { $: { where: { userId: ownerId } } },
     quotes: { $: { where: { userId: ownerId } } },
@@ -55,6 +55,15 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
       return [c.name, c.email, c.phone, ...customVals].some(v => (v || '').toLowerCase().includes(q));
     });
   }, [customers, search]);
+
+  const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
+  const paginated = useMemo(() => {
+    if (pageSize === 'all') return filtered;
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
+
+  useEffect(() => { setCurrentPage(1); }, [search, pageSize]);
 
   const openCreate = () => { setEditData(null); setForm(EMPTY_CUSTOMER); setModal(true); };
   const openEdit = (c) => { 
@@ -570,11 +579,11 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
               </tr>
             </thead>
             <tbody>
-              {filtered.length === 0 ? (
+              {paginated.length === 0 ? (
                 <tr><td colSpan={6 + customFields.length} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No customers found</td></tr>
-              ) : filtered.map((c, i) => (
+              ) : paginated.map((c, i) => (
                 <tr key={c.id}>
-                  <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
+                  <td style={{ color: 'var(--muted)', fontSize: 11 }}>{(pageSize === 'all' ? 0 : (currentPage - 1) * pageSize) + i + 1}</td>
                   <td>
                     <strong>{c.name}</strong>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
@@ -630,8 +639,8 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
               <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => Math.max(1, p - 1))}>Previous</button>
-              <span style={{ fontSize: 13, alignSelf: 'center' }}>Page {currentPage}</span>
-              <button className="btn btn-secondary btn-sm" disabled={customers.length < pageSize || pageSize === 'all'} onClick={() => setCurrentPage(p => p + 1)}>Next</button>
+              <span style={{ fontSize: 13, alignSelf: 'center' }}>Page {currentPage} of {totalPages}</span>
+              <button className="btn btn-secondary btn-sm" disabled={currentPage >= totalPages || pageSize === 'all'} onClick={() => setCurrentPage(p => p + 1)}>Next</button>
             </div>
           </div>
         </div>
