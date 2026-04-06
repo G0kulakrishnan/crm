@@ -1,8 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, lazy, Suspense } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { EMPTY_MEMBER } from '../../utils/constants';
+import { fmtDT } from '../../utils/helpers';
+
+const CallLogs = lazy(() => import('../CallLogs/CallLogs'));
+const TeamReports = lazy(() => import('./TeamReports'));
 
 const MODULES = [
   { key: 'Dashboard', actions: ['view'] },
@@ -25,6 +29,7 @@ const MODULES = [
   { key: 'Appointments', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'Integrations', actions: ['view', 'edit'] },
   { key: 'CallLogs', actions: ['list', 'create', 'edit', 'delete'] },
+  { key: 'Attendance', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'MessagingLogs', actions: ['list'] },
   { key: 'Distributors', actions: ['list', 'create', 'edit', 'delete'] },
   { key: 'Settings', actions: ['view'] },
@@ -72,13 +77,34 @@ export default function Teams({ user, ownerId, perms, planEnforcement }) {
 
   const { data } = db.useQuery({
     teamMembers: { $: { where: { userId: ownerId } } },
-    userProfiles: { $: { where: { userId: ownerId } } }
+    userProfiles: { $: { where: { userId: ownerId } } },
+    attendance: { $: { where: { userId: ownerId } } },
   });
   const team = data?.teamMembers || [];
   const profileId = data?.userProfiles?.[0]?.id;
   const rawRoles = data?.userProfiles?.[0]?.roles || DEFAULT_ROLES;
   // Normalise all roles to new format
   const roles = rawRoles.map(r => ({ ...r, perms: normalisePerms(r.perms) }));
+  const allAttendance = data?.attendance || [];
+
+  // Attendance filters
+  const [attDateFrom, setAttDateFrom] = useState(() => {
+    const d = new Date(); d.setDate(1);
+    return d.toISOString().split('T')[0];
+  });
+  const [attDateTo, setAttDateTo] = useState(() => new Date().toISOString().split('T')[0]);
+  const [attStaffFilter, setAttStaffFilter] = useState('');
+
+  const filteredAttendance = useMemo(() => {
+    let list = allAttendance;
+    if (attStaffFilter) list = list.filter(r => r.staffEmail === attStaffFilter);
+    if (attDateFrom) list = list.filter(r => r.date >= attDateFrom);
+    if (attDateTo) list = list.filter(r => r.date <= attDateTo);
+    return list.sort((a, b) => {
+      if (a.date !== b.date) return b.date.localeCompare(a.date);
+      return (b.checkInTime || 0) - (a.checkInTime || 0);
+    });
+  }, [allAttendance, attStaffFilter, attDateFrom, attDateTo]);
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value }));
 
@@ -199,18 +225,128 @@ export default function Teams({ user, ownerId, perms, planEnforcement }) {
   return (
     <div>
       <div className="sh">
-        <div><h2>Teams &amp; Roles</h2><div className="sub">Manage team access &amp; permissions</div></div>
-        <button className="btn btn-primary btn-sm" onClick={() => {
-          if (tab === 'members') { setEditData(null); setForm({ ...EMPTY_MEMBER, role: roles[0]?.name || '' }); setModal(true); }
-          else { setEditRole(null); setRoleForm(EMPTY_ROLE); setRoleModal(true); }
-        }}>+ {tab === 'members' ? 'Add Member' : 'Add Role'}</button>
+        <div><h2>Teams &amp; Roles</h2><div className="sub">Manage team access, attendance &amp; performance</div></div>
+        {(tab === 'members' || tab === 'roles') && (
+          <button className="btn btn-primary btn-sm" onClick={() => {
+            if (tab === 'members') { setEditData(null); setForm({ ...EMPTY_MEMBER, role: roles[0]?.name || '' }); setModal(true); }
+            else { setEditRole(null); setRoleForm(EMPTY_ROLE); setRoleModal(true); }
+          }}>+ {tab === 'members' ? 'Add Member' : 'Add Role'}</button>
+        )}
       </div>
       <div className="tabs">
         <div className={`tab${tab === 'members' ? ' active' : ''}`} onClick={() => setTab('members')}>Members</div>
         <div className={`tab${tab === 'roles' ? ' active' : ''}`} onClick={() => setTab('roles')}>Roles &amp; Permissions</div>
+        <div className={`tab${tab === 'attendance' ? ' active' : ''}`} onClick={() => setTab('attendance')}>Attendance</div>
+        <div className={`tab${tab === 'calllogs' ? ' active' : ''}`} onClick={() => setTab('calllogs')}>Call Logs</div>
+        <div className={`tab${tab === 'performance' ? ' active' : ''}`} onClick={() => setTab('performance')}>Team Performance</div>
       </div>
 
-      {tab === 'members' ? (
+      {/* Attendance Tab */}
+      {tab === 'attendance' && (
+        <div className="tw">
+          <div style={{ display: 'flex', gap: 8, padding: '16px 20px', flexWrap: 'wrap', alignItems: 'center', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <input type="date" value={attDateFrom} onChange={e => setAttDateFrom(e.target.value)} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
+              <span style={{ fontSize: 11, color: 'var(--muted)' }}>to</span>
+              <input type="date" value={attDateTo} onChange={e => setAttDateTo(e.target.value)} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
+            </div>
+            {(perms?.isOwner || perms?.isAdmin || perms?.isManager) && (
+              <select value={attStaffFilter} onChange={e => setAttStaffFilter(e.target.value)} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }}>
+                <option value="">All Staff</option>
+                {team.map(t => <option key={t.id} value={t.email}>{t.name}</option>)}
+              </select>
+            )}
+            <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 'auto' }}>{filteredAttendance.length} record{filteredAttendance.length !== 1 ? 's' : ''}</span>
+          </div>
+
+          {/* Attendance Summary */}
+          {filteredAttendance.length > 0 && (
+            <div style={{ display: 'flex', gap: 12, padding: '12px 20px', flexWrap: 'wrap', borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>Total Days: <strong style={{ color: 'var(--text)' }}>{new Set(filteredAttendance.map(r => `${r.staffEmail}-${r.date}`)).size}</strong></div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>Avg Hours: <strong style={{ color: 'var(--text)' }}>{(filteredAttendance.filter(r => r.totalHours).reduce((s, r) => s + r.totalHours, 0) / (filteredAttendance.filter(r => r.totalHours).length || 1)).toFixed(1)}h</strong></div>
+            </div>
+          )}
+
+          <div className="tw-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Staff Name</th>
+                  <th>Date</th>
+                  <th>Check-in Time</th>
+                  <th>Check-in Location</th>
+                  <th>Check-out Time</th>
+                  <th>Check-out Location</th>
+                  <th>Total Hours</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredAttendance.length === 0 ? (
+                  <tr><td colSpan={8} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No attendance records found</td></tr>
+                ) : filteredAttendance.map((r, i) => (
+                  <tr key={r.id}>
+                    <td style={{ color: 'var(--muted)', fontSize: 11 }}>{i + 1}</td>
+                    <td><strong>{r.staffName || r.staffEmail}</strong></td>
+                    <td style={{ fontSize: 12 }}>{r.date}</td>
+                    <td style={{ fontSize: 12 }}>{r.checkInTime ? new Date(r.checkInTime).toLocaleTimeString() : '-'}</td>
+                    <td style={{ fontSize: 12 }}>
+                      {r.checkInLat && r.checkInLng ? (
+                        <a
+                          href={`https://www.google.com/maps?q=${r.checkInLat},${r.checkInLng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: '#2563eb', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+                          title={r.checkInAddress || `${r.checkInLat}, ${r.checkInLng}`}
+                        >
+                          <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                          {r.checkInAddress || 'View Map'}
+                        </a>
+                      ) : '-'}
+                    </td>
+                    <td style={{ fontSize: 12 }}>{r.checkOutTime ? new Date(r.checkOutTime).toLocaleTimeString() : <span style={{ color: '#f59e0b', fontWeight: 500, fontSize: 11 }}>Active</span>}</td>
+                    <td style={{ fontSize: 12 }}>
+                      {r.checkOutLat && r.checkOutLng ? (
+                        <a
+                          href={`https://www.google.com/maps?q=${r.checkOutLat},${r.checkOutLng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{ color: '#2563eb', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 4 }}
+                          title={r.checkOutAddress || `${r.checkOutLat}, ${r.checkOutLng}`}
+                        >
+                          <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" strokeWidth="2" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                          {r.checkOutAddress || 'View Map'}
+                        </a>
+                      ) : '-'}
+                    </td>
+                    <td style={{ fontSize: 12, fontWeight: 600 }}>
+                      {r.totalHours != null ? (
+                        <span style={{ color: r.totalHours >= 8 ? '#16a34a' : r.totalHours >= 4 ? '#f59e0b' : '#ef4444' }}>{r.totalHours}h</span>
+                      ) : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Call Logs Tab */}
+      {tab === 'calllogs' && (
+        <Suspense fallback={<div style={{ padding: 40, textAlign: 'center' }}><div className="spinner" style={{ width: 20, height: 20, margin: '0 auto' }} /></div>}>
+          <CallLogs user={user} perms={perms} ownerId={ownerId} planEnforcement={planEnforcement} />
+        </Suspense>
+      )}
+
+      {/* Team Performance Tab */}
+      {tab === 'performance' && (
+        <Suspense fallback={<div style={{ padding: 40, textAlign: 'center' }}><div className="spinner" style={{ width: 20, height: 20, margin: '0 auto' }} /></div>}>
+          <TeamReports user={user} ownerId={ownerId} perms={perms} />
+        </Suspense>
+      )}
+
+      {tab === 'members' && (
         <div className="tw">
           <div className="tw-head"><h3>Team Members ({team.length})</h3></div>
           <div className="tw-scroll">
@@ -253,7 +389,8 @@ export default function Teams({ user, ownerId, perms, planEnforcement }) {
             </table>
           </div>
         </div>
-      ) : (
+      )}
+      {tab === 'roles' && (
         <div className="tw">
           <div className="tw-head"><h3>Roles ({roles.length})</h3></div>
           <div className="tw-scroll">

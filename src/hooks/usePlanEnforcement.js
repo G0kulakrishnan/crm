@@ -35,6 +35,7 @@ const VIEW_TO_MODULE = {
   distributors: 'distributors',
   distributor_performance: 'distributors',
   'call-logs': 'callLogs',
+  'attendance': 'attendance',
 };
 
 // Always-allowed views (never blocked by plan)

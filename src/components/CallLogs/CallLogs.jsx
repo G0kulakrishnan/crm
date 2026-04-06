@@ -29,10 +29,14 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
   const [form, setForm] = useState(EMPTY_FORM);
   const [search, setSearch] = useState('');
   const [dirFilter, setDirFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [staffFilter, setStaffFilter] = useState('');
-  const [page, setPage] = useState(1);
-  const pageSize = 25;
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [colModal, setColModal] = useState(false);
+  const [tempCols, setTempCols] = useState([]);
+  const [tempPageSize, setTempPageSize] = useState(25);
   const [addLeadModal, setAddLeadModal] = useState(false);
   const [addLeadLog, setAddLeadLog] = useState(null);
   const [addLeadForm, setAddLeadForm] = useState({ ...EMPTY_LEAD });
@@ -56,6 +60,37 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
   const activeRequirements = profile?.requirements || DEFAULT_REQUIREMENTS;
   const productCats = profile?.productCats || DEFAULT_PROD_CATS;
   const customFields = profile?.customFields || [];
+
+  // Configure View — column visibility & page size persistence
+  const allPossibleCols = ['Direction', 'Phone', 'Contact', 'Lead', 'Outcome', 'Duration', 'Staff', 'Date & Time', 'Notes'];
+  const myViewConfig = useMemo(() => {
+    try { return JSON.parse(localStorage.getItem(`callLogView_${user.email}`)); } catch { return null; }
+  }, [user.email]);
+  const savedCols = myViewConfig?.callLogCols;
+  const savedDefaultPageSize = myViewConfig?.defaultPageSize;
+  const activeCols = savedCols && savedCols.length > 0 ? savedCols : allPossibleCols;
+
+  // Sync saved page size on mount
+  useMemo(() => {
+    if (savedDefaultPageSize && savedDefaultPageSize !== pageSize) {
+      setPageSize(savedDefaultPageSize);
+      setTempPageSize(savedDefaultPageSize);
+    }
+  }, [savedDefaultPageSize]);
+
+  const saveViewConfig = (colsToSave, defaultSize) => {
+    localStorage.setItem(`callLogView_${user.email}`, JSON.stringify({ callLogCols: colsToSave, defaultPageSize: defaultSize }));
+    setPageSize(defaultSize);
+    setColModal(false);
+    toast('View configuration saved', 'success');
+  };
+
+  const resetViewConfig = () => {
+    localStorage.removeItem(`callLogView_${user.email}`);
+    setPageSize(25);
+    setColModal(false);
+    toast('View reset to default', 'success');
+  };
 
   // Normalize phone to last 10 digits (handles +91, 091, plain formats)
   const normalize = (p) => p ? p.replace(/\D/g, '').slice(-10) : '';
@@ -130,12 +165,18 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
     }
     if (dirFilter) list = list.filter(l => l.direction === dirFilter);
     if (staffFilter) list = list.filter(l => l.staffEmail === staffFilter);
-    if (dateFilter) list = list.filter(l => l.createdAt && new Date(l.createdAt).toISOString().split('T')[0] === dateFilter);
+    if (dateFrom) list = list.filter(l => l.createdAt && new Date(l.createdAt).toISOString().split('T')[0] >= dateFrom);
+    if (dateTo) list = list.filter(l => l.createdAt && new Date(l.createdAt).toISOString().split('T')[0] <= dateTo);
+    setCurrentPage(1);
     return list;
-  }, [callLogs, search, dirFilter, staffFilter, dateFilter]);
+  }, [callLogs, search, dirFilter, staffFilter, dateFrom, dateTo]);
 
-  const totalPages = Math.ceil(filtered.length / pageSize);
-  const paged = filtered.slice((page - 1) * pageSize, page * pageSize);
+  const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
+  const paged = useMemo(() => {
+    if (pageSize === 'all') return filtered;
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
 
   const openNew = () => { setForm(EMPTY_FORM); setEditData(null); setModal(true); };
   const openEdit = (log) => {
@@ -218,112 +259,244 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
         <input
           placeholder="Search phone, name, notes..."
           value={search}
-          onChange={e => { setSearch(e.target.value); setPage(1); }}
+          onChange={e => setSearch(e.target.value)}
           style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13, width: 220 }}
         />
-        <select value={dirFilter} onChange={e => { setDirFilter(e.target.value); setPage(1); }} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }}>
+        <select value={dirFilter} onChange={e => setDirFilter(e.target.value)} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }}>
           <option value="">All Directions</option>
           {CALL_DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
         </select>
-        <input type="date" value={dateFilter} onChange={e => { setDateFilter(e.target.value); setPage(1); }} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} title="From date" />
+          <span style={{ fontSize: 11, color: 'var(--muted)' }}>to</span>
+          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }} title="To date" />
+        </div>
         {(perms?.isOwner || perms?.isAdmin || perms?.isManager) && (
-          <select value={staffFilter} onChange={e => { setStaffFilter(e.target.value); setPage(1); }} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }}>
+          <select value={staffFilter} onChange={e => setStaffFilter(e.target.value)} style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--border)', fontSize: 13 }}>
             <option value="">All Staff</option>
             {team.map(t => <option key={t.id} value={t.email}>{t.name}</option>)}
           </select>
         )}
-        {(search || dirFilter || dateFilter || staffFilter) && (
-          <button onClick={() => { setSearch(''); setDirFilter(''); setDateFilter(''); setStaffFilter(''); setPage(1); }} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 12, cursor: 'pointer' }}>Clear</button>
+        {(search || dirFilter || dateFrom || dateTo || staffFilter) && (
+          <button onClick={() => { setSearch(''); setDirFilter(''); setDateFrom(''); setDateTo(''); setStaffFilter(''); }} style={{ padding: '7px 12px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 12, cursor: 'pointer' }}>Clear</button>
         )}
-        <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 'auto' }}>{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>{filtered.length} record{filtered.length !== 1 ? 's' : ''}</span>
+          <button className="btn btn-secondary btn-sm" onClick={() => {
+            setTempCols(activeCols);
+            setTempPageSize(pageSize);
+            setColModal(true);
+          }}>⚙ Configure View</button>
+        </div>
       </div>
 
-      {/* Table */}
-      <div style={{ overflowX: 'auto', border: '1px solid var(--border)', borderRadius: 10, background: 'var(--card)' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead>
-            <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
-              <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Direction</th>
-              <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Phone</th>
-              <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Contact</th>
-              <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Lead</th>
-              <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Outcome</th>
-              <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Duration</th>
-              <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Staff</th>
-              <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Date & Time</th>
-              <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Notes</th>
-              <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, width: 80 }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {paged.length === 0 && (
-              <tr><td colSpan={10} style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
-                {filtered.length === 0 && callLogs.length === 0 ? 'No call logs yet. Click "Log Call" to add one.' : 'No matching records.'}
-              </td></tr>
-            )}
-            {paged.map(log => {
-              const di = directionIcon(log.direction);
-              const matchedLead = log.leadId
-                ? (allLeads.find(l => l.id === log.leadId) || matchLead(log.phone))
-                : matchLead(log.phone);
-              return (
-                <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                  <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: di.color, fontWeight: 600, fontSize: 12 }}>
-                      <svg viewBox="0 0 24 24" width="14" height="14" stroke={di.color} strokeWidth="2" fill="none"><path d={PHONE_ICON} /></svg>
-                      {log.direction || 'Outgoing'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 12 }}>{log.phone}</td>
-                  <td style={{ padding: '10px 12px' }}>{log.contactName || '-'}</td>
-                  <td style={{ padding: '10px 12px' }}>
-                    {matchedLead ? (
-                      <span style={{ color: '#2563eb', fontSize: 12, fontWeight: 500 }}>{matchedLead.name}</span>
-                    ) : (
-                      <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 500 }}>Unmatched</span>
+      {/* Table Container */}
+      <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--card)', overflow: 'hidden' }}>
+
+        {/* Top Pagination Bar */}
+        <div style={{ padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', background: 'var(--bg)', gap: 15 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
+            <span style={{ color: 'var(--muted)', fontWeight: 600 }}>Show</span>
+            <select
+              style={{ border: '1px solid var(--border)', background: 'var(--surface)', fontWeight: 700, outline: 'none', cursor: 'pointer', color: 'var(--accent)', padding: '2px 4px', borderRadius: 4, fontSize: 11 }}
+              value={pageSize}
+              onChange={e => setPageSize(e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10))}
+            >
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={500}>500</option>
+              <option value="all">All Records</option>
+            </select>
+          </div>
+
+          {pageSize !== 'all' && totalPages > 1 && (
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} style={{ padding: '2px 8px', fontSize: 11 }}>Prev</button>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {[...Array(totalPages)].map((_, i) => {
+                  const pg = i + 1;
+                  if (Math.abs(currentPage - pg) > 1 && pg !== 1 && pg !== totalPages) return null;
+                  return (
+                    <React.Fragment key={pg}>
+                      {pg === totalPages && Math.abs(currentPage - pg) > 2 && <span style={{ color: 'var(--muted)', fontSize: 10 }}>...</span>}
+                      <button className={`btn btn-sm ${currentPage === pg ? 'btn-primary' : 'btn-secondary'}`} style={{ minWidth: 26, height: 26, padding: 0, fontSize: 11 }} onClick={() => setCurrentPage(pg)}>{pg}</button>
+                      {pg === 1 && Math.abs(currentPage - pg) > 2 && <span style={{ color: 'var(--muted)', fontSize: 10 }}>...</span>}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
+              <button className="btn btn-secondary btn-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} style={{ padding: '2px 8px', fontSize: 11 }}>Next</button>
+            </div>
+          )}
+        </div>
+
+        {/* Table */}
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead>
+              <tr style={{ background: 'var(--bg)', borderBottom: '1px solid var(--border)' }}>
+                <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap', width: 36 }}>#</th>
+                {activeCols.includes('Direction') && <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Direction</th>}
+                {activeCols.includes('Phone') && <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Phone</th>}
+                {activeCols.includes('Contact') && <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Contact</th>}
+                {activeCols.includes('Lead') && <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Lead</th>}
+                {activeCols.includes('Outcome') && <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Outcome</th>}
+                {activeCols.includes('Duration') && <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Duration</th>}
+                {activeCols.includes('Staff') && <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Staff</th>}
+                {activeCols.includes('Date & Time') && <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Date & Time</th>}
+                {activeCols.includes('Notes') && <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: 600, whiteSpace: 'nowrap' }}>Notes</th>}
+                <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: 600, width: 80 }}>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paged.length === 0 && (
+                <tr><td colSpan={activeCols.length + 2} style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
+                  {filtered.length === 0 && callLogs.length === 0 ? 'No call logs yet. Click "Log Call" to add one.' : 'No matching records.'}
+                </td></tr>
+              )}
+              {paged.map((log, i) => {
+                const di = directionIcon(log.direction);
+                const matchedLead = log.leadId
+                  ? (allLeads.find(l => l.id === log.leadId) || matchLead(log.phone))
+                  : matchLead(log.phone);
+                const rowNum = (currentPage - 1) * (pageSize === 'all' ? 0 : pageSize) + i + 1;
+                return (
+                  <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                    <td style={{ padding: '10px 12px', fontSize: 11, color: 'var(--muted)' }}>{rowNum}</td>
+                    {activeCols.includes('Direction') && (
+                      <td style={{ padding: '10px 12px', whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: di.color, fontWeight: 600, fontSize: 12 }}>
+                          <svg viewBox="0 0 24 24" width="14" height="14" stroke={di.color} strokeWidth="2" fill="none"><path d={PHONE_ICON} /></svg>
+                          {log.direction || 'Outgoing'}
+                        </span>
+                      </td>
                     )}
-                  </td>
-                  <td style={{ padding: '10px 12px' }}>
-                    <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: log.outcome === 'Connected' ? '#f0fdf4' : log.outcome === 'Missed' || log.outcome === 'No Answer' ? '#fef2f2' : '#f8fafc', color: log.outcome === 'Connected' ? '#16a34a' : log.outcome === 'No Answer' || log.outcome === 'Missed' ? '#ef4444' : '#64748b', fontWeight: 500 }}>
-                      {log.outcome || '-'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '10px 12px', fontSize: 12 }}>{log.duration ? `${log.duration}s` : '-'}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12 }}>{log.staffName || '-'}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, whiteSpace: 'nowrap' }}>{fmtDT(log.createdAt)}</td>
-                  <td style={{ padding: '10px 12px', fontSize: 12, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.notes}>{log.notes || '-'}</td>
-                  <td style={{ padding: '10px 12px', textAlign: 'center' }}>
-                    <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
-                      {canCreate && !matchedLead && (
-                        <button onClick={() => openAddAsLead(log)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#16a34a', padding: 4 }} title="Add as Lead">
-                          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" /></svg>
-                        </button>
-                      )}
-                      {canEdit && (
-                        <button onClick={() => openEdit(log)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', padding: 4 }} title="Edit">
-                          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button onClick={() => remove(log.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4 }} title="Delete">
-                          <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                    {activeCols.includes('Phone') && <td style={{ padding: '10px 12px', fontFamily: 'monospace', fontSize: 12 }}>{log.phone}</td>}
+                    {activeCols.includes('Contact') && <td style={{ padding: '10px 12px' }}>{log.contactName || '-'}</td>}
+                    {activeCols.includes('Lead') && (
+                      <td style={{ padding: '10px 12px' }}>
+                        {matchedLead ? (
+                          <span style={{ color: '#2563eb', fontSize: 12, fontWeight: 500 }}>{matchedLead.name}</span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: '#f59e0b', fontWeight: 500 }}>Unmatched</span>
+                        )}
+                      </td>
+                    )}
+                    {activeCols.includes('Outcome') && (
+                      <td style={{ padding: '10px 12px' }}>
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: log.outcome === 'Connected' ? '#f0fdf4' : log.outcome === 'Missed' || log.outcome === 'No Answer' ? '#fef2f2' : '#f8fafc', color: log.outcome === 'Connected' ? '#16a34a' : log.outcome === 'No Answer' || log.outcome === 'Missed' ? '#ef4444' : '#64748b', fontWeight: 500 }}>
+                          {log.outcome || '-'}
+                        </span>
+                      </td>
+                    )}
+                    {activeCols.includes('Duration') && <td style={{ padding: '10px 12px', fontSize: 12 }}>{log.duration ? `${log.duration}s` : '-'}</td>}
+                    {activeCols.includes('Staff') && <td style={{ padding: '10px 12px', fontSize: 12 }}>{log.staffName || '-'}</td>}
+                    {activeCols.includes('Date & Time') && <td style={{ padding: '10px 12px', fontSize: 12, whiteSpace: 'nowrap' }}>{fmtDT(log.createdAt)}</td>}
+                    {activeCols.includes('Notes') && <td style={{ padding: '10px 12px', fontSize: 12, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.notes}>{log.notes || '-'}</td>}
+                    <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
+                        {canCreate && !matchedLead && (
+                          <button onClick={() => openAddAsLead(log)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#16a34a', padding: 4 }} title="Add as Lead">
+                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="8.5" cy="7" r="4" /><line x1="20" y1="8" x2="20" y2="14" /><line x1="23" y1="11" x2="17" y2="11" /></svg>
+                          </button>
+                        )}
+                        {canEdit && (
+                          <button onClick={() => openEdit(log)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2563eb', padding: 4 }} title="Edit">
+                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                          </button>
+                        )}
+                        {canDelete && (
+                          <button onClick={() => remove(log.id)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', padding: 4 }} title="Delete">
+                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" strokeWidth="2" fill="none"><path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" /></svg>
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Bottom Pagination */}
+        {pageSize !== 'all' && totalPages > 1 && (
+          <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', background: 'var(--bg)', flexWrap: 'wrap', gap: 15 }}>
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+              Showing <strong>{(currentPage - 1) * pageSize + 1}</strong> to <strong>{Math.min(currentPage * pageSize, filtered.length)}</strong> of <strong>{filtered.length}</strong> records
+            </div>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} style={{ padding: '4px 10px' }}>Prev</button>
+              {[...Array(totalPages)].map((_, i) => {
+                const pg = i + 1;
+                const isNear = Math.abs(currentPage - pg) <= 2;
+                const isEdge = pg === 1 || pg === totalPages;
+                if (!isNear && !isEdge) return null;
+                return (
+                  <React.Fragment key={pg}>
+                    {isEdge && pg === totalPages && Math.abs(currentPage - pg) > 3 && <span style={{ color: 'var(--muted)', alignSelf: 'center' }}>...</span>}
+                    <button className={`btn btn-sm ${currentPage === pg ? 'btn-primary' : 'btn-secondary'}`} style={{ minWidth: 32, padding: 0 }} onClick={() => setCurrentPage(pg)}>{pg}</button>
+                    {isEdge && pg === 1 && Math.abs(currentPage - pg) > 3 && <span style={{ color: 'var(--muted)', alignSelf: 'center' }}>...</span>}
+                  </React.Fragment>
+                );
+              })}
+              <button className="btn btn-secondary btn-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)} style={{ padding: '4px 10px' }}>Next</button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, marginTop: 16, alignItems: 'center' }}>
-          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 12, cursor: page === 1 ? 'default' : 'pointer', opacity: page === 1 ? 0.4 : 1 }}>Prev</button>
-          <span style={{ fontSize: 12, color: 'var(--muted)' }}>Page {page} of {totalPages}</span>
-          <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--card)', fontSize: 12, cursor: page === totalPages ? 'default' : 'pointer', opacity: page === totalPages ? 0.4 : 1 }}>Next</button>
+      {/* Configure View Modal */}
+      {colModal && (
+        <div className="mo open">
+          <div className="mo-box" style={{ width: 480 }}>
+            <div className="mo-head">
+              <h3>Configure View</h3>
+              <button className="btn-icon" onClick={() => setColModal(false)}>✕</button>
+            </div>
+            <div className="mo-body" style={{ display: 'flex', flexDirection: 'column', gap: 20, maxHeight: '60vh', overflowY: 'auto' }}>
+              {/* Visible Columns */}
+              <div>
+                <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Visible Columns</strong>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  {allPossibleCols.map(c => (
+                    <label key={c} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
+                      <input type="checkbox" checked={tempCols.includes(c)} onChange={e => {
+                        if (e.target.checked) setTempCols([...tempCols, c]);
+                        else setTempCols(tempCols.filter(x => x !== c));
+                      }} style={{ width: 16, height: 16, accentColor: 'var(--accent)' }} />
+                      {c}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Default Page Size */}
+              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+                <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Default Records per Page</strong>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {[25, 50, 100, 500, 'all'].map(size => (
+                    <button
+                      key={size}
+                      className={`btn btn-sm ${tempPageSize === size ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setTempPageSize(size)}
+                      style={{ padding: '6px 12px' }}
+                    >
+                      {size === 'all' ? 'All Records' : size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="mo-foot" style={{ justifyContent: 'space-between' }}>
+              <button className="btn btn-secondary btn-sm" onClick={resetViewConfig}>Reset to Default</button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-secondary btn-sm" onClick={() => setColModal(false)}>Cancel</button>
+                <button className="btn btn-primary btn-sm" onClick={() => saveViewConfig(tempCols, tempPageSize)}>Save View</button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
