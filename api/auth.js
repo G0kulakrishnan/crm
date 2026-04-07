@@ -28,7 +28,13 @@ export default async function handler(req, res) {
     if (action === 'login') {
       if (!cleanEmail || !password) return res.status(400).json({ error: 'Email and password are required' });
       const data = await db.query({ userCredentials: { $: { where: { email: cleanEmail } } } });
-      const user = data.userCredentials?.[0];
+      let user = data.userCredentials?.[0];
+
+      // If multiple credentials exist (e.g. owner + team), prefer the non-team one
+      if (data.userCredentials?.length > 1) {
+        user = data.userCredentials.find(c => !c.isTeamMember && !c.isPartner) || data.userCredentials[0];
+      }
+
       if (!user) {
         // Check if user exists via profile (magic-code registered) but has no password credentials
         const { userProfiles } = await db.query({ userProfiles: { $: { where: { email: cleanEmail }, limit: 1 } } });
@@ -37,7 +43,10 @@ export default async function handler(req, res) {
         }
         return res.status(401).json({ error: 'Invalid email or password' });
       }
-      if (!user.password || !(await bcrypt.compare(password, user.password))) return res.status(401).json({ error: 'Invalid email or password' });
+      if (!user.password || !(await bcrypt.compare(password, user.password))) {
+        console.log(`[Auth] Login failed for ${cleanEmail} — password mismatch. Has password: ${!!user.password}, isTeamMember: ${user.isTeamMember}, isVerified: ${user.isVerified}`);
+        return res.status(401).json({ error: 'Invalid email or password. Try using Forgot Password to reset it.' });
+      }
       if (user.isVerified === false) {
         // Check if admin already created a profile for this user — if so, auto-verify credentials
         const { userProfiles } = await db.query({ userProfiles: { $: { where: { email: cleanEmail }, limit: 1 } } });
