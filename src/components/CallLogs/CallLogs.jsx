@@ -158,16 +158,35 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
     toUnknown: todayLogs.filter(l => !l.leadId).length,
   };
 
-  // Per-team-member call breakdown
+  // Per-team-member call breakdown — filtered by active date range (defaults to today)
+  const summaryDateLabel = dateFrom && dateTo && dateFrom === dateTo
+    ? dateFrom
+    : dateFrom && dateTo
+      ? `${dateFrom} – ${dateTo}`
+      : dateFrom
+        ? `From ${dateFrom}`
+        : dateTo
+          ? `Up to ${dateTo}`
+          : `Today (${today})`;
+
   const teamCallStats = useMemo(() => {
     return team.map(m => {
-      const memberLogs = callLogs.filter(l => l.staffEmail === m.email);
-      const memberToday = memberLogs.filter(l => l.createdAt && new Date(l.createdAt).toISOString().split('T')[0] === today);
+      const allMemberLogs = callLogs.filter(l => l.staffEmail === m.email);
+      // Apply date filter if set, otherwise default to today
+      const memberLogs = allMemberLogs.filter(l => {
+        const d = l.createdAt ? new Date(l.createdAt).toISOString().split('T')[0] : null;
+        if (!d) return false;
+        if (dateFrom || dateTo) {
+          if (dateFrom && d < dateFrom) return false;
+          if (dateTo && d > dateTo) return false;
+          return true;
+        }
+        return d === today;
+      });
       return {
         name: m.name,
         email: m.email,
         total: memberLogs.length,
-        todayTotal: memberToday.length,
         toLeads: memberLogs.filter(l => l.leadId).length,
         toUnknown: memberLogs.filter(l => !l.leadId).length,
         outgoing: memberLogs.filter(l => l.direction === 'Outgoing').length,
@@ -175,7 +194,7 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
         missed: memberLogs.filter(l => l.direction === 'Missed').length,
       };
     });
-  }, [team, callLogs, today]);
+  }, [team, callLogs, today, dateFrom, dateTo]);
 
   // Filtered logs
   const filtered = useMemo(() => {
