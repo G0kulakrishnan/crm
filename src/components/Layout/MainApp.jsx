@@ -389,8 +389,8 @@ export default function MainApp({ user, settings }) {
     const viewConfig = views[activeView];
     const permKey = viewConfig?.label || '';
 
-    // Plan-based guard (team members only — owners bypass module restrictions)
-    if (planEnforcement && !isSuperadmin && !perms.isOwner && !planEnforcement.isViewAllowed(activeView)) {
+    // Plan-based guard (applies to owners AND team members, but not superadmin)
+    if (planEnforcement && !isSuperadmin && !planEnforcement.isViewAllowed(activeView)) {
       const firstAllowed = Object.keys(views).find(key => {
         if (!views[key]) return false;
         if (key === 'dashboard' || key === 'userprofile') return true;
