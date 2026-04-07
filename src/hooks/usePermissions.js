@@ -11,13 +11,13 @@ export function usePermissions(user, profile, teamMembers = []) {
   const permissions = useMemo(() => {
     if (!user || !profile) return null;
 
-    // 1. Check if user is a Team Member (Priority)
-    const member = teamMembers.find(m => m.email.toLowerCase() === user.email?.toLowerCase());
-
-    // 2. Check if user is the Owner
+    // 1. Check if user is the Owner (Priority — owner always takes precedence)
     const isOwnerByEmail = user.email && profile.email && user.email.toLowerCase() === profile.email.toLowerCase();
     const isOwnerById = user.id === profile.userId;
-    const isOwner = (isOwnerByEmail || isOwnerById) && !member; // Only owner if NOT a member
+    const isOwner = isOwnerByEmail || isOwnerById;
+
+    // 2. Check if user is a Team Member (only if NOT the owner)
+    const member = isOwner ? null : teamMembers.find(m => m.email.toLowerCase() === user.email?.toLowerCase());
     
     if (isOwner) {
       return { isOwner: true, can: () => true, modules: null, name: profile.fullName };
