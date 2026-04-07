@@ -49,9 +49,19 @@ export default async function handler(req, res) {
       }
       
       const token = await db.auth.createToken({ email: cleanEmail });
-      const isTeamMember = !!(user.isTeamMember && user.ownerUserId);
-      const isPartner = !!(user.isPartner && user.ownerUserId);
-      
+
+      // Check if this email belongs to a business owner (owner takes priority over team member)
+      const { userProfiles: ownerCheck } = await db.query({ userProfiles: { $: { where: { email: cleanEmail }, limit: 1 } } });
+      const isOwnerAccount = !!ownerCheck?.[0];
+
+      const isTeamMember = !!(user.isTeamMember && user.ownerUserId) && !isOwnerAccount;
+      const isPartner = !!(user.isPartner && user.ownerUserId) && !isOwnerAccount;
+
+      // Auto-repair: if owner credential was corrupted with team/partner flags, clean it up
+      if (isOwnerAccount && (user.isTeamMember || user.isPartner)) {
+        await db.transact([tx.userCredentials[user.id].update({ isTeamMember: false, isPartner: false, ownerUserId: null, teamMemberId: null, partnerId: null })]);
+      }
+
       let role = 'Owner', perms = null, finalOwnerId = isTeamMember || isPartner ? user.ownerUserId : null, finalTeamId = isTeamMember ? user.teamMemberId : null, finalPartnerId = isPartner ? user.partnerId : null;
 
       if (isTeamMember) {
@@ -193,8 +203,17 @@ export default async function handler(req, res) {
       if (!cleanEmail || !password || !ownerUserId || !teamMemberId) return res.status(400).json({ error: 'Required fields missing' });
       const hashedPassword = await bcrypt.hash(password, 10);
       const existing = await db.query({ userCredentials: { $: { where: { email: cleanEmail } } } });
-      const credId = existing.userCredentials?.[0]?.id || id();
-      await db.transact([tx.userCredentials[credId].update({ email: cleanEmail, password: hashedPassword, ownerUserId, teamMemberId, isTeamMember: true, updatedAt: Date.now(), ...(existing.userCredentials?.[0]?.id ? {} : { createdAt: Date.now() }) })]);
+      const existingCred = existing.userCredentials?.[0];
+
+      // If the email already has owner credentials (not a team member), don't overwrite — just update password
+      if (existingCred && !existingCred.isTeamMember && !existingCred.isPartner) {
+        // This is the business owner's credential — only update password, don't add team flags
+        await db.transact([tx.userCredentials[existingCred.id].update({ password: hashedPassword, updatedAt: Date.now() })]);
+        return res.status(200).json({ success: true, message: 'Password updated (owner account)' });
+      }
+
+      const credId = existingCred?.id || id();
+      await db.transact([tx.userCredentials[credId].update({ email: cleanEmail, password: hashedPassword, ownerUserId, teamMemberId, isTeamMember: true, updatedAt: Date.now(), ...(existingCred?.id ? {} : { createdAt: Date.now() }) })]);
       return res.status(200).json({ success: true, message: 'Password set' });
     }
 
