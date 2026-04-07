@@ -45,11 +45,11 @@ export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, 
     if (item.group) return true;
     if (item.id === 'userprofile') return true; // Everyone can see their profile
 
-    // Plan-level module check (owner + team members)
-    if (planEnforcement && !isSuperadmin && !planEnforcement.isViewAllowed(item.id)) return false;
-
-    // Role-level permission check (team members)
+    // Owner always sees all modules (plan limits still apply for record counts)
     if (perms?.isOwner) return true;
+
+    // Plan-level module check (team members only — owners bypass)
+    if (planEnforcement && !isSuperadmin && !planEnforcement.isViewAllowed(item.id)) return false;
     if (item.id === 'dashboard') return perms?.can('Dashboard', 'view');
     return perms?.can(item.permKey, 'list');
   });
