@@ -1,5 +1,16 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
+
+// Mapping from sidebar nav-item id → plan module key (must match usePlanEnforcement)
+const VIEW_TO_MODULE = {
+  leads: 'leads', customers: 'customers', quotations: 'quotations', invoices: 'invoices',
+  pos: 'pos', amc: 'amc', expenses: 'expenses', products: 'products', vendors: 'vendors',
+  'purchase-orders': 'purchaseOrders', projects: 'projects', alltasks: 'tasks', teams: 'teams',
+  campaigns: 'campaigns', reports: 'reports', automation: 'automation',
+  'ecom-settings': 'ecommerce', 'ecom-orders': 'ecommerce', appointments: 'appointments',
+  integrations: 'integrations', 'messaging-logs': 'messagingLogs', distributors: 'distributors',
+  'call-logs': 'callLogs', attendance: 'attendance',
+};
 const NAV_ITEMS = [
   { group: 'Main' },
   { id: 'dashboard', label: 'Dashboard', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z', permKey: 'Dashboard' },
@@ -38,6 +49,18 @@ const NAV_ITEMS = [
 
 export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, perms, settings, planEnforcement }) {
   const { activeView, setActiveView, setSettingsTab, sidebarExpanded, setSidebarExpanded, mobileSidebarOpen, setMobileSidebarOpen } = useApp();
+
+  // For owners: determine which nav items are outside their plan
+  const notInPlan = useMemo(() => {
+    if (!perms?.isOwner || !planEnforcement?.modules) return new Set();
+    const s = new Set();
+    NAV_ITEMS.forEach(item => {
+      if (item.group || !item.id) return;
+      const moduleKey = VIEW_TO_MODULE[item.id];
+      if (moduleKey && planEnforcement.modules[moduleKey] === false) s.add(item.id);
+    });
+    return s;
+  }, [perms?.isOwner, planEnforcement?.modules]);
 
   // Filter NAV_ITEMS based on permissions AND plan module access
   // Deny-by-default: if perms or planEnforcement isn't loaded yet, show nothing
@@ -82,10 +105,13 @@ export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, 
             return <div key={i} className="nav-group-label">{item.group}</div>;
           }
           const count = item.id === 'leads' ? leadCount : item.id === 'amc' ? amcCount : 0;
+          const isOutsidePlan = notInPlan.has(item.id);
           return (
             <div
               key={item.id}
               className={`nav-item${activeView === item.id ? ' active' : ''}`}
+              style={isOutsidePlan ? { opacity: 0.45 } : undefined}
+              title={isOutsidePlan ? `Not included in your ${planEnforcement?.planName || ''} plan` : undefined}
               onClick={() => {
                 setActiveView(item.id);
                 if (item.id === 'settings') setSettingsTab('Business');
@@ -101,6 +127,7 @@ export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, 
               {item.badge && count > 0 && (
                 <span className="badge-c nav-label">{count}</span>
               )}
+              {isOutsidePlan && <span className="nav-label" style={{ fontSize: 9, color: '#f59e0b', fontWeight: 700, marginLeft: 'auto' }}>UPGRADE</span>}
             </div>
           );
         })}
