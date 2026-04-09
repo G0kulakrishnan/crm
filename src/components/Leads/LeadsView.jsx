@@ -1068,7 +1068,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                   </select>
                   <select className="si" style={{ width: 130 }} value={stgFilter} onChange={e => setStgFilter(e.target.value)}>
                     <option value="">All Stages</option>
-                    {allStages.map(s => <option key={s}>{s}</option>)}
+                    {allEnabledStages.map(s => <option key={s}>{s}</option>)}
                   </select>
                   <select className="si" style={{ width: 130 }} value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
                     {(perms?.isOwner || teamCanSeeAllLeads) ? (
@@ -1305,7 +1305,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
               </select>
               <select className="si" style={{ width: 120, padding: '4px 8px' }} value={stgFilter} onChange={e => setStgFilter(e.target.value)}>
                 <option value="">All Stages</option>
-                {allStages.map(s => <option key={s}>{s}</option>)}
+                {allEnabledStages.map(s => <option key={s}>{s}</option>)}
               </select>
               <select className="si" style={{ width: 120, padding: '4px 8px' }} value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
                 {(perms?.isOwner || teamCanSeeAllLeads) ? (
