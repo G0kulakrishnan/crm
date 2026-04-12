@@ -54,7 +54,7 @@ export default function AdminPanel({ user }) {
   const [cleanupDays, setCleanupDays] = useState(90);
   const [couponModal, setCouponModal] = useState(false);
   const [couponForm, setCouponForm] = useState({ code: '', discount: 20, type: 'Percentage', maxUses: 100 });
-  const [settingsForm, setSettingsForm] = useState({ brandName: '', brandShort: '', brandLogo: '', title: '', favicon: '', crmDomain: '', showBranding: true });
+  const [settingsForm, setSettingsForm] = useState({ brandName: '', brandShort: '', brandLogo: '', title: '', favicon: '', crmDomain: '', showBranding: true, mobileAppIcon: '' });
   const [planModal, setPlanModal] = useState(false);
   const [planForm, setPlanForm] = useState(EMPTY_PLAN);
   const [editPlanIdx, setEditPlanIdx] = useState(null);
@@ -101,7 +101,8 @@ export default function AdminPanel({ user }) {
           title: s.title || '',
           favicon: s.favicon || '',
           crmDomain: s.crmDomain || '',
-          showBranding: s.showBranding !== false
+          showBranding: s.showBranding !== false,
+          mobileAppIcon: s.mobileAppIcon || ''
         });
     }
   }, [data]);
@@ -295,6 +296,7 @@ export default function AdminPanel({ user }) {
         favicon: settingsForm.favicon || '',
         crmDomain: settingsForm.crmDomain || '',
         showBranding: settingsForm.showBranding !== false,
+        mobileAppIcon: settingsForm.mobileAppIcon || '',
       }));
       toast('Platform Settings Updated', 'success');
     } catch (err) {
@@ -559,6 +561,17 @@ export default function AdminPanel({ user }) {
               <label>Favicon URL</label>
               <input value={settingsForm.favicon} onChange={e => setSettingsForm({ ...settingsForm, favicon: e.target.value })} placeholder="https://example.com/favicon.ico" />
               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>Icon image for the browser tab (.ico or .png).</div>
+            </div>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label>Mobile App Icon URL</label>
+              <input value={settingsForm.mobileAppIcon} onChange={e => setSettingsForm({ ...settingsForm, mobileAppIcon: e.target.value })} placeholder="https://example.com/app-icon-512x512.png" />
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>PNG icon for mobile app (recommended: 512x512px, no transparency for Android).</div>
+              {settingsForm.mobileAppIcon && (
+                <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <img src={settingsForm.mobileAppIcon} alt="App Icon Preview" style={{ width: 48, height: 48, borderRadius: 10, border: '1px solid var(--border)', objectFit: 'cover' }} onError={e => { e.target.style.display = 'none'; }} />
+                  <span style={{ fontSize: 11, color: 'var(--muted)' }}>Preview</span>
+                </div>
+              )}
             </div>
             <div className="form-group" style={{ marginBottom: 18, borderTop: '1px solid var(--border)', paddingTop: 18 }}>
               <label>CRM Domain URL</label>

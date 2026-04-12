@@ -61,6 +61,7 @@ function AppInner() {
     crmDomain: rawSettings.crmDomain || '',
     brandLogo: rawSettings.brandLogo || '',
     showBranding: rawSettings.showBranding !== false,
+    mobileAppIcon: rawSettings.mobileAppIcon || '',
     plans: rawSettings.plans ? JSON.parse(rawSettings.plans) : null,
   };
 
