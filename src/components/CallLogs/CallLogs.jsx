@@ -146,17 +146,7 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
     finally { setSavingLead(false); }
   };
 
-  // Stats
   const today = new Date().toISOString().split('T')[0];
-  const todayLogs = callLogs.filter(l => l.createdAt && new Date(l.createdAt).toISOString().split('T')[0] === today);
-  const stats = {
-    total: todayLogs.length,
-    outgoing: todayLogs.filter(l => l.direction === 'Outgoing').length,
-    incoming: todayLogs.filter(l => l.direction === 'Incoming').length,
-    missed: todayLogs.filter(l => l.direction === 'Missed').length,
-    toLeads: todayLogs.filter(l => l.leadId).length,
-    toUnknown: todayLogs.filter(l => !l.leadId).length,
-  };
 
   // Per-team-member call breakdown — filtered by active date range (defaults to today)
   const summaryDateLabel = dateFrom && dateTo && dateFrom === dateTo
@@ -187,6 +177,7 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
         name: m.name,
         email: m.email,
         total: memberLogs.length,
+        connected: memberLogs.filter(l => l.duration && Number(l.duration) > 0).length,
         toLeads: memberLogs.filter(l => l.leadId).length,
         toUnknown: memberLogs.filter(l => !l.leadId).length,
         outgoing: memberLogs.filter(l => l.direction === 'Outgoing').length,
@@ -279,23 +270,6 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
         )}
       </div>
 
-      {/* Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 20 }}>
-        {[
-          { label: "Today's Calls", value: stats.total, color: '#6366f1', bg: '#eef2ff' },
-          { label: 'Outgoing', value: stats.outgoing, color: '#2563eb', bg: '#eff6ff' },
-          { label: 'Incoming', value: stats.incoming, color: '#16a34a', bg: '#f0fdf4' },
-          { label: 'Missed', value: stats.missed, color: '#ef4444', bg: '#fef2f2' },
-          { label: 'To Leads', value: stats.toLeads, color: '#8b5cf6', bg: '#f5f3ff' },
-          { label: 'Unknown Numbers', value: stats.toUnknown, color: '#f59e0b', bg: '#fffbeb' },
-        ].map(s => (
-          <div key={s.label} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
-            <div style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>{s.label}</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: s.color, marginTop: 4 }}>{s.value}</div>
-          </div>
-        ))}
-      </div>
-
       {/* Team Member Call Summary */}
       {(perms?.isOwner || perms?.isAdmin || perms?.isManager) && team.length > 0 && !staffFilter && (
         <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--card)', overflow: 'hidden', marginBottom: 20 }}>
@@ -307,8 +281,8 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
               <thead>
                 <tr style={{ background: 'var(--bg)' }}>
                   <th style={{ padding: '8px 12px', textAlign: 'left', fontWeight: 600 }}>Member</th>
-                  <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Today</th>
                   <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Total</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Connected</th>
                   <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>To Leads</th>
                   <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Unknown</th>
                   <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Outgoing</th>
@@ -325,8 +299,8 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
                         {m.name}
                       </div>
                     </td>
-                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>{m.todayTotal}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>{m.total}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#16a34a', fontWeight: 600 }}>{m.connected}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', color: '#8b5cf6', fontWeight: 600 }}>{m.toLeads}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', color: '#f59e0b', fontWeight: 600 }}>{m.toUnknown}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', color: '#2563eb' }}>{m.outgoing}</td>
@@ -334,6 +308,16 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
                     <td style={{ padding: '8px 12px', textAlign: 'center', color: '#ef4444' }}>{m.missed}</td>
                   </tr>
                 ))}
+                <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg)', fontWeight: 700 }}>
+                  <td style={{ padding: '8px 12px', fontWeight: 700 }}>Total</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>{teamCallStats.reduce((s, m) => s + m.total, 0)}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'center', color: '#16a34a', fontWeight: 700 }}>{teamCallStats.reduce((s, m) => s + m.connected, 0)}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'center', color: '#8b5cf6', fontWeight: 700 }}>{teamCallStats.reduce((s, m) => s + m.toLeads, 0)}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'center', color: '#f59e0b', fontWeight: 700 }}>{teamCallStats.reduce((s, m) => s + m.toUnknown, 0)}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'center', color: '#2563eb', fontWeight: 700 }}>{teamCallStats.reduce((s, m) => s + m.outgoing, 0)}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'center', color: '#16a34a', fontWeight: 700 }}>{teamCallStats.reduce((s, m) => s + m.incoming, 0)}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'center', color: '#ef4444', fontWeight: 700 }}>{teamCallStats.reduce((s, m) => s + m.missed, 0)}</td>
+                </tr>
               </tbody>
             </table>
           </div>
