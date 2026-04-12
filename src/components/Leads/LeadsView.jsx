@@ -40,6 +40,8 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const [form, setForm] = useState(EMPTY_LEAD);
   const [saving, setSaving] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
+  const [pendingBulkAssign, setPendingBulkAssign] = useState('');
+  const [pendingBulkStage, setPendingBulkStage] = useState('');
   const [colModal, setColModal] = useState(false);
   const [tempCols, setTempCols] = useState([]);
   const [tempStages, setTempStages] = useState([]);
@@ -661,31 +663,37 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     }
   };
 
-  const bulkAssign = async (memberName) => {
-    if (!selectedIds.size || !memberName) return;
+  const bulkApply = async () => {
+    if (!selectedIds.size || (!pendingBulkAssign && !pendingBulkStage)) return;
+    const count = selectedIds.size;
+    const msgs = [];
     await Promise.all([...selectedIds].map(async lid => {
-      await db.transact(db.tx.leads[lid].update({ assign: memberName }));
-      await logActivity(lid, `Bulk assigned to ${memberName}`);
-    }));
-    setSelectedIds(new Set());
-    toast(`Assigned ${selectedIds.size} leads to ${memberName}`, 'success');
-  };
-
-  const bulkStage = async (newStage) => {
-    if (!selectedIds.size || !newStage) return;
-    await Promise.all([...selectedIds].map(async lid => {
-      const lead = leads.find(l => l.id === lid);
-      await db.transact(db.tx.leads[lid].update({ 
-        stage: newStage,
-        stageChangedAt: Date.now()
-      }));
-      await logActivity(lid, `Bulk status changed to ${newStage}`);
-      if (isWon(newStage) && lead && lead.stage !== newStage) {
-        await convertToCustomer(lead, true);
+      const updates = {};
+      const logMsgs = [];
+      if (pendingBulkAssign) {
+        updates.assign = pendingBulkAssign;
+        logMsgs.push(`Bulk assigned to ${pendingBulkAssign}`);
+      }
+      if (pendingBulkStage) {
+        updates.stage = pendingBulkStage;
+        updates.stageChangedAt = Date.now();
+        logMsgs.push(`Bulk status changed to ${pendingBulkStage}`);
+      }
+      await db.transact(db.tx.leads[lid].update(updates));
+      for (const msg of logMsgs) await logActivity(lid, msg);
+      if (pendingBulkStage) {
+        const lead = leads.find(l => l.id === lid);
+        if (isWon(pendingBulkStage) && lead && lead.stage !== pendingBulkStage) {
+          await convertToCustomer(lead, true);
+        }
       }
     }));
+    if (pendingBulkAssign) msgs.push(`Assigned to ${pendingBulkAssign}`);
+    if (pendingBulkStage) msgs.push(`Stage → ${pendingBulkStage}`);
+    setPendingBulkAssign('');
+    setPendingBulkStage('');
     setSelectedIds(new Set());
-    toast(`Moved ${selectedIds.size} leads to ${newStage}`, 'success');
+    toast(`${count} leads: ${msgs.join(', ')}`, 'success');
   };
 
   const convertToCustomer = async (l, skipConfirm = false) => {
@@ -1041,16 +1049,17 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
           {selectedIds.size > 0 && (
             <div className="bulk-bar" style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
               <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)' }}>{selectedIds.size} selected</span>
-              <select style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }} onChange={e => { bulkAssign(e.target.value); e.target.value = ''; }}>
+              <select style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }} value={pendingBulkAssign} onChange={e => setPendingBulkAssign(e.target.value)}>
                 <option value="">Assign To...</option>
                 {team.map(t => <option key={t.id} value={t.name}>{t.name}</option>)}
               </select>
-              <select style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }} onChange={e => { bulkStage(e.target.value); e.target.value = ''; }}>
+              <select style={{ padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }} value={pendingBulkStage} onChange={e => setPendingBulkStage(e.target.value)}>
                 <option value="">Change Stage...</option>
                 {activeStages.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
+              {(pendingBulkAssign || pendingBulkStage) && <button className="btn btn-primary btn-sm" onClick={bulkApply}>Apply</button>}
               {canDelete && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={bulkDelete}>🗑 Delete Selected</button>}
-              <button className="btn btn-secondary btn-sm" onClick={() => setSelectedIds(new Set())}>✕ Clear</button>
+              <button className="btn btn-secondary btn-sm" onClick={() => { setSelectedIds(new Set()); setPendingBulkAssign(''); setPendingBulkStage(''); }}>✕ Clear</button>
             </div>
           )}
 
@@ -1068,7 +1077,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                   </select>
                   <select className="si" style={{ width: 130 }} value={stgFilter} onChange={e => setStgFilter(e.target.value)}>
                     <option value="">All Stages</option>
-                    {allStages.map(s => <option key={s}>{s}</option>)}
+                    {allEnabledStages.map(s => <option key={s}>{s}</option>)}
                   </select>
                   <select className="si" style={{ width: 130 }} value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
                     {(perms?.isOwner || teamCanSeeAllLeads) ? (
@@ -1305,7 +1314,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
               </select>
               <select className="si" style={{ width: 120, padding: '4px 8px' }} value={stgFilter} onChange={e => setStgFilter(e.target.value)}>
                 <option value="">All Stages</option>
-                {allStages.map(s => <option key={s}>{s}</option>)}
+                {allEnabledStages.map(s => <option key={s}>{s}</option>)}
               </select>
               <select className="si" style={{ width: 120, padding: '4px 8px' }} value={staffFilter} onChange={e => setStaffFilter(e.target.value)}>
                 {(perms?.isOwner || teamCanSeeAllLeads) ? (
