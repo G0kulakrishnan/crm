@@ -106,6 +106,10 @@ export default async function handler(req, res) {
     const { module, ownerId, actorId, userName, projectId, logText, ...data } = params;
 
     if (!module || !COLLECTION_MAP[module]) {
+      // If no module provided in GET request, return empty data instead of error
+      if (method === 'GET' && !module) {
+        return res.status(200).json({ success: true, data: [] });
+      }
       return res.status(400).json({ error: `Invalid or missing module. Received: ${module}. Allowed: ${Object.keys(COLLECTION_MAP).join(', ')}` });
     }
 
