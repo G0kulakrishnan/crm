@@ -1,0 +1,283 @@
+import { init } from '@instantdb/admin';
+
+const APP_ID = process.env.VITE_INSTANT_APP_ID;
+const ADMIN_TOKEN = process.env.INSTANT_ADMIN_TOKEN;
+
+if (!APP_ID || !ADMIN_TOKEN) {
+  console.warn('Missing VITE_INSTANT_APP_ID or INSTANT_ADMIN_TOKEN in environment variables');
+}
+
+const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
+
+// Known IndiaMART API response fields (used as "columns" for mapping)
+const INDIAMART_COLUMNS = [
+  'SENDER_NAME', 'SENDER_EMAIL', 'SENDER_MOBILE', 'SENDER_COMPANY',
+  'SENDER_ADDRESS', 'SENDER_CITY', 'SENDER_STATE', 'SENDER_PINCODE',
+  'SUBJECT', 'QUERY_MESSAGE', 'QUERY_PRODUCT_NAME', 'QUERY_TIME',
+  'UNIQUE_QUERY_ID', 'CALL_DURATION', 'RECEIVER_MOBILE'
+];
+
+function applyMapping(incomingData, mapping, customMappings, columns) {
+  const lead = { custom: {} };
+
+  // Process standard mappings
+  Object.entries(mapping).forEach(([field, m]) => {
+    let val = '';
+    if (m.type === 'column') {
+      // For IndiaMART, the "column" value is the field key in the incoming JSON
+      val = incomingData[m.value] != null ? String(incomingData[m.value]) : '';
+    } else if (m.type === 'fixed') {
+      val = m.value || '';
+    }
+
+    // Phone sanitization
+    if (field === 'phone' && val) {
+      const str = String(val);
+      const hasPlus = str.includes('+');
+      const digits = str.replace(/[^0-9]/g, '');
+      val = (hasPlus ? '+' : '') + digits;
+    }
+
+    if (['name', 'email', 'phone', 'source', 'stage', 'requirement', 'notes', 'followup', 'assign', 'companyName', 'productCat'].includes(field)) {
+      lead[field] = val;
+    } else {
+      lead.custom[field] = val;
+    }
+  });
+
+  // Process custom mappings
+  if (customMappings && Array.isArray(customMappings)) {
+    customMappings.forEach(m => {
+      if (!m.field) return;
+      let val = '';
+      if (m.type === 'column') {
+        val = incomingData[m.value] != null ? String(incomingData[m.value]) : '';
+      } else if (m.type === 'fixed') {
+        val = m.value || '';
+      }
+      lead.custom[m.field] = val;
+    });
+  }
+
+  return lead;
+}
+
+export default async function handler(req, res) {
+  // CORS
+  res.setHeader('Access-Control-Allow-Credentials', true);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'OPTIONS,POST,GET');
+  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
+
+  if (req.method === 'OPTIONS') {
+    res.status(200).end();
+    return;
+  }
+
+  try {
+    const userId = req.query?.userId || req.body?.userId;
+
+    if (!userId) {
+      return res.status(400).json({ success: false, message: 'Missing userId parameter' });
+    }
+
+    // Fetch user profile
+    const profileResponse = await db.query({
+      userProfiles: { $: { where: { userId } } }
+    });
+    const profile = profileResponse.userProfiles?.[0];
+
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'User profile not found' });
+    }
+
+    const indiamartConfigs = profile.indiamart || [];
+    if (indiamartConfigs.length === 0) {
+      return res.status(400).json({ success: false, message: 'No IndiaMART integration configured for this user' });
+    }
+
+    const activeConfig = indiamartConfigs[0];
+    if (activeConfig.disabled) {
+      return res.status(200).json({ success: true, message: 'Sync skipped: Integration is disabled' });
+    }
+
+    const { mapping, customMappings, columns } = activeConfig;
+    if (!mapping) {
+      return res.status(400).json({ success: false, message: 'Incomplete integration configuration (no mapping)' });
+    }
+
+    // ==================== POST: Receive webhook push ====================
+    if (req.method === 'POST') {
+      // IndiaMART may send a single lead or an array of leads
+      let leads = req.body?.RESPONSE || req.body?.leads || req.body;
+      if (!Array.isArray(leads)) leads = [leads];
+
+      // Fetch existing leads for dedup
+      const leadsRes = await db.query({ leads: { $: { where: { userId } } } });
+      const allLeads = leadsRes.leads || [];
+      const emailSet = new Set(allLeads.filter(l => l.email).map(l => l.email.toLowerCase()));
+      const phoneSet = new Set(allLeads.filter(l => l.phone).map(l => l.phone));
+
+      let added = 0, skipped = 0, errors = 0;
+      const txs = [];
+
+      for (const incomingLead of leads) {
+        try {
+          const lead = applyMapping(incomingLead, mapping, customMappings, columns);
+          lead.userId = userId;
+          lead.actorId = null;
+          lead.createdAt = Date.now();
+
+          if (!lead.name || !lead.name.trim()) {
+            lead.name = 'New Lead via IndiaMART';
+          }
+
+          // Dedup check
+          const dupEmail = lead.email && emailSet.has(lead.email.toLowerCase());
+          const dupPhone = lead.phone && phoneSet.has(lead.phone);
+
+          if (dupEmail || dupPhone) {
+            // Find existing lead for activity log
+            const existingLead = allLeads.find(l =>
+              (lead.email && l.email && l.email.toLowerCase() === lead.email.toLowerCase()) ||
+              (lead.phone && l.phone && l.phone === lead.phone)
+            );
+            if (existingLead) {
+              const logId = crypto.randomUUID();
+              txs.push(
+                db.tx.activityLogs[logId].update({
+                  entityId: existingLead.id,
+                  entityType: 'lead',
+                  text: `Lead submitted again from IndiaMART.\nOriginal creation: ${new Date(existingLead.createdAt || Date.now()).toLocaleString()}\n**Resubmitted on: ${new Date().toLocaleString()}**`,
+                  userId,
+                  actorId: null,
+                  userName: 'System (IndiaMART Webhook)',
+                  createdAt: Date.now()
+                }),
+                db.tx.leads[existingLead.id].update({ updatedAt: Date.now() })
+              );
+            }
+            skipped++;
+            continue;
+          }
+
+          // Add to dedup sets
+          if (lead.email) emailSet.add(lead.email.toLowerCase());
+          if (lead.phone) phoneSet.add(lead.phone);
+
+          const leadId = crypto.randomUUID();
+          txs.push(db.tx.leads[leadId].update(lead));
+          added++;
+        } catch {
+          errors++;
+        }
+      }
+
+      // Flush all transactions
+      if (txs.length > 0) {
+        // Batch in groups of 50
+        for (let i = 0; i < txs.length; i += 50) {
+          await db.transact(txs.slice(i, i + 50));
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Processed: ${added} added, ${skipped} skipped, ${errors} errors`,
+        added, skipped, errors
+      });
+    }
+
+    // ==================== GET: Pull sync from IndiaMART API ====================
+    if (req.method === 'GET' && req.query?.action === 'sync') {
+      const apiKey = activeConfig.apiKey;
+      if (!apiKey) {
+        return res.status(400).json({ success: false, message: 'No API key configured for IndiaMART' });
+      }
+
+      try {
+        // IndiaMART CRM Lead API
+        const apiUrl = `https://mapi.indiamart.com/wservce/enquiry/listing/JEESSION_ID/KEY/${apiKey}/`;
+        const apiRes = await fetch(apiUrl);
+        const apiData = await apiRes.json();
+
+        let leads = apiData?.RESPONSE || apiData?.leads || [];
+        if (!Array.isArray(leads)) leads = [];
+
+        if (leads.length === 0) {
+          return res.status(200).json({ success: true, message: 'No new leads found', added: 0, skipped: 0, total: 0 });
+        }
+
+        // Fetch existing leads for dedup
+        const leadsRes = await db.query({ leads: { $: { where: { userId } } } });
+        const allLeads = leadsRes.leads || [];
+        const emailSet = new Set(allLeads.filter(l => l.email).map(l => l.email.toLowerCase()));
+        const phoneSet = new Set(allLeads.filter(l => l.phone).map(l => l.phone));
+
+        let added = 0, skipped = 0, errors = 0;
+        const txs = [];
+
+        for (const incomingLead of leads) {
+          try {
+            const lead = applyMapping(incomingLead, mapping, customMappings, columns);
+            lead.userId = userId;
+            lead.actorId = null;
+            lead.createdAt = Date.now();
+
+            if (!lead.name || !lead.name.trim()) {
+              lead.name = 'New Lead via IndiaMART';
+            }
+
+            const dupEmail = lead.email && emailSet.has(lead.email.toLowerCase());
+            const dupPhone = lead.phone && phoneSet.has(lead.phone);
+
+            if (dupEmail || dupPhone) {
+              skipped++;
+              continue;
+            }
+
+            if (lead.email) emailSet.add(lead.email.toLowerCase());
+            if (lead.phone) phoneSet.add(lead.phone);
+
+            const leadId = crypto.randomUUID();
+            txs.push(db.tx.leads[leadId].update(lead));
+            added++;
+          } catch {
+            errors++;
+          }
+        }
+
+        if (txs.length > 0) {
+          for (let i = 0; i < txs.length; i += 50) {
+            await db.transact(txs.slice(i, i + 50));
+          }
+        }
+
+        // Update lastSyncAt
+        const updatedConfigs = indiamartConfigs.map((c, i) =>
+          i === 0 ? { ...c, lastSyncAt: Date.now() } : c
+        );
+        await db.transact(db.tx.userProfiles[profile.id].update({ indiamart: updatedConfigs }));
+
+        return res.status(200).json({
+          success: true,
+          message: `Synced: ${added} added, ${skipped} skipped, ${errors} errors`,
+          added, skipped, errors, total: leads.length
+        });
+      } catch (e) {
+        console.error('IndiaMART Sync Error:', e);
+        return res.status(500).json({ success: false, message: 'Failed to sync from IndiaMART API: ' + (e.message || String(e)) });
+      }
+    }
+
+    return res.status(405).json({ success: false, message: 'Method Not Allowed' });
+
+  } catch (error) {
+    console.error('IndiaMART Webhook Error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error processing IndiaMART webhook',
+      error: error.message || String(error)
+    });
+  }
+}
