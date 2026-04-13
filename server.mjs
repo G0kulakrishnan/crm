@@ -15,6 +15,8 @@ import bookHandler from './api/appointments/book.js';
 import checkoutHandler from './api/ecom/checkout.js';
 import cronHandler from './api/cron/process-automations.js';
 import gsheetsHandler from './api/webhook/gsheets.js';
+import indiamartHandler from './api/webhook/indiamart.js';
+import justdialHandler from './api/webhook/justdial.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -57,6 +59,8 @@ app.all('/api/appointments/book', wrap(bookHandler));
 app.all('/api/ecom/checkout', wrap(checkoutHandler));
 app.all('/api/cron/process-automations', wrap(cronHandler));
 app.all('/api/webhook/gsheets', wrap(gsheetsHandler));
+app.all('/api/webhook/indiamart', wrap(indiamartHandler));
+app.all('/api/webhook/justdial', wrap(justdialHandler));
 
 // 2. STATIC FILES (Frontend)
 app.use(express.static(path.join(__dirname, 'dist')));

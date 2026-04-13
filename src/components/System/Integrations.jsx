@@ -3,6 +3,8 @@ import db from '../../instant';
 import { id as genId } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import SheetIntegration from './SheetIntegration';
+import IndiamartIntegration from './IndiamartIntegration';
+import JustdialIntegration from './JustdialIntegration';
 
 const COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -37,6 +39,8 @@ export default function Integrations({ user, ownerId }) {
   });
   const profile = data?.userProfiles?.[0];
   const gsheets = profile?.gsheets || [];
+  const indiamartConfigs = profile?.indiamart || [];
+  const justdialConfigs = profile?.justdial || [];
   const existingLeads = data?.leads || [];
 
   const integrations = [
@@ -63,6 +67,22 @@ export default function Integrations({ user, ownerId }) {
       icon: '🟡',
       connected: !!profile?.googleAds?.connected,
       disabled: !!profile?.googleAds?.disabled
+    },
+    {
+      id: 'indiamart',
+      name: 'IndiaMART',
+      desc: 'Receive leads from IndiaMART enquiries automatically via webhook or manual sync.',
+      icon: '🏭',
+      connected: indiamartConfigs.length > 0,
+      count: indiamartConfigs.length
+    },
+    {
+      id: 'justdial',
+      name: 'JustDial',
+      desc: 'Capture JustDial leads via webhook in real-time.',
+      icon: '📞',
+      connected: justdialConfigs.length > 0,
+      count: justdialConfigs.length
     }
   ];
 
@@ -207,21 +227,38 @@ export default function Integrations({ user, ownerId }) {
     toast(updated[index].disabled ? 'Integration disabled' : 'Integration enabled', 'info');
   };
 
-  const handlePlatformAction = async (id, action) => {
-    if (!profileId) return;
-    const field = id === 'fbads' ? 'fbAds' : 'googleAds';
+  const handlePlatformAction = async (pid, action) => {
+    if (!profile?.id) return;
+    const profileId = profile.id;
+
+    // Handle array-based integrations (gsheets, indiamart, justdial)
+    if (pid === 'indiamart' || pid === 'justdial') {
+      const configs = profile[pid] || [];
+      if (action === 'delete') {
+        if (!confirm(`Are you sure you want to disconnect all ${pid} integrations?`)) return;
+        await db.transact(db.tx.userProfiles[profileId].update({ [pid]: [] }));
+        toast('Disconnected', 'error');
+      } else if (action === 'toggle') {
+        const updated = configs.map(c => ({ ...c, disabled: !c.disabled }));
+        await db.transact(db.tx.userProfiles[profileId].update({ [pid]: updated }));
+        toast(configs[0]?.disabled ? 'Enabled' : 'Disabled', 'info');
+      }
+      return;
+    }
+
+    const field = pid === 'fbads' ? 'fbAds' : 'googleAds';
     const current = profile[field] || { connected: false, disabled: false };
-    
+
     if (action === 'delete') {
-      if (!confirm(`Are you sure you want to disconnect ${id}?`)) return;
-      if (id === 'gsheets') {
+      if (!confirm(`Are you sure you want to disconnect ${pid}?`)) return;
+      if (pid === 'gsheets') {
         await db.transact(db.tx.userProfiles[profileId].update({ gsheets: [], gsheetsDisabled: false }));
       } else {
         await db.transact(db.tx.userProfiles[profileId].update({ [field]: { connected: false, disabled: false } }));
       }
       toast('Disconnected', 'error');
     } else if (action === 'toggle') {
-      if (id === 'gsheets') {
+      if (pid === 'gsheets') {
         await db.transact(db.tx.userProfiles[profileId].update({ gsheetsDisabled: !profile.gsheetsDisabled }));
         toast(profile.gsheetsDisabled ? 'Enabled' : 'Disabled', 'info');
       } else {
@@ -229,7 +266,7 @@ export default function Integrations({ user, ownerId }) {
         toast(current.disabled ? 'Enabled' : 'Disabled', 'info');
       }
     } else if (action === 'connect') {
-      setSyncing(id);
+      setSyncing(pid);
       setTimeout(async () => {
         await db.transact(db.tx.userProfiles[profileId].update({ [field]: { connected: true, disabled: false } }));
         setSyncing(null);
@@ -243,16 +280,59 @@ export default function Integrations({ user, ownerId }) {
       syncGoogleSheet(0);
       return;
     }
+    if (item.id === 'indiamart' || item.id === 'justdial') {
+      setShowConfig({ type: item.id, index: null });
+      return;
+    }
     handlePlatformAction(item.id, 'connect');
+  };
+
+  const handleToggleIntConfig = async (type, index) => {
+    const configs = profile[type] || [];
+    const updated = configs.map((c, i) => i === index ? { ...c, disabled: !c.disabled } : c);
+    await db.transact(db.tx.userProfiles[profile.id].update({ [type]: updated }));
+    toast(updated[index].disabled ? 'Integration disabled' : 'Integration enabled', 'info');
+  };
+
+  const handleDeleteIntConfig = async (type, index) => {
+    if (!confirm('Are you sure you want to delete this integration?')) return;
+    const configs = profile[type] || [];
+    const updated = configs.filter((_, i) => i !== index);
+    await db.transact(db.tx.userProfiles[profile.id].update({ [type]: updated }));
+    toast('Integration deleted', 'error');
   };
 
   if (showConfig?.type === 'gsheets') {
     return (
-      <SheetIntegration 
-        user={user} 
+      <SheetIntegration
+        user={user}
         ownerId={ownerId}
-        onBack={() => setShowConfig(null)} 
-        existingConfig={showConfig.index !== null ? gsheets[showConfig.index] : null} 
+        onBack={() => setShowConfig(null)}
+        existingConfig={showConfig.index !== null ? gsheets[showConfig.index] : null}
+        editIndex={showConfig.index}
+      />
+    );
+  }
+
+  if (showConfig?.type === 'indiamart') {
+    return (
+      <IndiamartIntegration
+        user={user}
+        ownerId={ownerId}
+        onBack={() => setShowConfig(null)}
+        existingConfig={showConfig.index !== null ? indiamartConfigs[showConfig.index] : null}
+        editIndex={showConfig.index}
+      />
+    );
+  }
+
+  if (showConfig?.type === 'justdial') {
+    return (
+      <JustdialIntegration
+        user={user}
+        ownerId={ownerId}
+        onBack={() => setShowConfig(null)}
+        existingConfig={showConfig.index !== null ? justdialConfigs[showConfig.index] : null}
         editIndex={showConfig.index}
       />
     );
@@ -320,6 +400,29 @@ export default function Integrations({ user, ownerId }) {
                 )}
               </div>
             )}
+            {/* IndiaMART / JustDial connected configs */}
+            {(item.id === 'indiamart' || item.id === 'justdial') && (profile?.[item.id] || []).length > 0 && (
+              <div style={{ marginTop: -10, marginBottom: 15 }}>
+                {(profile[item.id] || []).map((cfg, idx) => (
+                  <div key={idx} style={{ padding: '10px 12px', background: 'var(--bg)', borderRadius: 8, marginBottom: 8, fontSize: 12, border: '1px solid var(--border)' }}>
+                    <div style={{ fontWeight: 600, marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: cfg.disabled ? 0.5 : 1 }}>
+                      {cfg.disabled ? '⏸ ' : item.id === 'indiamart' ? '🏭 ' : '📞 '}{cfg.configName || item.name}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button
+                        className={`btn ${cfg.disabled ? 'btn-secondary' : 'btn-primary'} btn-sm`}
+                        style={{ padding: '2px 8px', fontSize: 10, flex: 1, minWidth: 'fit-content' }}
+                        onClick={() => handleToggleIntConfig(item.id, idx)}
+                      >
+                        {cfg.disabled ? 'Enable' : 'Disable'}
+                      </button>
+                      <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: 10 }} onClick={() => setShowConfig({ type: item.id, index: idx })}>Edit</button>
+                      <button className="btn btn-secondary btn-sm" style={{ padding: '2px 8px', fontSize: 10, color: '#ef4444' }} onClick={() => handleDeleteIntConfig(item.id, idx)}>Disconnect</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             {item.id === 'gsheets' && gsheets.length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => setShowConfig({ type: 'gsheets', index: null })}>
@@ -331,6 +434,20 @@ export default function Integrations({ user, ownerId }) {
                   </button>
                   <button className="btn btn-secondary btn-sm" style={{ padding: '0 12px', color: '#ef4444' }} onClick={() => handlePlatformAction('gsheets', 'delete')}>
                     Disconnect
+                  </button>
+                </div>
+              </div>
+            ) : (item.id === 'indiamart' || item.id === 'justdial') && (profile?.[item.id] || []).length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => setShowConfig({ type: item.id, index: null })}>
+                  + Add Another
+                </button>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <button className="btn btn-secondary btn-sm" style={{ flex: 1 }} onClick={() => handlePlatformAction(item.id, 'toggle')}>
+                    {(profile[item.id] || [])[0]?.disabled ? 'Enable All' : 'Disable All'}
+                  </button>
+                  <button className="btn btn-secondary btn-sm" style={{ padding: '0 12px', color: '#ef4444' }} onClick={() => handlePlatformAction(item.id, 'delete')}>
+                    Disconnect All
                   </button>
                 </div>
               </div>
@@ -347,7 +464,7 @@ export default function Integrations({ user, ownerId }) {
               <button 
                 className={`btn ${syncing === item.id ? 'btn-secondary' : 'btn-primary'} btn-sm`} 
                 style={{ width: '100%' }}
-                onClick={() => item.id === 'gsheets' ? setShowConfig({ type: 'gsheets', index: null }) : handleSync(item)}
+                onClick={() => (item.id === 'gsheets' || item.id === 'indiamart' || item.id === 'justdial') ? setShowConfig({ type: item.id, index: null }) : handleSync(item)}
                 disabled={syncing !== null}
               >
                 {syncing === item.id ? 'Connecting...' : 'Connect Now'}

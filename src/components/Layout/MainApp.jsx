@@ -162,8 +162,16 @@ export default function MainApp({ user, settings }) {
     amc: { $: { where: { userId: targetUserId } } },
     leads: { $: { where: { userId: targetUserId } } },
     subs: { $: { where: { userId: targetUserId } } },
-    checkProfiles: { userProfiles: { $: { limit: 1 } } }, 
+    checkProfiles: { userProfiles: { $: { limit: 1 } } },
   });
+
+  // Secondary lookup by email — used to adopt admin-created profiles that have a different userId
+  const needsEmailLookup = !isTeamMember && !isSuperadmin && !!user.email && !data?.userProfiles?.[0];
+  const { data: emailProfileData } = db.useQuery(
+    needsEmailLookup
+      ? { userProfiles: { $: { where: { email: user.email }, limit: 1 } } }
+      : null
+  );
 
   if (error) console.error("MainApp Query Error:", error);
 
@@ -171,7 +179,8 @@ export default function MainApp({ user, settings }) {
   const amc = data?.amc || [];
   const subs = data?.subs || [];
   const teamMembers = data?.teamMembers || [];
-  let profile = data?.userProfiles?.[0];
+  // Use userId-matched profile first; fall back to email-matched (admin-created with different userId)
+  let profile = data?.userProfiles?.[0] || emailProfileData?.userProfiles?.[0];
   const memberProfile = data?.memberProfiles?.[0];
 
   const visibleLeads = useMemo(() => {
@@ -248,7 +257,7 @@ export default function MainApp({ user, settings }) {
       const role = (user.email === SUPERADMIN_KEY) ? 'superadmin' : 'user';
 
       console.log("🛠 [MainApp] Creating user profile for:", user.email, "Role:", role);
-      
+
       const profileId = id();
       db.transact(db.tx.userProfiles[profileId].update({
         userId: user.id,
@@ -273,6 +282,14 @@ export default function MainApp({ user, settings }) {
         syncRef.current = false; // Allow retry on failure
       });
     } else if (profile) {
+      // Profile found — if it was admin-created with a different userId, adopt it by updating userId to current auth ID
+      if (profile.userId !== user.id && !isTeamMember && !syncRef.current) {
+        syncRef.current = true;
+        console.log("🔗 [MainApp] Adopting admin-created profile — updating userId from", profile.userId, "to", user.id);
+        db.transact(db.tx.userProfiles[profile.id].update({ userId: user.id }))
+          .then(() => { console.log("✅ [MainApp] Profile userId adopted successfully"); syncRef.current = false; })
+          .catch(e => { console.error("❌ [MainApp] Profile adoption failed", e); syncRef.current = false; });
+      }
       // Sync metadata if missing or incorrect
       const isUuid = profile.email && profile.email.length === 36 && !profile.email.includes('@');
       const needsEmail = !profile.email || profile.email === '' || isUuid;

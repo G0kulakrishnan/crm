@@ -251,20 +251,24 @@ export default async function handler(req, res) {
       if (!cleanEmail || !password) return res.status(400).json({ error: 'Email and password are required' });
       const existing = await db.query({ userCredentials: { $: { where: { email: cleanEmail } } } });
       const existingCred = existing.userCredentials?.[0];
-      
+
+      // Check if a profile already exists for this email (already a registered business)
+      const existingProfile = await db.query({ userProfiles: { $: { where: { email: cleanEmail }, limit: 1 } } });
+      if (existingProfile.userProfiles?.[0]) {
+        return res.status(400).json({ error: 'A business account with this email already exists' });
+      }
+
       // If credentials exist and are already verified, reject
       if (existingCred && existingCred.isVerified === true) {
         return res.status(400).json({ error: 'User with this email already exists' });
       }
 
       const hashedPassword = await bcrypt.hash(password, 10);
-      const newUserId = id();
-      const profileId = id();
       const plan = selectedPlan || 'Trial';
       const duration = req.body.duration || 7;
       const planExpiry = Date.now() + (duration * 24 * 60 * 60 * 1000);
 
-      // If unverified credentials exist (from failed self-registration), update them
+      // Create/update credentials first, mark as verified
       const credId = existingCred ? existingCred.id : id();
       await db.transact([
         tx.userCredentials[credId].update({
@@ -277,9 +281,25 @@ export default async function handler(req, res) {
           isVerified: true,
           otp: null,
           createdAt: Date.now()
-        }),
+        })
+      ]);
+
+      // Create InstantDB auth user and get the real user ID
+      await db.auth.createToken({ email: cleanEmail });
+      let realUserId;
+      try {
+        const authUser = await db.auth.getUser({ email: cleanEmail });
+        realUserId = authUser?.id;
+      } catch (e) {
+        console.warn('Could not get InstantDB auth user ID, using fallback:', e.message);
+      }
+      // Fallback: generate a UUID (will be corrected on first login via MainApp profile adoption)
+      if (!realUserId) realUserId = id();
+
+      const profileId = id();
+      await db.transact([
         tx.userProfiles[profileId].update({
-          userId: newUserId,
+          userId: realUserId,
           email: cleanEmail,
           fullName: fullName || '',
           bizName: bizName || '',
@@ -291,10 +311,7 @@ export default async function handler(req, res) {
         })
       ]);
 
-      // Create auth token so profile gets linked to the correct userId
-      await db.auth.createToken({ email: cleanEmail });
-
-      return res.status(200).json({ success: true, message: `Business "${bizName || cleanEmail}" created successfully`, userId: newUserId, profileId });
+      return res.status(200).json({ success: true, message: `Business "${bizName || cleanEmail}" created successfully`, userId: realUserId, profileId });
     }
 
     /* ──────────── ADMIN: DELETE BUSINESS ──────────── */
