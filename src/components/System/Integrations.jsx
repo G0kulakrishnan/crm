@@ -53,22 +53,6 @@ export default function Integrations({ user, ownerId }) {
       count: gsheets.length
     },
     {
-      id: 'fbads',
-      name: 'Facebook Ads',
-      desc: 'Sync lead data from your Facebook Lead Forms in real-time.',
-      icon: '🔵',
-      connected: !!profile?.fbAds?.connected,
-      disabled: !!profile?.fbAds?.disabled
-    },
-    {
-      id: 'gads',
-      name: 'Google Ads',
-      desc: 'Automatically capture leads from Google Search and Display ads.',
-      icon: '🟡',
-      connected: !!profile?.googleAds?.connected,
-      disabled: !!profile?.googleAds?.disabled
-    },
-    {
       id: 'indiamart',
       name: 'IndiaMART',
       desc: 'Receive leads from IndiaMART enquiries automatically via webhook or manual sync.',
