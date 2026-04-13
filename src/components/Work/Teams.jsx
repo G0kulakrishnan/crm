@@ -37,6 +37,34 @@ const MODULES = [
 
 const ALL_ACTIONS = ['list', 'view', 'create', 'edit', 'delete'];
 
+// Map Teams module key (PascalCase) → Admin plan module key (camelCase)
+const MODULE_TO_PLAN_KEY = {
+  Dashboard: null,        // Always shown
+  Leads: 'leads',
+  Customers: 'customers',
+  Quotations: 'quotations',
+  Invoices: 'invoices',
+  AMC: 'amc',
+  Expenses: 'expenses',
+  Products: 'products',
+  Vendors: 'vendors',
+  PurchaseOrders: 'purchaseOrders',
+  Campaigns: 'campaigns',
+  Projects: 'projects',
+  Tasks: 'tasks',
+  Teams: 'teams',
+  Reports: 'reports',
+  Automation: 'automation',
+  Ecommerce: 'ecommerce',
+  Appointments: 'appointments',
+  Integrations: 'integrations',
+  CallLogs: 'callLogs',
+  Attendance: 'attendance',
+  MessagingLogs: 'messagingLogs',
+  Distributors: 'distributors',
+  Settings: null,         // Always shown
+};
+
 const DEFAULT_ROLES = [
   { name: 'Admin', perms: Object.fromEntries(MODULES.map(m => [m.key, [...m.actions]])) },
   { name: 'Sales', perms: { Dashboard: ['view'], Leads: ['list', 'create', 'edit'], Customers: ['list'], Quotations: ['list', 'create'], Products: ['list'] } },
@@ -86,6 +114,16 @@ export default function Teams({ user, ownerId, perms, planEnforcement }) {
   // Normalise all roles to new format
   const roles = rawRoles.map(r => ({ ...r, perms: normalisePerms(r.perms) }));
   const allAttendance = data?.attendance || [];
+
+  // Filter modules to only those enabled in the business plan
+  const visibleModules = useMemo(() => {
+    if (!planEnforcement) return MODULES;
+    return MODULES.filter(m => {
+      const planKey = MODULE_TO_PLAN_KEY[m.key];
+      if (planKey === null) return true; // Always show Dashboard, Settings
+      return planEnforcement.isModuleEnabled(planKey);
+    });
+  }, [planEnforcement]);
 
   // Attendance filters
   const [attDateFrom, setAttDateFrom] = useState(() => {
@@ -480,7 +518,7 @@ export default function Teams({ user, ownerId, perms, planEnforcement }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {MODULES.map(m => {
+                        {visibleModules.map(m => {
                           const granted = roleForm.perms[m.key] || [];
                           const allGranted = m.actions.every(a => granted.includes(a));
                           return (
