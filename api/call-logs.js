@@ -15,6 +15,18 @@ const ADMIN_TOKEN = process.env.INSTANT_ADMIN_TOKEN;
  *   PATCH  /api/call-logs                                - Update a call log
  *   DELETE /api/call-logs                                - Delete a call log
  */
+/** Derive call outcome from available data — don't blindly default to 'Connected' */
+function deriveOutcome(entry) {
+  // Trust explicit outcome from mobile/caller if present
+  if (entry.outcome && entry.outcome !== '') return entry.outcome;
+  // Derive from duration: if > 0 then connected
+  if (entry.duration && Number(entry.duration) > 0) return 'Connected';
+  // Missed calls
+  if (entry.direction === 'Missed') return 'No Answer';
+  // Default for outgoing/incoming with no duration
+  return 'No Answer';
+}
+
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
@@ -85,7 +97,7 @@ export default async function handler(req, res) {
             phone: entry.phone || '',
             contactName: entry.contactName || matched?.name || '',
             direction: entry.direction || 'Incoming',
-            outcome: entry.outcome || 'Connected',
+            outcome: deriveOutcome(entry),
             duration: entry.duration ? Number(entry.duration) : 0,
             notes: entry.notes || '',
             leadId: matched?.id || '',
@@ -114,7 +126,7 @@ export default async function handler(req, res) {
         phone: singleData.phone || '',
         contactName: singleData.contactName || matched?.name || '',
         direction: singleData.direction || 'Outgoing',
-        outcome: singleData.outcome || 'Connected',
+        outcome: deriveOutcome(singleData),
         duration: singleData.duration ? Number(singleData.duration) : 0,
         notes: singleData.notes || '',
         leadId: singleData.leadId || matched?.id || '',

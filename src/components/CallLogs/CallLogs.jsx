@@ -177,12 +177,13 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
         name: m.name,
         email: m.email,
         total: memberLogs.length,
-        connected: memberLogs.filter(l => l.duration && Number(l.duration) > 0).length,
+        connected: memberLogs.filter(l => (l.duration && Number(l.duration) > 0) || l.outcome === 'Connected').length,
         toLeads: memberLogs.filter(l => l.leadId).length,
         toUnknown: memberLogs.filter(l => !l.leadId).length,
         outgoing: memberLogs.filter(l => l.direction === 'Outgoing').length,
         incoming: memberLogs.filter(l => l.direction === 'Incoming').length,
         missed: memberLogs.filter(l => l.direction === 'Missed').length,
+        notPicked: memberLogs.filter(l => l.direction === 'Outgoing' && (!l.duration || Number(l.duration) === 0) && l.outcome !== 'Connected').length,
       };
     });
   }, [team, callLogs, today, dateFrom, dateTo]);
@@ -288,6 +289,7 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
                   <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Outgoing</th>
                   <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Incoming</th>
                   <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Missed</th>
+                  <th style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 600 }}>Not Picked</th>
                 </tr>
               </thead>
               <tbody>
@@ -306,6 +308,7 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
                     <td style={{ padding: '8px 12px', textAlign: 'center', color: '#2563eb' }}>{m.outgoing}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', color: '#16a34a' }}>{m.incoming}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'center', color: '#ef4444' }}>{m.missed}</td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center', color: '#f97316', fontWeight: 600 }}>{m.notPicked}</td>
                   </tr>
                 ))}
                 <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg)', fontWeight: 700 }}>
@@ -317,6 +320,7 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
                   <td style={{ padding: '8px 12px', textAlign: 'center', color: '#2563eb', fontWeight: 700 }}>{teamCallStats.reduce((s, m) => s + m.outgoing, 0)}</td>
                   <td style={{ padding: '8px 12px', textAlign: 'center', color: '#16a34a', fontWeight: 700 }}>{teamCallStats.reduce((s, m) => s + m.incoming, 0)}</td>
                   <td style={{ padding: '8px 12px', textAlign: 'center', color: '#ef4444', fontWeight: 700 }}>{teamCallStats.reduce((s, m) => s + m.missed, 0)}</td>
+                  <td style={{ padding: '8px 12px', textAlign: 'center', color: '#f97316', fontWeight: 700 }}>{teamCallStats.reduce((s, m) => s + m.notPicked, 0)}</td>
                 </tr>
               </tbody>
             </table>
@@ -455,12 +459,17 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
                     )}
                     {activeCols.includes('Outcome') && (
                       <td style={{ padding: '10px 12px' }}>
-                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: log.outcome === 'Connected' ? '#f0fdf4' : log.outcome === 'Missed' || log.outcome === 'No Answer' ? '#fef2f2' : '#f8fafc', color: log.outcome === 'Connected' ? '#16a34a' : log.outcome === 'No Answer' || log.outcome === 'Missed' ? '#ef4444' : '#64748b', fontWeight: 500 }}>
-                          {log.outcome || '-'}
-                        </span>
+                        {(() => {
+                          const isConnected = log.outcome === 'Connected' || (log.duration && Number(log.duration) > 0);
+                          const isNotPicked = !isConnected && log.direction === 'Outgoing' && log.outcome !== 'Connected';
+                          const label = isConnected ? 'Connected' : isNotPicked ? 'Not Picked' : log.outcome || '-';
+                          const bg = isConnected ? '#f0fdf4' : (isNotPicked || log.outcome === 'No Answer' || log.direction === 'Missed') ? '#fef2f2' : '#f8fafc';
+                          const fg = isConnected ? '#16a34a' : (isNotPicked || log.outcome === 'No Answer' || log.direction === 'Missed') ? '#ef4444' : '#64748b';
+                          return <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 10, background: bg, color: fg, fontWeight: 500 }}>{label}</span>;
+                        })()}
                       </td>
                     )}
-                    {activeCols.includes('Duration') && <td style={{ padding: '10px 12px', fontSize: 12 }}>{log.duration ? `${log.duration}s` : '-'}</td>}
+                    {activeCols.includes('Duration') && <td style={{ padding: '10px 12px', fontSize: 12 }}>{log.duration && Number(log.duration) > 0 ? `${Math.floor(Number(log.duration) / 60)}:${String(Number(log.duration) % 60).padStart(2, '0')}` : '-'}</td>}
                     {activeCols.includes('Staff') && <td style={{ padding: '10px 12px', fontSize: 12 }}>{log.staffName || '-'}</td>}
                     {activeCols.includes('Date & Time') && <td style={{ padding: '10px 12px', fontSize: 12, whiteSpace: 'nowrap' }}>{fmtDT(log.createdAt)}</td>}
                     {activeCols.includes('Notes') && <td style={{ padding: '10px 12px', fontSize: 12, maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.notes}>{log.notes || '-'}</td>}
