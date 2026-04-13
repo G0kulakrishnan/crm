@@ -167,7 +167,7 @@ export default function MainApp({ user, settings }) {
 
   // Secondary lookup by email — used to adopt admin-created profiles that have a different userId
   const needsEmailLookup = !isTeamMember && !isSuperadmin && !!user.email && !data?.userProfiles?.[0];
-  const { data: emailProfileData } = db.useQuery(
+  const { data: emailProfileData, isLoading: emailLookupLoading } = db.useQuery(
     needsEmailLookup
       ? { userProfiles: { $: { where: { email: user.email }, limit: 1 } } }
       : null
@@ -219,7 +219,9 @@ export default function MainApp({ user, settings }) {
   useEffect(() => {
     // 1. Critical Guards: Wait for everything to settle
     if (discoveryLoading || mainLoading || !data) return;
-    
+    // Wait for email lookup to settle before deciding to create a profile
+    if (needsEmailLookup && emailLookupLoading) return;
+
     // 2. Strong Team Member Protection: 
     // Always prioritize team discovery over accidental local profiles
     const discoveredMember = discovery?.teamMembers?.[0];
@@ -323,7 +325,7 @@ export default function MainApp({ user, settings }) {
         .then(() => { toast('Profile role updated', 'info'); console.log("✅ [MainApp] User demoted to 'user'"); })
         .catch(e => console.error("❌ [MainApp] Demotion failed", e));
     }
-  }, [discoveryLoading, mainLoading, data, profile, user.id, user.email, teamInfo]);
+  }, [discoveryLoading, mainLoading, data, profile, user.id, user.email, teamInfo, needsEmailLookup, emailLookupLoading]);
 
   // Notifications calculation
   const liveNotifs = useMemo(() => {
