@@ -526,10 +526,8 @@ export default function MainApp({ user, settings }) {
 
   return (
     <div className="app">
-      <Sidebar 
-        isSuperadmin={isSuperadmin} 
-        leadCount={visibleLeads.length} 
-        amcCount={amcExpiringCount} 
+      <Sidebar
+        isSuperadmin={isSuperadmin}
         isExpired={isExpired} 
         perms={perms}
         settings={settings}

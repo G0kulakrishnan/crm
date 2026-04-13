@@ -3,13 +3,13 @@ import { useApp } from '../../context/AppContext';
 const NAV_ITEMS = [
   { group: 'Main' },
   { id: 'dashboard', label: 'Dashboard', icon: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z', permKey: 'Dashboard' },
-  { id: 'leads', label: 'Leads', icon: 'M12 8a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4.4 0-8 2.7-8 6v1h16v-1c0-3.3-3.6-6-8-6z', badge: true, permKey: 'Leads' },
+  { id: 'leads', label: 'Leads', icon: 'M12 8a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-4.4 0-8 2.7-8 6v1h16v-1c0-3.3-3.6-6-8-6z', permKey: 'Leads' },
   { id: 'customers', label: 'Customers', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75', permKey: 'Customers' },
   { group: 'Finance' },
   { id: 'quotations', label: 'Quotations', icon: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8', permKey: 'Quotations' },
   { id: 'invoices', label: 'Invoices', icon: 'M3 3h18v18H3V3z M3 9h18 M9 21V9', permKey: 'Invoices' },
   { id: 'pos', label: 'POS Billing', icon: 'M16 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h2 M9 3h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z M12 11h.01 M12 14h.01 M12 17h.01', permKey: 'Invoices' },
-  { id: 'amc', label: 'AMC', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', badge: true, permKey: 'AMC' },
+  { id: 'amc', label: 'AMC', icon: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', permKey: 'AMC' },
   { id: 'expenses', label: 'Expenses', icon: 'M12 1v22 M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6', permKey: 'Expenses' },
   { id: 'products', label: 'Products', icon: 'M20 7H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16', permKey: 'Products' },
   { id: 'vendors', label: 'Vendors', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z M9 22V12h6v10', permKey: 'Vendors' },
@@ -26,7 +26,7 @@ const NAV_ITEMS = [
   { group: 'Partners' },
   { id: 'distributors', label: 'Channel Partners', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2 M23 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75 M7 10h14 M7 14h14 M7 18h14', permKey: 'Distributors' },
   { group: 'Appointments' },
-  { id: 'appointments', label: 'Appointments', icon: 'M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01', badge: true, permKey: 'Appointments' },
+  { id: 'appointments', label: 'Appointments', icon: 'M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01', permKey: 'Appointments' },
   { group: 'System' },
   { id: 'reports', label: 'Reports', icon: 'M21 21H3V3h18v18z M9 17v-6 M12 17V9 M15 17v-4', permKey: 'Reports' },
   { id: 'automation', label: 'Automation', icon: 'M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z M13 2v7h7 M12 14v4 M15 17l-3 3-3-3', permKey: 'Automation' },
@@ -36,7 +36,7 @@ const NAV_ITEMS = [
   { id: 'settings', label: 'Business Settings', icon: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z', permKey: 'Settings' },
 ];
 
-export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, perms, settings, planEnforcement }) {
+export default function Sidebar({ isSuperadmin, isExpired, perms, settings, planEnforcement }) {
   const { activeView, setActiveView, setSettingsTab, sidebarExpanded, setSidebarExpanded, mobileSidebarOpen, setMobileSidebarOpen } = useApp();
 
 
@@ -85,7 +85,6 @@ export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, 
             if (!groupHasItems) return null;
             return <div key={i} className="nav-group-label">{item.group}</div>;
           }
-          const count = item.id === 'leads' ? leadCount : item.id === 'amc' ? amcCount : 0;
           return (
             <div
               key={item.id}
@@ -102,9 +101,6 @@ export default function Sidebar({ isSuperadmin, leadCount, amcCount, isExpired, 
                 ))}
               </svg>
               <span className="nav-label">{item.label}</span>
-              {item.badge && count > 0 && (
-                <span className="badge-c nav-label">{count}</span>
-              )}
             </div>
           );
         })}
