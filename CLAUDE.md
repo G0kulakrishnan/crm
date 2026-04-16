@@ -17,6 +17,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Email:** nodemailer (SMTP), EmailJS (frontend)
 - **Styling:** Plain CSS (no external UI library)
 
+## Git Repository
+
+**Remote:** https://github.com/G0kulakrishnan/crm  
+**Default branch:** `main`
+
+**Always push to `main`:**
+```bash
+git add <files>
+git commit -m "your message"
+git pull origin main --rebase   # sync remote changes first
+git push origin main            # then push
+```
+
+> Never push to any other branch. All changes go directly to `main`.
+
 ## Build & Run
 
 ```bash
