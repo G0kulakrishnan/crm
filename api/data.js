@@ -209,6 +209,8 @@ export default async function handler(req, res) {
     }
 
     /* ──────────── DELETE (DELETE) ──────────── */
+    // HARD delete policy: permanently remove record + all orphanable children
+    // (No soft deletes. No orphaned records. Keeps DB clean & performant.)
     if (method === 'DELETE') {
       const { id: targetId } = data;
       if (!targetId) return res.status(400).json({ error: 'Record ID is required for deletion' });
@@ -217,32 +219,76 @@ export default async function handler(req, res) {
         tx[collection][targetId].delete()
       ];
 
-      // 1. Cascading delete for Projects (Delete tasks)
-      if (module === 'projects') {
-        const { tasks } = await db.query({ tasks: { $: { where: { projectId: targetId } } } });
-        if (tasks && tasks.length > 0) {
-          tasks.forEach(t => txs.push(tx.tasks[t.id].delete()));
-        }
-      }
-
-      // 2. Universal Cascading delete for Activity Logs
-      // Ensure all logs linked to this specific entity are purged
+      // 1. Universal: activity logs referencing this entity
       const { activityLogs } = await db.query({ activityLogs: { $: { where: { entityId: targetId } } } });
-      if (activityLogs && activityLogs.length > 0) {
-        activityLogs.forEach(log => txs.push(tx.activityLogs[log.id].delete()));
-      }
+      (activityLogs || []).forEach(log => txs.push(tx.activityLogs[log.id].delete()));
 
-      // 3. Optional: Delete linked tasks for Leads/Customers
+      // 2. Universal: appointments referencing this entity
+      try {
+        const { appointments } = await db.query({ appointments: { $: { where: { entityId: targetId } } } });
+        (appointments || []).forEach(a => txs.push(tx.appointments[a.id].delete()));
+      } catch {}
+
+      // 3. Leads/Customers: tasks (entityId), callLogs (leadId)
       if (module === 'leads' || module === 'customers') {
         const { tasks } = await db.query({ tasks: { $: { where: { entityId: targetId } } } });
-        if (tasks && tasks.length > 0) {
-          tasks.forEach(t => txs.push(tx.tasks[t.id].delete()));
-        }
+        (tasks || []).forEach(t => txs.push(tx.tasks[t.id].delete()));
+        try {
+          const { callLogs } = await db.query({ callLogs: { $: { where: { leadId: targetId } } } });
+          (callLogs || []).forEach(c => txs.push(tx.callLogs[c.id].delete()));
+        } catch {}
       }
 
-      await db.transact(txs);
+      // 4. Customers: linked AMC contracts
+      if (module === 'customers') {
+        try {
+          const { amc } = await db.query({ amc: { $: { where: { customerId: targetId } } } });
+          (amc || []).forEach(a => txs.push(tx.amc[a.id].delete()));
+        } catch {}
+      }
 
-      return res.status(200).json({ success: true, message: 'Record deleted successfully' });
+      // 5. Projects: child tasks + expenses
+      if (module === 'projects') {
+        const { tasks } = await db.query({ tasks: { $: { where: { projectId: targetId } } } });
+        (tasks || []).forEach(t => txs.push(tx.tasks[t.id].delete()));
+        try {
+          const { expenses } = await db.query({ expenses: { $: { where: { projectId: targetId } } } });
+          (expenses || []).forEach(e => txs.push(tx.expenses[e.id].delete()));
+        } catch {}
+      }
+
+      // 6. Vendors: linked purchase orders
+      if (module === 'vendors') {
+        try {
+          const { purchaseOrders } = await db.query({ purchaseOrders: { $: { where: { vendorId: targetId } } } });
+          (purchaseOrders || []).forEach(po => txs.push(tx.purchaseOrders[po.id].delete()));
+        } catch {}
+      }
+
+      // 7. Team members: credentials, attendance, stats, activity logs
+      if (module === 'teams') {
+        try {
+          const { teamMembers } = await db.query({ teamMembers: { $: { where: { id: targetId } } } });
+          const member = (teamMembers || [])[0];
+          if (member?.email) {
+            const email = member.email.trim().toLowerCase();
+            const { userCredentials } = await db.query({ userCredentials: { $: { where: { email } } } });
+            (userCredentials || []).forEach(c => txs.push(tx.userCredentials[c.id].delete()));
+            const { attendance } = await db.query({ attendance: { $: { where: { staffEmail: email } } } });
+            (attendance || []).forEach(a => txs.push(tx.attendance[a.id].delete()));
+          }
+          const { memberStats } = await db.query({ memberStats: { $: { where: { memberId: targetId } } } });
+          (memberStats || []).forEach(s => txs.push(tx.memberStats[s.id].delete()));
+        } catch {}
+      }
+
+      // Batch in chunks of 100 to stay within transaction limits
+      const batchSize = 100;
+      for (let i = 0; i < txs.length; i += batchSize) {
+        await db.transact(txs.slice(i, i + batchSize));
+      }
+
+      return res.status(200).json({ success: true, message: 'Record deleted successfully', cascadedCount: txs.length });
     }
 
     return res.status(405).json({ error: 'Method not allowed' });

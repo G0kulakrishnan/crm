@@ -1835,8 +1835,9 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
       // Delete associated commissions
       const commData = await db.query({ partnerCommissions: { $: { where: { partnerId: partner.id, userId: ownerId } } } });
       (commData?.partnerCommissions || []).forEach(c => txs.push(db.tx.partnerCommissions[c.id].delete()));
-      // Activity log
-      txs.push(db.tx.activityLogs[id()].update({ entityId: partner.id, entityType: 'partner', text: `Partner "${partner.name}" (${partner.role}) deleted by admin. ${(commData?.partnerCommissions || []).length} commission records removed.`, userId: ownerId, actorId: user.id, createdAt: Date.now() }));
+      // Cascade: delete all historical activity logs for this partner (hard delete policy)
+      const logData = await db.query({ activityLogs: { $: { where: { entityId: partner.id } } } });
+      (logData?.activityLogs || []).forEach(l => txs.push(db.tx.activityLogs[l.id].delete()));
       await db.transact(txs);
       // Delete credentials via API
       if (partner.email) {

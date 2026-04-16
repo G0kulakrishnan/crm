@@ -158,11 +158,28 @@ export default function Teams({ user, ownerId, perms, planEnforcement }) {
     setModal(false);
   };
 
-  const del = async (tid) => { 
+  const del = async (tid) => {
     if (!canDelete) { toast('Permission denied: cannot remove members', 'error'); return; }
-    if (!confirm('Remove this team member?')) return; 
-    await db.transact(db.tx.teamMembers[tid].delete()); 
-    toast('Removed', 'error'); 
+    if (!confirm('Remove this team member?\n\nThis will also permanently delete:\n• Login credentials (they can no longer sign in)\n• Attendance records\n• Performance stats\n• Activity logs')) return;
+    try {
+      // Route through /api/data so cascade (credentials, attendance, memberStats, activityLogs) runs
+      const res = await fetch('/api/data', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          module: 'teams',
+          ownerId,
+          actorId: user.id,
+          userName: user.email,
+          id: tid,
+          logText: 'Team member removed from CRM'
+        })
+      });
+      if (!res.ok) throw new Error('Failed to remove member');
+      toast('Member removed permanently', 'success');
+    } catch (e) {
+      toast('Error removing member', 'error');
+    }
   };
   const toggleActive = async (m) => { 
     if (!canEdit) { toast('Permission denied', 'error'); return; }

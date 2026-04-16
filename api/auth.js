@@ -320,12 +320,23 @@ export default async function handler(req, res) {
       const targetUserId = req.body.targetUserId;
       if (!targetProfileId || !targetUserId) return res.status(400).json({ error: 'profileId and targetUserId are required' });
 
+      // HARD DELETE all business data — every collection with userId reference
+      // (Keeps DB clean, prevents orphaned records and duplicate/performance issues)
       const tables = [
-        'leads', 'customers', 'invoices', 'quotes', 'tasks', 'projects',
-        'activityLogs', 'teamMembers', 'partnerApplications', 'expenses',
-        'products', 'campaigns', 'ecomSettings', 'appointmentSettings',
-        'ecomOrders', 'automationFlows', 'purchaseOrders', 'vendors',
-        'amcContracts', 'messagingLogs'
+        // Core entities
+        'leads', 'customers', 'invoices', 'quotations', 'tasks', 'projects',
+        'appointments', 'amc', 'expenses', 'products', 'vendors', 'purchaseOrders',
+        // Sales & partners
+        'partnerApplications', 'partnerCommissions', 'campaigns', 'campaignTemplates',
+        // Team & activity
+        'teamMembers', 'attendance', 'memberStats', 'callLogs',
+        'activityLogs', 'messagingLogs', 'outbox',
+        // Automation
+        'automations', 'automationTemplates',
+        // E-commerce
+        'orders', 'ecomCustomers', 'ecomSettings', 'appointmentSettings',
+        // Subscriptions, coupons, files
+        'subs', 'coupons', 'leadFiles'
       ];
 
       const txs = [];
