@@ -501,6 +501,180 @@ export default async function handler(req, res) {
       });
     }
 
+    /* ──────────── ADMIN: SCAN / CLEANUP ORPHANS ──────────── */
+    // Finds records orphaned from prior broken deletions (wrong collection names in
+    // old admin-delete-user, or pre-cascade single-row deletions).
+    // Pass dryRun=true to count without deleting.
+    if (action === 'scan-orphans' || action === 'cleanup-orphans') {
+      const dryRun = action === 'scan-orphans';
+
+      // All business-scoped collections — records with userId NOT in valid profiles are orphans
+      const businessScoped = [
+        'leads', 'customers', 'invoices', 'quotations', 'tasks', 'projects',
+        'appointments', 'amc', 'expenses', 'products', 'vendors', 'purchaseOrders',
+        'partnerApplications', 'partnerCommissions', 'campaigns', 'campaignTemplates',
+        'teamMembers', 'attendance', 'memberStats', 'callLogs',
+        'activityLogs', 'messagingLogs', 'outbox',
+        'automations', 'automationTemplates',
+        'orders', 'ecomCustomers', 'ecomSettings', 'appointmentSettings',
+        'subs', 'coupons', 'leadFiles'
+      ];
+
+      // 1. Build set of valid userIds from userProfiles
+      const { userProfiles } = await db.query({ userProfiles: {} });
+      const validUserIds = new Set((userProfiles || []).map(p => p.userId).filter(Boolean));
+
+      const txs = [];
+      const report = {};
+
+      // 2. Scan each collection for userId orphans
+      for (const table of businessScoped) {
+        try {
+          const result = await db.query({ [table]: {} });
+          const records = result[table] || [];
+          const orphans = records.filter(r => r.userId && !validUserIds.has(r.userId));
+          if (orphans.length > 0) {
+            report[table] = orphans.length;
+            if (!dryRun) orphans.forEach(r => txs.push(tx[table][r.id].delete()));
+          }
+        } catch { /* table may not exist */ }
+      }
+
+      // 3. Relational orphans — child records pointing to non-existent parents
+      // Build id sets for each parent collection
+      const buildIdSet = async (name) => {
+        try {
+          const r = await db.query({ [name]: {} });
+          return new Set((r[name] || []).map(x => x.id));
+        } catch { return new Set(); }
+      };
+
+      const leadIds = await buildIdSet('leads');
+      const customerIds = await buildIdSet('customers');
+      const projectIds = await buildIdSet('projects');
+      const vendorIds = await buildIdSet('vendors');
+      const teamMemberIds = await buildIdSet('teamMembers');
+      const partnerIds = await buildIdSet('partnerApplications');
+
+      // callLogs.leadId → leads
+      try {
+        const { callLogs } = await db.query({ callLogs: {} });
+        const orphans = (callLogs || []).filter(c => c.leadId && !leadIds.has(c.leadId));
+        if (orphans.length > 0) {
+          report['callLogs (orphan leadId)'] = orphans.length;
+          if (!dryRun) orphans.forEach(c => txs.push(tx.callLogs[c.id].delete()));
+        }
+      } catch {}
+
+      // tasks.projectId → projects (only when projectId present)
+      try {
+        const { tasks } = await db.query({ tasks: {} });
+        const orphans = (tasks || []).filter(t => t.projectId && !projectIds.has(t.projectId));
+        if (orphans.length > 0) {
+          report['tasks (orphan projectId)'] = orphans.length;
+          if (!dryRun) orphans.forEach(t => txs.push(tx.tasks[t.id].delete()));
+        }
+      } catch {}
+
+      // amc.customerId → customers
+      try {
+        const { amc } = await db.query({ amc: {} });
+        const orphans = (amc || []).filter(a => a.customerId && !customerIds.has(a.customerId));
+        if (orphans.length > 0) {
+          report['amc (orphan customerId)'] = orphans.length;
+          if (!dryRun) orphans.forEach(a => txs.push(tx.amc[a.id].delete()));
+        }
+      } catch {}
+
+      // expenses.projectId → projects (only when projectId present)
+      try {
+        const { expenses } = await db.query({ expenses: {} });
+        const orphans = (expenses || []).filter(e => e.projectId && !projectIds.has(e.projectId));
+        if (orphans.length > 0) {
+          report['expenses (orphan projectId)'] = orphans.length;
+          if (!dryRun) orphans.forEach(e => txs.push(tx.expenses[e.id].delete()));
+        }
+      } catch {}
+
+      // purchaseOrders.vendorId → vendors
+      try {
+        const { purchaseOrders } = await db.query({ purchaseOrders: {} });
+        const orphans = (purchaseOrders || []).filter(p => p.vendorId && !vendorIds.has(p.vendorId));
+        if (orphans.length > 0) {
+          report['purchaseOrders (orphan vendorId)'] = orphans.length;
+          if (!dryRun) orphans.forEach(p => txs.push(tx.purchaseOrders[p.id].delete()));
+        }
+      } catch {}
+
+      // memberStats.memberId → teamMembers
+      try {
+        const { memberStats } = await db.query({ memberStats: {} });
+        const orphans = (memberStats || []).filter(s => s.memberId && !teamMemberIds.has(s.memberId));
+        if (orphans.length > 0) {
+          report['memberStats (orphan memberId)'] = orphans.length;
+          if (!dryRun) orphans.forEach(s => txs.push(tx.memberStats[s.id].delete()));
+        }
+      } catch {}
+
+      // partnerCommissions.partnerId → partnerApplications
+      try {
+        const { partnerCommissions } = await db.query({ partnerCommissions: {} });
+        const orphans = (partnerCommissions || []).filter(c => c.partnerId && !partnerIds.has(c.partnerId));
+        if (orphans.length > 0) {
+          report['partnerCommissions (orphan partnerId)'] = orphans.length;
+          if (!dryRun) orphans.forEach(c => txs.push(tx.partnerCommissions[c.id].delete()));
+        }
+      } catch {}
+
+      // userCredentials.email → must match teamMembers, userProfiles, or partnerApplications
+      try {
+        const { userCredentials } = await db.query({ userCredentials: {} });
+        const { teamMembers } = await db.query({ teamMembers: {} });
+        const { partnerApplications } = await db.query({ partnerApplications: {} });
+        const validEmails = new Set();
+        (userProfiles || []).forEach(p => p.email && validEmails.add(p.email.trim().toLowerCase()));
+        (teamMembers || []).forEach(m => m.email && validEmails.add(m.email.trim().toLowerCase()));
+        (partnerApplications || []).forEach(p => p.email && validEmails.add(p.email.trim().toLowerCase()));
+        const orphans = (userCredentials || []).filter(c => c.email && !validEmails.has(c.email.trim().toLowerCase()));
+        if (orphans.length > 0) {
+          report['userCredentials (orphan email)'] = orphans.length;
+          if (!dryRun) orphans.forEach(c => txs.push(tx.userCredentials[c.id].delete()));
+        }
+      } catch {}
+
+      // attendance.staffEmail → must match a teamMember email
+      try {
+        const { teamMembers } = await db.query({ teamMembers: {} });
+        const validStaff = new Set((teamMembers || []).map(m => (m.email || '').trim().toLowerCase()).filter(Boolean));
+        const { attendance } = await db.query({ attendance: {} });
+        const orphans = (attendance || []).filter(a => a.staffEmail && !validStaff.has(a.staffEmail.trim().toLowerCase()));
+        if (orphans.length > 0) {
+          report['attendance (orphan staffEmail)'] = orphans.length;
+          if (!dryRun) orphans.forEach(a => txs.push(tx.attendance[a.id].delete()));
+        }
+      } catch {}
+
+      const totalOrphans = Object.values(report).reduce((s, n) => s + n, 0);
+
+      // 4. Execute deletion in batches of 100
+      if (!dryRun && txs.length > 0) {
+        const batchSize = 100;
+        for (let i = 0; i < txs.length; i += batchSize) {
+          await db.transact(txs.slice(i, i + batchSize));
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        dryRun,
+        totalOrphans,
+        report,
+        message: dryRun
+          ? `Found ${totalOrphans} orphaned records across ${Object.keys(report).length} collections`
+          : `Deleted ${totalOrphans} orphaned records across ${Object.keys(report).length} collections`
+      });
+    }
+
     return res.status(405).json({ error: 'Action not allowed' });
   } catch (err) {
     console.error('Auth API error:', err);
