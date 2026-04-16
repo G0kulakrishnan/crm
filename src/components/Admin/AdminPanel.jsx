@@ -858,6 +858,51 @@ export default function AdminPanel({ user }) {
             </div>
           </div>
 
+          {/* Orphan Cleanup Panel — always visible on Business Report tab */}
+          <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, padding: 16, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#991b1b', marginBottom: 4 }}>🗑️ Orphaned Records Cleanup</div>
+                <div style={{ fontSize: 11, color: '#7f1d1d' }}>Finds records left behind by old broken deletions (deleted businesses, leads, etc.) and permanently removes them.</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button className="btn btn-secondary btn-sm" onClick={scanOrphans} disabled={orphanLoading}>
+                  {orphanLoading && !orphanReport ? 'Scanning...' : '🔍 Scan for Orphans'}
+                </button>
+                {orphanReport && orphanReport.totalOrphans > 0 && orphanReport.dryRun && (
+                  <button className="btn btn-primary btn-sm" onClick={cleanupOrphans} disabled={orphanLoading} style={{ background: '#dc2626' }}>
+                    {orphanLoading ? 'Deleting...' : `🧹 Delete ${orphanReport.totalOrphans} Records`}
+                  </button>
+                )}
+              </div>
+            </div>
+            {orphanReport && (
+              <div style={{ marginTop: 12, padding: 12, background: '#fff', borderRadius: 6, border: '1px solid #fecaca' }}>
+                {orphanReport.totalOrphans === 0 ? (
+                  <div style={{ fontSize: 12, color: '#166534', fontWeight: 600 }}>✅ No orphaned records found. Database is clean.</div>
+                ) : (
+                  <>
+                    <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: orphanReport.dryRun ? '#991b1b' : '#166534' }}>
+                      {orphanReport.dryRun
+                        ? `⚠️ Found ${orphanReport.totalOrphans} orphaned records across ${Object.keys(orphanReport.report).length} collections:`
+                        : `✅ Deleted ${orphanReport.totalOrphans} orphaned records.`}
+                    </div>
+                    <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
+                      <tbody>
+                        {Object.entries(orphanReport.report).map(([col, count]) => (
+                          <tr key={col} style={{ borderBottom: '1px solid #fee2e2' }}>
+                            <td style={{ padding: '4px 8px', fontFamily: 'monospace', color: '#7f1d1d' }}>{col}</td>
+                            <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>{count.toLocaleString()}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
           {!analyticsData && !analyticsLoading && (
             <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--muted)' }}>
               <div style={{ fontSize: 48, marginBottom: 12 }}>📊</div>
@@ -890,51 +935,6 @@ export default function AdminPanel({ user }) {
                   <div className="stat-card sc-green"><div className="lbl">Active Businesses (30d)</div><div className="val">{activeBiz}/{analyticsData.length}</div></div>
                   <div className="stat-card sc-yellow"><div className="lbl">Est. DB Size</div><div className="val" style={{ fontSize: 16 }}>{(estSizeKB / 1024).toFixed(1)} MB</div></div>
                   <div className="stat-card sc-purple"><div className="lbl">Activity Logs</div><div className="val">{totalLogs.toLocaleString()}</div></div>
-                </div>
-
-                {/* Orphan Cleanup Panel */}
-                <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', borderRadius: 10, padding: 16, marginBottom: 16 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: '#991b1b', marginBottom: 4 }}>🗑️ Orphaned Records Cleanup</div>
-                      <div style={{ fontSize: 11, color: '#7f1d1d' }}>Finds records left behind by old broken deletions (deleted businesses, leads, etc.) and permanently removes them.</div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button className="btn btn-secondary btn-sm" onClick={scanOrphans} disabled={orphanLoading}>
-                        {orphanLoading && !orphanReport ? 'Scanning...' : '🔍 Scan for Orphans'}
-                      </button>
-                      {orphanReport && orphanReport.totalOrphans > 0 && orphanReport.dryRun && (
-                        <button className="btn btn-primary btn-sm" onClick={cleanupOrphans} disabled={orphanLoading} style={{ background: '#dc2626' }}>
-                          {orphanLoading ? 'Deleting...' : `🧹 Delete ${orphanReport.totalOrphans} Records`}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  {orphanReport && (
-                    <div style={{ marginTop: 12, padding: 12, background: '#fff', borderRadius: 6, border: '1px solid #fecaca' }}>
-                      {orphanReport.totalOrphans === 0 ? (
-                        <div style={{ fontSize: 12, color: '#166534', fontWeight: 600 }}>✅ No orphaned records found. Database is clean.</div>
-                      ) : (
-                        <>
-                          <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8, color: orphanReport.dryRun ? '#991b1b' : '#166534' }}>
-                            {orphanReport.dryRun
-                              ? `⚠️ Found ${orphanReport.totalOrphans} orphaned records across ${Object.keys(orphanReport.report).length} collections:`
-                              : `✅ Deleted ${orphanReport.totalOrphans} orphaned records.`}
-                          </div>
-                          <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
-                            <tbody>
-                              {Object.entries(orphanReport.report).map(([col, count]) => (
-                                <tr key={col} style={{ borderBottom: '1px solid #fee2e2' }}>
-                                  <td style={{ padding: '4px 8px', fontFamily: 'monospace', color: '#7f1d1d' }}>{col}</td>
-                                  <td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 700, color: '#dc2626' }}>{count.toLocaleString()}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </>
-                      )}
-                    </div>
-                  )}
                 </div>
 
                 {/* Alert for high log counts */}
