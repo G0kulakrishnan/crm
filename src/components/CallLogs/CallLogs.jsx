@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD, fmtDT, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_REQUIREMENTS, DEFAULT_PROD_CATS } from '../../utils/helpers';
@@ -42,17 +42,47 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
   const [addLeadForm, setAddLeadForm] = useState({ ...EMPTY_LEAD });
   const [savingLead, setSavingLead] = useState(false);
 
-  const { data, isLoading } = db.useQuery({
+  // FIX 1: Split into critical (immediate) + deferred (background) queries
+  // Critical data — callLogs + profile must load before table can render
+  const { data: coreData, isLoading: coreLoading } = db.useQuery({
     callLogs: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId } } },
-    teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
   });
 
-  const callLogs = useMemo(() => (data?.callLogs || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)), [data?.callLogs]);
-  const allLeads = data?.leads || [];
-  const team = data?.teamMembers || [];
-  const profile = data?.userProfiles?.[0];
+  // Deferred data — leads + team load in background without blocking the table
+  const { data: deferredData } = db.useQuery({
+    leads: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
+  });
+
+  const callLogs = useMemo(() => (coreData?.callLogs || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)), [coreData?.callLogs]);
+  const profile = coreData?.userProfiles?.[0];
+
+  // FIX 3: Cache leads in localStorage (5-min TTL) so tab switching is instant
+  const LEADS_CACHE_KEY = `leads_cache_${ownerId}`;
+  const cachedLeads = useMemo(() => {
+    try {
+      const raw = localStorage.getItem(LEADS_CACHE_KEY);
+      if (!raw) return [];
+      const { data: cached, timestamp } = JSON.parse(raw);
+      if (Date.now() - timestamp < 5 * 60 * 1000) return cached;
+    } catch { /* ignore */ }
+    return [];
+  }, [LEADS_CACHE_KEY]);
+
+  // Use live data if available, fall back to cache while deferred loads
+  const allLeads = deferredData?.leads || cachedLeads;
+  const team = deferredData?.teamMembers || [];
+
+  // Persist leads to cache whenever fresh data arrives
+  useEffect(() => {
+    if (deferredData?.leads?.length > 0) {
+      try {
+        localStorage.setItem(LEADS_CACHE_KEY, JSON.stringify({ data: deferredData.leads, timestamp: Date.now() }));
+      } catch { /* ignore */ }
+    }
+  }, [deferredData?.leads, LEADS_CACHE_KEY]);
+
   const allStages = profile?.stages || DEFAULT_STAGES;
   const disabledStages = profile?.disabledStages || [];
   const activeStages = allStages.filter(s => !disabledStages.includes(s));
@@ -95,11 +125,30 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
   // Normalize phone to last 10 digits (handles +91, 091, plain formats)
   const normalize = (p) => p ? p.replace(/\D/g, '').slice(-10) : '';
 
-  // Auto-match phone to lead using last-10-digit normalization
+  // FIX 2: Pre-build phone index for O(1) lookups (was O(n) linear scan through 1390+ leads)
+  const leadPhoneIndex = useMemo(() => {
+    const index = {};
+    allLeads.forEach(l => {
+      if (l.phone) {
+        const n = normalize(l.phone);
+        if (n.length >= 7) index[n] = l;
+      }
+    });
+    return index;
+  }, [allLeads]);
+
+  // Also build id index for fast leadId lookups in table rows
+  const leadIdIndex = useMemo(() => {
+    const index = {};
+    allLeads.forEach(l => { index[l.id] = l; });
+    return index;
+  }, [allLeads]);
+
+  // Auto-match phone to lead — O(1) instead of O(n)
   const matchLead = (phone) => {
     const n = normalize(phone);
     if (n.length < 7) return null;
-    return allLeads.find(l => l.phone && normalize(l.phone) === n);
+    return leadPhoneIndex[n] || null;
   };
 
   const openAddAsLead = (log) => {
@@ -253,7 +302,8 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
     } catch (e) { toast(e.message, 'error'); }
   };
 
-  if (isLoading) return <div style={{ padding: 40, textAlign: 'center' }}><div className="spinner" style={{ width: 20, height: 20, margin: '0 auto' }} /><p style={{ color: 'var(--muted)', marginTop: 8 }}>Loading call logs...</p></div>;
+  // Only block render on critical data (callLogs + profile), not on leads/team
+  if (coreLoading) return <div style={{ padding: 40, textAlign: 'center' }}><div className="spinner" style={{ width: 20, height: 20, margin: '0 auto' }} /><p style={{ color: 'var(--muted)', marginTop: 8 }}>Loading call logs...</p></div>;
 
   return (
     <div style={{ padding: '20px 24px', maxWidth: 1200 }}>
@@ -431,8 +481,9 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
               )}
               {paged.map((log, i) => {
                 const di = directionIcon(log.direction);
+                // FIX 2: O(1) index lookups instead of O(n) array scans
                 const matchedLead = log.leadId
-                  ? (allLeads.find(l => l.id === log.leadId) || matchLead(log.phone))
+                  ? (leadIdIndex[log.leadId] || matchLead(log.phone))
                   : matchLead(log.phone);
                 const rowNum = (currentPage - 1) * (pageSize === 'all' ? 0 : pageSize) + i + 1;
                 return (
