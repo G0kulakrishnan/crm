@@ -1171,7 +1171,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
               )}
             </div>
 
-            <div className="tw-scroll">
+            <div className="tw-scroll" style={{ maxHeight: 'calc(100vh - 330px)', overflowY: 'auto' }}>
               <table style={{ minWidth: 800 }}>
                 <thead>
                   <tr>
