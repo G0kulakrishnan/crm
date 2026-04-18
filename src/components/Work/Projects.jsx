@@ -33,7 +33,6 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
     tasks: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    activityLogs: { $: { where: { userId: ownerId } } },
     customers: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
   });
@@ -45,7 +44,10 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
   const taxRates = profile.taxRates || [];
   const customFields = profile.customFields || [];
   const taskStatuses = profile.taskStatuses || DEFAULT_TASK_STATUSES;
-  const activityLogs = data?.activityLogs || [];
+  const drawerProjectId = selectedProj?.id || null;
+  const { data: drawerData } = db.useQuery(drawerProjectId ? {
+    activityLogs: { $: { where: { entityId: drawerProjectId } } },
+  } : {});
   const [noteText, setNoteText] = useState('');
   
   const [custModal, setCustModal] = useState(false);
@@ -405,7 +407,7 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 300, overflowY: 'auto' }}>
               {(() => {
-                const relevantLogs = activityLogs.filter(l => l.entityId === selectedProj.id || l.projectId === selectedProj.id).sort((a,b) => b.createdAt - a.createdAt);
+                const relevantLogs = (drawerData?.activityLogs || []).sort((a,b) => b.createdAt - a.createdAt);
                 if (relevantLogs.length === 0) return <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: 20 }}>No activity recorded yet for this project.</div>;
                 return relevantLogs.map(log => (
                   <div key={log.id} style={{ display: 'flex', gap: 12, paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>

@@ -64,10 +64,14 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     customers: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    activityLogs: { $: { where: { userId: ownerId }, limit: 100 } },
-    callLogs: { $: { where: { userId: ownerId } } },
     partnerApplications: { $: { where: { userId: ownerId, status: 'Approved' } } },
   });
+  // Drawer data: only loads when a lead detail is open — avoids fetching logs for the whole list
+  const drawerLeadId = viewLead?.id || null;
+  const { data: drawerData } = db.useQuery(drawerLeadId ? {
+    activityLogs: { $: { where: { entityId: drawerLeadId } } },
+    callLogs: { $: { where: { leadId: drawerLeadId } } },
+  } : {});
   const teamCanSeeAllLeads = data?.userProfiles?.[0]?.teamCanSeeAllLeads !== false;
   const allLeads = (data?.leads || []).map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
   const myTeamMember = (data?.teamMembers || []).find(t => t.email === user.email);
@@ -77,7 +81,6 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     : allLeads;
   const customers = data?.customers || [];
   const team = data?.teamMembers || [];
-  const activityLogs = data?.activityLogs || [];
   const customFields = data?.userProfiles?.[0]?.customFields || [];
   const disabledStages = data?.userProfiles?.[0]?.disabledStages || [];
   const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
@@ -780,7 +783,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
   if (viewLead) {
     const l = viewLead;
-    const lLogs = activityLogs.filter(log => log.entityId === l.id).sort((a,b) => b.createdAt - a.createdAt);
+    const lLogs = (drawerData?.activityLogs || []).sort((a,b) => b.createdAt - a.createdAt);
 
     const addNote = async () => {
       if (!noteText.trim()) return;
@@ -890,7 +893,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
         {/* Call History for this lead */}
         {(() => {
-          const leadCalls = (data?.callLogs || []).filter(c => c.leadId === l.id).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          const leadCalls = (drawerData?.callLogs || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
           return leadCalls.length > 0 && (
             <div className="tw" style={{ padding: 20, marginTop: 20 }}>
               <h3 style={{ marginBottom: 12 }}>📞 Call History ({leadCalls.length})</h3>

@@ -24,9 +24,22 @@ export default function TeamReports({ user, ownerId, perms }) {
     userProfiles: { $: { where: { userId: ownerId } } }
   });
 
+  // Compute query start timestamp from filter (mirrors dateRange logic but for query)
+  const logQueryStart = useMemo(() => {
+    const now = new Date();
+    const start = new Date(now);
+    if (filter === 'Today') { start.setHours(0, 0, 0, 0); }
+    else if (filter === 'Yesterday') { start.setDate(now.getDate() - 1); start.setHours(0, 0, 0, 0); }
+    else if (filter === 'This Week') { start.setDate(now.getDate() - now.getDay()); start.setHours(0, 0, 0, 0); }
+    else if (filter === 'This Month') { start.setDate(1); start.setHours(0, 0, 0, 0); }
+    else if (filter === 'This Year') { start.setMonth(0, 1); start.setHours(0, 0, 0, 0); }
+    else { start.setDate(now.getDate() - 365); start.setHours(0, 0, 0, 0); } // Custom/fallback: last year
+    return start.getTime();
+  }, [filter]);
+
   // Fetch activity logs for all team members at once
   const { data: logData } = db.useQuery({
-    activityLogs: { $: { where: { userId: ownerId }, limit: 5000 } }
+    activityLogs: { $: { where: { userId: ownerId, createdAt: { $gte: logQueryStart } }, limit: 1000 } }
   });
 
   const logs = logData?.activityLogs || [];

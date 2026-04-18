@@ -5,15 +5,19 @@ import { fmt, fmtD, fmtDT, daysLeft, stageBadgeClass } from '../../utils/helpers
 
 export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
   const { setActiveView } = useApp();
-  const { data } = db.useQuery({
+  // Core: needed immediately for KPI cards, calendar, recent leads
+  const { data: coreData } = db.useQuery({
     leads: { $: { where: { userId: ownerId } } },
-    quotes: { $: { where: { userId: ownerId } } },
     invoices: { $: { where: { userId: ownerId } } },
     projects: { $: { where: { userId: ownerId } } },
-    tasks: { $: { where: { userId: ownerId } } },
     amc: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
+  });
+  // Deferred: charts, ecom, appointments, tasks — non-blocking
+  const { data: deferredData } = db.useQuery({
+    quotes: { $: { where: { userId: ownerId } } },
+    tasks: { $: { where: { userId: ownerId } } },
     products: { $: { where: { userId: ownerId } } },
     expenses: { $: { where: { userId: ownerId } } },
     orders: { $: { where: { userId: ownerId } } },
@@ -21,20 +25,20 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
     partnerCommissions: { $: { where: { userId: ownerId } } },
   });
 
-  const profile = data?.userProfiles?.[0] || {};
+  const profile = coreData?.userProfiles?.[0] || {};
   const wonStage = profile.wonStage || 'Won';
   const lostStage = profile.lostStage || 'Lost';
-  const leadsRaw = (data?.leads || []).map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
-  const quotesRaw = data?.quotes || [];
-  const invoicesRaw = data?.invoices || [];
-  const projectsRaw = data?.projects || [];
-  const tasksRaw = data?.tasks || [];
-  const amcRaw = data?.amc || [];
-  const ordersRaw = data?.orders || [];
-  const apptsRaw = data?.appointments || [];
-  const commissionsRaw = data?.partnerCommissions || [];
-  
-  const teamMembers = data?.teamMembers || [];
+  const leadsRaw = (coreData?.leads || []).map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
+  const quotesRaw = deferredData?.quotes || [];
+  const invoicesRaw = coreData?.invoices || [];
+  const projectsRaw = coreData?.projects || [];
+  const tasksRaw = deferredData?.tasks || [];
+  const amcRaw = coreData?.amc || [];
+  const ordersRaw = deferredData?.orders || [];
+  const apptsRaw = deferredData?.appointments || [];
+  const commissionsRaw = deferredData?.partnerCommissions || [];
+
+  const teamMembers = coreData?.teamMembers || [];
   const myTeamMember = teamMembers.find(t => t.email === user.email);
   const myName = myTeamMember?.name || user.name || '';
   const teamCanSeeAllLeads = profile.teamCanSeeAllLeads !== false;
@@ -61,10 +65,10 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
     const active = leads.filter(l => l.stage !== wonStage && l.stage !== lostStage).length;
     const amcExp = amc.filter(a => { const d = daysLeft(a.endDate); return d <= 30 && d >= 0; }).length;
     const inProgress = projects.filter(p => p.status === 'In Progress').length;
-    const outOfStock = (data?.products || []).filter(p => p.trackStock && p.stock <= 0).length;
-    const lowStock = (data?.products || []).filter(p => p.trackStock && p.stock > 0 && p.stock <= (p.lowStockThreshold || 5)).length;
+    const outOfStock = (deferredData?.products || []).filter(p => p.trackStock && p.stock <= 0).length;
+    const lowStock = (deferredData?.products || []).filter(p => p.trackStock && p.stock > 0 && p.stock <= (p.lowStockThreshold || 5)).length;
     return { overdue, active, amcExp, inProgress, outOfStock, lowStock };
-  }, [leads, amc, projects, data?.products]);
+  }, [leads, amc, projects, deferredData?.products]);
 
   const ecomStats = useMemo(() => {
     const total = orders.length;
@@ -97,13 +101,13 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
     leads.filter(l => l.followup && new Date(l.followup) < now).forEach(l => rem.push({ icon: '⏰', text: `Follow-up overdue: <strong>${l.name}</strong>`, actionInfo: { type: 'lead', id: l.id } }));
     
     // Inventory Alerts
-    (data?.products || []).filter(p => p.trackStock).forEach(p => {
+    (deferredData?.products || []).filter(p => p.trackStock).forEach(p => {
       if (p.stock <= 0) rem.push({ icon: '🔴', text: `Out of Stock: <strong>${p.name}</strong> (Available: 0)`, actionInfo: { type: 'product', id: p.id } });
       else if (p.stock <= (p.lowStockThreshold || 5)) rem.push({ icon: '🟡', text: `Low Stock: <strong>${p.name}</strong> (Only <strong>${p.stock}</strong> left)`, actionInfo: { type: 'product', id: p.id } });
     });
 
     return rem;
-  }, [amc, leads, data?.products]);
+  }, [amc, leads, deferredData?.products]);
 
   // Revenue Trend (Last 6 Months)
   const revenueTrend = useMemo(() => {
@@ -131,7 +135,7 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
 
   // Profit & Loss
   const pnl = useMemo(() => {
-    const prodMap = (data?.products || []).reduce((acc, p) => { acc[p.name] = p; return acc; }, {});
+    const prodMap = (deferredData?.products || []).reduce((acc, p) => { acc[p.name] = p; return acc; }, {});
     let revenue = 0;
     let cogs = 0;
 
@@ -153,14 +157,14 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
       }
     });
 
-    const totalExpenses = (data?.expenses || []).filter(e => e.status === 'Approved').reduce((s, e) => s + (e.amount || 0), 0);
+    const totalExpenses = (deferredData?.expenses || []).filter(e => e.status === 'Approved').reduce((s, e) => s + (e.amount || 0), 0);
     const showPartners = planEnforcement?.isModuleEnabled('distributors') !== false;
     const totalCommissions = showPartners ? commissionsRaw.filter(c => c.status === 'Paid').reduce((s, c) => s + (c.amount || 0), 0) : 0;
     const grossProfit = revenue - cogs;
     const netProfit = grossProfit - totalExpenses - totalCommissions;
     const margin = revenue > 0 ? Math.round((netProfit / revenue) * 100) : 0;
     return { revenue, cogs, grossProfit, netProfit, totalExpenses, totalCommissions, margin };
-  }, [invoices, data?.products, data?.expenses, commissionsRaw]);
+  }, [invoices, deferredData?.products, deferredData?.expenses, commissionsRaw]);
 
   // Hot Leads
   const hotLeads = useMemo(() => {

@@ -45,16 +45,18 @@ export default function Appointments({ ownerId, perms, initialTab, settings }) {
     userProfiles: { $: { where: { userId: ownerId } } },
     customers: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
-    activityLogs: { $: { where: { userId: ownerId } } },
   });
   const profile = data?.userProfiles?.[0];
   const ecom = data?.ecomSettings?.[0];
   const appointments = data?.appointments || [];
   const customers = data?.customers || [];
   const leads = data?.leads || [];
-  const activityLogs = data?.activityLogs || [];
   const settingsRecord = data?.appointmentSettings?.[0];
   const settingsId = settingsRecord?.id || id();
+  const settingsLogId = settingsRecord?.id || null;
+  const { data: settingsLogsData } = db.useQuery(settingsLogId ? {
+    activityLogs: { $: { where: { entityId: settingsLogId } } },
+  } : {});
 
   const [settingsForm, setSettingsForm] = useState(null);
   React.useEffect(() => {
@@ -614,7 +616,7 @@ export default function Appointments({ ownerId, perms, initialTab, settings }) {
             <h4 style={{ marginBottom: 14, fontSize: 14 }}>📜 Settings Change History</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 300, overflowY: 'auto', background: '#fff', padding: 16, borderRadius: 8, border: '1px solid var(--border)' }}>
               {(() => {
-                const logs = activityLogs.filter(l => l.entityId === settingsId && l.entityType === 'appointmentSettings').sort((a,b) => b.createdAt - a.createdAt);
+                const logs = (settingsLogsData?.activityLogs || []).filter(l => l.entityType === 'appointmentSettings').sort((a,b) => b.createdAt - a.createdAt);
                 if (logs.length === 0) return <div style={{ fontSize: 12, color: 'var(--muted)', fontStyle: 'italic' }}>No changes logged yet. Your changes will be recorded here.</div>;
                 return logs.map(l => (
                   <div key={l.id} style={{ fontSize: 13, borderBottom: '1px solid var(--bg-soft)', paddingBottom: 8, marginBottom: 8 }}>

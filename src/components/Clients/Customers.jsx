@@ -18,6 +18,7 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [noteText, setNoteText] = useState('');
+  const [viewCustomer, setViewCustomer] = useState(null);
   const toast = useToast();
 
   const { data } = db.useQuery({
@@ -27,7 +28,6 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
     quotes: { $: { where: { userId: ownerId } } },
     invoices: { $: { where: { userId: ownerId } } },
     tasks: { $: { where: { userId: ownerId } } },
-    activityLogs: { $: { where: { userId: ownerId } } },
     amc: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
     partnerApplications: { $: { where: { userId: ownerId, status: 'Approved' } } },
@@ -41,7 +41,10 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
   const quotes = data?.quotes || [];
   const invoices = data?.invoices || [];
   const tasks = data?.tasks || [];
-  const activityLogs = data?.activityLogs || [];
+  const drawerCustomerId = viewCustomer?.id || null;
+  const { data: drawerData } = db.useQuery(drawerCustomerId ? {
+    activityLogs: { $: { where: { entityId: drawerCustomerId } } },
+  } : {});
   const amcList = data?.amc || [];
   const leads = data?.leads || [];
   const partners = data?.partnerApplications || [];
@@ -256,8 +259,6 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
   const cf = (k) => (e) => setForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
 
-  const [viewCustomer, setViewCustomer] = useState(null);
-
   if (viewCustomer) {
     const c = viewCustomer;
     // Matching by name for related records (as names are typed in other modules usually)
@@ -275,7 +276,7 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
     const relAmc = amcList.filter(cReq);
     
     // Sort logs newest first
-    const cLogs = (activityLogs || []).filter(l => l.entityId === c.id).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
+    const cLogs = (drawerData?.activityLogs || []).sort((a,b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     const addNote = async () => {
     if (!canEdit) { toast('Permission denied: cannot add notes', 'error'); return; }

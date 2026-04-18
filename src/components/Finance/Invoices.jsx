@@ -59,6 +59,12 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
   const team = data?.teamMembers || [];
   const profile = data?.userProfiles?.[0] || {};
   const partnerApplications = data?.partnerApplications || [];
+  // O(1) lookup index — avoids repeated .find() inside .map()
+  const partnersById = useMemo(() => {
+    const map = {};
+    partnerApplications.forEach(p => { map[p.id] = p; });
+    return map;
+  }, [partnerApplications]);
   const partnerCommissions = data?.partnerCommissions || [];
   const wonStage = profile.wonStage || 'Won';
   const taxRates = profile.taxRates || TAX_OPTIONS;
@@ -282,7 +288,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
     }
 
     [...new Set([distId, retId, legacyPartnerId].filter(Boolean))].forEach(pId => {
-      const pApp = partnerApplications.find(a => a.id === pId);
+      const pApp = partnersById[pId];
       if (pApp && pApp.commission > 0) {
         let effectivePct = pApp.commission;
         
@@ -705,13 +711,13 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
                       <SearchableSelect
                         options={[
                           { id: '', name: '-- None --' },
-                          ...partnerApplications.filter(p => p.role === 'Retailer' && (!form.distributorId || p.parentDistributorId === form.distributorId)).map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${partnerApplications.find(d => d.id === p.parentDistributorId)?.companyName || partnerApplications.find(d => d.id === p.parentDistributorId)?.name || ''})` : ''}` }))
+                          ...partnerApplications.filter(p => p.role === 'Retailer' && (!form.distributorId || p.parentDistributorId === form.distributorId)).map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${partnersById[p.parentDistributorId]?.companyName || partnersById[p.parentDistributorId]?.name || ''})` : ''}` }))
                         ]}
                         displayKey="name"
                         returnKey="id"
                         value={form.retailerId}
                         onChange={val => {
-                          const retailer = partnerApplications.find(p => p.id === val);
+                          const retailer = partnersById[val];
                           setForm(p => ({ ...p, retailerId: val, distributorId: retailer?.parentDistributorId || p.distributorId }));
                         }}
                         placeholder="Select retailer..."
@@ -962,11 +968,11 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
                         options={[
                           { id: '', name: '-- None --' },
                           ...partnerApplications.filter(p => p.role === 'Retailer' && (!newCustForm.distributorId || p.parentDistributorId === newCustForm.distributorId))
-                            .map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${partnerApplications.find(d => d.id === p.parentDistributorId)?.companyName || partnerApplications.find(d => d.id === p.parentDistributorId)?.name || ''})` : ''}` }))
+                            .map(p => ({ id: p.id, name: `${p.companyName || p.name}${p.parentDistributorId ? ` (${partnersById[p.parentDistributorId]?.companyName || partnersById[p.parentDistributorId]?.name || ''})` : ''}` }))
                         ]}
                         displayKey="name" returnKey="id" value={newCustForm.retailerId}
                         onChange={val => {
-                          const retailer = partnerApplications.find(p => p.id === val);
+                          const retailer = partnersById[val];
                           setNewCustForm(p => ({ ...p, retailerId: val, distributorId: retailer?.parentDistributorId || p.distributorId }));
                         }}
                         placeholder="Search retailer..."
