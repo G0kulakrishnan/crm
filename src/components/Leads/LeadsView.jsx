@@ -67,7 +67,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     partnerApplications: { $: { where: { userId: ownerId, status: 'Approved' } } },
   });
   // Drawer data: only loads when a lead detail is open — avoids fetching logs for the whole list
-  const drawerLeadId = viewLead?.id || null;
+  const drawerLeadId = viewLead?.id || editData?.id || null;
   const { data: drawerData } = db.useQuery(drawerLeadId ? {
     activityLogs: { $: { where: { entityId: drawerLeadId } } },
     callLogs: { $: { where: { leadId: drawerLeadId } } },
@@ -1058,6 +1058,39 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                   )}
                 </div>
               </div>
+              {editData && (
+                <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
+                  <h3 style={{ fontSize: 14, marginBottom: 12 }}>Activity Logs & Timeline</h3>
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                    <input value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Type a note or record an activity..." style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }} />
+                    <button className="btn btn-primary btn-sm" onClick={async () => { if (!noteText.trim()) return; await logActivity(editData.id, noteText.trim()); setNoteText(''); toast('Note added', 'success'); }}>Post</button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 300, overflowY: 'auto' }}>
+                    {lLogs.length === 0 ? <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: 20 }}>No activity recorded yet in timeline.</div> :
+                      lLogs.map(log => (
+                        <div key={log.id} style={{ display: 'flex', gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', marginTop: 6, flexShrink: 0 }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700 }}>{log.userName}</span>
+                              <span style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(log.createdAt).toLocaleString()}</span>
+                            </div>
+                            <div style={{ fontSize: 12, color: '#444' }}>
+                              {log.text?.split('\n').map((line, i) => (
+                                <div key={i} style={{ marginBottom: line ? 2 : 0 }}>
+                                  {line.split('**').map((part, j) =>
+                                    j % 2 === 1 ? <mark key={j} style={{ background: '#fef08a', color: '#854d0e', padding: '0 4px', borderRadius: 4, fontWeight: 600 }}>{part}</mark> : part
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    }
+                  </div>
+                </div>
+              )}
               <div className="mo-foot">
                 <button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>Cancel</button>
                 <button className="btn btn-primary btn-sm" onClick={saveLead} disabled={saving}>
@@ -1575,6 +1608,48 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                 )}
               </div>
             </div>
+            {editData && (() => {
+              const eLogs = (drawerData?.activityLogs || []).slice().sort((a,b) => b.createdAt - a.createdAt);
+              const addEditNote = async () => {
+                if (!noteText.trim()) return;
+                await logActivity(editData.id, noteText.trim());
+                setNoteText('');
+                toast('Note added', 'success');
+              };
+              return (
+                <div style={{ padding: '16px 20px', borderTop: '1px solid var(--border)' }}>
+                  <h3 style={{ fontSize: 14, marginBottom: 12 }}>Activity Logs & Timeline</h3>
+                  <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                    <input value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Type a note or record an activity..." style={{ flex: 1, padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 13 }} />
+                    <button className="btn btn-primary btn-sm" onClick={addEditNote}>Post</button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 300, overflowY: 'auto' }}>
+                    {eLogs.length === 0 ? <div style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 13, padding: 20 }}>No activity recorded yet in timeline.</div> :
+                      eLogs.map(log => (
+                        <div key={log.id} style={{ display: 'flex', gap: 12, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                          <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', marginTop: 6, flexShrink: 0 }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700 }}>{log.userName}</span>
+                              <span style={{ fontSize: 10, color: 'var(--muted)' }}>{new Date(log.createdAt).toLocaleString()}</span>
+                            </div>
+                            <div style={{ fontSize: 12, color: '#444' }}>
+                              {log.text?.split('\n').map((line, i) => (
+                                <div key={i} style={{ marginBottom: line ? 2 : 0 }}>
+                                  {line.split('**').map((part, j) =>
+                                    j % 2 === 1 ? <mark key={j} style={{ background: '#fef08a', color: '#854d0e', padding: '0 4px', borderRadius: 4, fontWeight: 600 }}>{part}</mark> : part
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    }
+                  </div>
+                </div>
+              );
+            })()}
             <div className="mo-foot">
               <button className="btn btn-secondary btn-sm" onClick={() => setModal(false)}>Cancel</button>
               <button className="btn btn-primary btn-sm" onClick={saveLead} disabled={saving}>
