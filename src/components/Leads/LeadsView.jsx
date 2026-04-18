@@ -234,7 +234,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       source: '',
       stage: '',
       requirement: '',
-      productCat: productCats[0] || ''
+      productCat: ''
     });
     setModal(true);
   };
@@ -297,9 +297,22 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     const checkPhone = (form.phone || '').trim().toLowerCase();
     const checkEmail = (form.email || '').trim().toLowerCase();
     if (checkPhone || checkEmail) {
+      // When editing, compute the original phone/email so we can skip the
+      // customer record that was auto-created from this lead on conversion.
+      const origPhone = editData ? (editData.phone || '').trim().toLowerCase() : '';
+      const origEmail = editData ? (editData.email || '').trim().toLowerCase() : '';
       const allRecords = [...leads, ...customers];
       const duplicate = allRecords.find(r => {
-        if (editData && r.id === editData.id) return false; // skip self when editing
+        if (editData && r.id === editData.id) return false; // skip self
+        // Skip the converted-customer record for the lead being edited
+        if (editData) {
+          if (r.leadId && r.leadId === editData.id) return false;
+          const rPhone = (r.phone || '').trim().toLowerCase();
+          const rEmail = (r.email || '').trim().toLowerCase();
+          // Phone+email both match the ORIGINAL lead → it's the converted customer
+          if (origPhone && rPhone === origPhone && (!origEmail || rEmail === origEmail)) return false;
+          if (origEmail && rEmail === origEmail && (!origPhone || rPhone === origPhone)) return false;
+        }
         const rPhone = (r.phone || '').trim().toLowerCase();
         const rEmail = (r.email || '').trim().toLowerCase();
         return (checkPhone && rPhone && rPhone === checkPhone) ||
@@ -753,6 +766,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         email: l.email || '',
         phone: l.phone || '',
         userId: ownerId,
+        leadId: l.id, // link back to source lead for dedup/reporting
         createdAt: Date.now(),
         partnerId: l.partnerId || '',
         distributorId: l.distributorId || '',
@@ -1238,7 +1252,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                     <td><input type="checkbox" checked={selectedIds.has(l.id)} onChange={e => { const s = new Set(selectedIds); e.target.checked ? s.add(l.id) : s.delete(l.id); setSelectedIds(s); }} style={{ width: 14, height: 14, accentColor: 'var(--accent)' }} /></td>
                     <td style={{ color: 'var(--muted)', fontSize: 11 }}>{(currentPage - 1) * (pageSize === 'all' ? 0 : pageSize) + i + 1}</td>
                     <td>
-                      <strong style={{ cursor: 'pointer', color: 'var(--accent2)', textDecoration: 'underline' }} onClick={() => setViewLead(l)}>{l.companyName || l.name}</strong>
+                      <strong style={{ cursor: canEdit ? 'pointer' : 'default', color: 'var(--accent2)', textDecoration: canEdit ? 'underline' : 'none' }} onClick={() => canEdit ? openEdit(l) : setViewLead(l)} title={canEdit ? 'Click to edit' : 'Click to view'}>{l.companyName || l.name}</strong>
                       {l.companyName && <div style={{ fontSize: 10, color: 'var(--muted)' }}>Contact: {l.name}</div>}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                         {l.phone && (
