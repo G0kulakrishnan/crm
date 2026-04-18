@@ -161,9 +161,8 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   const [editingWA, setEditingWA] = useState(null);
   const toast = useToast();
 
-  const { data } = db.useQuery({ 
+  const { data } = db.useQuery({
      userProfiles: { $: { where: { userId: ownerId } } },
-     allProfiles: { userProfiles: {} },
      leads: { $: { where: { userId: ownerId } } },
      customers: { $: { where: { userId: ownerId } } },
      quotes: { $: { where: { userId: ownerId } } },
@@ -301,11 +300,12 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
   const saveBiz = async () => {
     // Normalize slug: lowercase, trim, replace non-alphanumeric with hyphens
     const cleanSlug = (biz.slug || '').toLowerCase().trim().replace(/[^a-z0-9-]/g, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
-    
-    // Uniqueness check
-    const isTaken = data?.allProfiles?.userProfiles?.some(p => p.slug === cleanSlug && p.userId !== ownerId);
-    if (cleanSlug && isTaken) {
-      return toast('This brand URL slug is already taken! Please choose another one.', 'error');
+
+    // Uniqueness check — one-time point query at save time (not a live subscription)
+    if (cleanSlug) {
+      const slugCheck = await db.query({ userProfiles: { $: { where: { slug: cleanSlug } } } });
+      const isTaken = (slugCheck?.userProfiles || []).some(p => p.userId !== ownerId);
+      if (isTaken) return toast('This brand URL slug is already taken! Please choose another one.', 'error');
     }
 
     const payload = { 

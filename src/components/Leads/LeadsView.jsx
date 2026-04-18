@@ -202,21 +202,27 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
   useEffect(() => { setCurrentPage(1); }, [tab, search, srcFilter, stgFilter, staffFilter, pageSize]);
 
-  const overdueCount = baseFiltered.filter(l => l.followup && new Date(l.followup) < new Date()).length;
-  const todayCount = baseFiltered.filter(l => l.followup && new Date(l.followup).toDateString() === new Date().toDateString()).length;
-  const tomorrowCount = baseFiltered.filter(l => {
-    if (!l.followup) return false;
-    const t = new Date();
-    t.setDate(t.getDate() + 1);
-    return new Date(l.followup).toDateString() === t.toDateString();
-  }).length;
-  const next7Count = baseFiltered.filter(l => {
-    if (!l.followup) return false;
-    const d = new Date(l.followup); d.setHours(0,0,0,0);
-    const n = new Date(); n.setHours(0,0,0,0);
-    const diff = Math.round((d - n) / (1000 * 60 * 60 * 24));
-    return diff >= 0 && diff <= 7;
-  }).length;
+  // Single-pass tab counts — avoids 4 separate linear scans on every render
+  const { overdueCount, todayCount, tomorrowCount, next7Count } = useMemo(() => {
+    const now = new Date();
+    const todayStr = now.toDateString();
+    const tomorrowDate = new Date(now); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const tomorrowStr = tomorrowDate.toDateString();
+    const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
+    let overdue = 0, today = 0, tomorrow = 0, next7 = 0;
+    for (const l of baseFiltered) {
+      if (!l.followup) continue;
+      const d = new Date(l.followup);
+      const dStr = d.toDateString();
+      if (d < now) overdue++;
+      if (dStr === todayStr) today++;
+      if (dStr === tomorrowStr) tomorrow++;
+      const dMid = new Date(d); dMid.setHours(0, 0, 0, 0);
+      const diff = Math.round((dMid - todayMidnight) / (1000 * 60 * 60 * 24));
+      if (diff >= 0 && diff <= 7) next7++;
+    }
+    return { overdueCount: overdue, todayCount: today, tomorrowCount: tomorrow, next7Count: next7 };
+  }, [baseFiltered]);
 
   const openCreate = () => {
     setEditData(null);

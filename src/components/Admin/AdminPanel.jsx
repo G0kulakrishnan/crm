@@ -79,15 +79,16 @@ export default function AdminPanel({ user }) {
   const { data, error } = db.useQuery({
     userProfiles: {},
     coupons: { $: { where: { createdBy: user.id } } },
-    transactions: {},
     globalSettings: {},
   });
+  // Lazy: only subscribe to transactions when on that tab (avoids loading all transactions upfront)
+  const { data: txData } = db.useQuery(tab === 'transactions' ? { transactions: {} } : {});
 
   if (error) console.error('AdminPanel Query Error:', error);
 
   const users = data?.userProfiles || [];
   const coupons = data?.coupons || [];
-  const transactions = data?.transactions || [];
+  const transactions = txData?.transactions || [];
   const globalSettings = data?.globalSettings?.[0] || {};
   const settingsId = globalSettings.id || '73f6063d-4c3d-4d51-9f93-111111111111';
   const plans = globalSettings.plans ? JSON.parse(globalSettings.plans) : FALLBACK_PLANS;

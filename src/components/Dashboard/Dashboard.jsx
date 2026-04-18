@@ -34,9 +34,6 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
   const apptsRaw = data?.appointments || [];
   const commissionsRaw = data?.partnerCommissions || [];
   
-  console.log("🔍 [Dashboard] Props - ownerId:", ownerId, "perms:", perms?.isOwner ? "Owner" : "Team");
-  console.log("📊 [Dashboard] Data - leadsRaw count:", leadsRaw.length);
-
   const teamMembers = data?.teamMembers || [];
   const myTeamMember = teamMembers.find(t => t.email === user.email);
   const myName = myTeamMember?.name || user.name || '';
