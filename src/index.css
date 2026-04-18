@@ -278,12 +278,12 @@ tr:hover td { background: #f8faf9; }
 
 /* KANBAN */
 .kanban-wrapper { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
-.kanban { display: flex; gap: 12px; overflow-x: auto; padding: 5px 0 20px; flex: 1; min-height: 0; scrollbar-width: thin; align-items: flex-start; justify-content: flex-start; }
+.kanban { display: flex; gap: 12px; overflow-x: auto; overflow-y: hidden; padding: 5px 0 12px; flex: 1; min-height: 0; height: 0; scrollbar-width: thin; align-items: stretch; justify-content: flex-start; }
 .kanban::-webkit-scrollbar { height: 8px; }
 .kanban::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 .kanban::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-.kb-col { background: var(--bg); border-radius: 12px; width: 280px; min-width: 280px; flex: 0 0 280px; padding: 12px; flex-shrink: 0; display: flex; flex-direction: column; max-height: 100%; overflow: hidden; }
+.kb-col { background: var(--bg); border-radius: 12px; width: 280px; min-width: 280px; flex: 0 0 280px; padding: 12px; flex-shrink: 0; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 .kb-col-cards { flex: 1; overflow-y: auto; min-height: 0; scrollbar-width: thin; }
 .kb-col-cards::-webkit-scrollbar { width: 4px; }
 .kb-col-cards::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
