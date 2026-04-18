@@ -189,7 +189,8 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         if (!search) return true;
         const q = search.toLowerCase();
         return [l.name, l.email, l.phone, l.source, l.stage, l.assign, l.label, l.notes].some(v => (v || '').toLowerCase().includes(q));
-      });
+      })
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   }, [baseFiltered, tab, search]);
 
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
