@@ -126,7 +126,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
     d.setDate(d.getDate() + 14);
     const defDue = d.toISOString().split('T')[0];
     
-    setForm({ ...EMPTY, no: nextNo, dueDate: defDue, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: defTax }] }); 
+    setForm({ ...EMPTY, no: nextNo, dueDate: defDue, terms: profile?.iTerms || '', notes: profile?.iNotes || '', items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: defTax }] });
     setModal(true); 
   };
   const openEdit = (inv) => {

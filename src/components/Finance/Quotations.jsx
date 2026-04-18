@@ -106,7 +106,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
     d.setDate(d.getDate() + 14);
     const defDue = d.toISOString().split('T')[0];
     
-    setForm({ ...EMPTY, no: nextNo, validUntil: defDue, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: defTax }] }); 
+    setForm({ ...EMPTY, no: nextNo, validUntil: defDue, terms: profile?.qTerms || '', notes: profile?.qNotes || '', items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: defTax }] });
     setModal(true); 
   };
   const openEdit = (q) => {
