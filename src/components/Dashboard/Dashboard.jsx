@@ -172,6 +172,7 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
 
   // Calendar
   const [calDate, setCalDate] = React.useState(new Date());
+  const [selectedCalDate, setSelectedCalDate] = React.useState(null);
   const calDays = useMemo(() => {
     const fDates = new Set(leads.filter(l => l.followup).map(l => new Date(l.followup).toDateString()));
     const yr = calDate.getFullYear(), mo = calDate.getMonth();
@@ -181,10 +182,15 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
     for (let i = 0; i < first; i++) days.push({ empty: true, i });
     for (let d = 1; d <= total; d++) {
       const dt = new Date(yr, mo, d);
-      days.push({ d, isToday: dt.toDateString() === today.toDateString(), hasEvent: fDates.has(dt.toDateString()) });
+      days.push({ d, dt, isToday: dt.toDateString() === today.toDateString(), hasEvent: fDates.has(dt.toDateString()) });
     }
     return days;
   }, [calDate, leads]);
+
+  const calSelectedLeads = useMemo(() => {
+    if (!selectedCalDate) return [];
+    return leads.filter(l => l.followup && new Date(l.followup).toDateString() === selectedCalDate.toDateString());
+  }, [selectedCalDate, leads]);
 
   const greeting = useMemo(() => {
     const h = now.getHours();
@@ -401,11 +407,48 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
                 {calDays.map((item, i) => (
                   item.empty
                     ? <div key={i} />
-                    : <div key={i} className={`cal-day${item.isToday ? ' today' : item.hasEvent ? ' has-event' : ''}`}>
-                      {item.d}{item.hasEvent && !item.isToday ? '•' : ''}
-                    </div>
+                    : <div
+                        key={i}
+                        onClick={() => item.hasEvent ? setSelectedCalDate(selectedCalDate?.toDateString() === item.dt.toDateString() ? null : item.dt) : null}
+                        className={`cal-day${item.isToday ? ' today' : item.hasEvent ? ' has-event' : ''}${selectedCalDate?.toDateString() === item.dt.toDateString() ? ' cal-day-selected' : ''}`}
+                        style={{ cursor: item.hasEvent ? 'pointer' : 'default' }}
+                      >
+                        {item.d}{item.hasEvent && !item.isToday ? '•' : ''}
+                      </div>
                 ))}
               </div>
+
+              {/* Follow-up leads popup for selected date */}
+              {selectedCalDate && calSelectedLeads.length > 0 && (
+                <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      {selectedCalDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} — {calSelectedLeads.length} Follow-up{calSelectedLeads.length > 1 ? 's' : ''}
+                    </span>
+                    <button onClick={() => setSelectedCalDate(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--muted)', fontSize: 16, lineHeight: 1, padding: '0 2px' }}>×</button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 200, overflowY: 'auto' }}>
+                    {calSelectedLeads.map(l => (
+                      <div
+                        key={l.id}
+                        onClick={() => { localStorage.setItem('tc_open_lead', l.id); setActiveView('leads'); }}
+                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', borderRadius: 8, background: 'var(--bg-soft)', cursor: 'pointer', border: '1px solid var(--border)' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--accent-light, #f0fdf4)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-soft)'}
+                      >
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 700 }}>{l.name}</div>
+                          <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 1 }}>{l.phone || l.email || '—'}</div>
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <span style={{ fontSize: 10, padding: '2px 7px', borderRadius: 10, background: '#dcfce7', color: '#15803d', fontWeight: 600 }}>{l.stage}</span>
+                          {l.assign && <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 3 }}>{l.assign}</div>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}

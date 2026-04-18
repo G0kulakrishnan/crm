@@ -384,6 +384,7 @@ tr:hover td { background: #f8faf9; }
 .cal-day { padding: 4px; border-radius: 5px; text-align: center; font-size: 11px; cursor: pointer; }
 .cal-day.today { background: var(--accent); color: #fff; font-weight: 700; }
 .cal-day.has-event { background: #dcfce7; color: #166534; font-weight: 600; }
+.cal-day.cal-day-selected { background: #16a34a !important; color: #fff !important; font-weight: 700; outline: 2px solid #15803d; }
 
 /* RESPONSIVE UTILITY CLASSES */
 .dash-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 18px; }
