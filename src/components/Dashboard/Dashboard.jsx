@@ -283,12 +283,15 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
         {/* Reminders */}
         {((perms.can('Leads', 'list') === true && mod('leads')) || (perms.can('AMC', 'list') === true && mod('amc'))) && (
           <div className="tw">
-            <div className="tw-head"><h3>⏰ Upcoming Reminders</h3></div>
-            <div style={{ padding: '6px 0' }}>
+            <div className="tw-head">
+              <h3>⏰ Upcoming Reminders</h3>
+              {reminders.length > 0 && <span style={{ fontSize: 11, color: 'var(--muted)', fontWeight: 600 }}>{reminders.length} total</span>}
+            </div>
+            <div style={{ padding: '6px 0', maxHeight: 320, overflowY: 'auto' }}>
               {reminders.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: 28, color: 'var(--muted)', fontSize: 12 }}>✓ No pending reminders</div>
               ) : reminders.map((r, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'start', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: '.15s', ':hover': { background: 'var(--bg)' } }} onClick={() => handleReminderClick(r.actionInfo)} className="rem-item-hover">
+                <div key={i} style={{ display: 'flex', alignItems: 'start', gap: 10, padding: '10px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', transition: '.15s' }} onClick={() => handleReminderClick(r.actionInfo)} className="rem-item-hover">
                   <span style={{ fontSize: 16, flexShrink: 0 }}>{r.icon}</span>
                   <div style={{ flex: 1, fontSize: 12, lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: r.text }} />
                 </div>
