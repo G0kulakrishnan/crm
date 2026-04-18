@@ -327,12 +327,66 @@ PORT=3000                           # Express server port (optional, default 300
 VITE_BLOCK_AUTOMATIONS=false        # Kill switch for automation engine
 ```
 
-## Performance & Optimization
+## Performance & Optimization — MANDATORY RULE
 
-- **Code Splitting:** Each major feature (Leads, Invoices, Reports) lazy-loads
-- **Bundle Size:** ~800KB gzipped (optimized CSS, no UI framework)
-- **Real-Time:** InstantDB subscriptions only subscribe to collections in use
-- **Filters:** Client-side filtering preferred for small datasets (<10k records); server-side for large datasets
+**Performance and instant page loading is a top-priority rule. Every time code is written or modified, apply these patterns. Never skip them.**
+
+### InstantDB Query Rules
+- **Always filter at query level** using `where: { userId: ownerId }` — never fetch all records and filter client-side
+- **Split large queries** into core (data needed immediately to render) + deferred (data for modals/drawers):
+  ```javascript
+  // Core — loads immediately, renders page
+  const { data: coreData } = db.useQuery({ leads: { $: { where: { userId: ownerId } } }, userProfiles: { $: { where: { userId: ownerId } } } });
+  // Deferred — loads after, non-blocking
+  const { data: deferredData } = db.useQuery({ activityLogs: { $: { where: { userId: ownerId } } }, callLogs: { $: { where: { userId: ownerId } } } });
+  ```
+- **Defer drawer/modal data** — activityLogs, callLogs, and other detail data must only be fetched when the drawer is open (gate with `itemId ? { ... } : {}`):
+  ```javascript
+  const { data: drawerData } = db.useQuery(selectedId ? { activityLogs: { $: { where: { entityId: selectedId } } } } : {});
+  ```
+- **Always add limits** to activityLogs queries — never fetch unbounded: `limit: 200`
+- **Push date filters into the query** — never fetch all logs then filter by date client-side
+- **Lazy-load tab-specific data** — only subscribe when the user is on that tab:
+  ```javascript
+  const { data: tabData } = db.useQuery(tab === 'team' ? { teamMembers: { ... } } : {});
+  ```
+- **Never load unused collections** — audit each `db.useQuery` to ensure every collection in the query is actually rendered
+
+### React Performance Rules
+- **Always use `useMemo`** for any derived/computed value (filtered lists, counts, lookup maps, totals)
+- **Build O(1) index maps** instead of repeated `.find()` / `.filter()` inside loops:
+  ```javascript
+  // ❌ WRONG — O(n²) inside render
+  items.map(i => ({ ...i, partner: partners.find(p => p.id === i.partnerId) }))
+  // ✅ CORRECT — O(1) lookup
+  const partnersById = useMemo(() => Object.fromEntries(partners.map(p => [p.id, p])), [partners]);
+  items.map(i => ({ ...i, partner: partnersById[i.partnerId] }))
+  ```
+- **Single-pass aggregation** — never do 4 separate `.filter()` calls over the same array; do it in one `useMemo` loop
+- **Never put `console.log` in render paths** — strips performance from production
+
+### Table / List Rules
+- **Always paginate large lists** — default 25 rows/page; never render all records at once
+- **Sticky table headers** — `th { position: sticky; top: 0; }` so headers stay visible while scrolling
+- **Constrain table height to viewport** — use `maxHeight: calc(100vh - Xpx); overflowY: auto` on the scroll container so the horizontal scrollbar is always visible without scrolling the page
+
+### Kanban / Board Rules
+- **Kanban must stay in viewport** — use `overflow-y: hidden` on the kanban container and `height: 100%` on columns so the board never causes page scroll; cards scroll within their column
+
+### localStorage / Session Rules
+- **Clear all `tc_*`, `leads_cache_*`, `leadView_*`, `callLogView_*` keys on logout** — prevents previous user's data from appearing for the next login
+- **Never cache data without a TTL** — always store `{ data, timestamp }` and validate on read
+- **Cache is keyed by `ownerId` or `user.email`** — never share cache across users
+
+### Checklist for Every New Page or Feature
+When writing any new component that fetches data, verify:
+- [ ] Query is filtered by `userId: ownerId` at DB level
+- [ ] Heavy/secondary data (logs, history, details) is deferred to drawer query
+- [ ] All derived values are in `useMemo`
+- [ ] No `.find()` or `.filter()` inside a `.map()` — use index maps instead
+- [ ] List has pagination if it can exceed 25 rows
+- [ ] No `console.log` in render path
+- [ ] localStorage cleared on logout if caching anything
 
 ## Critical: Hard Delete Only (No Soft Deletes)
 
