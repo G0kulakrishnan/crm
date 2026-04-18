@@ -36,6 +36,8 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
   const [colModal, setColModal] = useState(false);
   const [tempCols, setTempCols] = useState([]);
   const [custModal, setCustModal] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
   const [newCustForm, setNewCustForm] = useState(EMPTY_CUSTOMER);
   const toast = useToast();
 
@@ -102,6 +104,16 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
                items.some(it => (it.name || '').toLowerCase().includes(s));
       });
   }, [invoices, tab, search]);
+
+  const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
+  const paginated = React.useMemo(() => {
+    if (pageSize === 'all') return filtered;
+    const start = (currentPage - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, currentPage, pageSize]);
+
+  React.useEffect(() => { setCurrentPage(1); }, [tab, search]);
+
   const tots = calcTotals(form.items, form.disc, form.discType, form.adj);
 
   const openCreate = () => { 
@@ -597,7 +609,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
             <tbody>
               {filtered.length === 0
                 ? <tr><td colSpan={10} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No invoices yet</td></tr>
-                : filtered.map((inv, i) => {
+                : paginated.map((inv, i) => {
                     const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
                     const paidAmt = payments.reduce((s, p) => s + p.amount, 0);
                     const balAmt = inv.total - paidAmt;
@@ -642,6 +654,21 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
             </tbody>
           </table>
         </div>
+        {totalPages > 1 && (
+          <div style={{ padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', background: 'var(--bg-soft)', flexWrap: 'wrap', gap: 10 }}>
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>
+              Showing <strong>{(currentPage - 1) * pageSize + 1}</strong>–<strong>{Math.min(currentPage * pageSize, filtered.length)}</strong> of <strong>{filtered.length}</strong>
+            </div>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <select value={pageSize} onChange={e => { setPageSize(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} style={{ fontSize: 12, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                {[25, 50, 100, 'all'].map(s => <option key={s} value={s}>{s === 'all' ? 'All' : `${s} / page`}</option>)}
+              </select>
+              <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>&#8249; Prev</button>
+              <span style={{ fontSize: 12 }}>Page {currentPage} / {totalPages}</span>
+              <button className="btn btn-secondary btn-sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>Next &#8250;</button>
+            </div>
+          </div>
+        )}
       </div>
 
       {modal && (

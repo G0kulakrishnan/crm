@@ -39,22 +39,27 @@ export default function Reports({ user, perms, ownerId, profile }) {
     }
   }, [dateFilter]);
 
+  // Core: always needed for pl, gst, rev-src, funnel tabs
   const { data } = db.useQuery({
     invoices: { $: { where: { userId: ownerId } } },
     expenses: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId } } },
-    tasks: { $: { where: { userId: ownerId } } },
-    teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    activityLogs: { $: { where: { userId: ownerId }, limit: 500 } },
     partnerCommissions: { $: { where: { userId: ownerId } } },
   });
 
+  // Deferred: only needed for leads/funnel/team tabs
+  const needsLeadsData = ['leads', 'funnel', 'rev-src', 'team'].includes(tab);
+  const { data: deferredData } = db.useQuery(needsLeadsData ? {
+    leads: { $: { where: { userId: ownerId } } },
+    tasks: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
+  } : {});
+
   const invoices = data?.invoices || [];
   const expenses = data?.expenses || [];
-  const leads = (data?.leads || []).map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
-  const tasks = data?.tasks || [];
-  const team = data?.teamMembers || [];
+  const leads = (deferredData?.leads || []).map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
+  const tasks = deferredData?.tasks || [];
+  const team = deferredData?.teamMembers || [];
   const commissions = data?.partnerCommissions || [];
 
   const isTeam = perms && !perms.isOwner;
