@@ -342,13 +342,29 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
           updates.stageChangedAt = Date.now();
         }
         await db.transact(db.tx.leads[editData.id].update(updates));
-        
+
         if (isWon(form.stage) && editData.stage !== form.stage) {
           await convertToCustomer({ ...editData, ...form }, true);
         }
 
         if (changes.length > 0) {
           await logActivity(editData.id, changes.join(' | '));
+        }
+
+        // Structured stage-change log for analytics (Stage Transition Report)
+        if (editData.stage !== form.stage && editData.stage && form.stage) {
+          await db.transact(db.tx.activityLogs[id()].update({
+            entityId: editData.id,
+            entityType: 'lead',
+            action: 'stage-change',
+            fromStage: editData.stage,
+            toStage: form.stage,
+            text: `Stage: ${editData.stage} → ${form.stage}`,
+            userId: ownerId,
+            actorId: user.id,
+            userName: user.email,
+            createdAt: Date.now()
+          }));
         }
         
         toast('Lead updated!', 'success');
@@ -680,6 +696,8 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     await Promise.all([...selectedIds].map(async lid => {
       const updates = {};
       const logMsgs = [];
+      const leadObj = leads.find(x => x.id === lid);
+      const prevStage = leadObj?.stage;
       if (pendingBulkAssign) {
         updates.assign = pendingBulkAssign;
         logMsgs.push(`Bulk assigned to ${pendingBulkAssign}`);
@@ -691,6 +709,15 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       }
       await db.transact(db.tx.leads[lid].update(updates));
       for (const msg of logMsgs) await logActivity(lid, msg);
+      // Structured stage-change log for analytics
+      if (pendingBulkStage && prevStage && prevStage !== pendingBulkStage) {
+        await db.transact(db.tx.activityLogs[id()].update({
+          entityId: lid, entityType: 'lead', action: 'stage-change',
+          fromStage: prevStage, toStage: pendingBulkStage,
+          text: `Stage: ${prevStage} → ${pendingBulkStage}`,
+          userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+        }));
+      }
       if (pendingBulkStage) {
         const lead = leads.find(l => l.id === lid);
         if (isWon(pendingBulkStage) && lead && lead.stage !== pendingBulkStage) {
@@ -733,19 +760,30 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       };
       // Assuming 'lMatch' refers to 'l' from the function parameter, and 'data' is available in scope.
       // If 'data' is not available, this will cause a runtime error.
-      await db.transact([
+      const wonStageName = (data?.userProfiles?.[0]?.wonStage || 'Won');
+      const txs = [
         db.tx.customers[id()].update(payload),
-        db.tx.leads[l.id].update({ 
-           stage: (data?.userProfiles?.[0]?.wonStage || 'Won'), // use wonStage from profile if possible, it's defined in the component
+        db.tx.leads[l.id].update({
+           stage: wonStageName,
            stageChangedAt: Date.now(),
            email: l.email || '',
            phone: l.phone || ''
         }),
         db.tx.activityLogs[id()].update({
-           entityId: l.id, entityType: 'lead', text: `Manually converted to Customer. Stage changed to ${(data?.userProfiles?.[0]?.wonStage || 'Won')}.`,
+           entityId: l.id, entityType: 'lead', text: `Manually converted to Customer. Stage changed to ${wonStageName}.`,
            userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
         })
-      ]);
+      ];
+      // Structured stage-change log for analytics
+      if (l.stage && l.stage !== wonStageName) {
+        txs.push(db.tx.activityLogs[id()].update({
+          entityId: l.id, entityType: 'lead', action: 'stage-change',
+          fromStage: l.stage, toStage: wonStageName,
+          text: `Stage: ${l.stage} → ${wonStageName}`,
+          userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+        }));
+      }
+      await db.transact(txs);
       toast(`${l.name} is now a Customer!`, 'success');
     } catch {
       toast('Error converting to customer', 'error');
@@ -1361,8 +1399,15 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                   if (!lid) return;
                   const lead = leads.find(l => l.id === lid);
                   if (!lead || lead.stage === stage) return;
-                  await db.transact(db.tx.leads[lid].update({ stage }));
+                  await db.transact(db.tx.leads[lid].update({ stage, stageChangedAt: Date.now() }));
                   await logActivity(lid, `Stage changed from "${lead.stage}" to "${stage}" (drag & drop)`);
+                  // Structured stage-change log for analytics
+                  await db.transact(db.tx.activityLogs[id()].update({
+                    entityId: lid, entityType: 'lead', action: 'stage-change',
+                    fromStage: lead.stage, toStage: stage,
+                    text: `Stage: ${lead.stage} → ${stage} (drag)`,
+                    userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+                  }));
                   if (isWon(stage)) {
                     await convertToCustomer(lead, true);
                   }
