@@ -1675,7 +1675,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
                 <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Default Leads per Page</strong>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {[25, 50, 100, 500, 'all'].map(size => (
+                  {[15, 25, 50, 100, 'all'].map(size => (
                     <button
                       key={size}
                       className={`btn btn-sm ${tempPageSize === size ? 'btn-primary' : 'btn-secondary'}`}
