@@ -9,6 +9,10 @@ export default function Reports({ user, perms, ownerId, profile }) {
   const [dateFilter, setDateFilter] = useState('This Month');
   const [fromDate, setFromDate] = useState(() => { const d = new Date(); d.setMonth(0, 1); return d.toISOString().split('T')[0]; });
   const [toDate, setToDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [prodPage, setProdPage] = useState(1);
+  const [prodSearch, setProdSearch] = useState('');
+  const [prodSortBy, setProdSortBy] = useState('revenue'); // revenue | units | name
+  const prodPageSize = 50;
 
   useEffect(() => {
     if (dateFilter === 'Custom Range') return;
@@ -30,7 +34,7 @@ export default function Reports({ user, perms, ownerId, profile }) {
       const startYear = sm >= 3 ? sy - 1 : sy - 2;
       f = new Date(startYear, 3, 1); t = new Date(startYear + 1, 2, 31);
     }
-    
+
     if (f && t) {
       // Adjust timezone offset to reliably get local date string
       const offset = f.getTimezoneOffset() * 60000;
@@ -38,6 +42,11 @@ export default function Reports({ user, perms, ownerId, profile }) {
       setToDate(new Date(t - offset).toISOString().split('T')[0]);
     }
   }, [dateFilter]);
+
+  // Reset pagination when tab changes
+  useEffect(() => {
+    setProdPage(1);
+  }, [tab]);
 
   // Core: always needed for pl, gst, rev-src, funnel tabs
   const { data } = db.useQuery({
@@ -47,12 +56,15 @@ export default function Reports({ user, perms, ownerId, profile }) {
     partnerCommissions: { $: { where: { userId: ownerId } } },
   });
 
-  // Deferred: only needed for leads/funnel/team tabs
+  // Deferred: only needed for leads/funnel/team/products tabs
   const needsLeadsData = ['leads', 'funnel', 'rev-src', 'team'].includes(tab);
+  const needsProductsData = tab === 'products';
   const { data: deferredData } = db.useQuery(needsLeadsData ? {
     leads: { $: { where: { userId: ownerId } } },
     tasks: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
+  } : needsProductsData ? {
+    products: { $: { where: { userId: ownerId } } },
   } : {});
 
   const invoices = data?.invoices || [];
@@ -60,6 +72,7 @@ export default function Reports({ user, perms, ownerId, profile }) {
   const leads = (deferredData?.leads || []).map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
   const tasks = deferredData?.tasks || [];
   const team = deferredData?.teamMembers || [];
+  const products = deferredData?.products || [];
   const commissions = data?.partnerCommissions || [];
 
   const isTeam = perms && !perms.isOwner;
@@ -180,6 +193,32 @@ export default function Reports({ user, perms, ownerId, profile }) {
     ];
   }, [filteredLeadsAtSource, STAGE_ORDER, wonStage, lostStage]);
 
+  // Product Performance
+  const productPerf = useMemo(() => {
+    const prodMap = {};
+    filteredInv.forEach(inv => {
+      const payments = Array.isArray(inv.payments) ? inv.payments : (inv.payments ? JSON.parse(inv.payments) : []);
+      const paidAmt = payments.reduce((s, p) => s + (p.amount || 0), 0);
+      if (paidAmt > 0) {
+        const items = Array.isArray(inv.items) ? inv.items : (inv.items ? JSON.parse(inv.items) : []);
+        items.forEach(item => {
+          const pName = item.product || item.description || 'Unknown';
+          if (!prodMap[pName]) {
+            prodMap[pName] = { name: pName, units: 0, revenue: 0, totalTax: 0 };
+          }
+          const itemQty = item.qty || 0;
+          const itemRate = item.rate || 0;
+          const itemAmount = itemQty * itemRate;
+          const itemTax = itemAmount * ((item.taxRate || 0) / 100);
+          prodMap[pName].units += itemQty;
+          prodMap[pName].revenue += itemAmount;
+          prodMap[pName].totalTax += itemTax;
+        });
+      }
+    });
+    return Object.values(prodMap).sort((a, b) => b.revenue - a.revenue);
+  }, [filteredInv]);
+
   // Revenue by Source
   const revBySource = useMemo(() => {
     const srcMap = {};
@@ -195,6 +234,29 @@ export default function Reports({ user, perms, ownerId, profile }) {
     return Object.entries(srcMap).sort((a, b) => b[1] - a[1]);
   }, [filteredInv, filteredLeadsAtSource]);
   const maxSrcRev = Math.max(...revBySource.map(([, v]) => v), 1);
+
+  // Product search + sort + pagination
+  const prodFiltered = useMemo(() => {
+    const q = prodSearch.trim().toLowerCase();
+    const base = q ? productPerf.filter(p => p.name.toLowerCase().includes(q)) : productPerf;
+    const sorted = [...base];
+    if (prodSortBy === 'units') sorted.sort((a, b) => b.units - a.units);
+    else if (prodSortBy === 'name') sorted.sort((a, b) => a.name.localeCompare(b.name));
+    else sorted.sort((a, b) => b.revenue - a.revenue);
+    return sorted;
+  }, [productPerf, prodSearch, prodSortBy]);
+  const prodTotalPages = Math.max(1, Math.ceil(prodFiltered.length / prodPageSize));
+  const prodPaginated = useMemo(() => {
+    const start = (prodPage - 1) * prodPageSize;
+    return prodFiltered.slice(start, start + prodPageSize);
+  }, [prodFiltered, prodPage]);
+
+  // Reset page when search or sort changes
+  useEffect(() => { setProdPage(1); }, [prodSearch, prodSortBy]);
+
+  // Top 10 chart data (by revenue)
+  const topProducts = useMemo(() => productPerf.slice(0, 10), [productPerf]);
+  const maxProdRev = Math.max(...topProducts.map(p => p.revenue), 1);
 
   // Monthly GST Breakdown
   const gstBreakdown = useMemo(() => {
@@ -260,6 +322,8 @@ export default function Reports({ user, perms, ownerId, profile }) {
         ...gstDetails.map(inv => [inv.no, inv.client, inv.status, inv.paidAmt - inv.paidTax, inv.paidTax])
       ];
       exportCSV(rows[0], rows.slice(1), `GST_Detailed_Report_${fromDate}_to_${toDate}`);
+    } else if (tab === 'products') {
+      exportCSV(['Product', 'Units Sold', 'Revenue', 'GST Collected', 'Total (with Tax)'], prodFiltered.map(p => [p.name, p.units, p.revenue, p.totalTax, p.revenue + p.totalTax]), `Product_Performance_${fromDate}_to_${toDate}`);
     } else if (tab === 'team') {
       exportCSV(['Name', 'Leads Assigned', 'Tasks Total', 'Tasks Done', 'Completion %'], teamPerf.map(m => [m.name, m.leads, m.tasks, m.done, m.tasks ? Math.round((m.done / m.tasks) * 100) + '%' : '0%']), `Team_Perf_${fromDate}_to_${toDate}`);
     } else if (tab === 'leads') {
@@ -315,11 +379,12 @@ export default function Reports({ user, perms, ownerId, profile }) {
         }}>
           <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', padding: '0 12px 12px', letterSpacing: '0.05em' }}>Report Types</div>
           {[
-            ['pl', 'P&L Statement'], 
-            ['gst', 'GST Summary'], 
-            ['leads', 'Lead Pipeline'], 
+            ['pl', 'P&L Statement'],
+            ['gst', 'GST Summary'],
+            ['leads', 'Lead Pipeline'],
             ['funnel', 'Sales Funnel'],
             ['rev-src', 'Revenue by Source'],
+            ['products', 'Product Performance'],
             ['team', 'Team Performance']
           ].map(([t, l]) => (
             <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)} style={{ padding: '10px 16px', borderRadius: 8, width: '100%', textAlign: 'left' }}>{l}</div>
@@ -568,6 +633,84 @@ export default function Reports({ user, perms, ownerId, profile }) {
           </div>
         );
       })()}
+
+      {tab === 'products' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div className="stat-grid">
+            <div className="stat-card sc-blue"><div className="lbl">Unique Products Sold</div><div className="val">{productPerf.length}</div></div>
+            <div className="stat-card sc-green"><div className="lbl">Total Units Sold</div><div className="val">{productPerf.reduce((s, p) => s + p.units, 0)}</div></div>
+            <div className="stat-card sc-green"><div className="lbl">Total Revenue</div><div className="val" style={{ fontSize: 'clamp(16px, 1.5vw, 20px)', lineHeight: '1.2' }}>{fmt(productPerf.reduce((s, p) => s + p.revenue, 0))}</div></div>
+            <div className="stat-card sc-purple"><div className="lbl">GST Collected</div><div className="val" style={{ fontSize: 'clamp(16px, 1.5vw, 20px)', lineHeight: '1.2' }}>{fmt(productPerf.reduce((s, p) => s + p.totalTax, 0))}</div></div>
+          </div>
+
+          {topProducts.length > 0 && (
+            <div className="tw">
+              <div className="tw-head"><h3>Top 10 Products by Revenue</h3></div>
+              <div style={{ padding: '16px 20px' }}>
+                {topProducts.map((p, i) => (
+                  <div key={p.name} className="chart-row" style={{ marginBottom: 10 }}>
+                    <div className="chart-label" style={{ width: 180, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={p.name}>{i + 1}. {p.name}</div>
+                    <div className="chart-bar-wrap" style={{ height: 14 }}>
+                      <div className="chart-bar" style={{ width: `${(p.revenue / maxProdRev) * 100}%`, background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                    </div>
+                    <div style={{ width: 180, fontSize: 12, marginLeft: 10, fontWeight: 700, textAlign: 'right' }}>
+                      {fmt(p.revenue)} <span style={{ color: 'var(--muted)', fontWeight: 500 }}>({p.units} units)</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="tw">
+            <div className="tw-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
+              <h3>All Products {prodFiltered.length !== productPerf.length ? `(${prodFiltered.length} of ${productPerf.length})` : `(${productPerf.length})`}</h3>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Search product..."
+                  value={prodSearch}
+                  onChange={e => setProdSearch(e.target.value)}
+                  style={{ padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 12, fontFamily: 'inherit', minWidth: 180 }}
+                />
+                <select value={prodSortBy} onChange={e => setProdSortBy(e.target.value)} style={{ padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 12, fontFamily: 'inherit' }}>
+                  <option value="revenue">Sort: Revenue</option>
+                  <option value="units">Sort: Units</option>
+                  <option value="name">Sort: Name</option>
+                </select>
+              </div>
+            </div>
+            <div className="tw-scroll">
+              <table>
+                <thead><tr><th>#</th><th>Product</th><th style={{ textAlign: 'right' }}>Units Sold</th><th style={{ textAlign: 'right' }}>Revenue</th><th style={{ textAlign: 'right' }}>GST</th><th style={{ textAlign: 'right' }}>With Tax</th></tr></thead>
+                <tbody>
+                  {prodFiltered.length === 0 ? <tr><td colSpan={6} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>{prodSearch ? 'No products match your search' : 'No product sales in this period'}</td></tr>
+                    : prodPaginated.map((p, i) => (
+                      <tr key={p.name}>
+                        <td style={{ color: 'var(--muted)', fontSize: 12 }}>{(prodPage - 1) * prodPageSize + i + 1}</td>
+                        <td><strong>{p.name}</strong></td>
+                        <td style={{ textAlign: 'right' }}>{p.units}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{fmt(p.revenue)}</td>
+                        <td style={{ textAlign: 'right', color: '#16a34a' }}>{fmt(p.totalTax)}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(p.revenue + p.totalTax)}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+            {prodFiltered.length > prodPageSize && (
+              <div style={{ padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', fontSize: 12 }}>
+                <div style={{ color: 'var(--muted)' }}>Showing {(prodPage - 1) * prodPageSize + 1}-{Math.min(prodPage * prodPageSize, prodFiltered.length)} of {prodFiltered.length} products</div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setProdPage(p => Math.max(1, p - 1))} disabled={prodPage === 1} style={{ opacity: prodPage === 1 ? 0.5 : 1 }}>← Prev</button>
+                  <span style={{ padding: '4px 10px', background: 'var(--bg-soft)', borderRadius: 6, fontWeight: 600 }}>{prodPage} / {prodTotalPages}</span>
+                  <button className="btn btn-secondary btn-sm" onClick={() => setProdPage(p => Math.min(prodTotalPages, p + 1))} disabled={prodPage === prodTotalPages} style={{ opacity: prodPage === prodTotalPages ? 0.5 : 1 }}>Next →</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {tab === 'team' && (
         <div className="tw">
