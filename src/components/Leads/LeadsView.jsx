@@ -974,7 +974,6 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
           <div className="stat-card sc-green"><div className="lbl">Assigned To</div><div className="val" style={{ fontSize: 16 }}>{l.assign || 'Unassigned'}</div></div>
           <div className="stat-card sc-yellow"><div className="lbl">Requirement</div><div className="val" style={{ fontSize: 16 }}>{l.requirement}</div></div>
           <div className="stat-card sc-purple"><div className="lbl">Follow Up</div><div className="val" style={{ fontSize: 13 }}>{l.followup ? fmtDT(l.followup) : 'None'}</div></div>
-          <div className="stat-card sc-teal"><div className="lbl">Product Category</div><div className="val" style={{ fontSize: 14 }}>{l.productCat || 'None'}</div></div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
