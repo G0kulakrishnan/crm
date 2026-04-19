@@ -3,6 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD, fmt, stageBadgeClass } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
+import { logActivity } from '../../utils/activityLogger';
 
 const STATUS_COLORS = { Draft: 'bg-gray', Sent: 'bg-blue', Received: 'bg-green', Cancelled: 'bg-red' };
 const EMPTY_ITEM = { name: '', qty: 1, rate: 0, tax: 0, total: 0 };
@@ -34,12 +35,15 @@ export default function PurchaseOrders({ user, perms, ownerId }) {
     vendors: { $: { where: { userId: ownerId } } },
     products: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
   });
 
   const orders = data?.purchaseOrders || [];
   const vendors = data?.vendors || [];
   const products = data?.products || [];
   const profile = data?.userProfiles?.[0] || {};
+  const team = data?.teamMembers || [];
+  const myMember = useMemo(() => team.find(t => t.email === user.email), [team, user.email]);
 
   // Auto generate PO number
   const nextPONo = useMemo(() => {
@@ -103,13 +107,20 @@ export default function PurchaseOrders({ user, perms, ownerId }) {
       actorId: user.id,
       createdAt: editData ? editData.createdAt : Date.now(),
     };
-    if (editData) {
-      await db.transact(db.tx.purchaseOrders[editData.id].update(payload));
-      toast('PO updated', 'success');
-    } else {
-      await db.transact(db.tx.purchaseOrders[id()].update(payload));
-      toast('Purchase Order created', 'success');
-    }
+    const isEdit = !!editData;
+    const poId = isEdit ? editData.id : id();
+    await db.transact(db.tx.purchaseOrders[poId].update(payload));
+    await logActivity({
+      entityType: 'purchaseOrder', entityId: poId,
+      entityName: payload.poNo || payload.vendor,
+      action: isEdit ? 'edited' : 'created',
+      text: isEdit
+        ? `PO **${editData.poNo}** updated — vendor: ${payload.vendor}, total: ₹${totals.grand}`
+        : `Purchase Order **${payload.poNo}** created — vendor: ${payload.vendor}, total: ₹${totals.grand}`,
+      userId: ownerId, user, teamMemberId: myMember?.id || null,
+      meta: { amount: totals.grand },
+    });
+    toast(isEdit ? 'PO updated' : 'Purchase Order created', 'success');
     setModal(false);
     setEditData(null);
     setForm(EMPTY_FORM());
@@ -132,9 +143,25 @@ export default function PurchaseOrders({ user, perms, ownerId }) {
         }
       }
       await db.transact(txs);
+      await logActivity({
+        entityType: 'purchaseOrder', entityId: po.id,
+        entityName: po.poNo || po.vendor,
+        action: 'edited',
+        text: `PO **${po.poNo}** marked as Received`,
+        userId: ownerId, user, teamMemberId: myMember?.id || null,
+        meta: { status: 'Received' },
+      });
       toast(`PO marked Received — stock updated for ${po.items?.length || 0} items`, 'success');
     } else {
       await db.transact(db.tx.purchaseOrders[po.id].update({ status: newStatus }));
+      await logActivity({
+        entityType: 'purchaseOrder', entityId: po.id,
+        entityName: po.poNo || po.vendor,
+        action: 'edited',
+        text: `PO **${po.poNo}** status changed to ${newStatus}`,
+        userId: ownerId, user, teamMemberId: myMember?.id || null,
+        meta: { status: newStatus },
+      });
       toast(`Status updated to ${newStatus}`, 'success');
     }
   };

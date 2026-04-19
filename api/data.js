@@ -103,7 +103,7 @@ export default async function handler(req, res) {
     
     // Merge query and body params to support both URL rewrites and JSON bodies
     const params = { ...req.query, ...(req.body || {}) };
-    const { module, ownerId, actorId, userName, projectId, logText, ...data } = params;
+    const { module, ownerId, actorId, userName, teamMemberId, projectId, logText, ...data } = params;
 
     if (!module || !COLLECTION_MAP[module]) {
       // If no module provided in GET request, return empty data instead of error
@@ -149,6 +149,7 @@ export default async function handler(req, res) {
           userId: ownerId,
           actorId: actorId || ownerId,
           userName: userName || 'API System',
+          teamMemberId: teamMemberId || null,
           projectId: projectId || null,
           createdAt: Date.now()
         })
@@ -190,6 +191,7 @@ export default async function handler(req, res) {
           userId: ownerId,
           actorId: actorId || ownerId,
           userName: userName || 'API System',
+          teamMemberId: teamMemberId || null,
           projectId: projectId || null,
           createdAt: Date.now()
         })

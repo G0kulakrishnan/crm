@@ -90,6 +90,8 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
 
   const [taskForm, setTaskForm] = useState({ title: '', assignTo: '', dueDate: '', priority: 'Medium', status: taskStatuses[0], notes: '', client: '' });
 
+  const myMember = useMemo(() => team.find(t => t.email === user.email), [team, user.email]);
+
   const pf = (k) => (e) => setProjForm(p => ({ ...p, [k]: e.target.value }));
   const tf = (k) => (e) => setTaskForm(p => ({ ...p, [k]: e.target.value }));
 
@@ -116,14 +118,15 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
       const res = await fetch('/api/data', {
         method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          module: 'projects', 
-          ownerId, 
-          actorId: user.id, 
+        body: JSON.stringify({
+          module: 'projects',
+          ownerId,
+          actorId: user.id,
           userName: user.email,
-          id: editProj?.id, 
+          teamMemberId: myMember?.id || null,
+          id: editProj?.id,
           logText,
-          ...projForm 
+          ...projForm
         })
       });
       if (!res.ok) throw new Error('Failed to save project');
@@ -142,11 +145,12 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
       const res = await fetch('/api/data', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          module: 'projects', 
-          ownerId, 
-          actorId: user.id, 
+        body: JSON.stringify({
+          module: 'projects',
+          ownerId,
+          actorId: user.id,
           userName: user.email,
+          teamMemberId: myMember?.id || null,
           id: pid,
           logText: `Project "${pName}" deleted with all its tasks`
         })
@@ -181,15 +185,16 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
       const res = await fetch('/api/data', {
         method: isEdit ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          module: 'tasks', 
-          ownerId, 
-          actorId: user.id, 
+        body: JSON.stringify({
+          module: 'tasks',
+          ownerId,
+          actorId: user.id,
           userName: user.email,
+          teamMemberId: myMember?.id || null,
           projectId: selectedProj.id,
-          id: editTask?.id, 
+          id: editTask?.id,
           logText,
-          ...taskForm 
+          ...taskForm
         })
       });
       if (!res.ok) throw new Error('Failed to save task');
@@ -208,11 +213,12 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
       const res = await fetch('/api/data', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          module: 'tasks', 
-          ownerId, 
-          actorId: user.id, 
+        body: JSON.stringify({
+          module: 'tasks',
+          ownerId,
+          actorId: user.id,
           userName: user.email,
+          teamMemberId: myMember?.id || null,
           projectId: selectedProj.id,
           id: tid,
           logText: `Task "${tTitle}" deleted`
@@ -234,13 +240,14 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
       const res = await fetch('/api/data', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          module: 'tasks', 
-          ownerId, 
-          actorId: user.id, 
+        body: JSON.stringify({
+          module: 'tasks',
+          ownerId,
+          actorId: user.id,
           userName: user.email,
+          teamMemberId: myMember?.id || null,
           projectId: selectedProj.id,
-          id: t.id, 
+          id: t.id,
           status: nextStatus,
           logText: `Status changed from ${t.status} to ${nextStatus}`
         })

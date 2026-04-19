@@ -153,17 +153,7 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
 
   const [viewData, setViewData] = useState(null);
 
-  const logActivity = async (taskId, text) => {
-    await db.transact(db.tx.activityLogs[id()].update({
-      entityId: taskId,
-      entityType: 'task',
-      text,
-      userId: ownerId,
-      actorId: user.id,
-      userName: user.email,
-      createdAt: Date.now()
-    }));
-  };
+  const myMember = useMemo(() => team.find(t => t.email === user.email), [team, user.email]);
 
   const save = async () => {
     if (!form.title.trim()) { toast('Title required', 'error'); return; }
@@ -178,15 +168,16 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
         const res = await fetch('/api/data', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            module: 'tasks', 
-            ownerId, 
-            actorId: user.id, 
-            userName: user.email, 
-            id: editData.id, 
+          body: JSON.stringify({
+            module: 'tasks',
+            ownerId,
+            actorId: user.id,
+            userName: user.email,
+            teamMemberId: myMember?.id || null,
+            id: editData.id,
             projectId: form.projectId || editData.projectId || '',
             logText: changes.length > 0 ? `Task updated: ${changes.join(' | ')}` : null,
-            ...form 
+            ...form
           })
         });
         if (!res.ok) throw new Error('Failed to update');
@@ -196,7 +187,7 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
         const res = await fetch('/api/data', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, userName: user.email, ...form })
+          body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, userName: user.email, teamMemberId: myMember?.id || null, ...form })
         });
         if (!res.ok) throw new Error('Failed to create');
         const result = await res.json();
@@ -215,7 +206,7 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
       const res = await fetch('/api/data', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, userName: user.email, id: tid, logText: 'Task deleted' })
+        body: JSON.stringify({ module: 'tasks', ownerId, actorId: user.id, userName: user.email, teamMemberId: myMember?.id || null, id: tid, logText: 'Task deleted' })
       });
       if (!res.ok) throw new Error('Failed to delete');
       toast('Deleted', 'error');
@@ -252,15 +243,16 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
       await fetch('/api/data', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          module: 'tasks', 
-          ownerId, 
-          actorId: user.id, 
-          userName: user.email, 
-          id: t.id, 
+        body: JSON.stringify({
+          module: 'tasks',
+          ownerId,
+          actorId: user.id,
+          userName: user.email,
+          teamMemberId: myMember?.id || null,
+          id: t.id,
           projectId: t.projectId || '',
-          status: nextStatus, 
-          logText: `Task updated: Status changed from "${t.status}" to "${nextStatus}"` 
+          status: nextStatus,
+          logText: `Task updated: Status changed from "${t.status}" to "${nextStatus}"`
         })
       });
       toast(`Status: ${nextStatus}`, 'success');

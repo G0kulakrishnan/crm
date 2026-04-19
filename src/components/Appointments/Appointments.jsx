@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { logActivity } from '../../utils/activityLogger';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { fmtD } from '../../utils/helpers';
@@ -19,7 +20,7 @@ const STATUS_COLORS = {
   'No Show': { bg: '#f3f4f6', color: '#374151' },
 };
 
-export default function Appointments({ ownerId, perms, initialTab, settings }) {
+export default function Appointments({ user, ownerId, perms, initialTab, settings }) {
   const toast = useToast();
   const [tab, setTab] = useState(initialTab || 'list'); // list | settings
   const [dateFilter, setDateFilter] = useState('today');
@@ -45,12 +46,15 @@ export default function Appointments({ ownerId, perms, initialTab, settings }) {
     userProfiles: { $: { where: { userId: ownerId } } },
     customers: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
   });
   const profile = data?.userProfiles?.[0];
   const ecom = data?.ecomSettings?.[0];
   const appointments = data?.appointments || [];
   const customers = data?.customers || [];
   const leads = data?.leads || [];
+  const team = data?.teamMembers || [];
+  const myMember = useMemo(() => user ? team.find(t => t.email === user.email) : null, [team, user]);
   const settingsRecord = data?.appointmentSettings?.[0];
   const settingsId = settingsRecord?.id || id();
   const settingsLogId = settingsRecord?.id || null;
@@ -221,6 +225,16 @@ export default function Appointments({ ownerId, perms, initialTab, settings }) {
     }
 
     await db.transact(txs);
+    if (appt && appt.status !== status) {
+      await logActivity({
+        entityType: 'appointment', entityId: apptId,
+        entityName: appt.customerName || '',
+        action: 'edited',
+        text: `Appointment status changed to **${status}** for ${appt.customerName || 'customer'}`,
+        userId: ownerId, user, teamMemberId: myMember?.id || null,
+        meta: { status },
+      });
+    }
     if (appt?.status !== status) toast(`Status updated to ${status}`, 'success');
     return true;
   };
@@ -267,6 +281,15 @@ export default function Appointments({ ownerId, perms, initialTab, settings }) {
     }
 
     await db.transact(txs);
+    if (newNote.trim()) {
+      await logActivity({
+        entityType: 'appointment', entityId: editModal.id,
+        entityName: editModal.customerName || '',
+        action: 'note',
+        text: `Note added on appointment for ${editModal.customerName || 'customer'}: ${newNote.trim()}`,
+        userId: ownerId, user, teamMemberId: myMember?.id || null,
+      });
+    }
     toast('Appointment and Lead updated', 'success');
     setEditModal(null);
     setNewNote('');
