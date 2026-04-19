@@ -31,6 +31,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
   const [view, setView] = useState('list'); // 'list' | 'kanban'
   const [tab, setTab] = useState('all');
+  const [dateMode, setDateMode] = useState(() => localStorage.getItem('tc_leads_date_mode') || 'followup'); // 'followup' | 'created'
   const [search, setSearch] = useState('');
   const [srcFilter, setSrcFilter] = useState('');
   const [stgFilter, setStgFilter] = useState('');
@@ -168,24 +169,48 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toDateString();
+    const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toDateString();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const weekStart = (() => { const d = new Date(now); d.setHours(0,0,0,0); d.setDate(d.getDate() - d.getDay()); return d.getTime(); })();
+
+    // Pick the date field based on dateMode toggle
+    const dateOf = (l) => dateMode === 'created' ? l.createdAt : l.followup;
 
     return baseFiltered.filter(l => {
+      const dateVal = dateOf(l);
       if (tab === 'today') {
-        if (!l.followup) return false;
-        return new Date(l.followup).toDateString() === todayStr;
+        if (!dateVal) return false;
+        return new Date(dateVal).toDateString() === todayStr;
       }
-      if (tab === 'tomorrow') {
-        if (!l.followup) return false;
-        return new Date(l.followup).toDateString() === tomorrowStr;
+      if (dateMode === 'followup') {
+        if (tab === 'tomorrow') {
+          if (!dateVal) return false;
+          return new Date(dateVal).toDateString() === tomorrowStr;
+        }
+        if (tab === 'next7days') {
+          if (!dateVal) return false;
+          const d = new Date(dateVal); d.setHours(0,0,0,0);
+          const n = new Date(now); n.setHours(0,0,0,0);
+          const diffDays = Math.round((d - n) / (1000 * 60 * 60 * 24));
+          return diffDays >= 0 && diffDays <= 7;
+        }
+        if (tab === 'overdue') return dateVal && new Date(dateVal) < now;
+      } else {
+        // Created mode tabs
+        if (tab === 'yesterday') {
+          if (!dateVal) return false;
+          return new Date(dateVal).toDateString() === yesterdayStr;
+        }
+        if (tab === 'thisweek') {
+          if (!dateVal) return false;
+          return dateVal >= weekStart;
+        }
+        if (tab === 'thismonth') {
+          if (!dateVal) return false;
+          return dateVal >= monthStart;
+        }
       }
-      if (tab === 'next7days') {
-        if (!l.followup) return false;
-        const d = new Date(l.followup); d.setHours(0,0,0,0);
-        const n = new Date(now); n.setHours(0,0,0,0);
-        const diffDays = Math.round((d - n) / (1000 * 60 * 60 * 24));
-        return diffDays >= 0 && diffDays <= 7;
-      }
-      if (tab === 'overdue') return l.followup && new Date(l.followup) < now;
       return true;
     })
       .filter(l => {
@@ -194,7 +219,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         return [l.name, l.email, l.phone, l.source, l.stage, l.assign, l.label, l.notes].some(v => (v || '').toLowerCase().includes(q));
       })
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  }, [baseFiltered, tab, search]);
+  }, [baseFiltered, tab, search, dateMode]);
 
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
   const paginated = useMemo(() => {
@@ -205,27 +230,39 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
   useEffect(() => { setCurrentPage(1); }, [tab, search, srcFilter, stgFilter, staffFilter, pageSize]);
 
-  // Single-pass tab counts — avoids 4 separate linear scans on every render
-  const { overdueCount, todayCount, tomorrowCount, next7Count } = useMemo(() => {
+  // Single-pass tab counts — avoids separate linear scans on every render
+  const { overdueCount, todayCount, tomorrowCount, next7Count, yesterdayCount, thisWeekCount, thisMonthCount } = useMemo(() => {
     const now = new Date();
     const todayStr = now.toDateString();
     const tomorrowDate = new Date(now); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
     const tomorrowStr = tomorrowDate.toDateString();
+    const yesterdayDate = new Date(now); yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterdayStr = yesterdayDate.toDateString();
     const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
-    let overdue = 0, today = 0, tomorrow = 0, next7 = 0;
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const weekStart = (() => { const d = new Date(now); d.setHours(0,0,0,0); d.setDate(d.getDate() - d.getDay()); return d.getTime(); })();
+
+    let overdue = 0, today = 0, tomorrow = 0, next7 = 0, yest = 0, week = 0, month = 0;
     for (const l of baseFiltered) {
-      if (!l.followup) continue;
-      const d = new Date(l.followup);
+      const dateVal = dateMode === 'created' ? l.createdAt : l.followup;
+      if (!dateVal) continue;
+      const d = new Date(dateVal);
       const dStr = d.toDateString();
-      if (d < now) overdue++;
+      if (dateMode === 'followup') {
+        if (d < now) overdue++;
+        if (dStr === tomorrowStr) tomorrow++;
+        const dMid = new Date(d); dMid.setHours(0, 0, 0, 0);
+        const diff = Math.round((dMid - todayMidnight) / (1000 * 60 * 60 * 24));
+        if (diff >= 0 && diff <= 7) next7++;
+      } else {
+        if (dStr === yesterdayStr) yest++;
+        if (dateVal >= weekStart) week++;
+        if (dateVal >= monthStart) month++;
+      }
       if (dStr === todayStr) today++;
-      if (dStr === tomorrowStr) tomorrow++;
-      const dMid = new Date(d); dMid.setHours(0, 0, 0, 0);
-      const diff = Math.round((dMid - todayMidnight) / (1000 * 60 * 60 * 24));
-      if (diff >= 0 && diff <= 7) next7++;
     }
-    return { overdueCount: overdue, todayCount: today, tomorrowCount: tomorrow, next7Count: next7 };
-  }, [baseFiltered]);
+    return { overdueCount: overdue, todayCount: today, tomorrowCount: tomorrow, next7Count: next7, yesterdayCount: yest, thisWeekCount: week, thisMonthCount: month };
+  }, [baseFiltered, dateMode]);
 
   const openCreate = () => {
     setEditData(null);
@@ -1124,14 +1161,52 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         </div>
       </div>
 
+      {/* Date Mode Toggle: Filter by Follow-up vs Created Date */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>Filter by:</span>
+        <div style={{ display: 'inline-flex', background: 'var(--bg)', borderRadius: 6, padding: 2, border: '1px solid var(--border)' }}>
+          {[['followup', 'Follow-up Date'], ['created', 'Created Date']].map(([mode, label]) => (
+            <button
+              key={mode}
+              onClick={() => {
+                setDateMode(mode);
+                localStorage.setItem('tc_leads_date_mode', mode);
+                setTab('all');
+              }}
+              style={{
+                padding: '4px 12px',
+                fontSize: 12,
+                fontWeight: 600,
+                border: 'none',
+                borderRadius: 4,
+                cursor: 'pointer',
+                background: dateMode === mode ? 'var(--accent)' : 'transparent',
+                color: dateMode === mode ? '#fff' : 'var(--muted)',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="tabs">
-        {[
-          ['all', `All (${baseFiltered.length})`],
-          ['today', `Today (${todayCount})`],
-          ['tomorrow', `Tomorrow (${tomorrowCount})`],
-          ['next7days', `Next 7 Days (${next7Count})`],
-          ['overdue', `Overdue (${overdueCount})`]
-        ].map(([t, label]) => (
+        {(dateMode === 'followup'
+          ? [
+              ['all', `All (${baseFiltered.length})`],
+              ['today', `Today (${todayCount})`],
+              ['tomorrow', `Tomorrow (${tomorrowCount})`],
+              ['next7days', `Next 7 Days (${next7Count})`],
+              ['overdue', `Overdue (${overdueCount})`],
+            ]
+          : [
+              ['all', `All (${baseFiltered.length})`],
+              ['today', `Today (${todayCount})`],
+              ['yesterday', `Yesterday (${yesterdayCount})`],
+              ['thisweek', `This Week (${thisWeekCount})`],
+              ['thismonth', `This Month (${thisMonthCount})`],
+            ]
+        ).map(([t, label]) => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{label}</div>
         ))}
       </div>
