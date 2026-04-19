@@ -186,6 +186,8 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     return baseFiltered.filter(l => {
       const dateVal = dateOf(l);
       if (tab === 'custom') {
+        // No range picked yet → show nothing (consistent with the count chip)
+        if (!customFromMs && !customToMs) return false;
         if (!dateVal) return false;
         if (customFromMs && dateVal < customFromMs) return false;
         if (customToMs && dateVal > customToMs) return false;
