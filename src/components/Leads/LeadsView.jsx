@@ -243,7 +243,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   useEffect(() => { setCurrentPage(1); }, [tab, search, srcFilter, stgFilter, staffFilter, pageSize]);
 
   // Single-pass tab counts — avoids separate linear scans on every render
-  const { overdueCount, todayCount, tomorrowCount, next7Count, yesterdayCount, thisWeekCount, thisMonthCount } = useMemo(() => {
+  const { overdueCount, todayCount, tomorrowCount, next7Count, yesterdayCount, thisWeekCount, thisMonthCount, customCount } = useMemo(() => {
     const now = new Date();
     const todayStr = now.toDateString();
     const tomorrowDate = new Date(now); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
