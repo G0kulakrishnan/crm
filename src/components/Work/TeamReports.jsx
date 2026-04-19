@@ -7,7 +7,15 @@ import { useToast } from '../../context/ToastContext';
 const DATE_FILTERS = ['Today', 'Yesterday', 'This Month', 'This Year', 'Custom'];
 
 export default function TeamReports({ user, ownerId, perms, planEnforcement }) {
-  const showAppointments = planEnforcement ? planEnforcement.isModuleEnabled('appointments') !== false : true;
+  const mod = (key) => planEnforcement ? planEnforcement.isModuleEnabled(key) !== false : true;
+  const showLeads = mod('leads');
+  const showCustomers = mod('customers');
+  const showQuotes = mod('quotations');
+  const showInvoices = mod('invoices');
+  const showAmc = mod('amc');
+  const showAppointments = mod('appointments');
+  const showCalls = mod('callLogs');
+  const showTasks = mod('tasks');
   const { setActiveView } = useApp();
   const [filter, setFilter] = useState('This Month');
   const [customRange, setCustomRange] = useState({ start: '', end: '' });
@@ -396,18 +404,24 @@ export default function TeamReports({ user, ownerId, perms, planEnforcement }) {
           <div className="lbl">Total Activities</div>
           <div className="val">{performanceData.reduce((s, m) => s + m.totalActivities, 0)}</div>
         </div>
-        <div className="stat-card sc-green">
-          <div className="lbl">Tasks Worked</div>
-          <div className="val">{performanceData.reduce((s, m) => s + m.tasksWorked, 0)}</div>
-        </div>
-        <div className="stat-card sc-teal">
-          <div className="lbl">Leads Worked</div>
-          <div className="val">{performanceData.reduce((s, m) => s + m.leadsWorked, 0)}</div>
-        </div>
-        <div className="stat-card sc-yellow">
-          <div className="lbl">Leads Won</div>
-          <div className="val">{performanceData.reduce((s, m) => s + m.leadsWon, 0)}</div>
-        </div>
+        {showTasks && (
+          <div className="stat-card sc-green">
+            <div className="lbl">Tasks Worked</div>
+            <div className="val">{performanceData.reduce((s, m) => s + m.tasksWorked, 0)}</div>
+          </div>
+        )}
+        {showLeads && (
+          <div className="stat-card sc-teal">
+            <div className="lbl">Leads Worked</div>
+            <div className="val">{performanceData.reduce((s, m) => s + m.leadsWorked, 0)}</div>
+          </div>
+        )}
+        {showLeads && (
+          <div className="stat-card sc-yellow">
+            <div className="lbl">Leads Won</div>
+            <div className="val">{performanceData.reduce((s, m) => s + m.leadsWon, 0)}</div>
+          </div>
+        )}
         <div className="stat-card sc-blue" style={{ borderLeftColor: '#8b5cf6' }}>
           <div className="lbl">Other Activities</div>
           <div className="val">{performanceData.reduce((s, m) => s + m.otherWorks, 0)}</div>
@@ -425,17 +439,17 @@ export default function TeamReports({ user, ownerId, perms, planEnforcement }) {
                 <tr>
                   <th style={{ textAlign: 'left' }}>Team Member</th>
                   <th>Activity</th>
-                  <th>Leads Assg.</th>
-                  <th>Leads Work.</th>
-                  <th>Leads Won</th>
-                  <th>Stage Δ</th>
-                  <th>Customers</th>
-                  <th>Quotes</th>
-                  <th>Invoices</th>
-                  <th>AMC</th>
+                  {showLeads && <th>Leads Assg.</th>}
+                  {showLeads && <th>Leads Work.</th>}
+                  {showLeads && <th>Leads Won</th>}
+                  {showLeads && <th>Stage Δ</th>}
+                  {showCustomers && <th>Customers</th>}
+                  {showQuotes && <th>Quotes</th>}
+                  {showInvoices && <th>Invoices</th>}
+                  {showAmc && <th>AMC</th>}
                   {showAppointments && <th>Appts.</th>}
-                  <th>Calls</th>
-                  <th>Tasks Work.</th>
+                  {showCalls && <th>Calls</th>}
+                  {showTasks && <th>Tasks Work.</th>}
                   <th title="Other tracked modules: Expenses, Purchase Orders, Products, Vendors, Campaigns">Misc</th>
                 </tr>
               </thead>
@@ -459,41 +473,61 @@ export default function TeamReports({ user, ownerId, perms, planEnforcement }) {
                       <td style={{ textAlign: 'center' }}>
                         <strong style={{ fontSize: 13 }}>{m.totalActivities}</strong>
                       </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className="badge bg-gray" style={{ fontSize: 11 }}>{m.leadsAssigned}</span>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className="badge bg-teal" style={{ fontSize: 11 }}>{m.leadsWorked}</span>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className="badge bg-green" style={{ fontSize: 11 }}>{m.leadsWon}</span>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${m.stageChanges > 0 ? 'bg-yellow' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.stageChanges}</span>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${m.customersWorked > 0 ? 'bg-teal' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.customersWorked}</span>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${m.quotesWorked > 0 ? 'bg-blue' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.quotesWorked}</span>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${m.invoicesWorked > 0 ? 'bg-green' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.invoicesWorked}</span>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${m.amcWorked > 0 ? 'bg-yellow' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.amcWorked}</span>
-                      </td>
+                      {showLeads && (
+                        <td style={{ textAlign: 'center' }}>
+                          <span className="badge bg-gray" style={{ fontSize: 11 }}>{m.leadsAssigned}</span>
+                        </td>
+                      )}
+                      {showLeads && (
+                        <td style={{ textAlign: 'center' }}>
+                          <span className="badge bg-teal" style={{ fontSize: 11 }}>{m.leadsWorked}</span>
+                        </td>
+                      )}
+                      {showLeads && (
+                        <td style={{ textAlign: 'center' }}>
+                          <span className="badge bg-green" style={{ fontSize: 11 }}>{m.leadsWon}</span>
+                        </td>
+                      )}
+                      {showLeads && (
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`badge ${m.stageChanges > 0 ? 'bg-yellow' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.stageChanges}</span>
+                        </td>
+                      )}
+                      {showCustomers && (
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`badge ${m.customersWorked > 0 ? 'bg-teal' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.customersWorked}</span>
+                        </td>
+                      )}
+                      {showQuotes && (
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`badge ${m.quotesWorked > 0 ? 'bg-blue' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.quotesWorked}</span>
+                        </td>
+                      )}
+                      {showInvoices && (
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`badge ${m.invoicesWorked > 0 ? 'bg-green' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.invoicesWorked}</span>
+                        </td>
+                      )}
+                      {showAmc && (
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`badge ${m.amcWorked > 0 ? 'bg-yellow' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.amcWorked}</span>
+                        </td>
+                      )}
                       {showAppointments && (
                         <td style={{ textAlign: 'center' }}>
                           <span className={`badge ${m.appointmentsWorked > 0 ? 'bg-teal' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.appointmentsWorked}</span>
                         </td>
                       )}
-                      <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${m.callsMade > 0 ? 'bg-blue' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.callsMade}</span>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <div className={`badge ${m.tasksWorked > 0 ? 'bg-blue' : 'bg-gray'}`}>{m.tasksWorked}</div>
-                      </td>
+                      {showCalls && (
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`badge ${m.callsMade > 0 ? 'bg-blue' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.callsMade}</span>
+                        </td>
+                      )}
+                      {showTasks && (
+                        <td style={{ textAlign: 'center' }}>
+                          <div className={`badge ${m.tasksWorked > 0 ? 'bg-blue' : 'bg-gray'}`}>{m.tasksWorked}</div>
+                        </td>
+                      )}
                       <td style={{ textAlign: 'center' }}>
                         <div className={`badge ${m.otherWorks > 0 ? 'bg-teal' : 'bg-gray'}`}>{m.otherWorks}</div>
                       </td>
