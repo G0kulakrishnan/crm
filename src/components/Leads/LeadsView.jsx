@@ -32,6 +32,8 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const [view, setView] = useState('list'); // 'list' | 'kanban'
   const [tab, setTab] = useState('all');
   const [dateMode, setDateMode] = useState(() => localStorage.getItem('tc_leads_date_mode') || 'followup'); // 'followup' | 'created'
+  const [customFrom, setCustomFrom] = useState(() => localStorage.getItem('tc_leads_custom_from') || '');
+  const [customTo, setCustomTo] = useState(() => localStorage.getItem('tc_leads_custom_to') || '');
   const [search, setSearch] = useState('');
   const [srcFilter, setSrcFilter] = useState('');
   const [stgFilter, setStgFilter] = useState('');
@@ -177,8 +179,18 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     // Pick the date field based on dateMode toggle
     const dateOf = (l) => dateMode === 'created' ? l.createdAt : l.followup;
 
+    // Custom range bounds (inclusive day boundaries)
+    const customFromMs = customFrom ? new Date(customFrom + 'T00:00:00').getTime() : null;
+    const customToMs = customTo ? new Date(customTo + 'T23:59:59.999').getTime() : null;
+
     return baseFiltered.filter(l => {
       const dateVal = dateOf(l);
+      if (tab === 'custom') {
+        if (!dateVal) return false;
+        if (customFromMs && dateVal < customFromMs) return false;
+        if (customToMs && dateVal > customToMs) return false;
+        return true;
+      }
       if (tab === 'today') {
         if (!dateVal) return false;
         return new Date(dateVal).toDateString() === todayStr;
@@ -219,7 +231,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         return [l.name, l.email, l.phone, l.source, l.stage, l.assign, l.label, l.notes].some(v => (v || '').toLowerCase().includes(q));
       })
       .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  }, [baseFiltered, tab, search, dateMode]);
+  }, [baseFiltered, tab, search, dateMode, customFrom, customTo]);
 
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
   const paginated = useMemo(() => {
@@ -242,7 +254,11 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
     const weekStart = (() => { const d = new Date(now); d.setHours(0,0,0,0); d.setDate(d.getDate() - d.getDay()); return d.getTime(); })();
 
-    let overdue = 0, today = 0, tomorrow = 0, next7 = 0, yest = 0, week = 0, month = 0;
+    const customFromMs = customFrom ? new Date(customFrom + 'T00:00:00').getTime() : null;
+    const customToMs = customTo ? new Date(customTo + 'T23:59:59.999').getTime() : null;
+    const hasCustom = customFromMs !== null || customToMs !== null;
+
+    let overdue = 0, today = 0, tomorrow = 0, next7 = 0, yest = 0, week = 0, month = 0, custom = 0;
     for (const l of baseFiltered) {
       const dateVal = dateMode === 'created' ? l.createdAt : l.followup;
       if (!dateVal) continue;
@@ -260,9 +276,12 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         if (dateVal >= monthStart) month++;
       }
       if (dStr === todayStr) today++;
+      if (hasCustom) {
+        if ((!customFromMs || dateVal >= customFromMs) && (!customToMs || dateVal <= customToMs)) custom++;
+      }
     }
-    return { overdueCount: overdue, todayCount: today, tomorrowCount: tomorrow, next7Count: next7, yesterdayCount: yest, thisWeekCount: week, thisMonthCount: month };
-  }, [baseFiltered, dateMode]);
+    return { overdueCount: overdue, todayCount: today, tomorrowCount: tomorrow, next7Count: next7, yesterdayCount: yest, thisWeekCount: week, thisMonthCount: month, customCount: custom };
+  }, [baseFiltered, dateMode, customFrom, customTo]);
 
   const openCreate = () => {
     setEditData(null);
@@ -1229,6 +1248,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
               ['tomorrow', `Tomorrow (${tomorrowCount})`],
               ['next7days', `Next 7 Days (${next7Count})`],
               ['overdue', `Overdue (${overdueCount})`],
+              ['custom', `Custom${(customFrom || customTo) ? ` (${customCount})` : ''}`],
             ]
           : [
               ['all', `All (${baseFiltered.length})`],
@@ -1236,11 +1256,44 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
               ['yesterday', `Yesterday (${yesterdayCount})`],
               ['thisweek', `This Week (${thisWeekCount})`],
               ['thismonth', `This Month (${thisMonthCount})`],
+              ['custom', `Custom${(customFrom || customTo) ? ` (${customCount})` : ''}`],
             ]
         ).map(([t, label]) => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{label}</div>
         ))}
       </div>
+
+      {tab === 'custom' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, marginBottom: 8, flexWrap: 'wrap', padding: '10px 12px', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6 }}>
+          <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 600 }}>
+            {dateMode === 'created' ? 'Created between:' : 'Follow-up between:'}
+          </span>
+          <input
+            type="date"
+            value={customFrom}
+            onChange={e => { setCustomFrom(e.target.value); localStorage.setItem('tc_leads_custom_from', e.target.value); }}
+            style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 12 }}
+          />
+          <span style={{ fontSize: 12, color: 'var(--muted)' }}>to</span>
+          <input
+            type="date"
+            value={customTo}
+            onChange={e => { setCustomTo(e.target.value); localStorage.setItem('tc_leads_custom_to', e.target.value); }}
+            style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--border)', fontSize: 12 }}
+          />
+          {(customFrom || customTo) && (
+            <button
+              onClick={() => { setCustomFrom(''); setCustomTo(''); localStorage.removeItem('tc_leads_custom_from'); localStorage.removeItem('tc_leads_custom_to'); }}
+              style={{ padding: '4px 10px', fontSize: 12, fontWeight: 600, border: '1px solid var(--border)', borderRadius: 4, background: 'transparent', color: 'var(--muted)', cursor: 'pointer' }}
+            >
+              Clear
+            </button>
+          )}
+          <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 'auto' }}>
+            {customFrom || customTo ? `${customCount} lead${customCount === 1 ? '' : 's'} match` : 'Pick a date range'}
+          </span>
+        </div>
+      )}
 
 
 
