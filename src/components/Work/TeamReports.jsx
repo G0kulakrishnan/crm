@@ -6,7 +6,8 @@ import { useToast } from '../../context/ToastContext';
 
 const DATE_FILTERS = ['Today', 'Yesterday', 'This Month', 'This Year', 'Custom'];
 
-export default function TeamReports({ user, ownerId, perms }) {
+export default function TeamReports({ user, ownerId, perms, planEnforcement }) {
+  const showAppointments = planEnforcement ? planEnforcement.isModuleEnabled('appointments') !== false : true;
   const { setActiveView } = useApp();
   const [filter, setFilter] = useState('This Month');
   const [customRange, setCustomRange] = useState({ start: '', end: '' });
@@ -432,11 +433,9 @@ export default function TeamReports({ user, ownerId, perms }) {
                   <th>Quotes</th>
                   <th>Invoices</th>
                   <th>AMC</th>
-                  <th>Projects</th>
-                  <th>Appts.</th>
+                  {showAppointments && <th>Appts.</th>}
                   <th>Calls</th>
                   <th>Tasks Work.</th>
-                  <th>Tasks Comp.</th>
                   <th title="Other tracked modules: Expenses, Purchase Orders, Products, Vendors, Campaigns">Misc</th>
                 </tr>
               </thead>
@@ -484,20 +483,16 @@ export default function TeamReports({ user, ownerId, perms }) {
                       <td style={{ textAlign: 'center' }}>
                         <span className={`badge ${m.amcWorked > 0 ? 'bg-yellow' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.amcWorked}</span>
                       </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${m.projectsWorked > 0 ? 'bg-blue' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.projectsWorked}</span>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <span className={`badge ${m.appointmentsWorked > 0 ? 'bg-teal' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.appointmentsWorked}</span>
-                      </td>
+                      {showAppointments && (
+                        <td style={{ textAlign: 'center' }}>
+                          <span className={`badge ${m.appointmentsWorked > 0 ? 'bg-teal' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.appointmentsWorked}</span>
+                        </td>
+                      )}
                       <td style={{ textAlign: 'center' }}>
                         <span className={`badge ${m.callsMade > 0 ? 'bg-blue' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.callsMade}</span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <div className={`badge ${m.tasksWorked > 0 ? 'bg-blue' : 'bg-gray'}`}>{m.tasksWorked}</div>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <div className={`badge ${m.tasksCompleted > 0 ? 'bg-green' : 'bg-gray'}`}>{m.tasksCompleted}</div>
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <div className={`badge ${m.otherWorks > 0 ? 'bg-teal' : 'bg-gray'}`}>{m.otherWorks}</div>

@@ -397,7 +397,7 @@ export default function Teams({ user, ownerId, perms, planEnforcement }) {
       {/* Team Performance Tab */}
       {tab === 'performance' && (
         <Suspense fallback={<div style={{ padding: 40, textAlign: 'center' }}><div className="spinner" style={{ width: 20, height: 20, margin: '0 auto' }} /></div>}>
-          <TeamReports user={user} ownerId={ownerId} perms={perms} />
+          <TeamReports user={user} ownerId={ownerId} perms={perms} planEnforcement={planEnforcement} />
         </Suspense>
       )}
 
