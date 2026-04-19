@@ -189,8 +189,11 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         // No range picked yet → show nothing (consistent with the count chip)
         if (!customFromMs && !customToMs) return false;
         if (!dateVal) return false;
-        if (customFromMs && dateVal < customFromMs) return false;
-        if (customToMs && dateVal > customToMs) return false;
+        // dateVal may be a string (followup: "2026-04-21T14:39") or a number (createdAt: ms)
+        const dateMs = typeof dateVal === 'number' ? dateVal : new Date(dateVal).getTime();
+        if (isNaN(dateMs)) return false;
+        if (customFromMs && dateMs < customFromMs) return false;
+        if (customToMs && dateMs > customToMs) return false;
         return true;
       }
       if (tab === 'today') {
@@ -279,7 +282,8 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       }
       if (dStr === todayStr) today++;
       if (hasCustom) {
-        if ((!customFromMs || dateVal >= customFromMs) && (!customToMs || dateVal <= customToMs)) custom++;
+        const dateMs = typeof dateVal === 'number' ? dateVal : d.getTime();
+        if ((!customFromMs || dateMs >= customFromMs) && (!customToMs || dateMs <= customToMs)) custom++;
       }
     }
     return { overdueCount: overdue, todayCount: today, tomorrowCount: tomorrow, next7Count: next7, yesterdayCount: yest, thisWeekCount: week, thisMonthCount: month, customCount: custom };
