@@ -605,7 +605,7 @@ export default function Reports({ user, perms, ownerId, profile }) {
             ['pl', 'P&L Statement'],
             ['gst', 'GST Summary'],
             ['lead-influx', 'Lead Influx (Trend)'],
-            ['product-enquiry', 'Product Enquiries'],
+            ['product-enquiry', 'Leads by Requirement'],
             ['customer-purchase', 'Customer Purchases'],
             ['stage-transitions', 'Stage Transitions'],
             ['leads', 'Lead Pipeline'],
@@ -929,16 +929,16 @@ export default function Reports({ user, perms, ownerId, profile }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
             <div className="stat-grid">
               <div className="stat-card sc-blue"><div className="lbl">Total Enquiries</div><div className="val">{totalEnq}</div></div>
-              <div className="stat-card sc-green"><div className="lbl">Unique Products Enquired</div><div className="val">{productEnquiry.length}</div></div>
+              <div className="stat-card sc-green"><div className="lbl">Unique Requirements</div><div className="val">{productEnquiry.length}</div></div>
               <div className="stat-card" style={{ background: '#fff7ed' }}>
-                <div className="lbl" style={{ color: '#c2410c' }}>Top Product</div>
+                <div className="lbl" style={{ color: '#c2410c' }}>Top Requirement</div>
                 <div className="val" style={{ color: '#c2410c', fontSize: 'clamp(12px, 1.2vw, 16px)', wordBreak: 'break-word', lineHeight: '1.2' }}>{productEnquiry[0]?.product || '-'}</div>
               </div>
             </div>
 
             {productEnquiry.slice(0, 10).length > 0 && (
               <div className="tw">
-                <div className="tw-head"><h3>Top 10 Products by Enquiries</h3></div>
+                <div className="tw-head"><h3>Top 10 Requirements</h3></div>
                 <div style={{ padding: '16px 20px' }}>
                   {productEnquiry.slice(0, 10).map((p, i) => (
                     <div key={p.product} className="chart-row" style={{ marginBottom: 10 }}>
@@ -956,7 +956,7 @@ export default function Reports({ user, perms, ownerId, profile }) {
             )}
 
             <div className="tw">
-              <div className="tw-head"><h3>All Products ({productEnquiry.length})</h3></div>
+              <div className="tw-head"><h3>All Requirements ({productEnquiry.length})</h3></div>
               <div className="tw-scroll">
                 <table>
                   <thead><tr><th>#</th><th>Product / Requirement</th><th style={{ textAlign: 'right' }}>Enquiries</th><th style={{ textAlign: 'right' }}>Won</th><th style={{ textAlign: 'right' }}>Lost</th><th style={{ textAlign: 'right' }}>Open</th><th style={{ textAlign: 'right' }}>Conv %</th><th>Top Source</th></tr></thead>
