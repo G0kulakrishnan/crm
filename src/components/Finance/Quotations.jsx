@@ -6,6 +6,7 @@ import DocumentTemplate from './DocumentTemplate';
 import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
 import { EMPTY_CUSTOMER } from '../../utils/constants';
+import { logActivity } from '../../utils/activityLogger';
 
 const EMPTY = { no: '', client: '', validUntil: '', status: 'Created', notes: '', terms: '', disc: 0, adj: 0, tdsRate: 0, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, assign: '', distributorId: '', retailerId: '' };
 
@@ -248,7 +249,23 @@ export default function Quotations({ user, perms, ownerId, settings }) {
 
     try {
       await db.transact(txs);
-      
+
+      // Track team activity (per-module performance)
+      const myMember = (data?.teamMembers || []).find(t => t.email === user.email);
+      await logActivity({
+        entityType: 'quotation',
+        entityId: qId,
+        entityName: payload.no || form.client,
+        action: editData ? 'edited' : 'created',
+        text: editData
+          ? `Edited quotation **${payload.no}** for ${form.client} (₹${tots.total})`
+          : `Created quotation **${payload.no}** for ${form.client} (₹${tots.total})`,
+        userId: ownerId,
+        user,
+        teamMemberId: myMember?.id || null,
+        meta: { amount: tots.total, status: payload.status },
+      });
+
       // Email Recipient Warning
       if (payload.status === 'Sent') {
         const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (form.client || '').trim().toLowerCase());

@@ -119,10 +119,19 @@ export default function TeamReports({ user, ownerId, perms }) {
     return { start: start.getTime(), end: end.getTime() };
   }, [filter, customRange]);
 
-  // Helper: check if a log belongs to a given member (by actorId OR userName/email)
+  // Helper: check if a log belongs to a given member.
+  // Match priority: 1) explicit teamMemberId field (most reliable), 2) email fallback, 3) owner row matches null teamMemberId logs by actorId
   const isLogByMember = (log, member) => {
-    if (log.actorId === member.id) return true;
-    if (member.email && log.userName && log.userName.toLowerCase() === member.email.toLowerCase()) return true;
+    // Owner ("Business Owner" pseudo-member) — match logs that have NO teamMemberId
+    if (member.id === ownerId) {
+      // Owner authored logs: either no teamMemberId set, or actorId matches owner
+      if (!log.teamMemberId && log.userName && member.email && log.userName.toLowerCase() === member.email.toLowerCase()) return true;
+      if (!log.teamMemberId && log.actorId && log.actorId === ownerId) return true;
+      return false;
+    }
+    // Team member: prefer teamMemberId match, fallback to email
+    if (log.teamMemberId && log.teamMemberId === member.id) return true;
+    if (!log.teamMemberId && member.email && log.userName && log.userName.toLowerCase() === member.email.toLowerCase()) return true;
     return false;
   };
 
@@ -148,18 +157,42 @@ export default function TeamReports({ user, ownerId, perms }) {
       const totalActivities = userLogs.length;
 
       // Derive all metrics from activity logs (single source of truth)
-      // Accept both 'task'/'tasks' and 'lead'/'leads' for backward compat with old log formats
-      const isTaskLog = (l) => l.entityType === 'task' || l.entityType === 'tasks';
-      const isLeadLog = (l) => l.entityType === 'lead' || l.entityType === 'leads';
-      const tasksWorked = userLogs.filter(isTaskLog).length;
-      const tasksCompleted = userLogs.filter(l => 
-        isTaskLog(l) && (l.text || '').toLowerCase().includes('completed')
-      ).length;
-      const leadsWorked = userLogs.filter(isLeadLog).length;
-      const leadsWon = userLogs.filter(l => 
-        isLeadLog(l) && ((l.text || '').toLowerCase().includes('won') || (l.text || '').toLowerCase().includes('converted'))
-      ).length;
-      const otherWorks = userLogs.filter(l => !isTaskLog(l) && !isLeadLog(l)).length;
+      // Accept both singular and plural entityType for backward compat with old log formats
+      const isTypeLog = (l, t) => l.entityType === t || l.entityType === `${t}s`;
+      const uniqueByEntity = (filterFn) =>
+        new Set(userLogs.filter(filterFn).map(l => l.entityId)).size;
+
+      // Per-module distinct entity counts (e.g. "5 leads worked" = 5 different leads)
+      const leadsWorked = uniqueByEntity(l => isTypeLog(l, 'lead'));
+      const tasksWorked = uniqueByEntity(l => isTypeLog(l, 'task'));
+      const customersWorked = uniqueByEntity(l => isTypeLog(l, 'customer'));
+      const quotesWorked = uniqueByEntity(l => isTypeLog(l, 'quotation'));
+      const invoicesWorked = uniqueByEntity(l => isTypeLog(l, 'invoice'));
+      const amcWorked = uniqueByEntity(l => isTypeLog(l, 'amc'));
+      const projectsWorked = uniqueByEntity(l => isTypeLog(l, 'project'));
+      const appointmentsWorked = uniqueByEntity(l => isTypeLog(l, 'appointment'));
+
+      // Tasks completed: structured action='completed' OR text contains "completed"
+      const tasksCompleted = uniqueByEntity(l =>
+        isTypeLog(l, 'task') && (l.action === 'completed' || (l.text || '').toLowerCase().includes('completed'))
+      );
+
+      // Leads won: stage-change → wonStage OR action='converted' OR text contains won/converted
+      const leadsWon = uniqueByEntity(l =>
+        isTypeLog(l, 'lead') && (
+          (l.action === 'stage-change' && l.toStage === wonStage) ||
+          l.action === 'converted' ||
+          (l.text || '').toLowerCase().includes('won') ||
+          (l.text || '').toLowerCase().includes('converted')
+        )
+      );
+
+      // Stage changes (any stage move counts as pipeline activity)
+      const stageChanges = userLogs.filter(l => isTypeLog(l, 'lead') && l.action === 'stage-change').length;
+
+      // Other = anything not in the recognised module types
+      const knownTypes = new Set(['lead', 'leads', 'task', 'tasks', 'customer', 'customers', 'quotation', 'quotations', 'invoice', 'invoices', 'amc', 'project', 'projects', 'appointment', 'appointments']);
+      const otherWorks = userLogs.filter(l => !knownTypes.has(l.entityType)).length;
 
       return {
         ...m,
@@ -169,11 +202,18 @@ export default function TeamReports({ user, ownerId, perms }) {
         tasksWorked,
         leadsWorked,
         leadsWon,
+        customersWorked,
+        quotesWorked,
+        invoicesWorked,
+        amcWorked,
+        projectsWorked,
+        appointmentsWorked,
+        stageChanges,
         otherWorks,
         totalActivities
       };
     }).sort((a, b) => b.totalActivities - a.totalActivities);
-  }, [members, logs, dateRange, allLeads, allTasks]);
+  }, [members, logs, dateRange, allLeads, allTasks, ownerId, wonStage]);
 
   const selectedMember = useMemo(() => performanceData.find(m => m.id === selectedId), [performanceData, selectedId]);
 
@@ -370,10 +410,16 @@ export default function TeamReports({ user, ownerId, perms }) {
                   <th>Leads Assg.</th>
                   <th>Leads Work.</th>
                   <th>Leads Won</th>
-                  <th>Tasks Assg.</th>
+                  <th>Stage Δ</th>
+                  <th>Customers</th>
+                  <th>Quotes</th>
+                  <th>Invoices</th>
+                  <th>AMC</th>
+                  <th>Projects</th>
+                  <th>Appts.</th>
                   <th>Tasks Work.</th>
                   <th>Tasks Comp.</th>
-                  <th>Other Work</th>
+                  <th>Other</th>
                 </tr>
               </thead>
               <tbody>
@@ -406,7 +452,25 @@ export default function TeamReports({ user, ownerId, perms }) {
                         <span className="badge bg-green" style={{ fontSize: 11 }}>{m.leadsWon}</span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
-                        <span className="badge bg-gray" style={{ fontSize: 11 }}>{m.tasksAssigned}</span>
+                        <span className={`badge ${m.stageChanges > 0 ? 'bg-yellow' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.stageChanges}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${m.customersWorked > 0 ? 'bg-teal' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.customersWorked}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${m.quotesWorked > 0 ? 'bg-blue' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.quotesWorked}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${m.invoicesWorked > 0 ? 'bg-green' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.invoicesWorked}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${m.amcWorked > 0 ? 'bg-yellow' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.amcWorked}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${m.projectsWorked > 0 ? 'bg-blue' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.projectsWorked}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${m.appointmentsWorked > 0 ? 'bg-teal' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.appointmentsWorked}</span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <div className={`badge ${m.tasksWorked > 0 ? 'bg-blue' : 'bg-gray'}`}>{m.tasksWorked}</div>

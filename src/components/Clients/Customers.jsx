@@ -30,8 +30,11 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
     tasks: { $: { where: { userId: ownerId } } },
     amc: { $: { where: { userId: ownerId } } },
     leads: { $: { where: { userId: ownerId } } },
+    teamMembers: { $: { where: { userId: ownerId } } },
     partnerApplications: { $: { where: { userId: ownerId, status: 'Approved' } } },
   });
+  const team = data?.teamMembers || [];
+  const myMember = useMemo(() => team.find(t => t.email === user.email), [team, user.email]);
   const customers = useMemo(() => {
     return data?.customers || [];
   }, [data?.customers]);
@@ -153,8 +156,13 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
 
         if (changes.length > 0) {
           txs.push(db.tx.activityLogs[id()].update({
-            entityId: editData.id, entityType: 'customer', text: changes.join(' | '),
-            userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+            entityId: editData.id, entityType: 'customer',
+            entityName: form.companyName || form.name,
+            action: 'edited',
+            text: `Edited customer **${form.name}**: ${changes.join(' | ')}`,
+            userId: ownerId, actorId: user.id, userName: user.email,
+            teamMemberId: myMember?.id || null,
+            createdAt: Date.now()
           }));
         }
         await db.transact(txs);
@@ -163,8 +171,13 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
         const newId = id();
         txs.push(db.tx.customers[newId].update({ ...form, userId: ownerId, actorId: user.id, createdAt: Date.now() }));
         txs.push(db.tx.activityLogs[id()].update({
-          entityId: newId, entityType: 'customer', text: 'Customer created [Other Work]',
-          userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+          entityId: newId, entityType: 'customer',
+          entityName: form.companyName || form.name,
+          action: 'created',
+          text: `Created customer **${form.name}**`,
+          userId: ownerId, actorId: user.id, userName: user.email,
+          teamMemberId: myMember?.id || null,
+          createdAt: Date.now()
         }));
         await db.transact(txs);
         toast(`Customer "${form.name}" created!`, 'success');

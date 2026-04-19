@@ -6,6 +6,7 @@ import { useToast } from '../../context/ToastContext';
 import { sendEmail, sendEmailMock, renderTemplate } from '../../utils/messaging';
 import { EMPTY_CUSTOMER } from '../../utils/constants';
 import SearchableSelect from '../UI/SearchableSelect';
+import { logActivity } from '../../utils/activityLogger';
 
 const EMPTY = { client: '', email: '', phone: '', contractNo: '', cycle: 'Yearly', startDate: '', endDate: '', amount: '', taxRate: 0, plan: '', unit: 'Nos', productId: '', sku: '', status: 'Active', notes: '', assign: '' };
 
@@ -156,9 +157,21 @@ export default function AMC({ user, perms, ownerId }) {
       const maxNo = existingNos.length > 0 ? Math.max(...existingNos) : 50000;
       payload.contractNo = `AMC${maxNo + 1}`;
     }
-    if (editData) { await db.transact(db.tx.amc[editData.id].update(payload)); toast('AMC updated', 'success'); }
-    else { 
-      const txs = [db.tx.amc[id()].update(payload)];
+    const myMember = team.find(t => t.email === user.email);
+    const teamMemberId = myMember?.id || null;
+    if (editData) {
+      await db.transact(db.tx.amc[editData.id].update(payload));
+      await logActivity({
+        entityType: 'amc', entityId: editData.id, entityName: payload.contractNo || payload.client,
+        action: 'edited', text: `Edited AMC **${payload.contractNo}** (${payload.client}, ₹${payload.amount})`,
+        userId: ownerId, user, teamMemberId,
+        meta: { amount: payload.amount, status: payload.status },
+      });
+      toast('AMC updated', 'success');
+    }
+    else {
+      const newAmcId = id();
+      const txs = [db.tx.amc[newAmcId].update(payload)];
       const wonStage = profile.wonStage || 'Won';
       const lMatch = (data?.leads || []).find(l => (l.name || '').trim().toLowerCase() === (payload.client || '').trim().toLowerCase() && l.stage !== wonStage);
       if (lMatch) {
@@ -172,8 +185,14 @@ export default function AMC({ user, perms, ownerId }) {
            userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
         }));
       }
-      await db.transact(txs); 
-      toast('AMC contract created', 'success'); 
+      await db.transact(txs);
+      await logActivity({
+        entityType: 'amc', entityId: newAmcId, entityName: payload.contractNo || payload.client,
+        action: 'created', text: `Created AMC **${payload.contractNo}** for ${payload.client} (₹${payload.amount})`,
+        userId: ownerId, user, teamMemberId,
+        meta: { amount: payload.amount, status: payload.status },
+      });
+      toast('AMC contract created', 'success');
     }
     setModal(false);
   };
@@ -286,6 +305,15 @@ export default function AMC({ user, perms, ownerId }) {
     }
 
     await db.transact(txs);
+
+    const myMember = team.find(t => t.email === user.email);
+    await logActivity({
+      entityType: 'amc', entityId: a.id, entityName: a.contractNo || a.client,
+      action: 'renewed',
+      text: `Renewed AMC **${a.contractNo}** for ${a.client} (₹${paidAmount}, ${renewForm.cycle})`,
+      userId: ownerId, user, teamMemberId: myMember?.id || null,
+      meta: { amount: paidAmount, status: 'Active' },
+    });
 
     setRenewModal(null);
     toast(`AMC renewed! ${renewForm.genInvoice ? 'Invoice generated. ' : ''}New period: ${fmtD(newStartStr)} → ${fmtD(newEndStr)}`, 'success');

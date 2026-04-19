@@ -7,6 +7,7 @@ import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
 import { EMPTY_CUSTOMER } from '../../utils/constants';
 import { fireAutoNotifications } from '../../utils/messaging';
+import { logActivity } from '../../utils/activityLogger';
 
 function calcTotals(items, disc, discType, adj) {
   const its = Array.isArray(items) ? items : (items ? JSON.parse(items) : []);
@@ -358,7 +359,23 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
     setSaving(true);
     try {
       await db.transact(txs);
-    
+
+      // Track team activity (per-module performance)
+      const myMember = team.find(t => t.email === user.email);
+      await logActivity({
+        entityType: 'invoice',
+        entityId: invId,
+        entityName: payload.no || form.client,
+        action: editData ? 'edited' : 'created',
+        text: editData
+          ? `Edited invoice **${payload.no}** for ${form.client} (₹${tots.total})`
+          : `Created invoice **${payload.no}** for ${form.client} (₹${tots.total})`,
+        userId: ownerId,
+        user,
+        teamMemberId: myMember?.id || null,
+        meta: { amount: tots.total, status: payload.status },
+      });
+
     // Email Recipient Warning
     if (payload.status === 'Sent') {
       const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (payload.client || '').trim().toLowerCase());

@@ -287,15 +287,20 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     setModal(true); 
   };
 
-  const logActivity = async (leadId, text) => {
+  const logActivity = async (leadId, text, extra = {}) => {
+    const lead = leads.find(l => l.id === leadId);
     await db.transact(db.tx.activityLogs[id()].update({
       entityId: leadId,
       entityType: 'lead',
+      entityName: lead?.companyName || lead?.name || '',
+      action: extra.action || 'edited',
       text,
       userId: ownerId,
-      actorId: user.id, // Track who actually did it
+      actorId: user.id, // Auth user.id
       userName: user.email,
-      createdAt: Date.now()
+      teamMemberId: myTeamMember?.id || null, // For reliable team member matching
+      createdAt: Date.now(),
+      ...extra,
     }));
   };
 
@@ -398,7 +403,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         }
 
         if (changes.length > 0) {
-          await logActivity(editData.id, changes.join(' | '));
+          await logActivity(editData.id, changes.join(' | '), { action: 'edited' });
         }
 
         // Structured stage-change log for analytics (Stage Transition Report)
@@ -406,6 +411,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
           await db.transact(db.tx.activityLogs[id()].update({
             entityId: editData.id,
             entityType: 'lead',
+            entityName: form.companyName || form.name || '',
             action: 'stage-change',
             fromStage: editData.stage,
             toStage: form.stage,
@@ -413,15 +419,27 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
             userId: ownerId,
             actorId: user.id,
             userName: user.email,
+            teamMemberId: myTeamMember?.id || null,
             createdAt: Date.now()
           }));
         }
-        
+
         toast('Lead updated!', 'success');
       } else {
         const newId = id();
         await db.transact(db.tx.leads[newId].update({ ...form, userId: ownerId, actorId: user.id, createdAt: Date.now() }));
-        await logActivity(newId, `Lead created${form.followup ? ` | Follow Up set to ${fmtDT(form.followup)}` : ''}`);
+        await db.transact(db.tx.activityLogs[id()].update({
+          entityId: newId,
+          entityType: 'lead',
+          entityName: form.companyName || form.name || '',
+          action: 'created',
+          text: `Created lead **${form.name}**${form.followup ? ` | Follow Up set to ${fmtDT(form.followup)}` : ''}`,
+          userId: ownerId,
+          actorId: user.id,
+          userName: user.email,
+          teamMemberId: myTeamMember?.id || null,
+          createdAt: Date.now(),
+        }));
         toast(`Lead "${form.name}" created!`, 'success');
         
         // Fire WhatsApp auto-notification for new lead
@@ -762,10 +780,14 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       // Structured stage-change log for analytics
       if (pendingBulkStage && prevStage && prevStage !== pendingBulkStage) {
         await db.transact(db.tx.activityLogs[id()].update({
-          entityId: lid, entityType: 'lead', action: 'stage-change',
+          entityId: lid, entityType: 'lead',
+          entityName: leadObj?.companyName || leadObj?.name || '',
+          action: 'stage-change',
           fromStage: prevStage, toStage: pendingBulkStage,
           text: `Stage: ${prevStage} → ${pendingBulkStage}`,
-          userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+          userId: ownerId, actorId: user.id, userName: user.email,
+          teamMemberId: myTeamMember?.id || null,
+          createdAt: Date.now()
         }));
       }
       if (pendingBulkStage) {
@@ -821,17 +843,26 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
            phone: l.phone || ''
         }),
         db.tx.activityLogs[id()].update({
-           entityId: l.id, entityType: 'lead', text: `Manually converted to Customer. Stage changed to ${wonStageName}.`,
-           userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+           entityId: l.id, entityType: 'lead',
+           entityName: l.companyName || l.name || '',
+           action: 'converted',
+           text: `Manually converted **${l.name}** to Customer. Stage changed to ${wonStageName}.`,
+           userId: ownerId, actorId: user.id, userName: user.email,
+           teamMemberId: myTeamMember?.id || null,
+           createdAt: Date.now()
         })
       ];
       // Structured stage-change log for analytics
       if (l.stage && l.stage !== wonStageName) {
         txs.push(db.tx.activityLogs[id()].update({
-          entityId: l.id, entityType: 'lead', action: 'stage-change',
+          entityId: l.id, entityType: 'lead',
+          entityName: l.companyName || l.name || '',
+          action: 'stage-change',
           fromStage: l.stage, toStage: wonStageName,
           text: `Stage: ${l.stage} → ${wonStageName}`,
-          userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+          userId: ownerId, actorId: user.id, userName: user.email,
+          teamMemberId: myTeamMember?.id || null,
+          createdAt: Date.now()
         }));
       }
       await db.transact(txs);
@@ -1522,13 +1553,17 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                   const lead = leads.find(l => l.id === lid);
                   if (!lead || lead.stage === stage) return;
                   await db.transact(db.tx.leads[lid].update({ stage, stageChangedAt: Date.now() }));
-                  await logActivity(lid, `Stage changed from "${lead.stage}" to "${stage}" (drag & drop)`);
+                  await logActivity(lid, `Stage changed from "${lead.stage}" to "${stage}" (drag & drop)`, { action: 'edited' });
                   // Structured stage-change log for analytics
                   await db.transact(db.tx.activityLogs[id()].update({
-                    entityId: lid, entityType: 'lead', action: 'stage-change',
+                    entityId: lid, entityType: 'lead',
+                    entityName: lead.companyName || lead.name || '',
+                    action: 'stage-change',
                     fromStage: lead.stage, toStage: stage,
                     text: `Stage: ${lead.stage} → ${stage} (drag)`,
-                    userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
+                    userId: ownerId, actorId: user.id, userName: user.email,
+                    teamMemberId: myTeamMember?.id || null,
+                    createdAt: Date.now()
                   }));
                   if (isWon(stage)) {
                     await convertToCustomer(lead, true);
