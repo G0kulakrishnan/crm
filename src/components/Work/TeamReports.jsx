@@ -21,25 +21,15 @@ export default function TeamReports({ user, ownerId, perms }) {
     leads: { $: { where: { userId: ownerId } } },
     projects: { $: { where: { userId: ownerId } } },
     customers: { $: { where: { userId: ownerId } } },
-    userProfiles: { $: { where: { userId: ownerId } } }
+    userProfiles: { $: { where: { userId: ownerId } } },
+    callLogs: { $: { where: { userId: ownerId }, limit: 5000 } }
   });
 
-  // Compute query start timestamp from filter (mirrors dateRange logic but for query)
-  const logQueryStart = useMemo(() => {
-    const now = new Date();
-    const start = new Date(now);
-    if (filter === 'Today') { start.setHours(0, 0, 0, 0); }
-    else if (filter === 'Yesterday') { start.setDate(now.getDate() - 1); start.setHours(0, 0, 0, 0); }
-    else if (filter === 'This Week') { start.setDate(now.getDate() - now.getDay()); start.setHours(0, 0, 0, 0); }
-    else if (filter === 'This Month') { start.setDate(1); start.setHours(0, 0, 0, 0); }
-    else if (filter === 'This Year') { start.setMonth(0, 1); start.setHours(0, 0, 0, 0); }
-    else { start.setDate(now.getDate() - 365); start.setHours(0, 0, 0, 0); } // Custom/fallback: last year
-    return start.getTime();
-  }, [filter]);
-
-  // Fetch activity logs for all team members at once
+  // Fetch activity logs for all team members at once.
+  // NOTE: InstantDB where-clause range filters ($gte) are unreliable on non-indexed fields;
+  // we fetch recent logs (limit 2000) and filter by date in React.
   const { data: logData } = db.useQuery({
-    activityLogs: { $: { where: { userId: ownerId, createdAt: { $gte: logQueryStart } }, limit: 1000 } }
+    activityLogs: { $: { where: { userId: ownerId }, limit: 2000 } }
   });
 
   const logs = logData?.activityLogs || [];
@@ -48,6 +38,7 @@ export default function TeamReports({ user, ownerId, perms }) {
   const allLeads = data?.leads || [];
   const allProjects = data?.projects || [];
   const allCustomers = data?.customers || [];
+  const allCallLogs = data?.callLogs || [];
   const profile = data?.userProfiles?.[0] || {};
   const wonStage = profile.wonStage || 'Won';
 
@@ -119,19 +110,37 @@ export default function TeamReports({ user, ownerId, perms }) {
     return { start: start.getTime(), end: end.getTime() };
   }, [filter, customRange]);
 
+  // Set of team-member emails to distinguish owner's logs from team members'
+  const teamEmails = useMemo(() => new Set(team.map(t => (t.email || '').toLowerCase()).filter(Boolean)), [team]);
+
   // Helper: check if a log belongs to a given member.
-  // Match priority: 1) explicit teamMemberId field (most reliable), 2) email fallback, 3) owner row matches null teamMemberId logs by actorId
+  // Match priority: 1) explicit teamMemberId field (most reliable), 2) email fallback, 3) owner catches any unattributed log
   const isLogByMember = (log, member) => {
-    // Owner ("Business Owner" pseudo-member) — match logs that have NO teamMemberId
     if (member.id === ownerId) {
-      // Owner authored logs: either no teamMemberId set, or actorId matches owner
-      if (!log.teamMemberId && log.userName && member.email && log.userName.toLowerCase() === member.email.toLowerCase()) return true;
-      if (!log.teamMemberId && log.actorId && log.actorId === ownerId) return true;
-      return false;
+      // Owner row: claim logs that are NOT attributed to any team member
+      if (log.teamMemberId) return false;
+      const uname = (log.userName || '').toLowerCase();
+      // If userName matches a team member's email, it belongs to that member, not owner
+      if (uname && teamEmails.has(uname)) return false;
+      return true;
     }
     // Team member: prefer teamMemberId match, fallback to email
     if (log.teamMemberId && log.teamMemberId === member.id) return true;
     if (!log.teamMemberId && member.email && log.userName && log.userName.toLowerCase() === member.email.toLowerCase()) return true;
+    return false;
+  };
+
+  // Helper: attribute a call log to a member by staffEmail (team) or actorId/ownerId (owner)
+  const isCallByMember = (cl, member) => {
+    const staff = (cl.staffEmail || '').toLowerCase();
+    if (member.id === ownerId) {
+      if (staff && teamEmails.has(staff)) return false;
+      if (staff && member.email && staff === member.email.toLowerCase()) return true;
+      if (!staff && cl.actorId && cl.actorId === ownerId) return true;
+      if (!staff) return true; // unattributed → owner
+      return false;
+    }
+    if (member.email && staff === member.email.toLowerCase()) return true;
     return false;
   };
 
@@ -190,9 +199,16 @@ export default function TeamReports({ user, ownerId, perms }) {
       // Stage changes (any stage move counts as pipeline activity)
       const stageChanges = userLogs.filter(l => isTypeLog(l, 'lead') && l.action === 'stage-change').length;
 
-      // Other = anything not in the recognised module types
+      // Misc = logs from other tracked modules (expense, purchase order, product, vendor, campaign, etc.)
       const knownTypes = new Set(['lead', 'leads', 'task', 'tasks', 'customer', 'customers', 'quotation', 'quotations', 'invoice', 'invoices', 'amc', 'project', 'projects', 'appointment', 'appointments']);
       const otherWorks = userLogs.filter(l => !knownTypes.has(l.entityType)).length;
+
+      // Calls made (from callLogs collection) in date range
+      const callsMade = allCallLogs.filter(cl =>
+        isCallByMember(cl, m) &&
+        (cl.createdAt || 0) >= dateRange.start &&
+        (cl.createdAt || 0) <= dateRange.end
+      ).length;
 
       return {
         ...m,
@@ -210,10 +226,11 @@ export default function TeamReports({ user, ownerId, perms }) {
         appointmentsWorked,
         stageChanges,
         otherWorks,
+        callsMade,
         totalActivities
       };
     }).sort((a, b) => b.totalActivities - a.totalActivities);
-  }, [members, logs, dateRange, allLeads, allTasks, ownerId, wonStage]);
+  }, [members, logs, dateRange, allLeads, allTasks, allCallLogs, teamEmails, ownerId, wonStage]);
 
   const selectedMember = useMemo(() => performanceData.find(m => m.id === selectedId), [performanceData, selectedId]);
 
@@ -417,9 +434,10 @@ export default function TeamReports({ user, ownerId, perms }) {
                   <th>AMC</th>
                   <th>Projects</th>
                   <th>Appts.</th>
+                  <th>Calls</th>
                   <th>Tasks Work.</th>
                   <th>Tasks Comp.</th>
-                  <th>Other</th>
+                  <th title="Other tracked modules: Expenses, Purchase Orders, Products, Vendors, Campaigns">Misc</th>
                 </tr>
               </thead>
               <tbody>
@@ -471,6 +489,9 @@ export default function TeamReports({ user, ownerId, perms }) {
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <span className={`badge ${m.appointmentsWorked > 0 ? 'bg-teal' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.appointmentsWorked}</span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <span className={`badge ${m.callsMade > 0 ? 'bg-blue' : 'bg-gray'}`} style={{ fontSize: 11 }}>{m.callsMade}</span>
                       </td>
                       <td style={{ textAlign: 'center' }}>
                         <div className={`badge ${m.tasksWorked > 0 ? 'bg-blue' : 'bg-gray'}`}>{m.tasksWorked}</div>
