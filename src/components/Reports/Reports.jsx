@@ -13,8 +13,6 @@ export default function Reports({ user, perms, ownerId, profile }) {
   const [prodSearch, setProdSearch] = useState('');
   const [prodSortBy, setProdSortBy] = useState('revenue'); // revenue | units | name
   const prodPageSize = 50;
-  const [granularity, setGranularity] = useState('day'); // day | week | month | quarter | year
-
   useEffect(() => {
     if (dateFilter === 'Custom Range') return;
     const today = new Date();
@@ -58,7 +56,7 @@ export default function Reports({ user, perms, ownerId, profile }) {
   });
 
   // Deferred: only needed for leads/funnel/team/products/lead-influx/product-enquiry/customer-purchase/stage-transitions tabs
-  const needsLeadsData = ['leads', 'funnel', 'rev-src', 'team', 'lead-influx', 'product-enquiry'].includes(tab);
+  const needsLeadsData = ['leads', 'funnel', 'rev-src', 'team', 'product-enquiry'].includes(tab);
   const needsProductsData = tab === 'products';
   const needsCustomersData = tab === 'customer-purchase';
   const needsStageLogs = tab === 'stage-transitions';
@@ -119,38 +117,6 @@ export default function Reports({ user, perms, ownerId, profile }) {
     return d >= new Date(fromDate) && d <= new Date(toDate + 'T23:59:59');
   };
 
-  // Bucket a timestamp into day/week/month/quarter/year key + label
-  const bucketKey = (ts, gran) => {
-    const d = new Date(ts);
-    if (isNaN(d.getTime())) return { key: 'unknown', label: 'Unknown' };
-    if (gran === 'day') {
-      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      return { key: k, label: d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) };
-    }
-    if (gran === 'week') {
-      // ISO week start (Monday)
-      const day = d.getDay();
-      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-      const monday = new Date(d.getFullYear(), d.getMonth(), diff);
-      const k = `${monday.getFullYear()}-W${String(Math.ceil((((monday - new Date(monday.getFullYear(), 0, 1)) / 86400000) + 1) / 7)).padStart(2, '0')}`;
-      return { key: k, label: `W/o ${monday.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}` };
-    }
-    if (gran === 'month') {
-      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      return { key: k, label: d.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) };
-    }
-    if (gran === 'quarter') {
-      const q = Math.floor(d.getMonth() / 3) + 1;
-      const k = `${d.getFullYear()}-Q${q}`;
-      return { key: k, label: `Q${q} ${d.getFullYear()}` };
-    }
-    if (gran === 'year') {
-      const k = `${d.getFullYear()}`;
-      return { key: k, label: `${d.getFullYear()}` };
-    }
-    return { key: 'unknown', label: 'Unknown' };
-  };
-
   const filteredInv = filteredInvoicesAtSource.filter(inv => inRange(inv.date) && inv.status !== 'Draft');
   const filteredExp = filteredExpensesAtSource.filter(e => inRange(e.date));
 
@@ -201,7 +167,11 @@ export default function Reports({ user, perms, ownerId, profile }) {
 
   const wonStage = profile?.wonStage || STAGE_ORDER[STAGE_ORDER.length - 1];
   const lostStage = profile?.lostStage || 'Lost'; 
-  const stageCount = STAGE_ORDER.map(s => ({ stage: s, count: filteredLeadsAtSource.filter(l => l.stage === s).length }));
+  const pipelineLeads = useMemo(() => {
+    if (tab !== 'leads') return [];
+    return filteredLeadsAtSource.filter(l => l.createdAt && inRange(new Date(l.createdAt).toISOString()));
+  }, [tab, filteredLeadsAtSource, fromDate, toDate]);
+  const stageCount = STAGE_ORDER.map(s => ({ stage: s, count: pipelineLeads.filter(l => l.stage === s).length }));
   const maxCount = Math.max(...stageCount.map(s => s.count), 1);
   const CHART_COLORS = ['#60a5fa', '#6ee7b7', '#fde68a', '#c4b5fd', '#86efac', '#fca5a5'];
 
@@ -298,46 +268,6 @@ export default function Reports({ user, perms, ownerId, profile }) {
   // Top 10 chart data (by revenue)
   const topProducts = useMemo(() => productPerf.slice(0, 10), [productPerf]);
   const maxProdRev = Math.max(...topProducts.map(p => p.revenue), 1);
-
-  // ==================================================
-  // #1 LEAD INFLUX REPORT — time-series of new leads
-  // ==================================================
-  const leadInflux = useMemo(() => {
-    if (tab !== 'lead-influx') return { buckets: [], sourceMatrix: {}, allSources: [], total: 0, prevTotal: 0 };
-    const inRangeLeads = filteredLeadsAtSource.filter(l => l.createdAt && inRange(new Date(l.createdAt).toISOString()));
-    const bucketMap = {};
-    const sourceSet = new Set();
-    inRangeLeads.forEach(l => {
-      const { key, label } = bucketKey(l.createdAt, granularity);
-      const src = l.source || 'Unknown';
-      sourceSet.add(src);
-      if (!bucketMap[key]) bucketMap[key] = { key, label, total: 0, sources: {}, won: 0, lost: 0, open: 0 };
-      bucketMap[key].total += 1;
-      bucketMap[key].sources[src] = (bucketMap[key].sources[src] || 0) + 1;
-      if (l.stage === wonStage) bucketMap[key].won += 1;
-      else if (l.stage === lostStage) bucketMap[key].lost += 1;
-      else bucketMap[key].open += 1;
-    });
-    const buckets = Object.values(bucketMap).sort((a, b) => a.key.localeCompare(b.key));
-    // Previous period comparison
-    const fromMs = new Date(fromDate).getTime();
-    const toMs = new Date(toDate + 'T23:59:59').getTime();
-    const span = toMs - fromMs;
-    const prevLeads = filteredLeadsAtSource.filter(l => {
-      if (!l.createdAt) return false;
-      const t = new Date(l.createdAt).getTime();
-      return t >= (fromMs - span) && t < fromMs;
-    });
-    return {
-      buckets,
-      allSources: [...sourceSet].sort(),
-      total: inRangeLeads.length,
-      prevTotal: prevLeads.length,
-      won: inRangeLeads.filter(l => l.stage === wonStage).length,
-      lost: inRangeLeads.filter(l => l.stage === lostStage).length,
-    };
-  }, [tab, filteredLeadsAtSource, granularity, fromDate, toDate, wonStage, lostStage]);
-  const maxInfluxBucket = Math.max(...leadInflux.buckets.map(b => b.total), 1);
 
   // ==================================================
   // #2 PRODUCT ENQUIRY REPORT — leads by requirement (product interest)
@@ -505,10 +435,6 @@ export default function Reports({ user, perms, ownerId, profile }) {
       exportCSV(rows[0], rows.slice(1), `GST_Detailed_Report_${fromDate}_to_${toDate}`);
     } else if (tab === 'products') {
       exportCSV(['Product', 'Units Sold', 'Revenue', 'GST Collected', 'Total (with Tax)'], prodFiltered.map(p => [p.name, p.units, p.revenue, p.totalTax, p.revenue + p.totalTax]), `Product_Performance_${fromDate}_to_${toDate}`);
-    } else if (tab === 'lead-influx') {
-      const headers = ['Period', 'New Leads', 'Won', 'Lost', 'Open', ...leadInflux.allSources];
-      const rows = leadInflux.buckets.map(b => [b.label, b.total, b.won, b.lost, b.open, ...leadInflux.allSources.map(s => b.sources[s] || 0)]);
-      exportCSV(headers, rows, `Lead_Influx_${granularity}_${fromDate}_to_${toDate}`);
     } else if (tab === 'product-enquiry') {
       exportCSV(['Product', 'Enquiries', 'Won', 'Lost', 'Open', 'Conversion %', 'Top Source'], productEnquiry.map(p => [p.product, p.enquiries, p.won, p.lost, p.open, p.conversionRate + '%', p.topSource]), `Product_Enquiries_${fromDate}_to_${toDate}`);
     } else if (tab === 'customer-purchase') {
@@ -571,18 +497,6 @@ export default function Reports({ user, perms, ownerId, profile }) {
               <input type="date" value={toDate} onChange={e => setToDate(e.target.value)} style={{ padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 12, fontFamily: 'inherit' }} />
             </>
           )}
-          {tab === 'lead-influx' && (
-            <>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--muted)' }}>Group by</label>
-              <select value={granularity} onChange={e => setGranularity(e.target.value)} style={{ padding: '6px 10px', border: '1.5px solid var(--border)', borderRadius: 7, fontSize: 12, fontFamily: 'inherit' }}>
-                <option value="day">Day</option>
-                <option value="week">Week</option>
-                <option value="month">Month</option>
-                <option value="quarter">Quarter</option>
-                <option value="year">Year</option>
-              </select>
-            </>
-          )}
         </div>
       </div>
 
@@ -604,7 +518,6 @@ export default function Reports({ user, perms, ownerId, profile }) {
           {[
             ['pl', 'P&L Statement'],
             ['gst', 'GST Summary'],
-            ['lead-influx', 'Lead Influx (Trend)'],
             ['product-enquiry', 'Leads by Requirement'],
             ['customer-purchase', 'Customer Purchases'],
             ['stage-transitions', 'Stage Transitions'],
@@ -755,9 +668,9 @@ export default function Reports({ user, perms, ownerId, profile }) {
           <div className="tw-head"><h3>Lead Distribution</h3></div>
           <div style={{ padding: '16px 20px' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
-              <div className="stat-card"><div className="lbl">Total Leads</div><div className="val">{filteredLeadsAtSource.length}</div></div>
-              <div className="stat-card sc-green"><div className="lbl">Won</div><div className="val">{filteredLeadsAtSource.filter(l => l.stage === wonStage).length}</div></div>
-              <div className="stat-card sc-red"><div className="lbl">Lost</div><div className="val">{filteredLeadsAtSource.filter(l => l.stage === lostStage).length}</div></div>
+              <div className="stat-card"><div className="lbl">Total Leads</div><div className="val">{pipelineLeads.length}</div></div>
+              <div className="stat-card sc-green"><div className="lbl">Won</div><div className="val">{pipelineLeads.filter(l => l.stage === wonStage).length}</div></div>
+              <div className="stat-card sc-red"><div className="lbl">Lost</div><div className="val">{pipelineLeads.filter(l => l.stage === lostStage).length}</div></div>
             </div>
             {stageCount.map(({ stage, count }, i) => (
               <div key={stage} className="chart-row">
@@ -860,67 +773,6 @@ export default function Reports({ user, perms, ownerId, profile }) {
           </div>
         );
       })()}
-
-      {tab === 'lead-influx' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <div className="stat-grid">
-            <div className="stat-card sc-blue"><div className="lbl">Total New Leads</div><div className="val">{leadInflux.total}</div></div>
-            <div className="stat-card sc-green"><div className="lbl">Won</div><div className="val">{leadInflux.won}</div></div>
-            <div className="stat-card sc-red"><div className="lbl">Lost</div><div className="val">{leadInflux.lost}</div></div>
-            <div className="stat-card" style={{ background: leadInflux.total >= leadInflux.prevTotal ? '#dcfce7' : '#fee2e2' }}>
-              <div className="lbl" style={{ color: leadInflux.total >= leadInflux.prevTotal ? '#166534' : '#991b1b' }}>vs Previous Period</div>
-              <div className="val" style={{ color: leadInflux.total >= leadInflux.prevTotal ? '#166534' : '#991b1b' }}>
-                {leadInflux.prevTotal === 0 ? (leadInflux.total > 0 ? '+∞%' : '0%') : `${leadInflux.total >= leadInflux.prevTotal ? '↑' : '↓'} ${Math.abs(Math.round(((leadInflux.total - leadInflux.prevTotal) / leadInflux.prevTotal) * 100))}%`}
-              </div>
-            </div>
-          </div>
-
-          <div className="tw">
-            <div className="tw-head"><h3>Lead Trend by {granularity.charAt(0).toUpperCase() + granularity.slice(1)}</h3></div>
-            <div style={{ padding: '24px 20px', display: 'flex', alignItems: 'flex-end', gap: 8, height: 240, overflowX: 'auto' }}>
-              {leadInflux.buckets.length === 0 ? <div style={{ width: '100%', textAlign: 'center', color: 'var(--muted)' }}>No leads in this period</div>
-                : leadInflux.buckets.map(b => (
-                  <div key={b.key} style={{ flex: 1, minWidth: 50, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-                    <div style={{ fontSize: 11, fontWeight: 700, color: '#111' }}>{b.total}</div>
-                    <div title={`${b.label}: ${b.total} leads`} style={{ width: '80%', background: 'linear-gradient(180deg, #60a5fa, #3b82f6)', height: `${(b.total / maxInfluxBucket) * 180}px`, borderRadius: '4px 4px 0 0', minHeight: 4, cursor: 'pointer' }} />
-                    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--muted)', textAlign: 'center', wordBreak: 'break-word', maxWidth: 70 }}>{b.label}</div>
-                  </div>
-                ))}
-            </div>
-          </div>
-
-          <div className="tw">
-            <div className="tw-head"><h3>Detailed Breakdown</h3></div>
-            <div className="tw-scroll">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Period</th>
-                    <th style={{ textAlign: 'right' }}>Total</th>
-                    <th style={{ textAlign: 'right' }}>Won</th>
-                    <th style={{ textAlign: 'right' }}>Lost</th>
-                    <th style={{ textAlign: 'right' }}>Open</th>
-                    {leadInflux.allSources.map(s => <th key={s} style={{ textAlign: 'right' }}>{s}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {leadInflux.buckets.length === 0 ? <tr><td colSpan={5 + leadInflux.allSources.length} style={{ textAlign: 'center', padding: 28, color: 'var(--muted)' }}>No data</td></tr>
-                    : leadInflux.buckets.map(b => (
-                      <tr key={b.key}>
-                        <td><strong>{b.label}</strong></td>
-                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{b.total}</td>
-                        <td style={{ textAlign: 'right', color: '#16a34a' }}>{b.won}</td>
-                        <td style={{ textAlign: 'right', color: '#dc2626' }}>{b.lost}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--muted)' }}>{b.open}</td>
-                        {leadInflux.allSources.map(s => <td key={s} style={{ textAlign: 'right' }}>{b.sources[s] || '-'}</td>)}
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
 
       {tab === 'product-enquiry' && (() => {
         const maxEnq = Math.max(...productEnquiry.map(p => p.enquiries), 1);
