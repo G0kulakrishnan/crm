@@ -424,6 +424,65 @@ await db.transact(txs);
 await db.transact(db.tx.leads[leadId].update({ deleted: true }));  // ❌ WRONG
 ```
 
+## CRITICAL: No Duplicate Records / No Orphans
+
+**RULE:** Never allow duplicate records (same email, phone, userId) across collections that should be unique. When deleting from the UI, hard-delete the record AND ALL related records in the same transaction. Leaving orphaned records causes routing bugs, duplicate IDs, and data corruption.
+
+**Real-world example that broke production:**
+A user `techtogrowindia@gmail.com` had:
+- `userProfiles` record (business owner — TECH TO GROW)
+- `userCredentials` record (correct flags)
+- Orphaned `partnerApplications` record (Approved Retailer)
+
+The orphaned partner application caused MainApp.jsx to auto-redirect to the partner portal even though credentials were correct. **The user could not log in to their business workspace.** The partner application should have been deleted when the partner role was removed.
+
+### Rules to Follow
+
+1. **Before creating any record, check for existing duplicates by unique keys (email/phone/userId):**
+   ```javascript
+   const existing = await db.query({
+     userCredentials: { $: { where: { email: cleanEmail } } }
+   });
+   if (existing.userCredentials.length > 0) throw new Error('Email already registered');
+   ```
+
+2. **When deleting from UI, cascade delete ALL related records in ONE transaction:**
+   ```javascript
+   const txs = [
+     db.tx.userProfiles[profileId].delete(),
+     db.tx.userCredentials[credId].delete(),
+     db.tx.partnerApplications[partnerId].delete(),  // ← Don't forget this!
+     db.tx.teamMembers[memberId].delete(),
+     db.tx.memberProfiles[mpId].delete(),
+   ];
+   await db.transact(txs);
+   ```
+
+3. **Cross-collection uniqueness checks:**
+   - An email should NOT exist in BOTH `userCredentials` (as owner) AND `partnerApplications` simultaneously
+   - A phone number should NOT exist in both `leads` and `customers` (use `leadId` linkage)
+   - A `userId` should map to exactly ONE `userProfiles` record
+
+4. **When changing a user's role (owner ↔ partner, removing partner status, etc.):**
+   - DELETE the obsolete records — do NOT just flip a flag
+   - Verify no orphaned `partnerApplications`, `teamMembers`, or `memberProfiles` remain
+
+### Audit Checklist Before ANY Delete
+
+- [ ] Identified ALL collections that reference this entity (by id, email, phone, userId)
+- [ ] All references are deleted in the SAME `db.transact()` call
+- [ ] No flag-only "soft" updates left behind
+- [ ] Post-delete verification: querying by the unique key returns 0 records across all relevant collections
+
+### High-Risk Collection Pairs (Common Source of Orphans)
+
+- `userCredentials` ↔ `userProfiles` ↔ `partnerApplications` ↔ `teamMembers` ↔ `memberProfiles`
+- `leads` ↔ `customers` (linked via `leadId`)
+- `quotations` ↔ `invoices` (linked via `quotationId`)
+- `partnerApplications` ↔ partner-created `leads` / `orders`
+
+**This rule works alongside Hard Delete Policy** — together they ensure a clean, duplicate-free, orphan-free database. Violation of this rule has caused login failures and data corruption in the past.
+
 ## CRITICAL: No Hardcoded Configuration Values
 
 **NEVER hardcode configuration values like product categories, lead stages, sources, requirements, etc.** These MUST come from `userProfiles` settings (Business Settings), not from constants or code.
