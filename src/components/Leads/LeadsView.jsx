@@ -1456,7 +1456,6 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
                   <option value={50}>50</option>
                   <option value={100}>100</option>
                   <option value={500}>500</option>
-                  <option value="all">All Leads</option>
                 </select>
               </div>
 
@@ -2058,14 +2057,14 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
                 <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Default Leads per Page</strong>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {[15, 25, 50, 100, 'all'].map(size => (
+                  {[15, 25, 50, 100].map(size => (
                     <button
                       key={size}
                       className={`btn btn-sm ${tempPageSize === size ? 'btn-primary' : 'btn-secondary'}`}
                       onClick={() => setTempPageSize(size)}
                       style={{ padding: '6px 12px' }}
                     >
-                      {size === 'all' ? 'All Leads' : size}
+                      {size}
                     </button>
                   ))}
                 </div>

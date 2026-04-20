@@ -647,8 +647,8 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
           </table>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 20px', borderTop: '1px solid var(--border)', background: '#f8fafc' }}>
             <div style={{ fontSize: 13, color: 'var(--muted)' }}>
-              Show: {['25', '50', '100', 'all'].map(z => (
-                <button key={z} onClick={() => { setPageSize(z === 'all' ? 'all' : Number(z)); setCurrentPage(1); }} style={{ margin: '0 4px', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: pageSize === (z === 'all' ? 'all' : Number(z)) ? 'var(--accent)' : '#fff', color: pageSize === (z === 'all' ? 'all' : Number(z)) ? '#fff' : 'var(--text)', cursor: 'pointer' }}>{z}</button>
+              Show: {['25', '50', '100', '500'].map(z => (
+                <button key={z} onClick={() => { setPageSize(Number(z)); setCurrentPage(1); }} style={{ margin: '0 4px', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--border)', background: pageSize === Number(z) ? 'var(--accent)' : '#fff', color: pageSize === Number(z) ? '#fff' : 'var(--text)', cursor: 'pointer' }}>{z}</button>
               ))}
             </div>
             <div style={{ display: 'flex', gap: 10 }}>
