@@ -35,7 +35,7 @@ export default function Integrations({ user, ownerId }) {
 
   const { data } = db.useQuery({ 
     userProfiles: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId } } }
+    leads: { $: { where: { userId: ownerId }, limit: 10000 } }
   });
   const profile = data?.userProfiles?.[0];
   const gsheets = profile?.gsheets || [];

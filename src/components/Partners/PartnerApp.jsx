@@ -140,8 +140,8 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
 
   const { data, isLoading } = db.useQuery({
     products: { $: { where: { userId: ownerId, isPartnerAvailable: true } } },
-    leads: { $: { where: { userId: ownerId } } },
-    customers: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
+    customers: { $: { where: { userId: ownerId }, limit: 10000 } },
     userProfiles: { $: { where: { userId: ownerId } } },
     partnerApplications: { $: { where: { id: partnerId } } }
   });
@@ -355,7 +355,7 @@ function NewRequirementForm({ ownerId, partnerId, user }) {
 function MyCustomersView({ ownerId, partnerId }) {
   const [search, setSearch] = useState('');
   const { data, isLoading } = db.useQuery({
-    leads: { $: { where: { userId: ownerId } } }
+    leads: { $: { where: { userId: ownerId }, limit: 10000 } }
   });
 
   const allLeads = useMemo(() => {

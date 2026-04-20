@@ -47,8 +47,8 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
   const { data, isLoading } = db.useQuery({
     invoices: { $: { where: { userId: ownerId } } },
     products: { $: { where: { userId: ownerId } } },
-    customers: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId }, limit: 10000 } },
+    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
     userProfiles: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
     partnerApplications: { $: { where: { userId: ownerId } } },

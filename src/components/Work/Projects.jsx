@@ -33,8 +33,8 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
     tasks: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    customers: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId }, limit: 10000 } },
+    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
   });
   const tasks = data?.tasks || [];
   const team = data?.teamMembers || [];

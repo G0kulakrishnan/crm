@@ -30,8 +30,8 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
     projects: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    customers: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId } } }
+    customers: { $: { where: { userId: ownerId }, limit: 10000 } },
+    leads: { $: { where: { userId: ownerId }, limit: 10000 } }
   });
   const tasks = useMemo(() => {
     const rawTasks = data?.tasks || [];

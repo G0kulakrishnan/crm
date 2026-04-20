@@ -22,14 +22,14 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
   const toast = useToast();
 
   const { data } = db.useQuery({
-    customers: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId }, limit: 10000 } },
     userProfiles: { $: { where: { userId: ownerId } } },
     projects: { $: { where: { userId: ownerId } } },
     quotes: { $: { where: { userId: ownerId } } },
     invoices: { $: { where: { userId: ownerId } } },
     tasks: { $: { where: { userId: ownerId } } },
     amc: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
     teamMembers: { $: { where: { userId: ownerId } } },
     partnerApplications: { $: { where: { userId: ownerId, status: 'Approved' } } },
   });

@@ -44,8 +44,8 @@ export default function Appointments({ user, ownerId, perms, initialTab, setting
     appointmentSettings: { $: { where: { userId: ownerId } } },
     ecomSettings: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    customers: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId }, limit: 10000 } },
+    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
     teamMembers: { $: { where: { userId: ownerId } } },
   });
   const profile = data?.userProfiles?.[0];

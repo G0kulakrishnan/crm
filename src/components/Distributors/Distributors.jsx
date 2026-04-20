@@ -27,8 +27,8 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
     partnerCommissions: { $: { where: { userId: ownerId } } },
     products: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId } } },
-    customers: { $: { where: { userId: ownerId } } }
+    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
+    customers: { $: { where: { userId: ownerId }, limit: 10000 } }
   });
   const allLeads = useMemo(() => data?.leads || [], [data?.leads]);
   const allCustomers = useMemo(() => data?.customers || [], [data?.customers]);

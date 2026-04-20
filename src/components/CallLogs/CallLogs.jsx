@@ -51,7 +51,7 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
 
   // Deferred data — leads + team load in background without blocking the table
   const { data: deferredData } = db.useQuery({
-    leads: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
     teamMembers: { $: { where: { userId: ownerId } } },
   });
 

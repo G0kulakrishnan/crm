@@ -54,8 +54,8 @@ export default function Campaigns({ user, perms, ownerId }) {
   const toast = useToast();
 
   const { data } = db.useQuery({
-    leads: { $: { where: { userId: ownerId } } },
-    customers: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
+    customers: { $: { where: { userId: ownerId }, limit: 10000 } },
     invoices: { $: { where: { userId: ownerId } } },
     amc: { $: { where: { userId: ownerId } } },
     products: { $: { where: { userId: ownerId } } },

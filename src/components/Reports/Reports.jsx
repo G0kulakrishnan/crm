@@ -61,13 +61,13 @@ export default function Reports({ user, perms, ownerId, profile }) {
   const needsCustomersData = tab === 'customer-purchase';
   const needsStageLogs = tab === 'stage-transitions';
   const { data: deferredData } = db.useQuery(needsLeadsData ? {
-    leads: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
     tasks: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
   } : needsProductsData ? {
     products: { $: { where: { userId: ownerId } } },
   } : needsCustomersData ? {
-    customers: { $: { where: { userId: ownerId } } },
+    customers: { $: { where: { userId: ownerId }, limit: 10000 } },
   } : needsStageLogs ? {
     activityLogs: { $: { where: { userId: ownerId, entityType: 'lead' }, limit: 5000 } },
   } : {});

@@ -50,7 +50,7 @@ const matchesConditions = (flow, lead) => {
 
 export default function useAutomationEngine(user, ownerId) {
   const { data } = db.useQuery({
-    leads: { $: { where: { userId: ownerId } } },
+    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
     amc:   { $: { where: { userId: ownerId } } },
     automations: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },

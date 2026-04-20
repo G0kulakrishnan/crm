@@ -165,8 +165,8 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
 
   const { data } = db.useQuery({
      userProfiles: { $: { where: { userId: ownerId } } },
-     leads: { $: { where: { userId: ownerId } } },
-     customers: { $: { where: { userId: ownerId } } },
+     leads: { $: { where: { userId: ownerId }, limit: 10000 } },
+     customers: { $: { where: { userId: ownerId }, limit: 10000 } },
      quotes: { $: { where: { userId: ownerId } } },
      invoices: { $: { where: { userId: ownerId } } },
      ecomSettings: { $: { where: { userId: ownerId } } },
