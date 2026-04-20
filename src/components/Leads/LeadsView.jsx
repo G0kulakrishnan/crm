@@ -254,7 +254,18 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   // Full lead metadata fetched from the server so the tab bar can count across
   // ALL leads (not just the 500 loaded into the subscription). Bucketing is
   // done on the client to honour the user's local timezone.
-  const [countsMeta, setCountsMeta] = useState(null); // [{id, createdAt, followup, assign}]
+  // Cache in localStorage to avoid flicker on reload (TTL: 5 minutes).
+  const [countsMeta, setCountsMeta] = useState(() => {
+    try {
+      const cached = localStorage.getItem(`tc_lead_counts_${ownerId}`);
+      if (cached) {
+        const { data, ts } = JSON.parse(cached);
+        if (Date.now() - ts < 5 * 60 * 1000) return data; // 5 min TTL
+      }
+    } catch { /* ignore */ }
+    return null;
+  }); // [{id, createdAt, followup, assign}]
+
   useEffect(() => {
     if (!ownerId) return;
     let cancelled = false;
@@ -275,7 +286,12 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         });
         if (!r.ok) return;
         const data = await r.json();
-        if (!cancelled) setCountsMeta(Array.isArray(data?.items) ? data.items : null);
+        if (!cancelled && Array.isArray(data?.items)) {
+          setCountsMeta(data.items);
+          try {
+            localStorage.setItem(`tc_lead_counts_${ownerId}`, JSON.stringify({ data: data.items, ts: Date.now() }));
+          } catch { /* quota exceeded */ }
+        }
       } catch { /* swallow — tab bar falls back to local counts */ }
     })();
     return () => { cancelled = true; controller.abort(); };
