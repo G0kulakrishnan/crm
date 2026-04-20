@@ -62,9 +62,13 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const dragLeadId = useRef(null);
   const toast = useToast();
 
+  // Hard-capped to 500 to prevent InstantDB "handle-receive" timeout at large scale.
+  // (order: serverCreatedAt requires schema indexing — not configured on this app,
+  // so we just take the first 500 InstantDB returns. Filtering/search works on what
+  // we have; old data is still accessible via export or direct search if re-indexed.)
   const { data, isLoading, error } = db.useQuery({
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
-    customers: { $: { where: { userId: ownerId }, limit: 10000 } },
+    leads: { $: { where: { userId: ownerId }, limit: 500 } },
+    customers: { $: { where: { userId: ownerId }, limit: 500 } },
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     partnerApplications: { $: { where: { userId: ownerId, status: 'Approved' } } },
