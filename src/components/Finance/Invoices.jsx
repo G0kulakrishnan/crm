@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
-import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS, INDIAN_STATES, COUNTRIES, getInvoiceStatus } from '../../utils/helpers';
+import { fmtD, fmt, stageBadgeClass, TAX_OPTIONS, INDIAN_STATES, COUNTRIES, getInvoiceStatus, SUPPORTED_CURRENCIES, currencySymbol } from '../../utils/helpers';
 import DocumentTemplate from './DocumentTemplate';
 import { useToast } from '../../context/ToastContext';
 import SearchableSelect from '../UI/SearchableSelect';
@@ -9,16 +9,18 @@ import { EMPTY_CUSTOMER } from '../../utils/constants';
 import { fireAutoNotifications } from '../../utils/messaging';
 import { logActivity } from '../../utils/activityLogger';
 
-function calcTotals(items, disc, discType, adj) {
+function calcTotals(items, disc, discType, adj, delivery = 0, deliveryTaxRate = 0) {
   const its = Array.isArray(items) ? items : (items ? JSON.parse(items) : []);
   const sub = its.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0), 0);
   const taxTotal = its.reduce((s, it) => s + (it.qty || 0) * (it.rate || 0) * (it.taxRate || 0) / 100, 0);
   const discAmt = discType === '₹' ? (parseFloat(disc) || 0) : (sub * (parseFloat(disc) || 0) / 100);
-  const total = Math.round(sub - discAmt + taxTotal + (parseFloat(adj) || 0));
-  return { sub, taxTotal, discAmt, total };
+  const deliveryAmt = parseFloat(delivery) || 0;
+  const deliveryTax = deliveryAmt * (parseFloat(deliveryTaxRate) || 0) / 100;
+  const total = Math.round(sub - discAmt + taxTotal + deliveryAmt + deliveryTax + (parseFloat(adj) || 0));
+  return { sub, taxTotal, discAmt, deliveryAmt, deliveryTax, total };
 }
 
-const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [], assign: '', distributorId: '', retailerId: '' };
+const EMPTY = { no: '', client: '', dueDate: '', status: 'Draft', notes: '', terms: '', disc: 0, discType: '%', adj: 0, items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: 0 }], isAmc: false, amcCycle: 'Yearly', amcStart: '', amcEnd: '', amcPlan: '', amcAmount: '', amcTaxRate: 0, shipTo: '', addShipping: false, payments: [], assign: '', distributorId: '', retailerId: '', currency: 'INR', deliveryCharge: 0, deliveryTaxRate: 0 };
 
 export default function Invoices({ user, perms, ownerId, settings, planEnforcement }) {
   const canCreate = perms?.can('Invoices', 'create') === true;
@@ -115,7 +117,8 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
 
   React.useEffect(() => { setCurrentPage(1); }, [tab, search]);
 
-  const tots = calcTotals(form.items, form.disc, form.discType, form.adj);
+  const tots = calcTotals(form.items, form.disc, form.discType, form.adj, form.deliveryCharge, form.deliveryTaxRate);
+  const curSym = currencySymbol(form.currency || 'INR');
 
   const openCreate = () => { 
     setEditData(null); 
@@ -127,7 +130,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
     d.setDate(d.getDate() + 14);
     const defDue = d.toISOString().split('T')[0];
     
-    setForm({ ...EMPTY, no: nextNo, dueDate: defDue, terms: profile?.iTerms || '', notes: profile?.iNotes || '', items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: defTax }] });
+    setForm({ ...EMPTY, no: nextNo, dueDate: defDue, terms: profile?.iTerms || '', notes: profile?.iNotes || '', currency: profile?.defaultCurrency || 'INR', items: [{ name: '', desc: '', qty: 1, unit: 'Nos', rate: 0, taxRate: defTax }] });
     setModal(true); 
   };
   const openEdit = (inv) => {
@@ -147,7 +150,14 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
       amcAmount: inv.amcAmount || '', 
       amcTaxRate: inv.amcTaxRate || 0,
       shipTo: inv.shipTo || '', addShipping: !!inv.shipTo, payments: normalizedPayments,
-      fromAmc: !!inv.fromAmc
+      fromAmc: !!inv.fromAmc,
+      currency: inv.currency || profile?.defaultCurrency || 'INR',
+      deliveryCharge: inv.deliveryCharge || 0,
+      deliveryTaxRate: inv.deliveryTaxRate || 0,
+      addDelivery: !!(inv.deliveryCharge && inv.deliveryCharge > 0),
+      assign: inv.assign || '',
+      distributorId: inv.distributorId || '',
+      retailerId: inv.retailerId || ''
     });
     setModal(true);
   };
@@ -186,7 +196,11 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
     if (profile.reqShipping === 'Mandatory' && !form.shipTo?.trim()) { toast('Shipping Address is required', 'error'); return; }
     
     // Extract auto-amc trigger fields vs actual invoice fields
-    const { isAmc, amcPlan, amcAmount, amcTaxRate, amcStart, amcEnd, amcCycle, addShipping, ...invPayload } = form;
+    const { isAmc, amcPlan, amcAmount, amcTaxRate, amcStart, amcEnd, amcCycle, addShipping, addDelivery, ...invPayload } = form;
+    if (!addDelivery) {
+      invPayload.deliveryCharge = 0;
+      invPayload.deliveryTaxRate = 0;
+    }
     
     // We'll optionally attach amcStart/EndDate to the final invoice IF AND ONLY IF isAmc is indeed checked.
     if (isAmc) {
@@ -368,8 +382,8 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
         entityName: payload.no || form.client,
         action: editData ? 'edited' : 'created',
         text: editData
-          ? `Edited invoice **${payload.no}** for ${form.client} (₹${tots.total})`
-          : `Created invoice **${payload.no}** for ${form.client} (₹${tots.total})`,
+          ? `Edited invoice **${payload.no}** for ${form.client} (${fmt(tots.total, form.currency)})`
+          : `Created invoice **${payload.no}** for ${form.client} (${fmt(tots.total, form.currency)})`,
         userId: ownerId,
         user,
         teamMemberId: myMember?.id || null,
@@ -646,9 +660,9 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
                         {activeCols.includes('Status') && <td><span className={`badge ${stageBadgeClass(getInvoiceStatus(inv))}`}>{getInvoiceStatus(inv)}</span></td>}
                         {activeCols.includes('Date') && <td style={{ fontSize: 12 }}>{fmtD(inv.date)}</td>}
                         {activeCols.includes('Due Date') && <td style={{ fontSize: 12 }}>{fmtD(inv.dueDate)}</td>}
-                        <td style={{ fontWeight: 700 }}>{fmt(inv.total)}</td>
-                        {activeCols.includes('Paid Amount') && <td style={{ color: '#16a34a', fontWeight: 600 }}>{fmt(paidAmt)}</td>}
-                        {activeCols.includes('Balance Due') && <td style={{ color: '#dc2626', fontWeight: 600 }}>{fmt(balAmt < 0 ? 0 : balAmt)}</td>}
+                        <td style={{ fontWeight: 700 }}>{fmt(inv.total, inv.currency)}</td>
+                        {activeCols.includes('Paid Amount') && <td style={{ color: '#16a34a', fontWeight: 600 }}>{fmt(paidAmt, inv.currency)}</td>}
+                        {activeCols.includes('Balance Due') && <td style={{ color: '#dc2626', fontWeight: 600 }}>{fmt(balAmt < 0 ? 0 : balAmt, inv.currency)}</td>}
                          <td>
                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 4 }}>
                              <button className="btn btn-secondary btn-sm" onClick={() => setPrinting(inv)}>View</button>
@@ -822,7 +836,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
                       />
                     </div>
                     <div className="fg" style={{ marginBottom: 0 }}>
-                      <label>AMC Amount (₹)</label>
+                      <label>AMC Amount ({curSym})</label>
                       <input type="number" value={form.amcAmount} onChange={e => setForm(p => ({ ...p, amcAmount: e.target.value }))} placeholder="Amount for AMC" />
                     </div>
                     <div className="fg" style={{ marginBottom: 0 }}>
@@ -862,10 +876,10 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
                             value={it.productId || it.name}
                             onChange={val => {
                               const pMatch = products.find(p => p.id === val || p.name === val);
-                              const updates = { 
-                                productId: pMatch?.id || '', 
+                              const updates = {
+                                productId: pMatch?.id || '',
                                 sku: pMatch?.code || '',
-                                name: pMatch?.name || val 
+                                name: pMatch?.name || val
                               };
                               if (pMatch) {
                                 updates.rate = pMatch.rate || 0;
@@ -873,7 +887,19 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
                                 updates.unit = pMatch.unit || 'Nos';
                               }
                               const its = form.items.map((x, idx) => idx === i ? { ...x, ...updates } : x);
-                              setForm(prev => ({ ...prev, items: its }));
+                              setForm(prev => {
+                                let nextCurrency = prev.currency;
+                                if (pMatch && pMatch.currency && pMatch.currency !== prev.currency) {
+                                  const hasOtherFilled = prev.items.some((x, idx) => idx !== i && (x.name || x.rate));
+                                  if (!hasOtherFilled) {
+                                    nextCurrency = pMatch.currency;
+                                    toast(`Currency set to ${pMatch.currency} from product`, 'success');
+                                  } else {
+                                    toast(`Warning: product priced in ${pMatch.currency} but invoice is in ${prev.currency}`, 'warning');
+                                  }
+                                }
+                                return { ...prev, items: its, currency: nextCurrency };
+                              });
                             }}
                             placeholder="Select Product"
                           />
@@ -899,38 +925,64 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
                   <div className="fg"><label>Terms</label><textarea value={form.terms} onChange={e => setForm(p => ({ ...p, terms: e.target.value }))} style={{ minHeight: 50 }} /></div>
                 </div>
                 <div className="totals-box">
-                  <div className="total-row"><span style={{ color: 'var(--muted)' }}>Sub Total</span><span style={{ fontWeight: 700 }}>{fmt(tots.sub)}</span></div>
+                  <div className="total-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ color: 'var(--muted)', fontSize: 13 }}>Currency</span>
+                    <select value={form.currency || 'INR'} onChange={e => setForm(p => ({ ...p, currency: e.target.value }))} style={{ border: '1px solid var(--border)', background: '#fff', borderRadius: 4, padding: '3px 6px', fontSize: 12, cursor: 'pointer' }}>
+                      {SUPPORTED_CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.symbol} {c.code}</option>)}
+                    </select>
+                  </div>
+                  <div className="total-row"><span style={{ color: 'var(--muted)' }}>Sub Total</span><span style={{ fontWeight: 700 }}>{fmt(tots.sub, form.currency)}</span></div>
                   <div className="total-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ color: 'var(--muted)', fontSize: 13, marginRight: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      Discount 
+                      Discount
                       <select value={form.discType} onChange={e => setForm(p => ({ ...p, discType: e.target.value, disc: 0 }))} style={{ border: '1px solid var(--border)', background: '#fff', borderRadius: 4, padding: '2px', fontSize: 11, cursor: 'pointer' }}>
                         <option value="%">%</option>
-                        <option value="₹">₹</option>
+                        <option value={curSym}>{curSym}</option>
                       </select>
                     </span>
                     <input type="number" value={form.disc} onChange={e => setForm(p => ({ ...p, disc: parseFloat(e.target.value) || 0 }))} style={{ width: 80, padding: 4, textAlign: 'right', border: '1px solid var(--border)', borderRadius: 4 }} placeholder="0" />
                   </div>
-                  {(tots.discAmt > 0 && form.discType === '%') && <div className="total-row"><span style={{ color: 'var(--muted)' }}>Discount Amount</span><span style={{ color: '#dc2626' }}>- {fmt(tots.discAmt)}</span></div>}
+                  {(tots.discAmt > 0 && form.discType === '%') && <div className="total-row"><span style={{ color: 'var(--muted)' }}>Discount Amount</span><span style={{ color: '#dc2626' }}>- {fmt(tots.discAmt, form.currency)}</span></div>}
                   {(() => {
                     const clientMatchForm = customers.find(c => c.name === form.client);
                     const isInterStateForm = profile?.bizState && clientMatchForm?.state && profile.bizState !== clientMatchForm.state;
                     if (tots.taxTotal > 0) {
                       return isInterStateForm ? (
-                        <div className="total-row"><span style={{ color: 'var(--muted)' }}>IGST</span><span style={{ color: '#16a34a' }}>{fmt(tots.taxTotal)}</span></div>
+                        <div className="total-row"><span style={{ color: 'var(--muted)' }}>IGST</span><span style={{ color: '#16a34a' }}>{fmt(tots.taxTotal, form.currency)}</span></div>
                       ) : (
                         <>
-                          <div className="total-row"><span style={{ color: 'var(--muted)' }}>CGST</span><span style={{ color: '#16a34a' }}>{fmt(tots.taxTotal / 2)}</span></div>
-                          <div className="total-row"><span style={{ color: 'var(--muted)' }}>SGST</span><span style={{ color: '#16a34a' }}>{fmt(tots.taxTotal / 2)}</span></div>
+                          <div className="total-row"><span style={{ color: 'var(--muted)' }}>CGST</span><span style={{ color: '#16a34a' }}>{fmt(tots.taxTotal / 2, form.currency)}</span></div>
+                          <div className="total-row"><span style={{ color: 'var(--muted)' }}>SGST</span><span style={{ color: '#16a34a' }}>{fmt(tots.taxTotal / 2, form.currency)}</span></div>
                         </>
                       );
                     }
-                    return <div className="total-row"><span style={{ color: 'var(--muted)' }}>GST</span><span style={{ color: '#16a34a' }}>{fmt(0)}</span></div>;
+                    return <div className="total-row"><span style={{ color: 'var(--muted)' }}>GST</span><span style={{ color: '#16a34a' }}>{fmt(0, form.currency)}</span></div>;
                   })()}
+                  <div className="total-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <label style={{ color: 'var(--muted)', fontSize: 13, marginRight: 10, display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                      <input type="checkbox" checked={!!form.addDelivery} onChange={e => setForm(p => ({ ...p, addDelivery: e.target.checked, deliveryCharge: e.target.checked ? p.deliveryCharge : 0, deliveryTaxRate: e.target.checked ? p.deliveryTaxRate : 0 }))} style={{ width: 14, height: 14 }} />
+                      Delivery Charges
+                    </label>
+                    {form.addDelivery && (
+                      <input type="number" value={form.deliveryCharge} onChange={e => setForm(p => ({ ...p, deliveryCharge: parseFloat(e.target.value) || 0 }))} style={{ width: 80, padding: 4, textAlign: 'right', border: '1px solid var(--border)', borderRadius: 4 }} placeholder="0" />
+                    )}
+                  </div>
+                  {form.addDelivery && (
+                    <div className="total-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <span style={{ color: 'var(--muted)', fontSize: 13, marginRight: 10 }}>Delivery Tax</span>
+                      <select value={form.deliveryTaxRate} onChange={e => setForm(p => ({ ...p, deliveryTaxRate: parseFloat(e.target.value) || 0 }))} style={{ width: 120, padding: 4, border: '1px solid var(--border)', borderRadius: 4, fontSize: 12 }}>
+                        {taxRates.map(t => <option key={t.label} value={t.rate}>{t.label}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  {form.addDelivery && tots.deliveryTax > 0 && (
+                    <div className="total-row"><span style={{ color: 'var(--muted)' }}>Delivery Tax Amt</span><span style={{ color: '#16a34a' }}>{fmt(tots.deliveryTax, form.currency)}</span></div>
+                  )}
                   <div className="total-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <span style={{ color: 'var(--muted)', fontSize: 13, marginRight: 10 }}>Adjustment</span>
                     <input type="number" value={form.adj} onChange={e => setForm(p => ({ ...p, adj: parseFloat(e.target.value) || 0 }))} style={{ width: 80, padding: 4, textAlign: 'right', border: '1px solid var(--border)', borderRadius: 4 }} placeholder="0" />
                   </div>
-                  <div className="total-row grand"><strong style={{ fontSize: 14 }}>Total (₹)</strong><strong style={{ fontSize: 18, color: 'var(--accent2)' }}>{fmt(tots.total)}</strong></div>
+                  <div className="total-row grand"><strong style={{ fontSize: 14 }}>Total ({curSym})</strong><strong style={{ fontSize: 18, color: 'var(--accent2)' }}>{fmt(tots.total, form.currency)}</strong></div>
                 </div>
               </div>
             </div>
@@ -951,14 +1003,14 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
             <div className="mo-head"><h3>Record Payment</h3><button className="btn-icon" onClick={() => setPayModal(null)}>✕</button></div>
             <div className="mo-body" style={{ padding: 20 }}>
              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 15, fontSize: 13, background: '#f8fafc', padding: 10, borderRadius: 8 }}>
-                <span>Total: <strong>{fmt(payModal.total)}</strong></span>
+                <span>Total: <strong>{fmt(payModal.total, payModal.currency)}</strong></span>
                 {(() => {
                   const payments = Array.isArray(payModal.payments) ? payModal.payments : (payModal.payments ? JSON.parse(payModal.payments) : []);
-                  return <span>Paid: <strong style={{ color: '#16a34a' }}>{fmt(payments.reduce((s,p) => s + p.amount, 0))}</strong></span>
+                  return <span>Paid: <strong style={{ color: '#16a34a' }}>{fmt(payments.reduce((s,p) => s + p.amount, 0), payModal.currency)}</strong></span>
                 })()}
               </div>
               <div className="fg">
-                <label>Amount (₹)</label>
+                <label>Amount ({currencySymbol(payModal.currency)})</label>
                 <input type="number" value={payAmt} onChange={e => setPayAmt(e.target.value)} placeholder="0.00" />
               </div>
             </div>

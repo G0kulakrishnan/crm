@@ -1,11 +1,11 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
-import { fmt, stageBadgeClass, DEFAULT_UNITS } from '../../utils/helpers';
+import { fmt, stageBadgeClass, DEFAULT_UNITS, SUPPORTED_CURRENCIES, currencySymbol } from '../../utils/helpers';
 import { useToast } from '../../context/ToastContext';
 import StockLog from './StockLog';
 
-const EMPTY = { name: '', code: '', hsn: '', type: 'Product', category: 'General', unit: 'Nos', rate: '', purchasePrice: '', tax: 18, desc: '', stock: 0, lowStockThreshold: 5, trackStock: true, listInEcom: false, isPartnerAvailable: false, imageUrl: '', description: '' };
+const EMPTY = { name: '', code: '', hsn: '', type: 'Product', category: 'General', unit: 'Nos', rate: '', purchasePrice: '', tax: 18, desc: '', stock: 0, lowStockThreshold: 5, trackStock: true, listInEcom: false, isPartnerAvailable: false, imageUrl: '', description: '', currency: 'INR' };
 const generateSKU = () => 'P-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
 const CSV_HEADERS = ['Name', 'Code', 'HSN', 'Category', 'Type', 'Unit', 'Rate', 'PurchasePrice', 'Tax', 'Stock', 'LowStockThreshold', 'TrackStock', 'Description', 'ListInEcom', 'ImageUrl', 'FullDescription'];
@@ -327,7 +327,7 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
           )}
           <button className="btn btn-secondary btn-sm" onClick={handleExport}>📊 Export CSV</button>
           {canCreate && <button className="btn btn-secondary btn-sm" onClick={() => setBulkModal(true)}>📤 Bulk Upload</button>}
-          {canCreate && <button className="btn btn-primary btn-sm" onClick={() => { setEditData(null); setForm(EMPTY); setModal(true); }}>+ Create</button>}
+          {canCreate && <button className="btn btn-primary btn-sm" onClick={() => { setEditData(null); setForm({ ...EMPTY, currency: profile?.defaultCurrency || 'INR' }); setModal(true); }}>+ Create</button>}
         </div>
       </div>
       <div className="tw">
@@ -433,9 +433,9 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
                         ) : <span style={{ color: 'var(--muted)', fontSize: 11 }}>Service</span>}
                       </td>
                       <td style={{ fontSize: 12 }}>{p.unit}</td>
-                      <td style={{ fontSize: 12, color: 'var(--muted)' }}>{p.purchasePrice ? fmt(p.purchasePrice) : '—'}</td>
+                      <td style={{ fontSize: 12, color: 'var(--muted)' }}>{p.purchasePrice ? fmt(p.purchasePrice, p.currency) : '—'}</td>
                       <td>
-                        <div style={{ fontWeight: 700 }}>{fmt(p.rate)}</div>
+                        <div style={{ fontWeight: 700 }}>{fmt(p.rate, p.currency)}</div>
                         {(() => { const m = margin(p.rate, p.purchasePrice); return m !== null ? <div style={{ fontSize: 10, color: m >= 0 ? '#16a34a' : '#dc2626' }}>{m >= 0 ? '▲' : '▼'} {Math.abs(m)}% margin</div> : null; })()}
                       </td>
                       <td>{p.tax}%</td>
@@ -459,7 +459,7 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: 4 }}>
-                          {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(p); setForm({ name: p.name, code: p.code || '', hsn: p.hsn || '', type: p.type, category: p.category || 'General', unit: p.unit, rate: p.rate, purchasePrice: p.purchasePrice || '', tax: p.tax, desc: p.desc || '', stock: p.stock || 0, lowStockThreshold: p.lowStockThreshold || 5, trackStock: p.trackStock !== false, listInEcom: p.listInEcom || false, isPartnerAvailable: p.isPartnerAvailable || false, imageUrl: p.imageUrl || '', description: p.description || '' }); setModal(true); }}>Edit</button>}
+                          {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(p); setForm({ name: p.name, code: p.code || '', hsn: p.hsn || '', type: p.type, category: p.category || 'General', unit: p.unit, rate: p.rate, purchasePrice: p.purchasePrice || '', tax: p.tax, desc: p.desc || '', stock: p.stock || 0, lowStockThreshold: p.lowStockThreshold || 5, trackStock: p.trackStock !== false, listInEcom: p.listInEcom || false, isPartnerAvailable: p.isPartnerAvailable || false, imageUrl: p.imageUrl || '', description: p.description || '', currency: p.currency || profile?.defaultCurrency || 'INR' }); setModal(true); }}>Edit</button>}
                           {p.trackStock && <button className="btn btn-secondary btn-sm" onClick={() => setShowLog(showLog === p.id ? null : p.id)}>History</button>}
                           {canDelete && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(p.id)}>Del</button>}
                         </div>
@@ -498,8 +498,14 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
                 </div>
                 <div className="fg"><label>Type</label><select value={form.type} onChange={f('type')}>{['Service', 'Product'].map(s => <option key={s}>{s}</option>)}</select></div>
                 <div className="fg"><label>Unit</label><select value={form.unit} onChange={f('unit')}>{productUnits.map(s => <option key={s}>{s}</option>)}</select></div>
-                <div className="fg"><label>Purchase Price (₹)</label><input type="number" value={form.purchasePrice} onChange={f('purchasePrice')} placeholder="Cost price" /></div>
-                <div className="fg"><label>Selling Rate (₹)</label><input type="number" value={form.rate} onChange={f('rate')} /></div>
+                <div className="fg">
+                  <label>Currency</label>
+                  <select value={form.currency || 'INR'} onChange={f('currency')}>
+                    {SUPPORTED_CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.symbol} {c.code} — {c.name}</option>)}
+                  </select>
+                </div>
+                <div className="fg"><label>Purchase Price ({currencySymbol(form.currency)})</label><input type="number" value={form.purchasePrice} onChange={f('purchasePrice')} placeholder="Cost price" /></div>
+                <div className="fg"><label>Selling Rate ({currencySymbol(form.currency)})</label><input type="number" value={form.rate} onChange={f('rate')} /></div>
                 {form.purchasePrice && form.rate && (() => { const m = margin(form.rate, form.purchasePrice); return m !== null ? <div className="fg" style={{ background: m >= 0 ? '#f0fdf4' : '#fff5f5', borderRadius: 8, padding: '10px 12px', display: 'flex', alignItems: 'center' }}><span style={{ fontSize: 13, color: m >= 0 ? '#16a34a' : '#dc2626', fontWeight: 700 }}>{m >= 0 ? '▲' : '▼'} Margin: {Math.abs(m)}%</span></div> : null; })()}
                 <div className="fg"><label>GST %</label><select value={form.tax} onChange={f('tax')}>{taxRates.map(t => <option key={t.label} value={t.rate}>{t.label}</option>)}</select></div>
                 <div className="fg span2" style={{ background: 'var(--bg-soft)', padding: 12, borderRadius: 8, marginTop: 5 }}>

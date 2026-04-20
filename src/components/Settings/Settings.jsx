@@ -3,7 +3,7 @@ import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
 import { renderTemplate, sendEmailMock, sendEmail, sendWhatsApp, AUTO_TRIGGER_EVENTS } from '../../utils/messaging';
-import { fmtD, INDIAN_STATES, COUNTRIES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_REQUIREMENTS, SYSTEM_STAGES, DEFAULT_UNITS } from '../../utils/helpers';
+import { fmtD, INDIAN_STATES, COUNTRIES, DEFAULT_STAGES, DEFAULT_SOURCES, DEFAULT_REQUIREMENTS, SYSTEM_STAGES, DEFAULT_UNITS, SUPPORTED_CURRENCIES } from '../../utils/helpers';
 import DocumentTemplate from '../Finance/DocumentTemplate';
 
 const SETTINGS_GROUPS = [
@@ -66,6 +66,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
     logo: profile?.logo || null,
     bizExtraEmails: profile?.bizExtraEmails || '',
     slug: profile?.slug || '',
+    defaultCurrency: profile?.defaultCurrency || 'INR',
   });
   const [fin, setFin] = useState({
     qPrefix: profile?.qPrefix || 'QUO-',
@@ -122,6 +123,7 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
         logo: profile.logo || null,
         bizExtraEmails: profile.bizExtraEmails || '',
         slug: profile.slug || '',
+        defaultCurrency: profile.defaultCurrency || 'INR',
       });
       setFin({
         qPrefix: profile.qPrefix || 'QUO-',
@@ -664,6 +666,13 @@ export default function Settings({ user, profile, isExpired, initialTab, ownerId
                     </select>
                   </div>
                   <div className="fg"><label>Pincode</label><input value={biz.pincode} onChange={e => setBiz(b => ({ ...b, pincode: e.target.value }))} placeholder="Postal Code" /></div>
+                  <div className="fg">
+                    <label>Default Currency</label>
+                    <select value={biz.defaultCurrency} onChange={e => setBiz(b => ({ ...b, defaultCurrency: e.target.value }))}>
+                      {SUPPORTED_CURRENCIES.map(c => <option key={c.code} value={c.code}>{c.symbol} {c.code} — {c.name}</option>)}
+                    </select>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', marginTop: 4 }}>Used as default for new invoices & quotations (can be overridden per record).</div>
+                  </div>
                   <div className="fg"><label>GSTIN</label><input value={biz.gstin} onChange={e => setBiz(b => ({ ...b, gstin: e.target.value }))} placeholder="22AAAAA0000A1Z5" /></div>
                   <div className="fg"><label>PAN</label><input value={biz.pan} onChange={e => setBiz(b => ({ ...b, pan: e.target.value }))} placeholder="AAAPZ1234C" /></div>
                   <div className="fg span2"><label>Website</label><input value={biz.website} onChange={e => setBiz(b => ({ ...b, website: e.target.value }))} /></div>
