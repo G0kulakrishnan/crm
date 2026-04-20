@@ -1,0 +1,195 @@
+import { init } from '@instantdb/admin';
+
+const APP_ID = process.env.VITE_INSTANT_APP_ID;
+const ADMIN_TOKEN = process.env.INSTANT_ADMIN_TOKEN;
+
+// Simple in-memory cache — avoids re-pulling all 11k leads for every filter
+// change. TTL 15s keeps things fresh enough. Keyed by ownerId so it's
+// naturally per-tenant.
+const cache = new Map(); // ownerId -> { leads, ts }
+const CACHE_TTL = 15 * 1000;
+
+async function getLeadsForOwner(db, ownerId) {
+  const hit = cache.get(ownerId);
+  if (hit && Date.now() - hit.ts < CACHE_TTL) return hit.leads;
+  const result = await db.query({
+    leads: { $: { where: { userId: ownerId } } },
+  });
+  const leads = result.leads || [];
+  cache.set(ownerId, { leads, ts: Date.now() });
+  return leads;
+}
+
+// POST /api/leads-page
+// Server-driven list + counts for the Leads page so we can scale past the
+// 500-record subscription cap. The client still handles timezone (it sends
+// boundaries in ms) and small secondary collections (customers, team,
+// userProfiles, partnerApplications) still flow through the live subscription.
+export default async function handler(req, res) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method not allowed' });
+  }
+  try {
+    const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
+    const {
+      ownerId,
+      userEmail = '',
+      myName = '',
+      teamCanSeeAllLeads = true,
+      isOwner = true,
+      mode = 'list',
+      dateMode = 'followup',
+      tab = 'all',
+      customFromMs = null,
+      customToMs = null,
+      staffFilter = '',
+      srcFilter = '',
+      stgFilter = '',
+      search = '',
+      visibleStages = null, // null = all stages allowed
+      page = 1,
+      pageSize = 25,
+      boundaries = {},
+    } = req.body || {};
+
+    if (!ownerId) return res.status(400).json({ error: 'ownerId required' });
+
+    // --- 1. Fetch (cached) -------------------------------------------------
+    let leads = await getLeadsForOwner(db, ownerId);
+
+    // Source normalization — mirror client logic
+    leads = leads.map(l => (l.source === 'Retailer' || l.source === 'Retailers')
+      ? { ...l, source: 'Channel Partners' }
+      : l);
+
+    // --- 2. Team visibility filter ----------------------------------------
+    if (!isOwner && !teamCanSeeAllLeads) {
+      leads = leads.filter(l => !l.assign || l.assign === userEmail || l.assign === myName);
+    }
+
+    // --- 3. Stage visibility (savedLeadStages) ----------------------------
+    if (Array.isArray(visibleStages) && visibleStages.length > 0) {
+      const vs = new Set(visibleStages);
+      leads = leads.filter(l => vs.has(l.stage));
+    }
+
+    // --- 4. Dropdown filters (baseFiltered equivalent) --------------------
+    const baseFiltered = leads.filter(l => {
+      if (srcFilter && l.source !== srcFilter) return false;
+      if (stgFilter && l.stage !== stgFilter) return false;
+      if (staffFilter) {
+        if (staffFilter === 'unassigned') {
+          if (l.assign) return false;
+        } else if (staffFilter === 'my') {
+          if (l.assign !== userEmail && l.assign !== myName) return false;
+        } else {
+          if (l.assign !== staffFilter) return false;
+        }
+      }
+      return true;
+    });
+
+    // --- 5. Counts bucketing using client-provided boundaries -------------
+    const {
+      nowMs = Date.now(),
+      todayStartMs = 0, todayEndMs = 0,
+      yesterdayStartMs = 0, yesterdayEndMs = 0,
+      tomorrowStartMs = 0, tomorrowEndMs = 0,
+      weekStartMs = 0,
+      monthStartMs = 0,
+      next7EndMs = 0,
+    } = boundaries;
+
+    const dateMsOf = (l) => {
+      const v = dateMode === 'created' ? l.createdAt : l.followup;
+      if (!v) return null;
+      if (typeof v === 'number') return v;
+      const t = new Date(v).getTime();
+      return isNaN(t) ? null : t;
+    };
+
+    let total = baseFiltered.length;
+    let cToday = 0, cYest = 0, cTomorrow = 0, cNext7 = 0, cOverdue = 0, cWeek = 0, cMonth = 0, cCustom = 0;
+    const hasCustom = customFromMs !== null || customToMs !== null;
+
+    for (const l of baseFiltered) {
+      const d = dateMsOf(l);
+      if (d === null) continue;
+      if (d >= todayStartMs && d <= todayEndMs) cToday++;
+      if (d >= yesterdayStartMs && d <= yesterdayEndMs) cYest++;
+      if (d >= tomorrowStartMs && d <= tomorrowEndMs) cTomorrow++;
+      if (d >= todayStartMs && d <= next7EndMs) cNext7++;
+      if (d < nowMs) cOverdue++;
+      if (d >= weekStartMs) cWeek++;
+      if (d >= monthStartMs) cMonth++;
+      if (hasCustom) {
+        if ((customFromMs === null || d >= customFromMs) && (customToMs === null || d <= customToMs)) cCustom++;
+      }
+    }
+
+    const counts = {
+      total,
+      today: cToday,
+      yesterday: cYest,
+      tomorrow: cTomorrow,
+      next7days: cNext7,
+      overdue: cOverdue,
+      thisweek: cWeek,
+      thismonth: cMonth,
+      custom: cCustom,
+    };
+
+    // --- 6. Apply tab filter ---------------------------------------------
+    let filteredForTab = baseFiltered;
+    if (tab !== 'all') {
+      filteredForTab = baseFiltered.filter(l => {
+        const d = dateMsOf(l);
+        if (tab === 'custom') {
+          if (!hasCustom) return false;
+          if (d === null) return false;
+          if (customFromMs !== null && d < customFromMs) return false;
+          if (customToMs !== null && d > customToMs) return false;
+          return true;
+        }
+        if (d === null) return false;
+        if (tab === 'today') return d >= todayStartMs && d <= todayEndMs;
+        if (tab === 'yesterday') return d >= yesterdayStartMs && d <= yesterdayEndMs;
+        if (tab === 'tomorrow') return d >= tomorrowStartMs && d <= tomorrowEndMs;
+        if (tab === 'next7days') return d >= todayStartMs && d <= next7EndMs;
+        if (tab === 'overdue') return d < nowMs;
+        if (tab === 'thisweek') return d >= weekStartMs;
+        if (tab === 'thismonth') return d >= monthStartMs;
+        return true;
+      });
+    }
+
+    // --- 7. Search --------------------------------------------------------
+    if (search) {
+      const q = search.toLowerCase();
+      filteredForTab = filteredForTab.filter(l =>
+        [l.name, l.email, l.phone, l.source, l.stage, l.assign, l.label, l.notes]
+          .some(v => (v || '').toString().toLowerCase().includes(q))
+      );
+    }
+
+    const totalFiltered = filteredForTab.length;
+
+    // --- 8. Sort newest first --------------------------------------------
+    filteredForTab.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    // --- 9. Paginate / cap ------------------------------------------------
+    let items;
+    if (mode === 'kanban') {
+      items = filteredForTab.slice(0, 1000);
+    } else {
+      const ps = Number(pageSize) || 25;
+      const p = Math.max(1, Number(page) || 1);
+      items = filteredForTab.slice((p - 1) * ps, p * ps);
+    }
+
+    return res.status(200).json({ items, counts, totalFiltered });
+  } catch (err) {
+    console.error('leads-page error:', err);
+    return res.status(500).json({ error: err.message });
+  }
+}

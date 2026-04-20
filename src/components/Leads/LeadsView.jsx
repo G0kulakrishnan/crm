@@ -62,12 +62,11 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const dragLeadId = useRef(null);
   const toast = useToast();
 
-  // Hard-capped to 500 to prevent InstantDB "handle-receive" timeout at large scale.
-  // (order: serverCreatedAt requires schema indexing — not configured on this app,
-  // so we just take the first 500 InstantDB returns. Filtering/search works on what
-  // we have; old data is still accessible via export or direct search if re-indexed.)
+  // SCALE NOTE: At 11k+ leads the leads subscription hits InstantDB's
+  // handle-receive timeout. We trade live table sync for correctness and fetch
+  // the current page + counts via /api/leads-page. Secondary collections stay
+  // on the live subscription — they're small enough to be safe.
   const { data, isLoading, error } = db.useQuery({
-    leads: { $: { where: { userId: ownerId }, limit: 500 } },
     customers: { $: { where: { userId: ownerId }, limit: 500 } },
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
@@ -80,12 +79,15 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     callLogs: { $: { where: { leadId: drawerLeadId } } },
   } : {});
   const teamCanSeeAllLeads = data?.userProfiles?.[0]?.teamCanSeeAllLeads !== false;
-  const allLeads = (data?.leads || []).map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
   const myTeamMember = (data?.teamMembers || []).find(t => t.email === user.email);
   const myName = myTeamMember?.name || user.name || '';
-  const leads = (!perms?.isOwner && !teamCanSeeAllLeads)
-    ? allLeads.filter(l => !l.assign || l.assign === user.email || l.assign === myName)
-    : allLeads;
+
+  // Server-driven page state — { items, counts, totalFiltered }
+  const [pageData, setPageData] = useState(null);
+  const [pageLoading, setPageLoading] = useState(true);
+  // `leads` is ONLY the current page after server filtering. Duplicate checks
+  // that used to scan a full in-memory list now go through /api/lead-check-duplicate.
+  const leads = pageData?.items || [];
   const customers = data?.customers || [];
   const team = data?.teamMembers || [];
   const customFields = data?.userProfiles?.[0]?.customFields || [];
@@ -100,14 +102,28 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   
   useEffect(() => {
     const openId = localStorage.getItem('tc_open_lead');
-    if (openId && leads.length > 0) {
-      const target = leads.find(l => l.id === openId);
-      if (target) {
-        setViewLead(target);
-        localStorage.removeItem('tc_open_lead');
-      }
+    if (!openId || !ownerId) return;
+    // Try current page first. If not there, fetch by id — necessary because
+    // the server-paginated table only holds ~25 rows.
+    const target = leads.find(l => l.id === openId);
+    if (target) {
+      setViewLead(target);
+      localStorage.removeItem('tc_open_lead');
+      return;
     }
-  }, [leads]);
+    (async () => {
+      try {
+        const r = await fetch(`/api/data/leads?id=${encodeURIComponent(openId)}`, { method: 'GET' });
+        if (!r.ok) return;
+        const json = await r.json();
+        const found = Array.isArray(json?.items) ? json.items.find(l => l.id === openId) : (json?.item || null);
+        if (found) {
+          setViewLead(found);
+          localStorage.removeItem('tc_open_lead');
+        }
+      } catch { /* ignore */ }
+    })();
+  }, [leads, ownerId]);
 
   // Fetch saved settings from localStorage (per user)
   const profile = data?.userProfiles?.[0];
@@ -148,244 +164,103 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     }
   }, [activeSources, activeStages, activeRequirements, form.source, editData]);
 
-  // Stage visibility filter (used for both tabs and list)
-  const visibleLeads = useMemo(() => {
-    if (!savedLeadStages || savedLeadStages.length === 0) return leads;
-    return leads.filter(l => savedLeadStages.includes(l.stage));
-  }, [leads, savedLeadStages]);
+  // Debounced search — avoids hammering /api/leads-page on every keystroke
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
-  // Base filtered: applies staff, source, stage filters (but NOT tab or search)
-  // Tab counts are derived from this so they reflect active dropdown filters
-  const baseFiltered = useMemo(() => {
-    return visibleLeads
-      .filter(l => !srcFilter || l.source === srcFilter)
-      .filter(l => !stgFilter || l.stage === stgFilter)
-      .filter(l => {
-        if (!staffFilter) return true;
-        if (staffFilter === 'unassigned') return !l.assign;
-        if (staffFilter === 'my') return l.assign === user.email || l.assign === myName;
-        return l.assign === staffFilter;
-      });
-  }, [visibleLeads, srcFilter, stgFilter, staffFilter, user.email, myName]);
+  const totalFiltered = pageData?.totalFiltered || 0;
+  const totalPages = pageSize === 'all' ? 1 : Math.max(1, Math.ceil(totalFiltered / (pageSize || 25)));
+  // Server has already sliced to current page — no client-side pagination.
+  const paginated = leads;
+  const filtered = leads; // kept for export/bulk-select; export now uses current page only
 
-  // Filtering: applies tab date filter and search on top of baseFiltered
-  const filtered = useMemo(() => {
+  useEffect(() => { setCurrentPage(1); }, [tab, debouncedSearch, srcFilter, stgFilter, staffFilter, pageSize]);
+
+  // Build the /api/leads-page request body. Extracted so mutations can re-use it.
+  const buildPageBody = () => {
     const now = new Date();
-    const todayStr = now.toDateString();
-    const tomorrow = new Date(now);
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toDateString();
-    const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toDateString();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-    const weekStart = (() => { const d = new Date(now); d.setHours(0,0,0,0); d.setDate(d.getDate() - d.getDay()); return d.getTime(); })();
-
-    // Pick the date field based on dateMode toggle
-    const dateOf = (l) => dateMode === 'created' ? l.createdAt : l.followup;
-
-    // Custom range bounds (inclusive day boundaries)
+    const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
+    const yStart = new Date(todayStart); yStart.setDate(yStart.getDate() - 1);
+    const yEnd = new Date(todayEnd); yEnd.setDate(yEnd.getDate() - 1);
+    const tStart = new Date(todayStart); tStart.setDate(tStart.getDate() + 1);
+    const tEnd = new Date(todayEnd); tEnd.setDate(tEnd.getDate() + 1);
+    const weekStart = new Date(todayStart); weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const next7End = new Date(todayStart); next7End.setDate(next7End.getDate() + 7); next7End.setHours(23,59,59,999);
     const customFromMs = customFrom ? new Date(customFrom + 'T00:00:00').getTime() : null;
     const customToMs = customTo ? new Date(customTo + 'T23:59:59.999').getTime() : null;
 
-    return baseFiltered.filter(l => {
-      const dateVal = dateOf(l);
-      if (tab === 'custom') {
-        // No range picked yet → show nothing (consistent with the count chip)
-        if (!customFromMs && !customToMs) return false;
-        if (!dateVal) return false;
-        // dateVal may be a string (followup: "2026-04-21T14:39") or a number (createdAt: ms)
-        const dateMs = typeof dateVal === 'number' ? dateVal : new Date(dateVal).getTime();
-        if (isNaN(dateMs)) return false;
-        if (customFromMs && dateMs < customFromMs) return false;
-        if (customToMs && dateMs > customToMs) return false;
-        return true;
-      }
-      if (tab === 'today') {
-        if (!dateVal) return false;
-        return new Date(dateVal).toDateString() === todayStr;
-      }
-      if (dateMode === 'followup') {
-        if (tab === 'tomorrow') {
-          if (!dateVal) return false;
-          return new Date(dateVal).toDateString() === tomorrowStr;
-        }
-        if (tab === 'next7days') {
-          if (!dateVal) return false;
-          const d = new Date(dateVal); d.setHours(0,0,0,0);
-          const n = new Date(now); n.setHours(0,0,0,0);
-          const diffDays = Math.round((d - n) / (1000 * 60 * 60 * 24));
-          return diffDays >= 0 && diffDays <= 7;
-        }
-        if (tab === 'overdue') return dateVal && new Date(dateVal) < now;
-      } else {
-        // Created mode tabs
-        if (tab === 'yesterday') {
-          if (!dateVal) return false;
-          return new Date(dateVal).toDateString() === yesterdayStr;
-        }
-        if (tab === 'thisweek') {
-          if (!dateVal) return false;
-          return dateVal >= weekStart;
-        }
-        if (tab === 'thismonth') {
-          if (!dateVal) return false;
-          return dateVal >= monthStart;
-        }
-      }
-      return true;
-    })
-      .filter(l => {
-        if (!search) return true;
-        const q = search.toLowerCase();
-        return [l.name, l.email, l.phone, l.source, l.stage, l.assign, l.label, l.notes].some(v => (v || '').toLowerCase().includes(q));
-      })
-      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  }, [baseFiltered, tab, search, dateMode, customFrom, customTo]);
+    return {
+      ownerId,
+      userEmail: user.email,
+      myName,
+      teamCanSeeAllLeads,
+      isOwner: !!perms?.isOwner,
+      mode: view,
+      dateMode,
+      tab,
+      customFromMs,
+      customToMs,
+      staffFilter,
+      srcFilter,
+      stgFilter,
+      search: debouncedSearch,
+      visibleStages: (savedLeadStages && savedLeadStages.length > 0) ? savedLeadStages : null,
+      page: currentPage,
+      pageSize: pageSize === 'all' ? 10000 : pageSize,
+      boundaries: {
+        nowMs: now.getTime(),
+        todayStartMs: todayStart.getTime(), todayEndMs: todayEnd.getTime(),
+        yesterdayStartMs: yStart.getTime(), yesterdayEndMs: yEnd.getTime(),
+        tomorrowStartMs: tStart.getTime(), tomorrowEndMs: tEnd.getTime(),
+        weekStartMs: weekStart.getTime(),
+        monthStartMs: monthStart.getTime(),
+        next7EndMs: next7End.getTime(),
+      },
+    };
+  };
 
-  const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
-  const paginated = useMemo(() => {
-    if (pageSize === 'all') return filtered;
-    const start = (currentPage - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, currentPage, pageSize]);
-
-  useEffect(() => { setCurrentPage(1); }, [tab, search, srcFilter, stgFilter, staffFilter, pageSize]);
-
-  // Full lead metadata fetched from the server so the tab bar can count across
-  // ALL leads (not just the 500 loaded into the subscription). Bucketing is
-  // done on the client to honour the user's local timezone.
-  // Cache in localStorage to avoid flicker on reload (TTL: 5 minutes).
-  const [countsMeta, setCountsMeta] = useState(() => {
-    try {
-      const cached = localStorage.getItem(`tc_lead_counts_${ownerId}`);
-      if (cached) {
-        const { data, ts } = JSON.parse(cached);
-        if (Date.now() - ts < 5 * 60 * 1000) return data; // 5 min TTL
-      }
-    } catch { /* ignore */ }
-    return null;
-  }); // [{id, createdAt, followup, assign}]
+  // Re-fetch helper exposed to mutations (save/delete/bulk/import)
+  const [refetchCounter, setRefetchCounter] = useState(0);
+  const refetchPage = () => setRefetchCounter(c => c + 1);
 
   useEffect(() => {
     if (!ownerId) return;
-    let cancelled = false;
     const controller = new AbortController();
+    let cancelled = false;
+    setPageLoading(true);
     (async () => {
       try {
-        const r = await fetch('/api/lead-counts', {
+        const r = await fetch('/api/leads-page', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            ownerId,
-            userEmail: user.email,
-            myName,
-            teamCanSeeAllLeads,
-            isOwner: !!perms?.isOwner,
-          }),
+          body: JSON.stringify(buildPageBody()),
           signal: controller.signal,
         });
         if (!r.ok) return;
-        const data = await r.json();
-        if (!cancelled && Array.isArray(data?.items)) {
-          setCountsMeta(data.items);
-          try {
-            localStorage.setItem(`tc_lead_counts_${ownerId}`, JSON.stringify({ data: data.items, ts: Date.now() }));
-          } catch { /* quota exceeded */ }
-        }
-      } catch { /* swallow — tab bar falls back to local counts */ }
+        const json = await r.json();
+        if (!cancelled) setPageData(json);
+      } catch { /* swallow — keep previous pageData so UI doesn't flash */ }
+      finally { if (!cancelled) setPageLoading(false); }
     })();
     return () => { cancelled = true; controller.abort(); };
-    // Re-fetch when the loaded lead set changes size so badges stay fresh
-    // after create / delete / import.
-  }, [ownerId, allLeads.length, user.email, myName, teamCanSeeAllLeads, perms?.isOwner]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    ownerId, view, tab, dateMode, customFrom, customTo,
+    debouncedSearch, srcFilter, stgFilter, staffFilter,
+    currentPage, pageSize, myName, teamCanSeeAllLeads, perms?.isOwner,
+    // savedLeadStages is serialised to detect changes
+    JSON.stringify(savedLeadStages || []),
+    refetchCounter,
+  ]);
 
-  // Bucket counts from the full metadata using the same rules the local counter
-  // uses. Returns null if metadata hasn't loaded yet → caller falls back to
-  // local counts from the 500 loaded leads.
-  const fullCounts = useMemo(() => {
-    if (!countsMeta) return null;
-    const now = new Date();
-    const todayStr = now.toDateString();
-    const tomorrowDate = new Date(now); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    const tomorrowStr = tomorrowDate.toDateString();
-    const yesterdayDate = new Date(now); yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-    const yesterdayStr = yesterdayDate.toDateString();
-    const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-    const weekStart = (() => { const d = new Date(now); d.setHours(0,0,0,0); d.setDate(d.getDate() - d.getDay()); return d.getTime(); })();
-    const customFromMs = customFrom ? new Date(customFrom + 'T00:00:00').getTime() : null;
-    const customToMs = customTo ? new Date(customTo + 'T23:59:59.999').getTime() : null;
-    const hasCustom = customFromMs !== null || customToMs !== null;
-
-    let total = countsMeta.length, overdue = 0, today = 0, tomorrow = 0, next7 = 0, yest = 0, week = 0, month = 0, custom = 0;
-    for (const l of countsMeta) {
-      const dateVal = dateMode === 'created' ? l.createdAt : l.followup;
-      if (!dateVal) continue;
-      const d = new Date(dateVal);
-      if (isNaN(d.getTime())) continue;
-      const dStr = d.toDateString();
-      if (dateMode === 'followup') {
-        if (d < now) overdue++;
-        if (dStr === tomorrowStr) tomorrow++;
-        const dMid = new Date(d); dMid.setHours(0, 0, 0, 0);
-        const diff = Math.round((dMid - todayMidnight) / (1000 * 60 * 60 * 24));
-        if (diff >= 0 && diff <= 7) next7++;
-      } else {
-        if (dStr === yesterdayStr) yest++;
-        const dateMs = typeof dateVal === 'number' ? dateVal : d.getTime();
-        if (dateMs >= weekStart) week++;
-        if (dateMs >= monthStart) month++;
-      }
-      if (dStr === todayStr) today++;
-      if (hasCustom) {
-        const dateMs = typeof dateVal === 'number' ? dateVal : d.getTime();
-        if ((!customFromMs || dateMs >= customFromMs) && (!customToMs || dateMs <= customToMs)) custom++;
-      }
-    }
-    return { total, today, tomorrow, next7days: next7, overdue, yesterday: yest, thisweek: week, thismonth: month, custom };
-  }, [countsMeta, dateMode, customFrom, customTo]);
-
-  // Single-pass tab counts — avoids separate linear scans on every render
-  const { overdueCount, todayCount, tomorrowCount, next7Count, yesterdayCount, thisWeekCount, thisMonthCount, customCount } = useMemo(() => {
-    const now = new Date();
-    const todayStr = now.toDateString();
-    const tomorrowDate = new Date(now); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    const tomorrowStr = tomorrowDate.toDateString();
-    const yesterdayDate = new Date(now); yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-    const yesterdayStr = yesterdayDate.toDateString();
-    const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-    const weekStart = (() => { const d = new Date(now); d.setHours(0,0,0,0); d.setDate(d.getDate() - d.getDay()); return d.getTime(); })();
-
-    const customFromMs = customFrom ? new Date(customFrom + 'T00:00:00').getTime() : null;
-    const customToMs = customTo ? new Date(customTo + 'T23:59:59.999').getTime() : null;
-    const hasCustom = customFromMs !== null || customToMs !== null;
-
-    let overdue = 0, today = 0, tomorrow = 0, next7 = 0, yest = 0, week = 0, month = 0, custom = 0;
-    for (const l of baseFiltered) {
-      const dateVal = dateMode === 'created' ? l.createdAt : l.followup;
-      if (!dateVal) continue;
-      const d = new Date(dateVal);
-      const dStr = d.toDateString();
-      if (dateMode === 'followup') {
-        if (d < now) overdue++;
-        if (dStr === tomorrowStr) tomorrow++;
-        const dMid = new Date(d); dMid.setHours(0, 0, 0, 0);
-        const diff = Math.round((dMid - todayMidnight) / (1000 * 60 * 60 * 24));
-        if (diff >= 0 && diff <= 7) next7++;
-      } else {
-        if (dStr === yesterdayStr) yest++;
-        if (dateVal >= weekStart) week++;
-        if (dateVal >= monthStart) month++;
-      }
-      if (dStr === todayStr) today++;
-      if (hasCustom) {
-        const dateMs = typeof dateVal === 'number' ? dateVal : d.getTime();
-        if ((!customFromMs || dateMs >= customFromMs) && (!customToMs || dateMs <= customToMs)) custom++;
-      }
-    }
-    return { overdueCount: overdue, todayCount: today, tomorrowCount: tomorrow, next7Count: next7, yesterdayCount: yest, thisWeekCount: week, thisMonthCount: month, customCount: custom };
-  }, [baseFiltered, dateMode, customFrom, customTo]);
+  // Server-driven counts, direct consumption
+  const fullCounts = pageData?.counts || null;
+  const customCount = fullCounts?.custom || 0;
 
   const openCreate = () => {
     setEditData(null);
@@ -411,6 +286,8 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   };
 
   const logActivity = async (leadId, text, extra = {}) => {
+    // `leads` is now only the current page — may not contain this leadId. That's
+    // fine: entityName is informational, we fall back to empty string.
     const lead = leads.find(l => l.id === leadId);
     await db.transact(db.tx.activityLogs[id()].update({
       entityId: leadId,
@@ -453,40 +330,38 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const saveLead = async () => {
     if (editData && !canEdit) { toast('Permission denied: cannot edit leads', 'error'); return; }
     if (!editData && !canCreate) { toast('Permission denied: cannot create leads', 'error'); return; }
-    if (!editData && planEnforcement && !planEnforcement.isWithinLimit('maxLeads', leads.length)) { toast('Lead limit reached for your plan. Please upgrade to add more leads.', 'error'); return; }
+    // Plan-limit check now uses the server-reported totalFiltered if available
+    // (falls back to current page length — rare, only on first load).
+    const currentLeadCount = pageData?.counts?.total ?? leads.length;
+    if (!editData && planEnforcement && !planEnforcement.isWithinLimit('maxLeads', currentLeadCount)) { toast('Lead limit reached for your plan. Please upgrade to add more leads.', 'error'); return; }
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
     if (!form.source) { toast('Please select a source', 'error'); return; }
     if (!form.stage) { toast('Please select a stage', 'error'); return; }
 
-    // Duplicate phone/email check across leads + customers
-    const checkPhone = (form.phone || '').trim().toLowerCase();
-    const checkEmail = (form.email || '').trim().toLowerCase();
+    // Duplicate phone/email check — table is server-paginated now, so we
+    // can't scan an in-memory list. Delegate to the server endpoint.
+    const checkPhone = (form.phone || '').trim();
+    const checkEmail = (form.email || '').trim();
     if (checkPhone || checkEmail) {
-      // When editing, compute the original phone/email so we can skip the
-      // customer record that was auto-created from this lead on conversion.
-      const origPhone = editData ? (editData.phone || '').trim().toLowerCase() : '';
-      const origEmail = editData ? (editData.email || '').trim().toLowerCase() : '';
-      const allRecords = [...leads, ...customers];
-      const duplicate = allRecords.find(r => {
-        if (editData && r.id === editData.id) return false; // skip self
-        // Skip the converted-customer record for the lead being edited
-        if (editData) {
-          if (r.leadId && r.leadId === editData.id) return false;
-          const rPhone = (r.phone || '').trim().toLowerCase();
-          const rEmail = (r.email || '').trim().toLowerCase();
-          // Phone+email both match the ORIGINAL lead → it's the converted customer
-          if (origPhone && rPhone === origPhone && (!origEmail || rEmail === origEmail)) return false;
-          if (origEmail && rEmail === origEmail && (!origPhone || rPhone === origPhone)) return false;
+      try {
+        const r = await fetch('/api/lead-check-duplicate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ownerId,
+            phone: checkPhone,
+            email: checkEmail,
+            excludeLeadId: editData?.id || null,
+          }),
+        });
+        if (r.ok) {
+          const { duplicate } = await r.json();
+          if (duplicate) {
+            toast(`Duplicate! A record with this ${duplicate.matchedOn === 'phone' ? 'phone number' : 'email'} already exists (${duplicate.name}).`, 'error');
+            return;
+          }
         }
-        const rPhone = (r.phone || '').trim().toLowerCase();
-        const rEmail = (r.email || '').trim().toLowerCase();
-        return (checkPhone && rPhone && rPhone === checkPhone) ||
-               (checkEmail && rEmail && rEmail === checkEmail);
-      });
-      if (duplicate) {
-        toast(`Duplicate! A record with this ${duplicate.phone?.toLowerCase() === checkPhone ? 'phone number' : 'email'} already exists (${duplicate.name}).`, 'error');
-        return;
-      }
+      } catch { /* fall through — don't block save on network hiccup */ }
     }
 
     setSaving(true);
@@ -548,6 +423,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         }
 
         toast('Lead updated!', 'success');
+        refetchPage();
       } else {
         const newId = id();
         await db.transact(db.tx.leads[newId].update({ ...form, userId: ownerId, actorId: user.id, createdAt: Date.now() }));
@@ -564,6 +440,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
           createdAt: Date.now(),
         }));
         toast(`Lead "${form.name}" created!`, 'success');
+        refetchPage();
         
         // Fire WhatsApp auto-notification for new lead
         const profile = data?.userProfiles?.[0];
@@ -600,6 +477,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       });
       if (!res.ok) throw new Error('Failed to delete lead');
       toast('Lead deleted', 'error');
+      refetchPage();
     } catch (e) {
       toast('Error deleting lead', 'error');
     }
@@ -841,6 +719,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     if (failed === 0) toast(`Imported ${ok} leads.`, 'success');
     else if (ok > 0) toast(`Imported ${ok} leads. ${failed} failed — please retry.`, 'warning');
     else toast(`Import failed. No leads were saved.`, 'error');
+    refetchPage();
   };
 
   const getExcelCol = (idx) => {
@@ -932,6 +811,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       ));
       setSelectedIds(new Set());
       toast(`${selectedIds.size} leads deleted`, 'error');
+      refetchPage();
     } catch (e) {
       toast('Error during bulk deletion', 'error');
     }
@@ -1003,6 +883,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     setPendingBulkStage('');
     setSelectedIds(new Set());
     toast(`${count} leads: ${msgs.join(', ')}`, 'success');
+    refetchPage();
   };
 
   const convertToCustomer = async (l, skipConfirm = false) => {
@@ -1094,7 +975,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const cf = (k) => (e) => setForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
 
   if (error) return <div className="p-xl text-red-500">Error loading leads: {error.message}</div>;
-  if (isLoading) return (
+  if (isLoading || (pageLoading && !pageData)) return (
     <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
       <div className="spinner" style={{ margin: '0 auto 10px', borderColor: 'var(--muted)', borderTopColor: 'transparent' }} />
       Loading leads...
@@ -1422,29 +1303,27 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
       <div className="tabs">
         {(() => {
-          // Only show counts once the server has responded. Don't show fallback
-          // local counts to avoid confusion with the 500 loaded leads vs full dataset.
-          if (!fullCounts) return []; // Hide tabs until counts arrive
+          // Always render the tab bar (even before counts load) so the layout
+          // doesn't jump. The (N) suffix appears once server counts arrive.
           const c = fullCounts;
-          const pick = (serverKey) => c[serverKey];
-          const totalLabel = pick('total');
+          const suffix = (key) => c ? ` (${c[key] ?? 0})` : '';
           if (dateMode === 'followup') {
             return [
-              ['all', `All (${totalLabel})`],
-              ['today', `Today (${pick('today')})`],
-              ['tomorrow', `Tomorrow (${pick('tomorrow')})`],
-              ['next7days', `Next 7 Days (${pick('next7days')})`],
-              ['overdue', `Overdue (${pick('overdue')})`],
-              ['custom', `Custom${(customFrom || customTo) ? ` (${pick('custom')})` : ''}`],
+              ['all', `All${suffix('total')}`],
+              ['today', `Today${suffix('today')}`],
+              ['tomorrow', `Tomorrow${suffix('tomorrow')}`],
+              ['next7days', `Next 7 Days${suffix('next7days')}`],
+              ['overdue', `Overdue${suffix('overdue')}`],
+              ['custom', `Custom${(customFrom || customTo) ? suffix('custom') : ''}`],
             ];
           }
           return [
-            ['all', `All (${totalLabel})`],
-            ['today', `Today (${pick('today')})`],
-            ['yesterday', `Yesterday (${pick('yesterday')})`],
-            ['thisweek', `This Week (${pick('thisweek')})`],
-            ['thismonth', `This Month (${pick('thismonth')})`],
-            ['custom', `Custom${(customFrom || customTo) ? ` (${pick('custom')})` : ''}`],
+            ['all', `All${suffix('total')}`],
+            ['today', `Today${suffix('today')}`],
+            ['yesterday', `Yesterday${suffix('yesterday')}`],
+            ['thisweek', `This Week${suffix('thisweek')}`],
+            ['thismonth', `This Month${suffix('thismonth')}`],
+            ['custom', `Custom${(customFrom || customTo) ? suffix('custom') : ''}`],
           ];
         })().map(([t, label]) => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{label}</div>
@@ -1697,7 +1576,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
             {pageSize !== 'all' && totalPages > 1 && (
               <div style={{ padding: '15px 25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', background: 'var(--bg-soft)', flexWrap: 'wrap', gap: 15 }}>
                 <div style={{ fontSize: 13, color: 'var(--muted)' }}>
-                  Showing <strong>{(currentPage - 1) * pageSize + 1}</strong> to <strong>{Math.min(currentPage * pageSize, filtered.length)}</strong> of <strong>{filtered.length}</strong> leads
+                  Showing <strong>{(currentPage - 1) * pageSize + 1}</strong> to <strong>{Math.min(currentPage * pageSize, totalFiltered)}</strong> of <strong>{totalFiltered}</strong> leads
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center' }}>
                   <button 
