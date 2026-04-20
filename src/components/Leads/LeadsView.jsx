@@ -251,6 +251,84 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
   useEffect(() => { setCurrentPage(1); }, [tab, search, srcFilter, stgFilter, staffFilter, pageSize]);
 
+  // Full lead metadata fetched from the server so the tab bar can count across
+  // ALL leads (not just the 500 loaded into the subscription). Bucketing is
+  // done on the client to honour the user's local timezone.
+  const [countsMeta, setCountsMeta] = useState(null); // [{id, createdAt, followup, assign}]
+  useEffect(() => {
+    if (!ownerId) return;
+    let cancelled = false;
+    const controller = new AbortController();
+    (async () => {
+      try {
+        const r = await fetch('/api/lead-counts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ownerId,
+            userEmail: user.email,
+            myName,
+            teamCanSeeAllLeads,
+            isOwner: !!perms?.isOwner,
+          }),
+          signal: controller.signal,
+        });
+        if (!r.ok) return;
+        const data = await r.json();
+        if (!cancelled) setCountsMeta(Array.isArray(data?.items) ? data.items : null);
+      } catch { /* swallow — tab bar falls back to local counts */ }
+    })();
+    return () => { cancelled = true; controller.abort(); };
+    // Re-fetch when the loaded lead set changes size so badges stay fresh
+    // after create / delete / import.
+  }, [ownerId, allLeads.length, user.email, myName, teamCanSeeAllLeads, perms?.isOwner]);
+
+  // Bucket counts from the full metadata using the same rules the local counter
+  // uses. Returns null if metadata hasn't loaded yet → caller falls back to
+  // local counts from the 500 loaded leads.
+  const fullCounts = useMemo(() => {
+    if (!countsMeta) return null;
+    const now = new Date();
+    const todayStr = now.toDateString();
+    const tomorrowDate = new Date(now); tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const tomorrowStr = tomorrowDate.toDateString();
+    const yesterdayDate = new Date(now); yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const yesterdayStr = yesterdayDate.toDateString();
+    const todayMidnight = new Date(now); todayMidnight.setHours(0, 0, 0, 0);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const weekStart = (() => { const d = new Date(now); d.setHours(0,0,0,0); d.setDate(d.getDate() - d.getDay()); return d.getTime(); })();
+    const customFromMs = customFrom ? new Date(customFrom + 'T00:00:00').getTime() : null;
+    const customToMs = customTo ? new Date(customTo + 'T23:59:59.999').getTime() : null;
+    const hasCustom = customFromMs !== null || customToMs !== null;
+
+    let total = countsMeta.length, overdue = 0, today = 0, tomorrow = 0, next7 = 0, yest = 0, week = 0, month = 0, custom = 0;
+    for (const l of countsMeta) {
+      const dateVal = dateMode === 'created' ? l.createdAt : l.followup;
+      if (!dateVal) continue;
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) continue;
+      const dStr = d.toDateString();
+      if (dateMode === 'followup') {
+        if (d < now) overdue++;
+        if (dStr === tomorrowStr) tomorrow++;
+        const dMid = new Date(d); dMid.setHours(0, 0, 0, 0);
+        const diff = Math.round((dMid - todayMidnight) / (1000 * 60 * 60 * 24));
+        if (diff >= 0 && diff <= 7) next7++;
+      } else {
+        if (dStr === yesterdayStr) yest++;
+        const dateMs = typeof dateVal === 'number' ? dateVal : d.getTime();
+        if (dateMs >= weekStart) week++;
+        if (dateMs >= monthStart) month++;
+      }
+      if (dStr === todayStr) today++;
+      if (hasCustom) {
+        const dateMs = typeof dateVal === 'number' ? dateVal : d.getTime();
+        if ((!customFromMs || dateMs >= customFromMs) && (!customToMs || dateMs <= customToMs)) custom++;
+      }
+    }
+    return { total, today, tomorrow, next7days: next7, overdue, yesterday: yest, thisweek: week, thismonth: month, custom };
+  }, [countsMeta, dateMode, customFrom, customTo]);
+
   // Single-pass tab counts — avoids separate linear scans on every render
   const { overdueCount, todayCount, tomorrowCount, next7Count, yesterdayCount, thisWeekCount, thisMonthCount, customCount } = useMemo(() => {
     const now = new Date();
@@ -1327,24 +1405,31 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       </div>
 
       <div className="tabs">
-        {(dateMode === 'followup'
-          ? [
-              ['all', `All (${baseFiltered.length})`],
-              ['today', `Today (${todayCount})`],
-              ['tomorrow', `Tomorrow (${tomorrowCount})`],
-              ['next7days', `Next 7 Days (${next7Count})`],
-              ['overdue', `Overdue (${overdueCount})`],
-              ['custom', `Custom${(customFrom || customTo) ? ` (${customCount})` : ''}`],
-            ]
-          : [
-              ['all', `All (${baseFiltered.length})`],
-              ['today', `Today (${todayCount})`],
-              ['yesterday', `Yesterday (${yesterdayCount})`],
-              ['thisweek', `This Week (${thisWeekCount})`],
-              ['thismonth', `This Month (${thisMonthCount})`],
-              ['custom', `Custom${(customFrom || customTo) ? ` (${customCount})` : ''}`],
-            ]
-        ).map(([t, label]) => (
+        {(() => {
+          // Prefer server-side counts (full dataset). Fall back to local counts
+          // computed from the 500 loaded leads until the server responds.
+          const c = fullCounts || {};
+          const pick = (serverKey, localVal) => (c[serverKey] != null ? c[serverKey] : localVal);
+          const totalLabel = pick('total', baseFiltered.length);
+          if (dateMode === 'followup') {
+            return [
+              ['all', `All (${totalLabel})`],
+              ['today', `Today (${pick('today', todayCount)})`],
+              ['tomorrow', `Tomorrow (${pick('tomorrow', tomorrowCount)})`],
+              ['next7days', `Next 7 Days (${pick('next7days', next7Count)})`],
+              ['overdue', `Overdue (${pick('overdue', overdueCount)})`],
+              ['custom', `Custom${(customFrom || customTo) ? ` (${pick('custom', customCount)})` : ''}`],
+            ];
+          }
+          return [
+            ['all', `All (${totalLabel})`],
+            ['today', `Today (${pick('today', todayCount)})`],
+            ['yesterday', `Yesterday (${pick('yesterday', yesterdayCount)})`],
+            ['thisweek', `This Week (${pick('thisweek', thisWeekCount)})`],
+            ['thismonth', `This Month (${pick('thismonth', thisMonthCount)})`],
+            ['custom', `Custom${(customFrom || customTo) ? ` (${pick('custom', customCount)})` : ''}`],
+          ];
+        })().map(([t, label]) => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{label}</div>
         ))}
       </div>

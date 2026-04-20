@@ -10,6 +10,7 @@ import dataHandler from './api/data.js';
 import financeHandler from './api/finance.js';
 import notifyHandler from './api/notify.js';
 import callLogsHandler from './api/call-logs.js';
+import leadCountsHandler from './api/lead-counts.js';
 import attendanceHandler from './api/attendance.js';
 import bookHandler from './api/appointments/book.js';
 import checkoutHandler from './api/ecom/checkout.js';
@@ -52,6 +53,7 @@ app.all('/api/data/:module', (req, res) => {
 app.all('/api/auth', wrap(authHandler));
 app.all('/api/data', wrap(dataHandler));
 app.all('/api/call-logs', wrap(callLogsHandler));
+app.all('/api/lead-counts', wrap(leadCountsHandler));
 app.all('/api/attendance', wrap(attendanceHandler));
 app.all('/api/finance', wrap(financeHandler));
 app.all('/api/notify', wrap(notifyHandler));

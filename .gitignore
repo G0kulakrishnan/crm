@@ -3,3 +3,6 @@ dist
 .env
 .env.local
 .DS_Store
+mobile/build/
+mobile/.dart_tool/
+mobile/build/
