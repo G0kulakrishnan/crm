@@ -301,8 +301,22 @@ export default function AdminPanel({ user }) {
   /* ──────────── PLANS ──────────── */
   const savePlan = async () => {
     if (!planForm.name.trim()) { toast('Plan name required', 'error'); return; }
+    // Normalize modules: every ALL_MODULES key must be present with an explicit
+    // true/false value. Otherwise usePlanEnforcement can't tell "not yet
+    // configured" from "intentionally disabled" after a new module is added.
+    const normalizedModules = Object.fromEntries(
+      ALL_MODULES.map(m => [m.key, planForm.modules?.[m.key] === true])
+    );
+    const normalizedLimits = { ...DEFAULT_LIMITS, ...(planForm.limits || {}) };
     const newPlans = [...plans];
-    const planEntry = { ...planForm, price: +planForm.price, duration: +planForm.duration, id: planForm.id || id() };
+    const planEntry = {
+      ...planForm,
+      modules: normalizedModules,
+      limits: normalizedLimits,
+      price: +planForm.price,
+      duration: +planForm.duration,
+      id: planForm.id || id(),
+    };
     if (editPlanIdx !== null) newPlans[editPlanIdx] = planEntry;
     else newPlans.push(planEntry);
     await db.transact(db.tx.globalSettings[settingsId].update({ plans: JSON.stringify(newPlans) }));

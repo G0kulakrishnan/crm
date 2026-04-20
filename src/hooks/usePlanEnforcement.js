@@ -71,8 +71,14 @@ export function usePlanEnforcement(profile, settings) {
      * @returns {boolean}
      */
     const isModuleEnabled = (moduleKey) => {
-      if (!modules) return true; // Legacy plan without modules = all enabled
-      return modules[moduleKey] !== false;
+      if (!modules) return true; // Legacy plan without modules field at all = all enabled (e.g. fallback plans)
+      // Plan's module list is authoritative: a module is enabled only if the
+      // plan explicitly sets it to `true`. Missing keys are treated as
+      // disabled — this is what the admin expects when they assign a plan
+      // with only 9 modules ticked. Previously we used `!== false`, which
+      // meant any module added after the plan was created (so absent from the
+      // saved object) appeared enabled, leaking features across plans.
+      return modules[moduleKey] === true;
     };
 
     /**
