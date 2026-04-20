@@ -346,13 +346,12 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
             <select 
               style={{ border: '1px solid var(--border)', background: 'var(--surface)', fontWeight: 700, outline: 'none', cursor: 'pointer', color: 'var(--accent)', padding: '2px 4px', borderRadius: 4, fontSize: 11 }}
               value={pageSize}
-              onChange={e => setPageSize(e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10))}
+              onChange={e => setPageSize(parseInt(e.target.value, 10))}
             >
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
               <option value={500}>500</option>
-              <option value="all">All</option>
             </select>
           </div>
 

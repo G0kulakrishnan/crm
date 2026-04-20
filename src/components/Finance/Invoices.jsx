@@ -692,8 +692,8 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
               Showing <strong>{(currentPage - 1) * pageSize + 1}</strong>–<strong>{Math.min(currentPage * pageSize, filtered.length)}</strong> of <strong>{filtered.length}</strong>
             </div>
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <select value={pageSize} onChange={e => { setPageSize(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }} style={{ fontSize: 12, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--border)' }}>
-                {[25, 50, 100, 'all'].map(s => <option key={s} value={s}>{s === 'all' ? 'All' : `${s} / page`}</option>)}
+              <select value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }} style={{ fontSize: 12, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                {[25, 50, 100, 500].map(s => <option key={s} value={s}>{`${s} / page`}</option>)}
               </select>
               <button className="btn btn-secondary btn-sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>&#8249; Prev</button>
               <span style={{ fontSize: 12 }}>Page {currentPage} / {totalPages}</span>

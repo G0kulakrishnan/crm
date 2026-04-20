@@ -1545,11 +1545,11 @@ function PayoutsView({ applications, commissions, toast }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ color: 'var(--muted)' }}>Rows:</span>
-            <select className="input" style={{ width: 70, padding: '4px 6px' }} value={pageSize} onChange={e => { setPageSize(e.target.value === 'all' ? 'all' : Number(e.target.value)); setCurrentPage(1); }}>
+            <select className="input" style={{ width: 70, padding: '4px 6px' }} value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setCurrentPage(1); }}>
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
-              <option value="all">All</option>
+              <option value={500}>500</option>
             </select>
           </div>
           {pageSize !== 'all' && (
@@ -1944,15 +1944,14 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
             style={{ border: '1px solid var(--border)', background: 'var(--surface)', fontWeight: 700, outline: 'none', cursor: 'pointer', color: 'var(--accent)', padding: '2px 4px', borderRadius: 4, fontSize: 11 }}
             value={pageSize}
             onChange={e => {
-                const newSize = e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10);
-                setPageSize(newSize);
+                setPageSize(parseInt(e.target.value, 10));
                 setCurrentPage(1);
             }}
           >
             <option value={25}>25</option>
             <option value={50}>50</option>
             <option value={100}>100</option>
-            <option value="all">All</option>
+            <option value={500}>500</option>
           </select>
         </div>
 
@@ -2116,10 +2115,10 @@ function HierarchyView({ availableDistributors, allApprovedPartners, ownerId, us
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
                 <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Default Page Size</strong>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {[25, 50, 100, 'all'].map(size => (
-                    <button 
-                        key={size} 
-                        className={`btn btn-sm ${tempPageSize === size ? 'btn-primary' : 'btn-secondary'}`} 
+                  {[25, 50, 100, 500].map(size => (
+                    <button
+                        key={size}
+                        className={`btn btn-sm ${tempPageSize === size ? 'btn-primary' : 'btn-secondary'}`}
                         onClick={() => setTempPageSize(size)}
                     >
                         {size}

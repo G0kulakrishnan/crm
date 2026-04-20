@@ -323,12 +323,12 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
             <select 
               style={{ border: '1px solid var(--border)', background: 'var(--surface)', fontWeight: 700, outline: 'none', cursor: 'pointer', color: 'var(--accent)', padding: '2px 4px', borderRadius: 4, fontSize: 11 }}
               value={pageSize}
-              onChange={e => setPageSize(e.target.value === 'all' ? 'all' : parseInt(e.target.value, 10))}
+              onChange={e => setPageSize(parseInt(e.target.value, 10))}
             >
               <option value={25}>25</option>
               <option value={50}>50</option>
               <option value={100}>100</option>
-              <option value="all">All</option>
+              <option value={500}>500</option>
             </select>
           </div>
 
@@ -528,7 +528,7 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
               <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
                 <strong style={{ fontSize: 13, color: 'var(--text)', marginBottom: 12, display: 'block' }}>Default Page Size</strong>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {[25, 50, 100, 'all'].map(size => (
+                  {[25, 50, 100, 500].map(size => (
                     <button key={size} className={`btn btn-sm ${tempPageSize === size ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTempPageSize(size)}>{size}</button>
                   ))}
                 </div>
