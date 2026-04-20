@@ -1422,28 +1422,29 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
       <div className="tabs">
         {(() => {
-          // Prefer server-side counts (full dataset). Fall back to local counts
-          // computed from the 500 loaded leads until the server responds.
-          const c = fullCounts || {};
-          const pick = (serverKey, localVal) => (c[serverKey] != null ? c[serverKey] : localVal);
-          const totalLabel = pick('total', baseFiltered.length);
+          // Only show counts once the server has responded. Don't show fallback
+          // local counts to avoid confusion with the 500 loaded leads vs full dataset.
+          if (!fullCounts) return []; // Hide tabs until counts arrive
+          const c = fullCounts;
+          const pick = (serverKey) => c[serverKey];
+          const totalLabel = pick('total');
           if (dateMode === 'followup') {
             return [
               ['all', `All (${totalLabel})`],
-              ['today', `Today (${pick('today', todayCount)})`],
-              ['tomorrow', `Tomorrow (${pick('tomorrow', tomorrowCount)})`],
-              ['next7days', `Next 7 Days (${pick('next7days', next7Count)})`],
-              ['overdue', `Overdue (${pick('overdue', overdueCount)})`],
-              ['custom', `Custom${(customFrom || customTo) ? ` (${pick('custom', customCount)})` : ''}`],
+              ['today', `Today (${pick('today')})`],
+              ['tomorrow', `Tomorrow (${pick('tomorrow')})`],
+              ['next7days', `Next 7 Days (${pick('next7days')})`],
+              ['overdue', `Overdue (${pick('overdue')})`],
+              ['custom', `Custom${(customFrom || customTo) ? ` (${pick('custom')})` : ''}`],
             ];
           }
           return [
             ['all', `All (${totalLabel})`],
-            ['today', `Today (${pick('today', todayCount)})`],
-            ['yesterday', `Yesterday (${pick('yesterday', yesterdayCount)})`],
-            ['thisweek', `This Week (${pick('thisweek', thisWeekCount)})`],
-            ['thismonth', `This Month (${pick('thismonth', thisMonthCount)})`],
-            ['custom', `Custom${(customFrom || customTo) ? ` (${pick('custom', customCount)})` : ''}`],
+            ['today', `Today (${pick('today')})`],
+            ['yesterday', `Yesterday (${pick('yesterday')})`],
+            ['thisweek', `This Week (${pick('thisweek')})`],
+            ['thismonth', `This Month (${pick('thismonth')})`],
+            ['custom', `Custom${(customFrom || customTo) ? ` (${pick('custom')})` : ''}`],
           ];
         })().map(([t, label]) => (
           <div key={t} className={`tab${tab === t ? ' active' : ''}`} onClick={() => setTab(t)}>{label}</div>
