@@ -95,7 +95,8 @@ export default function AMC({ user, perms, ownerId }) {
       if (!search) return true;
       const q = search.toLowerCase();
       return [a.client, a.email, a.phone, a.contractNo, a.plan, a.status].some(v => (v || '').toLowerCase().includes(q));
-    });
+    })
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // newest first
   }, [amcList, tab, search]);
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));

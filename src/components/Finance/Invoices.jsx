@@ -105,7 +105,8 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
         const items = Array.isArray(inv.items) ? inv.items : (inv.items ? JSON.parse(inv.items) : []);
         return [inv.no, inv.client, st, inv.notes, inv.terms].some(v => (v || '').toLowerCase().includes(s)) ||
                items.some(it => (it.name || '').toLowerCase().includes(s));
-      });
+      })
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // newest first
   }, [invoices, tab, search]);
 
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
