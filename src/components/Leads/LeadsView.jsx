@@ -585,7 +585,21 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     const invalidFields = [];
     let rowIndex = 2; // Data starts at row 2 assuming row 1 is headers
 
-    const allRecords = [...leads, ...customers];
+    // O(1) dedup lookups — building Maps once is ~9000x faster than .find() per row at 9k scale
+    const emailIndex = new Map();
+    const phoneIndex = new Map();
+    for (const r of leads) {
+      if (r.email) emailIndex.set(String(r.email).toLowerCase().trim(), true);
+      if (r.phone) phoneIndex.set(String(r.phone).replace(/\D/g, ''), true);
+    }
+    for (const r of customers) {
+      if (r.email) emailIndex.set(String(r.email).toLowerCase().trim(), true);
+      if (r.phone) phoneIndex.set(String(r.phone).replace(/\D/g, ''), true);
+    }
+    // Validation sets for O(1) membership checks
+    const stageSet = new Set(allStages);
+    const sourceSet = new Set(activeSources);
+    const reqSet = new Set(activeRequirements);
 
     importData.forEach(vals => {
       const lead = {
@@ -619,19 +633,19 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       let hasInvalidField = false;
 
       // Validate Stage
-      if (!lead.stage || !allStages.includes(lead.stage)) {
+      if (!lead.stage || !stageSet.has(lead.stage)) {
         invalidFields.push(`Row ${rowIndex}: ${lead.name} (Stage '${lead.stage || 'Empty'}' not found in business settings)`);
         hasInvalidField = true;
       }
-      
+
       // Validate Source
-      if (lead.source && !activeSources.includes(lead.source)) {
+      if (lead.source && !sourceSet.has(lead.source)) {
         invalidFields.push(`Row ${rowIndex}: ${lead.name} (Source '${lead.source}' not found in business settings)`);
         hasInvalidField = true;
       }
 
       // Validate Requirement
-      if (lead.requirement && !activeRequirements.includes(lead.requirement)) {
+      if (lead.requirement && !reqSet.has(lead.requirement)) {
         invalidFields.push(`Row ${rowIndex}: ${lead.name} (Requirement '${lead.requirement}' not found in business settings)`);
         hasInvalidField = true;
       }
@@ -641,16 +655,22 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         return;
       }
 
-      const matchEmail = lead.email ? allRecords.find(l => l.email === lead.email) || toAdd.find(l => l.email === lead.email) : null;
-      const matchPhone = lead.phone ? allRecords.find(l => l.phone === lead.phone) || toAdd.find(l => l.phone === lead.phone) : null;
+      const emailKey = lead.email ? String(lead.email).toLowerCase().trim() : '';
+      const phoneKey = lead.phone ? String(lead.phone).replace(/\D/g, '') : '';
+      const dupEmail = emailKey && emailIndex.has(emailKey);
+      const dupPhone = phoneKey && phoneIndex.has(phoneKey);
 
-      if (matchEmail || matchPhone) { 
-        const matchedOn = matchEmail ? 'Email' : 'Phone';
-        const matchedVal = matchEmail ? lead.email : lead.phone;
+      if (dupEmail || dupPhone) {
+        const matchedOn = dupEmail ? 'Email' : 'Phone';
+        const matchedVal = dupEmail ? lead.email : lead.phone;
         duplicates.push(`Row ${rowIndex}: ${lead.name} (${matchedOn} '${matchedVal}' already exists)`);
         rowIndex++;
         return;
       }
+
+      // Reserve the keys so later rows in the same file don't duplicate each other
+      if (emailKey) emailIndex.set(emailKey, true);
+      if (phoneKey) phoneIndex.set(phoneKey, true);
 
       toAdd.push(lead);
       rowIndex++;
@@ -675,17 +695,32 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       return toast(`No new leads imported.`, 'warning');
     }
 
-    try {
-      const batchSize = 50;
-      for (let i = 0; i < toAdd.length; i += batchSize) {
-        const batch = toAdd.slice(i, i + batchSize);
-        await db.transact(batch.map(ld => db.tx.leads[id()].update(ld)));
-      }
-      toast(`Imported ${toAdd.length} leads.`, 'success');
-      setImportMappingModal(false);
-    } catch (err) {
-      toast('Error importing leads', 'error');
+    // Close modal immediately so the user can keep using the app while the import runs
+    setImportMappingModal(false);
+    toast(`Importing ${toAdd.length} leads… this may take a moment.`, 'info');
+
+    // Bigger batches + parallel chunks — at 9k leads, serial batches of 50 meant 180 round-trips
+    const BATCH_SIZE = 200;     // rows per transaction
+    const PARALLEL = 4;         // transactions in flight at once
+    const batches = [];
+    for (let i = 0; i < toAdd.length; i += BATCH_SIZE) {
+      batches.push(toAdd.slice(i, i + BATCH_SIZE));
     }
+    let ok = 0;
+    let failed = 0;
+    for (let i = 0; i < batches.length; i += PARALLEL) {
+      const group = batches.slice(i, i + PARALLEL);
+      const results = await Promise.allSettled(
+        group.map(batch => db.transact(batch.map(ld => db.tx.leads[id()].update(ld))))
+      );
+      results.forEach((r, idx) => {
+        if (r.status === 'fulfilled') ok += group[idx].length;
+        else failed += group[idx].length;
+      });
+    }
+    if (failed === 0) toast(`Imported ${ok} leads.`, 'success');
+    else if (ok > 0) toast(`Imported ${ok} leads. ${failed} failed — please retry.`, 'warning');
+    else toast(`Import failed. No leads were saved.`, 'error');
   };
 
   const getExcelCol = (idx) => {
