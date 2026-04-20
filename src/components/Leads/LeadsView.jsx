@@ -718,6 +718,28 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
         else failed += group[idx].length;
       });
     }
+    // Single summary activity log for the entire import
+    // (one row per bulk import instead of one-per-lead — saves thousands of rows at CSV scale)
+    if (ok > 0) {
+      try {
+        await db.transact(db.tx.activityLogs[id()].update({
+          entityType: 'lead',
+          entityId: 'bulk',
+          entityName: `Bulk import: ${ok} leads`,
+          action: 'bulk-import',
+          text: `Imported ${ok} leads from CSV${failed > 0 ? ` (${failed} failed)` : ''}${duplicates.length > 0 ? ` (${duplicates.length} duplicates skipped)` : ''}`,
+          count: ok,
+          failedCount: failed,
+          duplicateCount: duplicates.length,
+          userId: ownerId,
+          actorId: user.id,
+          userName: user.email,
+          teamMemberId: myTeamMember?.id || null,
+          createdAt: Date.now(),
+        }));
+      } catch {}
+    }
+
     if (failed === 0) toast(`Imported ${ok} leads.`, 'success');
     else if (ok > 0) toast(`Imported ${ok} leads. ${failed} failed — please retry.`, 'warning');
     else toast(`Import failed. No leads were saved.`, 'error');
@@ -819,44 +841,64 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
   const bulkApply = async () => {
     if (!selectedIds.size || (!pendingBulkAssign && !pendingBulkStage)) return;
-    const count = selectedIds.size;
+    const ids = [...selectedIds];
+    const count = ids.length;
     const msgs = [];
-    await Promise.all([...selectedIds].map(async lid => {
-      const updates = {};
-      const logMsgs = [];
-      const leadObj = leads.find(x => x.id === lid);
-      const prevStage = leadObj?.stage;
-      if (pendingBulkAssign) {
-        updates.assign = pendingBulkAssign;
-        logMsgs.push(`Bulk assigned to ${pendingBulkAssign}`);
-      }
-      if (pendingBulkStage) {
-        updates.stage = pendingBulkStage;
-        updates.stageChangedAt = Date.now();
-        logMsgs.push(`Bulk status changed to ${pendingBulkStage}`);
-      }
-      await db.transact(db.tx.leads[lid].update(updates));
-      for (const msg of logMsgs) await logActivity(lid, msg);
-      // Structured stage-change log for analytics
-      if (pendingBulkStage && prevStage && prevStage !== pendingBulkStage) {
-        await db.transact(db.tx.activityLogs[id()].update({
-          entityId: lid, entityType: 'lead',
-          entityName: leadObj?.companyName || leadObj?.name || '',
-          action: 'stage-change',
-          fromStage: prevStage, toStage: pendingBulkStage,
-          text: `Stage: ${prevStage} → ${pendingBulkStage}`,
-          userId: ownerId, actorId: user.id, userName: user.email,
-          teamMemberId: myTeamMember?.id || null,
-          createdAt: Date.now()
-        }));
-      }
-      if (pendingBulkStage) {
+
+    // Build the shared update payload once
+    const updates = {};
+    if (pendingBulkAssign) updates.assign = pendingBulkAssign;
+    if (pendingBulkStage) { updates.stage = pendingBulkStage; updates.stageChangedAt = Date.now(); }
+
+    // Track leads that need Won-stage customer conversion (rare, only for subset)
+    const wonConversions = [];
+    if (pendingBulkStage && isWon(pendingBulkStage)) {
+      for (const lid of ids) {
         const lead = leads.find(l => l.id === lid);
-        if (isWon(pendingBulkStage) && lead && lead.stage !== pendingBulkStage) {
-          await convertToCustomer(lead, true);
-        }
+        if (lead && lead.stage !== pendingBulkStage) wonConversions.push(lead);
       }
+    }
+
+    // Chunk the lead updates — parallel batches of 200, 4 in flight
+    const BATCH_SIZE = 200;
+    const PARALLEL = 4;
+    const batches = [];
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) batches.push(ids.slice(i, i + BATCH_SIZE));
+    for (let i = 0; i < batches.length; i += PARALLEL) {
+      const group = batches.slice(i, i + PARALLEL);
+      await Promise.all(group.map(batch =>
+        db.transact(batch.map(lid => db.tx.leads[lid].update(updates)))
+      ));
+    }
+
+    // Single summary activity log for the entire bulk operation
+    // (replaces the previous 2N per-lead log writes — at 1000 leads that's 2000 → 1 row)
+    const summaryParts = [];
+    if (pendingBulkAssign) summaryParts.push(`assigned to **${pendingBulkAssign}**`);
+    if (pendingBulkStage) summaryParts.push(`stage set to **${pendingBulkStage}**`);
+    await db.transact(db.tx.activityLogs[id()].update({
+      entityType: 'lead',
+      entityId: 'bulk',
+      entityName: `Bulk: ${count} leads`,
+      action: 'bulk-update',
+      text: `Bulk updated ${count} leads — ${summaryParts.join(', ')}`,
+      count,
+      bulkFields: {
+        ...(pendingBulkAssign ? { assign: pendingBulkAssign } : {}),
+        ...(pendingBulkStage ? { stage: pendingBulkStage } : {}),
+      },
+      userId: ownerId,
+      actorId: user.id,
+      userName: user.email,
+      teamMemberId: myTeamMember?.id || null,
+      createdAt: Date.now(),
     }));
+
+    // Run Won-stage customer conversions (these still log individually because each creates a customer)
+    for (const lead of wonConversions) {
+      await convertToCustomer(lead, true);
+    }
+
     if (pendingBulkAssign) msgs.push(`Assigned to ${pendingBulkAssign}`);
     if (pendingBulkStage) msgs.push(`Stage → ${pendingBulkStage}`);
     setPendingBulkAssign('');
