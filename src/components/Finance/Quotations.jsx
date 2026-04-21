@@ -44,7 +44,6 @@ export default function Quotations({ user, perms, ownerId, settings }) {
     quotes: { $: { where: { userId: ownerId } } },
     products: { $: { where: { userId: ownerId } } },
     customers: { $: { where: { userId: ownerId }, limit: 10000 } },
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
     userProfiles: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
     partnerApplications: { $: { where: { userId: ownerId, status: 'Approved' } } },
@@ -55,8 +54,21 @@ export default function Quotations({ user, perms, ownerId, settings }) {
 
   const products = data?.products || [];
   const customers = data?.customers || [];
-  const leads = data?.leads || [];
   const team = data?.teamMembers || [];
+
+  const [modalLeads, setModalLeads] = useState([]);
+  const fetchModalLeads = async () => {
+    if (modalLeads.length > 0) return; // already cached for this session
+    try {
+      const r = await fetch('/api/leads-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerId, mode: 'list', pageSize: 500, tab: 'all', page: 1, isOwner: true, teamCanSeeAllLeads: true, boundaries: {} }),
+      });
+      const json = await r.json();
+      setModalLeads(json.items || []);
+    } catch (e) { /* silent — dropdown will be empty but save still works */ }
+  };
   const profile = data?.userProfiles?.[0] || {};
   const wonStage = profile.wonStage || 'Won';
   const taxRates = profile.taxRates || TAX_OPTIONS;
@@ -67,7 +79,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
   
   const clientOptions = useMemo(() => {
     const savedLeadStages = profile?.leadStages;
-    const filteredLeads = leads.filter(l => {
+    const filteredLeads = modalLeads.filter(l => {
       const isVisible = !savedLeadStages || savedLeadStages.length === 0 || savedLeadStages.includes(l.stage);
       return isVisible && l.stage !== wonStage;
     });
@@ -75,7 +87,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
       ...customers.map(c => ({ ...c, isLead: false, displayName: c.companyName ? `${c.companyName} (${c.name})` : c.name })),
       ...filteredLeads.map(l => ({ ...l, isLead: true, displayName: l.companyName ? `${l.companyName} (${l.name}) (Lead)` : `${l.name} (Lead)` }))
     ];
-  }, [customers, leads, profile?.leadStages, wonStage]);
+  }, [customers, modalLeads, profile?.leadStages, wonStage]);
 
   const filtered = useMemo(() => {
     return quotes.filter(q => tab === 'all' || q.status === tab)
@@ -101,8 +113,9 @@ export default function Quotations({ user, perms, ownerId, settings }) {
   const tots = calcTotals(form.items, form.disc, form.tdsRate, form.adj, form.deliveryCharge, form.deliveryTaxRate);
   const curSym = currencySymbol(form.currency || 'INR');
 
-  const openCreate = () => { 
-    setEditData(null); 
+  const openCreate = () => {
+    fetchModalLeads();
+    setEditData(null);
     const nextNo = `QUOTE/${new Date().getFullYear()}/${String(quotes.length + 1).padStart(3, '0')}`;
     const defTax = profile?.defaultTaxRate || 0;
     
@@ -115,6 +128,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
     setModal(true); 
   };
   const openEdit = (q) => {
+    fetchModalLeads();
     setEditData(q);
     const normalizedItems = Array.isArray(q.items) ? q.items : (typeof q.items === 'string' ? JSON.parse(q.items) : []);
     
@@ -234,7 +248,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
       }));
     }
 
-    const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (form.client || '').trim().toLowerCase() && l.stage !== wonStage);
+    const lMatch = modalLeads.find(l => (l.name || '').trim().toLowerCase() === (form.client || '').trim().toLowerCase() && l.stage !== wonStage);
     if (lMatch) {
        if (payload.status === 'Sent') {
           txs.push(db.tx.leads[lMatch.id].update({ 
@@ -282,7 +296,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
 
       // Email Recipient Warning
       if (payload.status === 'Sent') {
-        const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (form.client || '').trim().toLowerCase());
+        const lMatch = modalLeads.find(l => (l.name || '').trim().toLowerCase() === (form.client || '').trim().toLowerCase());
         const cMatch = customers.find(c => (c.name || '').trim().toLowerCase() === (form.client || '').trim().toLowerCase());
         const targetEmail = lMatch?.email || cMatch?.email;
         if (!targetEmail) {
@@ -348,7 +362,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
       ];
 
       // Sync lead stage
-      const lMatch = (data?.leads || []).find(l => l.name === q.client && l.stage !== wonStage);
+      const lMatch = modalLeads.find(l => l.name === q.client && l.stage !== wonStage);
       if (lMatch) {
         txs.push(db.tx.leads[lMatch.id].update({ 
            stage: 'Invoice Created',
@@ -378,7 +392,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
   }, [form.client, customers, editData, profile?.reqShipping]);
 
   if (printing) {
-    const clientMatch = customers.find(c => c.name === printing.client) || leads.find(l => l.name === printing.client);
+    const clientMatch = customers.find(c => c.name === printing.client) || modalLeads.find(l => l.name === printing.client);
     const dataWithContext = {
       ...printing,
       items: (Array.isArray(printing.items) ? printing.items : JSON.parse(printing.items || '[]')).map(it => ({
@@ -518,7 +532,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
                         value={form.client} 
                         onChange={val => {
                           // Auto-map distributor/retailer from matching lead
-                          const matchedLead = leads.find(l => (l.name || '').trim().toLowerCase() === (val || '').trim().toLowerCase());
+                          const matchedLead = modalLeads.find(l => (l.name || '').trim().toLowerCase() === (val || '').trim().toLowerCase());
                           const matchedCust = customers.find(c => (c.name || '').trim().toLowerCase() === (val || '').trim().toLowerCase());
                           setForm(p => ({ 
                             ...p, 

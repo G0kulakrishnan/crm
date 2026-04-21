@@ -34,13 +34,25 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     customers: { $: { where: { userId: ownerId }, limit: 10000 } },
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
   });
   const tasks = data?.tasks || [];
   const team = data?.teamMembers || [];
   const customers = data?.customers || [];
-  const leads = data?.leads || [];
   const profile = data?.userProfiles?.[0] || {};
+
+  const [modalLeads, setModalLeads] = useState([]);
+  const fetchModalLeads = async () => {
+    if (modalLeads.length > 0) return; // already cached for this session
+    try {
+      const r = await fetch('/api/leads-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerId, mode: 'list', pageSize: 500, tab: 'all', page: 1, isOwner: true, teamCanSeeAllLeads: true, boundaries: {} }),
+      });
+      const json = await r.json();
+      setModalLeads(json.items || []);
+    } catch (e) { /* silent — dropdown will be empty but save still works */ }
+  };
   const taxRates = profile.taxRates || [];
   const customFields = profile.customFields || [];
   const taskStatuses = profile.taskStatuses || DEFAULT_TASK_STATUSES;
@@ -60,9 +72,9 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
     const wonStage = profile.wonStage || 'Won';
     return [
       ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
-      ...leads.filter(l => l.stage !== wonStage).map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+      ...modalLeads.filter(l => l.stage !== wonStage).map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
     ];
-  }, [customers, leads, profile.wonStage]);
+  }, [customers, modalLeads, profile.wonStage]);
   
   const projects = useMemo(() => {
     const raw = data?.projects || [];
@@ -281,7 +293,7 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
           {((selectedProj && canCreateTask) || (!selectedProj && canCreateProj)) && (
             <button className="btn btn-primary btn-sm" onClick={() => {
               if (selectedProj) { setEditTask(null); setTaskForm({ title: '', assignTo: '', dueDate: '', priority: 'Medium', status: taskStatuses[0], notes: '', client: selectedProj.client || '' }); setTaskModal(true); }
-              else { setEditProj(null); setProjForm(PROJ_EMPTY); setProjModal(true); }
+              else { fetchModalLeads(); setEditProj(null); setProjForm(PROJ_EMPTY); setProjModal(true); }
             }}>
               + {selectedProj ? 'Create Task' : 'Create Project'}
             </button>
@@ -324,7 +336,7 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
                         <td><span className={`badge ${stageBadgeClass(p.status)}`}>{p.status}</span></td>
                         <td>
                           <button className="btn btn-primary btn-sm" onClick={() => setSelectedProj(p)}>Tasks</button>{' '}
-                          {canEditProj && <button className="btn btn-secondary btn-sm" onClick={() => { setEditProj(p); setProjForm({ name: p.name, client: p.client || '', status: p.status, startDate: p.startDate || '', endDate: p.endDate || '', desc: p.desc || '', assignTo: p.assignTo || '' }); setProjModal(true); }}>Edit</button>}{' '}
+                          {canEditProj && <button className="btn btn-secondary btn-sm" onClick={() => { fetchModalLeads(); setEditProj(p); setProjForm({ name: p.name, client: p.client || '', status: p.status, startDate: p.startDate || '', endDate: p.endDate || '', desc: p.desc || '', assignTo: p.assignTo || '' }); setProjModal(true); }}>Edit</button>}{' '}
                           {canDeleteProj && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => delProj(p.id, p.name, p.client)}>Del</button>}
                         </td>
                       </tr>

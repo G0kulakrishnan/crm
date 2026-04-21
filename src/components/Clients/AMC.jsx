@@ -53,7 +53,6 @@ export default function AMC({ user, perms, ownerId }) {
     products: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
   });
 
   const profile = data?.userProfiles?.[0] || {};
@@ -64,8 +63,21 @@ export default function AMC({ user, perms, ownerId }) {
   }, [data?.amc]);
 
   const customers = data?.customers || [];
-  const leads = data?.leads || [];
   const products = data?.products || [];
+
+  const [modalLeads, setModalLeads] = useState([]);
+  const fetchModalLeads = async () => {
+    if (modalLeads.length > 0) return; // already cached for this session
+    try {
+      const r = await fetch('/api/leads-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerId, mode: 'list', pageSize: 500, tab: 'all', page: 1, isOwner: true, teamCanSeeAllLeads: true, boundaries: {} }),
+      });
+      const json = await r.json();
+      setModalLeads(json.items || []);
+    } catch (e) { /* silent — dropdown will be empty but save still works */ }
+  };
   const taxRates = profile.taxRates || [{ label: 'None (0%)', rate: 0 }, { label: 'GST @ 5%', rate: 5 }, { label: 'GST @ 12%', rate: 12 }, { label: 'GST @ 18%', rate: 18 }, { label: 'GST @ 28%', rate: 28 }];
 
   // Keep viewAMC in sync with live data
@@ -130,9 +142,9 @@ export default function AMC({ user, perms, ownerId }) {
   const clientOptions = useMemo(() => {
     return [
       ...customers.map(c => ({ ...c, isLead: false, displayName: c.companyName ? `${c.companyName} (${c.name})` : c.name })),
-      ...leads.map(l => ({ ...l, isLead: true, displayName: l.companyName ? `${l.companyName} (${l.name}) (Lead)` : `${l.name} (Lead)` }))
+      ...modalLeads.map(l => ({ ...l, isLead: true, displayName: l.companyName ? `${l.companyName} (${l.name}) (Lead)` : `${l.name} (Lead)` }))
     ];
-  }, [customers, leads]);
+  }, [customers, modalLeads]);
 
   const handleClientSelect = (cName) => {
     const cust = customers.find(c => c.name === cName);
@@ -174,7 +186,7 @@ export default function AMC({ user, perms, ownerId }) {
       const newAmcId = id();
       const txs = [db.tx.amc[newAmcId].update(payload)];
       const wonStage = profile.wonStage || 'Won';
-      const lMatch = (data?.leads || []).find(l => (l.name || '').trim().toLowerCase() === (payload.client || '').trim().toLowerCase() && l.stage !== wonStage);
+      const lMatch = modalLeads.find(l => (l.name || '').trim().toLowerCase() === (payload.client || '').trim().toLowerCase() && l.stage !== wonStage);
       if (lMatch) {
         txs.push(db.tx.leads[lMatch.id].update({ 
            stage: wonStage,
@@ -204,7 +216,7 @@ export default function AMC({ user, perms, ownerId }) {
     const a = amcList.find(x => x.id === aid);
     const txs = [db.tx.amc[aid].delete()];
     if (a) {
-      const lMatch = (data?.leads || []).find(l => l.name === a.client);
+      const lMatch = modalLeads.find(l => l.name === a.client);
       if (lMatch) {
         txs.push(db.tx.activityLogs[id()].update({
           entityId: lMatch.id, entityType: 'lead', text: `AMC Contract ${a.contractNo || ''} was deleted.`,
@@ -416,7 +428,7 @@ export default function AMC({ user, perms, ownerId }) {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
-            {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', cycle: a.cycle || 'Yearly', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, taxRate: a.taxRate || 0, plan: a.plan, productId: a.productId || '', sku: a.sku || '', status: a.status, notes: a.notes || '', unit: a.unit || 'Nos' }); setModal(true); }}>Edit</button>}
+            {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { fetchModalLeads(); setEditData(a); setForm({ client: a.client, email: a.email || '', phone: a.phone || '', contractNo: a.contractNo || '', cycle: a.cycle || 'Yearly', startDate: a.startDate || '', endDate: a.endDate || '', amount: a.amount, taxRate: a.taxRate || 0, plan: a.plan, productId: a.productId || '', sku: a.sku || '', status: a.status, notes: a.notes || '', unit: a.unit || 'Nos' }); setModal(true); }}>Edit</button>}
             {canEdit && <button className="btn btn-primary btn-sm" onClick={() => openRenewModal(a)}>🔄 Renew AMC</button>}
           </div>
         </div>
@@ -569,7 +581,7 @@ export default function AMC({ user, perms, ownerId }) {
   return (
     <div>
       <div className="sh"><div><h2>AMC Contracts</h2><div className="sub">Annual Maintenance Contracts</div></div>
-        {canCreate && <button className="btn btn-primary btn-sm" onClick={() => { setEditData(null); setForm(EMPTY); setModal(true); }}>+ Create AMC</button>}
+        {canCreate && <button className="btn btn-primary btn-sm" onClick={() => { fetchModalLeads(); setEditData(null); setForm(EMPTY); setModal(true); }}>+ Create AMC</button>}
       </div>
       <div className="tabs">
         {[['all', 'All'], ['active', 'Active'], ['expiring', '⚠ Expiring (30d)'], ['expired', 'Expired'], ['renewed', '🔄 Renewed'], ['followup', '📌 Follow Up']].map(([t, l]) => (

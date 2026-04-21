@@ -14,7 +14,6 @@ export default function POSBilling({ user, perms, ownerId, settings }) {
     customers: { $: { where: { userId: ownerId }, limit: 10000 } },
     invoices: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
   });
   const profile = data?.userProfiles?.[0] || {};
   const wonStage = profile.wonStage || 'Won';

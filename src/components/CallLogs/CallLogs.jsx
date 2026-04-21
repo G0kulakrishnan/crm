@@ -49,39 +49,45 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
     userProfiles: { $: { where: { userId: ownerId } } },
   });
 
-  // Deferred data — leads + team load in background without blocking the table
+  // Deferred data — team only; leads moved to server fetch below
   const { data: deferredData } = db.useQuery({
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
     teamMembers: { $: { where: { userId: ownerId } } },
   });
 
   const callLogs = useMemo(() => (coreData?.callLogs || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)), [coreData?.callLogs]);
   const profile = coreData?.userProfiles?.[0];
 
-  // FIX 3: Cache leads in localStorage (5-min TTL) so tab switching is instant
+  // Leads: localStorage cache (5-min TTL) + server fetch on mount.
+  // Replaced the limit:10000 subscription that timed out at 11k leads.
   const LEADS_CACHE_KEY = `leads_cache_${ownerId}`;
-  const cachedLeads = useMemo(() => {
+  const [fetchedLeads, setFetchedLeads] = useState(() => {
     try {
-      const raw = localStorage.getItem(LEADS_CACHE_KEY);
+      const raw = localStorage.getItem(`leads_cache_${ownerId}`);
       if (!raw) return [];
       const { data: cached, timestamp } = JSON.parse(raw);
       if (Date.now() - timestamp < 5 * 60 * 1000) return cached;
     } catch { /* ignore */ }
     return [];
-  }, [LEADS_CACHE_KEY]);
+  });
 
-  // Use live data if available, fall back to cache while deferred loads
-  const allLeads = deferredData?.leads || cachedLeads;
-  const team = deferredData?.teamMembers || [];
-
-  // Persist leads to cache whenever fresh data arrives
   useEffect(() => {
-    if (deferredData?.leads?.length > 0) {
-      try {
-        localStorage.setItem(LEADS_CACHE_KEY, JSON.stringify({ data: deferredData.leads, timestamp: Date.now() }));
-      } catch { /* ignore */ }
-    }
-  }, [deferredData?.leads, LEADS_CACHE_KEY]);
+    if (!ownerId) return;
+    fetch('/api/leads-page', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ownerId, mode: 'kanban', tab: 'all', page: 1, pageSize: 1000, isOwner: true, teamCanSeeAllLeads: true, boundaries: {} }),
+    })
+      .then(r => r.json())
+      .then(json => {
+        const items = json.items || [];
+        setFetchedLeads(items);
+        try { localStorage.setItem(LEADS_CACHE_KEY, JSON.stringify({ data: items, timestamp: Date.now() })); } catch { /* ignore */ }
+      })
+      .catch(() => { /* keep cached */ });
+  }, [ownerId]);
+
+  const allLeads = fetchedLeads;
+  const team = deferredData?.teamMembers || [];
 
   const allStages = profile?.stages || DEFAULT_STAGES;
   const disabledStages = profile?.disabledStages || [];

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import db from '../../instant';
 import { fmt, fmtD, fmtDT } from '../../utils/helpers';
@@ -27,7 +27,6 @@ export default function TeamReports({ user, ownerId, perms, planEnforcement }) {
   const { data, isLoading } = db.useQuery({
     teamMembers: { $: { where: { userId: ownerId } } },
     tasks: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId } } },
     projects: { $: { where: { userId: ownerId } } },
     customers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
@@ -44,7 +43,19 @@ export default function TeamReports({ user, ownerId, perms, planEnforcement }) {
   const logs = logData?.activityLogs || [];
   const team = data?.teamMembers || [];
   const allTasks = data?.tasks || [];
-  const allLeads = data?.leads || [];
+  // Leads fetched via server — replaced unlimited subscription that hung at 11k
+  const [allLeads, setAllLeads] = useState([]);
+  useEffect(() => {
+    if (!ownerId) return;
+    fetch('/api/leads-page', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ownerId, mode: 'kanban', tab: 'all', page: 1, pageSize: 1000, isOwner: true, teamCanSeeAllLeads: true, boundaries: {} }),
+    })
+      .then(r => r.json())
+      .then(json => setAllLeads(json.items || []))
+      .catch(() => {});
+  }, [ownerId]);
   const allProjects = data?.projects || [];
   const allCustomers = data?.customers || [];
   const allCallLogs = data?.callLogs || [];

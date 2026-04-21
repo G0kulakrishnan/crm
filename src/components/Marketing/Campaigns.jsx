@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import db from '../../instant';
 import { id } from '@instantdb/react';
 import { useToast } from '../../context/ToastContext';
@@ -54,7 +54,6 @@ export default function Campaigns({ user, perms, ownerId }) {
   const toast = useToast();
 
   const { data } = db.useQuery({
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
     customers: { $: { where: { userId: ownerId }, limit: 10000 } },
     invoices: { $: { where: { userId: ownerId } } },
     amc: { $: { where: { userId: ownerId } } },
@@ -64,7 +63,19 @@ export default function Campaigns({ user, perms, ownerId }) {
     campaignTemplates: { $: { where: { userId: ownerId } } }
   });
 
-  const leads = useMemo(() => data?.leads || [], [data?.leads]);
+  // Leads fetched via server (replaced limit:10000 subscription that hung at 11k)
+  const [leads, setLeads] = useState([]);
+  useEffect(() => {
+    if (!ownerId) return;
+    fetch('/api/leads-page', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ownerId, mode: 'kanban', tab: 'all', page: 1, pageSize: 1000, isOwner: true, teamCanSeeAllLeads: true, boundaries: {} }),
+    })
+      .then(r => r.json())
+      .then(json => setLeads(json.items || []))
+      .catch(() => {});
+  }, [ownerId]);
   const customers = useMemo(() => data?.customers || [], [data?.customers]);
   const invoices = data?.invoices || [];
   const amcList = data?.amc || [];

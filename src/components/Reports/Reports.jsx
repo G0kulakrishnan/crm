@@ -55,13 +55,12 @@ export default function Reports({ user, perms, ownerId, profile }) {
     partnerCommissions: { $: { where: { userId: ownerId } } },
   });
 
-  // Deferred: only needed for leads/funnel/team/products/lead-influx/product-enquiry/customer-purchase/stage-transitions tabs
+  // Deferred: subscription for non-leads tabs only; leads replaced by server fetch
   const needsLeadsData = ['leads', 'funnel', 'rev-src', 'team', 'product-enquiry'].includes(tab);
   const needsProductsData = tab === 'products';
   const needsCustomersData = tab === 'customer-purchase';
   const needsStageLogs = tab === 'stage-transitions';
   const { data: deferredData } = db.useQuery(needsLeadsData ? {
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
     tasks: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
   } : needsProductsData ? {
@@ -72,9 +71,27 @@ export default function Reports({ user, perms, ownerId, profile }) {
     activityLogs: { $: { where: { userId: ownerId, entityType: 'lead' }, limit: 5000 } },
   } : {});
 
+  // Fetch leads via server when on a leads-related tab — avoids the
+  // limit:10000 subscription that times out at 11k scale.
+  const [reportLeads, setReportLeads] = useState([]);
+  const [reportLeadsLoading, setReportLeadsLoading] = useState(false);
+  useEffect(() => {
+    if (!needsLeadsData || !ownerId) return;
+    setReportLeadsLoading(true);
+    fetch('/api/leads-page', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ownerId, mode: 'kanban', tab: 'all', page: 1, pageSize: 1000, isOwner: true, teamCanSeeAllLeads: true, boundaries: {} }),
+    })
+      .then(r => r.json())
+      .then(json => setReportLeads(json.items || []))
+      .catch(() => {})
+      .finally(() => setReportLeadsLoading(false));
+  }, [needsLeadsData, ownerId]);
+
   const invoices = data?.invoices || [];
   const expenses = data?.expenses || [];
-  const leads = (deferredData?.leads || []).map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
+  const leads = reportLeads.map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
   const tasks = deferredData?.tasks || [];
   const team = deferredData?.teamMembers || [];
   const products = deferredData?.products || [];

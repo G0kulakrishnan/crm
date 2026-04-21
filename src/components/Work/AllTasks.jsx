@@ -31,7 +31,6 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
     teamMembers: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
     customers: { $: { where: { userId: ownerId }, limit: 10000 } },
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } }
   });
   const tasks = useMemo(() => {
     const rawTasks = data?.tasks || [];
@@ -44,8 +43,21 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
   const projects = data?.projects || [];
   const team = data?.teamMembers || [];
   const customers = data?.customers || [];
-  const leads = data?.leads || [];
   const profile = data?.userProfiles?.[0] || {};
+
+  const [modalLeads, setModalLeads] = useState([]);
+  const fetchModalLeads = async () => {
+    if (modalLeads.length > 0) return; // already cached for this session
+    try {
+      const r = await fetch('/api/leads-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerId, mode: 'list', pageSize: 500, tab: 'all', page: 1, isOwner: true, teamCanSeeAllLeads: true, boundaries: {} }),
+      });
+      const json = await r.json();
+      setModalLeads(json.items || []);
+    } catch (e) { /* silent — dropdown will be empty but save still works */ }
+  };
   const customFields = profile.customFields || [];
   const taskStatuses = profile.taskStatuses || DEFAULT_TASK_STATUSES;
   const savedCols = profile.taskCols;
@@ -78,9 +90,9 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
     const wonStage = profile.wonStage || 'Won';
     return [
       ...customers.map(c => ({ ...c, isLead: false, displayName: c.name })),
-      ...leads.filter(l => l.stage !== wonStage).map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
+      ...modalLeads.filter(l => l.stage !== wonStage).map(l => ({ ...l, isLead: true, displayName: `${l.name} (Lead)` }))
     ];
-  }, [customers, leads, profile.wonStage]);
+  }, [customers, modalLeads, profile.wonStage]);
 
   const projName = (pid) => projects.find(p => p.id === pid)?.name || '-';
 
@@ -285,7 +297,7 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
             setTempPageSize(pageSize);
             setColModal(true);
           }}>⚙ Configure View</button>
-          {canCreate && <button className="btn btn-primary btn-sm" onClick={() => { setEditData(null); setViewData(null); setForm({ title: '', assignTo: '', dueDate: '', priority: 'Medium', status: taskStatuses[0], notes: '', projectId: '', client: '', taskNumber: null }); setModal(true); }}>+ Create Task</button>}
+          {canCreate && <button className="btn btn-primary btn-sm" onClick={() => { fetchModalLeads(); setEditData(null); setViewData(null); setForm({ title: '', assignTo: '', dueDate: '', priority: 'Medium', status: taskStatuses[0], notes: '', projectId: '', client: '', taskNumber: null }); setModal(true); }}>+ Create Task</button>}
         </div>
       </div>
       <div className="tabs">
@@ -374,8 +386,8 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
                       <td key={cf.name} style={{ fontSize: 12 }}>{t.custom?.[cf.name] || '-'}</td>
                     ))}
                     <td>
-                      <button className="btn btn-secondary btn-sm" onClick={() => { setViewData(t); setEditData(null); setForm({ title: t.title, assignTo: t.assignTo || '', dueDate: t.dueDate || '', priority: t.priority, status: t.status, notes: t.notes || '', projectId: t.projectId || '', client: t.client || '' }); setModal(true); }}>View</button>{' '}
-                      {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { setEditData(t); setViewData(null); setForm({ title: t.title, assignTo: t.assignTo || '', dueDate: t.dueDate || '', priority: t.priority, status: t.status, notes: t.notes || '', projectId: t.projectId || '', client: t.client || '' }); setModal(true); }}>Edit</button>}{' '}
+                      <button className="btn btn-secondary btn-sm" onClick={() => { fetchModalLeads(); setViewData(t); setEditData(null); setForm({ title: t.title, assignTo: t.assignTo || '', dueDate: t.dueDate || '', priority: t.priority, status: t.status, notes: t.notes || '', projectId: t.projectId || '', client: t.client || '' }); setModal(true); }}>View</button>{' '}
+                      {canEdit && <button className="btn btn-secondary btn-sm" onClick={() => { fetchModalLeads(); setEditData(t); setViewData(null); setForm({ title: t.title, assignTo: t.assignTo || '', dueDate: t.dueDate || '', priority: t.priority, status: t.status, notes: t.notes || '', projectId: t.projectId || '', client: t.client || '' }); setModal(true); }}>Edit</button>}{' '}
                       {canDelete && <button className="btn btn-sm" style={{ background: '#fee2e2', color: '#991b1b' }} onClick={() => del(t.id)}>Del</button>}
                     </td>
                   </tr>
