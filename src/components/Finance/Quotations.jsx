@@ -98,7 +98,7 @@ export default function Quotations({ user, perms, ownerId, settings }) {
         return [q.no, q.client, q.status, q.notes, q.terms].some(v => (v || '').toLowerCase().includes(s)) ||
                items.some(it => (it.name || '').toLowerCase().includes(s));
       })
-      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // newest first
+      .sort((a, b) => (b.createdAt || new Date(b.date || 0).getTime()) - (a.createdAt || new Date(a.date || 0).getTime())); // newest first
   }, [quotes, tab, search]);
 
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);

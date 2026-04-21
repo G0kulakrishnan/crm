@@ -118,7 +118,7 @@ export default function Invoices({ user, perms, ownerId, settings, planEnforceme
         return [inv.no, inv.client, st, inv.notes, inv.terms].some(v => (v || '').toLowerCase().includes(s)) ||
                items.some(it => (it.name || '').toLowerCase().includes(s));
       })
-      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // newest first
+      .sort((a, b) => (b.createdAt || new Date(b.date || 0).getTime()) - (a.createdAt || new Date(a.date || 0).getTime())); // newest first
   }, [invoices, tab, search]);
 
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
