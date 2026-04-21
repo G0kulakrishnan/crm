@@ -89,7 +89,12 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   // that used to scan a full in-memory list now go through /api/lead-check-duplicate.
   const leads = pageData?.items || [];
   const customers = data?.customers || [];
-  const team = data?.teamMembers || [];
+  const teamRaw = data?.teamMembers || [];
+  // Persist last known team list so the dropdown never flashes empty while the
+  // subscription reconnects (e.g. on tab-switch or brief network hiccup).
+  const teamCacheRef = useRef([]);
+  if (teamRaw.length > 0) teamCacheRef.current = teamRaw;
+  const team = teamCacheRef.current;
   const customFields = data?.userProfiles?.[0]?.customFields || [];
   const disabledStages = data?.userProfiles?.[0]?.disabledStages || [];
   const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
@@ -258,8 +263,11 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     refetchCounter,
   ]);
 
-  // Server-driven counts, direct consumption
-  const fullCounts = pageData?.counts || null;
+  // Server-driven counts. Persist last counts in a ref so tabs keep showing
+  // numbers during a filter-change refetch instead of going blank.
+  const countsRef = useRef(null);
+  if (pageData?.counts) countsRef.current = pageData.counts;
+  const fullCounts = countsRef.current;
   const customCount = fullCounts?.custom || 0;
 
   const openCreate = () => {
@@ -1303,10 +1311,11 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
       <div className="tabs">
         {(() => {
-          // Always render the tab bar (even before counts load) so the layout
-          // doesn't jump. The (N) suffix appears once server counts arrive.
+          // Always show counts. Before first server response fullCounts is null
+          // (ref not yet populated) — show (0) as placeholder so tabs never
+          // look like bare text. Once counts arrive they update instantly.
           const c = fullCounts;
-          const suffix = (key) => c ? ` (${c[key] ?? 0})` : '';
+          const suffix = (key) => ` (${c?.[key] ?? 0})`;
           if (dateMode === 'followup') {
             return [
               ['all', `All${suffix('total')}`],

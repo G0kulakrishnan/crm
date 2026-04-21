@@ -1,24 +1,5 @@
-import { init } from '@instantdb/admin';
+import { getLeadsForOwner } from './_leads-cache.js';
 
-const APP_ID = process.env.VITE_INSTANT_APP_ID;
-const ADMIN_TOKEN = process.env.INSTANT_ADMIN_TOKEN;
-
-// Simple in-memory cache — avoids re-pulling all 11k leads for every filter
-// change. TTL 15s keeps things fresh enough. Keyed by ownerId so it's
-// naturally per-tenant.
-const cache = new Map(); // ownerId -> { leads, ts }
-const CACHE_TTL = 15 * 1000;
-
-async function getLeadsForOwner(db, ownerId) {
-  const hit = cache.get(ownerId);
-  if (hit && Date.now() - hit.ts < CACHE_TTL) return hit.leads;
-  const result = await db.query({
-    leads: { $: { where: { userId: ownerId } } },
-  });
-  const leads = result.leads || [];
-  cache.set(ownerId, { leads, ts: Date.now() });
-  return leads;
-}
 
 // POST /api/leads-page
 // Server-driven list + counts for the Leads page so we can scale past the
@@ -30,7 +11,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
   try {
-    const db = init({ appId: APP_ID, adminToken: ADMIN_TOKEN });
     const {
       ownerId,
       userEmail = '',
@@ -55,7 +35,7 @@ export default async function handler(req, res) {
     if (!ownerId) return res.status(400).json({ error: 'ownerId required' });
 
     // --- 1. Fetch (cached) -------------------------------------------------
-    let leads = await getLeadsForOwner(db, ownerId);
+    let leads = await getLeadsForOwner(ownerId);
 
     // Source normalization — mirror client logic
     leads = leads.map(l => (l.source === 'Retailer' || l.source === 'Retailers')

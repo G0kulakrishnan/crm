@@ -1,13 +1,15 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useState } from 'react';
 import db from '../../instant';
 import { useApp } from '../../context/AppContext';
 import { fmt, fmtD, fmtDT, daysLeft, stageBadgeClass } from '../../utils/helpers';
 
 export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
   const { setActiveView } = useApp();
-  // Core: needed immediately for KPI cards, calendar, recent leads
+  // Core: needed immediately for KPI cards, calendar, recent leads.
+  // NOTE: `leads` is NOT subscribed here — at >10k leads the InstantDB
+  // subscription silently truncates/times out (symptom: TOTAL LEADS = 0 or
+  // 9999). Lead-derived aggregates now come from /api/dashboard-stats below.
   const { data: coreData } = db.useQuery({
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
     invoices: { $: { where: { userId: ownerId }, limit: 5000 } },
     projects: { $: { where: { userId: ownerId }, limit: 2000 } },
     amc: { $: { where: { userId: ownerId }, limit: 2000 } },
@@ -28,7 +30,6 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
   const profile = coreData?.userProfiles?.[0] || {};
   const wonStage = profile.wonStage || 'Won';
   const lostStage = profile.lostStage || 'Lost';
-  const leadsRaw = (coreData?.leads || []).map(l => (l.source === 'Retailer' || l.source === 'Retailers') ? { ...l, source: 'Channel Partners' } : l);
   const quotesRaw = deferredData?.quotes || [];
   const invoicesRaw = coreData?.invoices || [];
   const projectsRaw = coreData?.projects || [];
@@ -43,32 +44,59 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
   const myName = myTeamMember?.name || user.name || '';
   const teamCanSeeAllLeads = profile.teamCanSeeAllLeads !== false;
 
-  const { leads, quotes, invoices, projects, amc, orders, appts } = useMemo(() => {
-    const savedLeadStages = profile.leadStages;
-    const disabledStages = profile.disabledStages || [];
-    let filteredLeads = leadsRaw.filter(l => {
-      if (savedLeadStages?.length > 0 && !savedLeadStages.includes(l.stage)) return false;
-      if (disabledStages.includes(l.stage)) return false;
-      return true;
-    });
-    // For team members, only show their assigned leads (unless teamCanSeeAllLeads is on)
-    if (!perms?.isOwner && !teamCanSeeAllLeads) {
-      filteredLeads = filteredLeads.filter(l => !l.assign || l.assign === user.email || l.assign === myName);
-    }
+  // --- Server-driven lead stats ------------------------------------------
+  // Replaces the 10k-lead subscription. Refreshes every 30s.
+  const [leadStats, setLeadStats] = useState(null);
+  useEffect(() => {
+    if (!ownerId) return;
+    let cancelled = false;
+    const fetchStats = async () => {
+      try {
+        const res = await fetch('/api/dashboard-stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ownerId,
+            userEmail: user.email,
+            myName,
+            teamCanSeeAllLeads,
+            isOwner: perms?.isOwner === true,
+            wonStage,
+            lostStage,
+            savedLeadStages: profile.leadStages || null,
+            disabledStages: profile.disabledStages || [],
+            nowMs: Date.now(),
+          }),
+        });
+        const data = await res.json();
+        if (!cancelled && !data.error) setLeadStats(data);
+      } catch (e) {
+        console.error('dashboard-stats fetch failed:', e);
+      }
+    };
+    fetchStats();
+    const iv = setInterval(fetchStats, 30000);
+    return () => { cancelled = true; clearInterval(iv); };
+  }, [ownerId, user.email, myName, teamCanSeeAllLeads, perms?.isOwner, wonStage, lostStage, JSON.stringify(profile.leadStages), JSON.stringify(profile.disabledStages)]);
 
-    return { leads: filteredLeads, quotes: quotesRaw, invoices: invoicesRaw, projects: projectsRaw, amc: amcRaw, orders: ordersRaw, appts: apptsRaw };
-  }, [leadsRaw, quotesRaw, invoicesRaw, projectsRaw, amcRaw, ordersRaw, apptsRaw, profile.leadStages, profile.disabledStages, perms?.isOwner, teamCanSeeAllLeads, user.email, myName]);
+  const quotes = quotesRaw;
+  const invoices = invoicesRaw;
+  const projects = projectsRaw;
+  const amc = amcRaw;
+  const orders = ordersRaw;
+  const appts = apptsRaw;
   const now = new Date();
 
   const stats = useMemo(() => {
-    const overdue = leads.filter(l => l.followup && new Date(l.followup) < now).length;
-    const active = leads.filter(l => l.stage !== wonStage && l.stage !== lostStage).length;
+    const total = leadStats?.totals?.total || 0;
+    const active = leadStats?.totals?.active || 0;
+    const overdue = leadStats?.totals?.overdue || 0;
     const amcExp = amc.filter(a => { const d = daysLeft(a.endDate); return d <= 30 && d >= 0; }).length;
     const inProgress = projects.filter(p => p.status === 'In Progress').length;
     const outOfStock = (deferredData?.products || []).filter(p => p.trackStock && p.stock <= 0).length;
     const lowStock = (deferredData?.products || []).filter(p => p.trackStock && p.stock > 0 && p.stock <= (p.lowStockThreshold || 5)).length;
-    return { overdue, active, amcExp, inProgress, outOfStock, lowStock };
-  }, [leads, amc, projects, deferredData?.products]);
+    return { total, overdue, active, amcExp, inProgress, outOfStock, lowStock };
+  }, [leadStats, amc, projects, deferredData?.products]);
 
   const ecomStats = useMemo(() => {
     const total = orders.length;
@@ -85,12 +113,8 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
     return { todayAppts };
   }, [appts]);
 
-  // Source chart data
-  const srcData = useMemo(() => {
-    const src = {};
-    leads.forEach(l => { if (l.source) src[l.source] = (src[l.source] || 0) + 1; });
-    return Object.entries(src);
-  }, [leads]);
+  // Source chart data (from server)
+  const srcData = useMemo(() => leadStats?.sourceCounts || [], [leadStats]);
   const maxSrc = Math.max(...srcData.map(([, v]) => v), 1);
   const CHART_COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#8b5cf6', '#ef4444', '#14b8a6'];
 
@@ -98,8 +122,8 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
   const reminders = useMemo(() => {
     const rem = [];
     amc.forEach(a => { const d = daysLeft(a.endDate); if (d <= 30 && d >= 0) rem.push({ icon: '🛡', text: `<strong>${a.client}</strong> AMC ${a.plan ? `(<strong>${a.plan}</strong>) ` : ''}expires in <strong>${d} days</strong>`, actionInfo: { type: 'amc', id: a.id } }); });
-    leads.filter(l => l.followup && new Date(l.followup) < now).forEach(l => rem.push({ icon: '⏰', text: `Follow-up overdue: <strong>${l.name}</strong>`, actionInfo: { type: 'lead', id: l.id } }));
-    
+    (leadStats?.overdueReminders || []).forEach(l => rem.push({ icon: '⏰', text: `Follow-up overdue: <strong>${l.name}</strong>`, actionInfo: { type: 'lead', id: l.id } }));
+
     // Inventory Alerts
     (deferredData?.products || []).filter(p => p.trackStock).forEach(p => {
       if (p.stock <= 0) rem.push({ icon: '🔴', text: `Out of Stock: <strong>${p.name}</strong> (Available: 0)`, actionInfo: { type: 'product', id: p.id } });
@@ -107,7 +131,7 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
     });
 
     return rem;
-  }, [amc, leads, deferredData?.products]);
+  }, [amc, leadStats, deferredData?.products]);
 
   // Revenue Trend (Last 6 Months)
   const revenueTrend = useMemo(() => {
@@ -166,16 +190,15 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
     return { revenue, cogs, grossProfit, netProfit, totalExpenses, totalCommissions, margin };
   }, [invoices, deferredData?.products, deferredData?.expenses, commissionsRaw]);
 
-  // Hot Leads
-  const hotLeads = useMemo(() => {
-    return leads.filter(l => l.label === 'Hot' || (l.followup && new Date(l.followup) >= now)).slice(0, 5);
-  }, [leads]);
+  // Hot Leads (from server, already sorted/capped)
+  const hotLeads = useMemo(() => leadStats?.hotLeads || [], [leadStats]);
 
   // Calendar
   const [calDate, setCalDate] = React.useState(new Date());
   const [selectedCalDate, setSelectedCalDate] = React.useState(null);
+  const followupLeads = leadStats?.followupLeads || [];
   const calDays = useMemo(() => {
-    const fDates = new Set(leads.filter(l => l.followup).map(l => new Date(l.followup).toDateString()));
+    const fDates = new Set(followupLeads.map(l => new Date(l.followup).toDateString()));
     const yr = calDate.getFullYear(), mo = calDate.getMonth();
     const first = new Date(yr, mo, 1).getDay(), total = new Date(yr, mo + 1, 0).getDate();
     const today = new Date();
@@ -186,12 +209,13 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
       days.push({ d, dt, isToday: dt.toDateString() === today.toDateString(), hasEvent: fDates.has(dt.toDateString()) });
     }
     return days;
-  }, [calDate, leads]);
+  }, [calDate, followupLeads]);
 
   const calSelectedLeads = useMemo(() => {
     if (!selectedCalDate) return [];
-    return leads.filter(l => l.followup && new Date(l.followup).toDateString() === selectedCalDate.toDateString());
-  }, [selectedCalDate, leads]);
+    const target = selectedCalDate.toDateString();
+    return followupLeads.filter(l => new Date(l.followup).toDateString() === target);
+  }, [selectedCalDate, followupLeads]);
 
   const greeting = useMemo(() => {
     const h = now.getHours();
@@ -230,7 +254,7 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
       <div className="stat-grid">
         {perms?.can('Leads', 'list') === true && mod('leads') && (
           <>
-            <div className="stat-card sc-green"><div className="lbl">Total Leads</div><div className="val">{leads.length}</div></div>
+            <div className="stat-card sc-green"><div className="lbl">Total Leads</div><div className="val">{stats.total}</div></div>
             <div className="stat-card sc-blue"><div className="lbl">Active</div><div className="val">{stats.active}</div></div>
             <div className="stat-card sc-red"><div className="lbl">Overdue Follow</div><div className="val">{stats.overdue}</div></div>
           </>
@@ -311,14 +335,14 @@ export default function Dashboard({ user, ownerId, perms, planEnforcement }) {
               <table>
                 <thead><tr><th>Name</th><th>Stage</th><th>Source</th></tr></thead>
                 <tbody>
-                  {leads.slice(-5).reverse().map(l => (
+                  {(leadStats?.recentLeads || []).map(l => (
                     <tr key={l.id}>
                       <td><strong>{l.name}</strong></td>
                       <td><span className={`badge ${stageBadgeClass(l.stage, wonStage)}`}>{l.stage}</span></td>
                       <td style={{ color: 'var(--muted)' }}>{l.source}</td>
                     </tr>
                   ))}
-                  {leads.length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>No leads yet</td></tr>}
+                  {(leadStats?.recentLeads || []).length === 0 && <tr><td colSpan={3} style={{ textAlign: 'center', padding: 24, color: 'var(--muted)' }}>No leads yet</td></tr>}
                 </tbody>
               </table>
             </div>
