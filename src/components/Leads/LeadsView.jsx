@@ -215,6 +215,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       stgFilter,
       search: debouncedSearch,
       visibleStages: (savedLeadStages && savedLeadStages.length > 0) ? savedLeadStages : null,
+      disabledStages,
       page: currentPage,
       pageSize: pageSize === 'all' ? 10000 : pageSize,
       boundaries: {
@@ -260,6 +261,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     currentPage, pageSize, myName, teamCanSeeAllLeads, perms?.isOwner,
     // savedLeadStages is serialised to detect changes
     JSON.stringify(savedLeadStages || []),
+    JSON.stringify(disabledStages),
     refetchCounter,
   ]);
 

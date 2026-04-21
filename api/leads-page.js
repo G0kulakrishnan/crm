@@ -27,6 +27,7 @@ export default async function handler(req, res) {
       stgFilter = '',
       search = '',
       visibleStages = null, // null = all stages allowed
+      disabledStages = [],
       page = 1,
       pageSize = 25,
       boundaries = {},
@@ -47,10 +48,15 @@ export default async function handler(req, res) {
       leads = leads.filter(l => !l.assign || l.assign === userEmail || l.assign === myName);
     }
 
-    // --- 3. Stage visibility (savedLeadStages) ----------------------------
+    // --- 3. Stage visibility (savedLeadStages + disabledStages) -----------
+    // Mirror the same filtering that dashboard-stats applies so both
+    // endpoints report identical totals.
+    const disabledSet = new Set(disabledStages || []);
     if (Array.isArray(visibleStages) && visibleStages.length > 0) {
       const vs = new Set(visibleStages);
-      leads = leads.filter(l => vs.has(l.stage));
+      leads = leads.filter(l => vs.has(l.stage) && !disabledSet.has(l.stage));
+    } else if (disabledSet.size > 0) {
+      leads = leads.filter(l => !disabledSet.has(l.stage));
     }
 
     // --- 4. Dropdown filters (baseFiltered equivalent) --------------------
