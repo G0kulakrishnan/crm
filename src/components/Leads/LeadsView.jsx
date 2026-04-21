@@ -340,9 +340,10 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
   const saveLead = async () => {
     if (editData && !canEdit) { toast('Permission denied: cannot edit leads', 'error'); return; }
     if (!editData && !canCreate) { toast('Permission denied: cannot create leads', 'error'); return; }
-    // Plan-limit check now uses the server-reported totalFiltered if available
-    // (falls back to current page length — rare, only on first load).
-    const currentLeadCount = pageData?.counts?.total ?? leads.length;
+    // Plan-limit check uses planTotal — the raw business-wide count BEFORE
+    // any filters (stage, team, search). This prevents team members from
+    // bypassing the limit by only seeing their own assigned leads.
+    const currentLeadCount = pageData?.planTotal ?? pageData?.counts?.total ?? leads.length;
     if (!editData && planEnforcement && !planEnforcement.isWithinLimit('maxLeads', currentLeadCount)) { toast('Lead limit reached for your plan. Please upgrade to add more leads.', 'error'); return; }
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
     if (!form.source) { toast('Please select a source', 'error'); return; }
@@ -719,7 +720,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     if (planEnforcement) {
       const maxLeads = planEnforcement.getLimit('maxLeads');
       if (maxLeads !== -1) {
-        const currentTotal = pageData?.counts?.total ?? 0;
+        const currentTotal = pageData?.planTotal ?? pageData?.counts?.total ?? 0;
         const remaining = maxLeads - currentTotal;
         if (remaining <= 0) {
           return toast(`Lead limit reached (${maxLeads.toLocaleString()} max on your plan). Upgrade to import more leads.`, 'error');

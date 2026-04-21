@@ -88,8 +88,11 @@ export function usePlanEnforcement(profile, settings) {
      */
     const getLimit = (limitKey) => {
       const val = limits[limitKey];
-      if (val === undefined || val === null) return -1; // No limit = unlimited
-      return +val;
+      if (val !== undefined && val !== null) return +val;
+      // Fallback: legacy/fallback plans store limits at top level (e.g. plan.maxLeads)
+      const topVal = activePlan[limitKey];
+      if (topVal !== undefined && topVal !== null) return +topVal;
+      return -1; // No limit = unlimited
     };
 
     /**

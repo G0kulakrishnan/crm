@@ -43,6 +43,10 @@ export default async function handler(req, res) {
       ? { ...l, source: 'Channel Partners' }
       : l);
 
+    // Plan-enforcement total: raw count of ALL leads for this owner BEFORE
+    // any stage/team/search filtering. Used by the client to check maxLeads.
+    const planTotal = leads.length;
+
     // --- 2. Team visibility filter ----------------------------------------
     if (!isOwner && !teamCanSeeAllLeads) {
       leads = leads.filter(l => !l.assign || l.assign === userEmail || l.assign === myName);
@@ -173,7 +177,7 @@ export default async function handler(req, res) {
       items = filteredForTab.slice((p - 1) * ps, p * ps);
     }
 
-    return res.status(200).json({ items, counts, totalFiltered });
+    return res.status(200).json({ items, counts, totalFiltered, planTotal });
   } catch (err) {
     console.error('leads-page error:', err);
     return res.status(500).json({ error: err.message });
