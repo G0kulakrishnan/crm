@@ -86,7 +86,7 @@ export default function Projects({ user, perms, ownerId, planEnforcement }) {
     if (!search) return true;
     const q = search.toLowerCase();
     return [p.name, p.client, p.desc, p.status].some(v => (v || '').toLowerCase().includes(q));
-  });
+  }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // newest first
 
   // Handle deep-linking from activity logs
   useEffect(() => {

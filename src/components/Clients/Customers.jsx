@@ -67,7 +67,7 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
       // search in name, email, phone, and all custom fields
       const customVals = c.custom ? Object.values(c.custom) : [];
       return [c.name, c.email, c.phone, ...customVals].some(v => (v || '').toLowerCase().includes(q));
-    });
+    }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // newest first
   }, [customers, search]);
 
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);

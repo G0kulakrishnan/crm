@@ -152,7 +152,7 @@ export default function AllTasks({ user, perms, ownerId, planEnforcement }) {
     const matchProj = !fltProj || t.projectId === fltProj;
     const matchAssign = !fltAssign || t.assignTo === fltAssign;
     return matchSearch && matchClient && matchProj && matchAssign;
-  });
+  }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // newest first
 
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);
   const paginated = useMemo(() => {

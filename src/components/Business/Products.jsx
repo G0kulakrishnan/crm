@@ -72,7 +72,7 @@ export default function Products({ user, perms, ownerId, planEnforcement }) {
       if (!search) return true;
       const q = search.toLowerCase();
       return [p.name, p.code, p.type, p.unit, p.desc].some(v => String(v || '').toLowerCase().includes(q));
-    });
+    }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // newest first
   }, [products, search]);
 
   const totalPages = pageSize === 'all' ? 1 : Math.ceil(filtered.length / pageSize);

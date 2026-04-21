@@ -333,7 +333,7 @@ export default function Appointments({ user, ownerId, perms, initialTab, setting
     let list = [...appointments].sort((a, b) => {
       const da = `${a.date}T${a.time}`;
       const db2 = `${b.date}T${b.time}`;
-      return da < db2 ? -1 : 1;
+      return da > db2 ? -1 : 1; // newest first
     });
     if (dateFilter === 'today') list = list.filter(a => a.date === todayStr);
     else if (dateFilter === 'tomorrow') list = list.filter(a => a.date === tomorrowStr);

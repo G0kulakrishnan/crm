@@ -24,7 +24,7 @@ export default function Expenses({ user, perms, ownerId }) {
     teamMembers: { $: { where: { userId: ownerId } } },
   });
   const expenses = useMemo(() => {
-    return data?.expenses || [];
+    return (data?.expenses || []).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // newest first
   }, [data?.expenses]);
   const profile = data?.userProfiles?.[0] || {};
   const team = data?.teamMembers || [];

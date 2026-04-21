@@ -24,7 +24,7 @@ export default function Vendors({ user, perms, ownerId }) {
     if (!search) return true;
     const q = search.toLowerCase();
     return [v.name, v.company, v.email, v.phone, v.gst, v.category].some(x => String(x || '').toLowerCase().includes(q));
-  });
+  }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); // newest first
 
   const f = k => e => setForm(p => ({ ...p, [k]: e.target.value }));
 
