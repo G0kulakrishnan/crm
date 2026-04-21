@@ -317,6 +317,9 @@ Set `window.DEBUG_PERMS = true` in browser console to trace permission checks. L
 5. **SMTP config is per-business** — changing it affects all emails sent for that owner
 6. **Plan changes take immediate effect** — all users on that plan see module changes live
 7. **Disabled stages are filtered in components** — but are still queryable in DB (don't delete them)
+8. **Plan module keys are case-sensitive** — Teams.jsx uses PascalCase (`Leads`), AdminPanel/usePlanEnforcement use camelCase (`leads`). Mismatch = module appears enabled/disabled incorrectly.
+9. **`isModuleEnabled` is strict** — `modules[key] === true` (not `!== false`). A missing key is treated as disabled. When adding a new module to `ALL_MODULES`, re-save existing plans in Admin Panel to add the new key explicitly.
+10. **`db.useQuery` with `leads: limit 10k+` will hang** — See Scale Architecture section. Always use server-driven endpoints for lead data. Never add `leads` back to a component's `db.useQuery`.
 
 ## Environment Variables
 
@@ -576,6 +579,62 @@ const VIEW_TO_MODULE = {
 - [ ] If module has limits: Added `hasLimit: true`, `limitKey`, `defaultLimit` to ALL_MODULES
 - [ ] Sidebar nav item added to `Sidebar.jsx` (if user-facing module)
 - [ ] Default role permissions set in Teams.jsx DEFAULT_ROLES (optional)
+
+## Scale Architecture — Server-Driven Pages (CRITICAL)
+
+The production workspace has **11,000+ leads**. InstantDB's `db.useQuery` WebSocket has a `handle-receive` timeout that fails at this scale — pages that subscribe to the full leads collection will show a spinner forever or return truncated/0 counts.
+
+### Rule: Never subscribe to `leads` with a high limit
+
+```javascript
+// ❌ WRONG — fails at 11k+ leads (returns 0 or 9999, or hangs)
+const { data } = db.useQuery({ leads: { $: { where: { userId: ownerId }, limit: 10000 } } });
+
+// ✅ CORRECT — use server-driven endpoint
+const res = await fetch('/api/leads-page', { method: 'POST', body: JSON.stringify({...}) });
+```
+
+### Server-Driven Endpoints (use these instead of lead subscriptions)
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /api/leads-page` | Paginated lead list + date-tab counts for LeadsView |
+| `POST /api/dashboard-stats` | KPI aggregates for Dashboard (totals, sources, hot leads, calendar) |
+| `POST /api/lead-check-duplicate` | Dedup check across all leads + customers by phone/email |
+| `POST /api/sync-won-leads` | Auto-sync Won-stage leads → customers collection |
+
+All four use **`api/_leads-cache.js`** — a shared per-owner in-memory cache (15s TTL). They share one underlying `@instantdb/admin` HTTP query per 15s, not a per-component subscription.
+
+### Shared Leads Cache
+
+**File:** `api/_leads-cache.js`
+
+```javascript
+import { getLeadsForOwner, invalidateLeadsCache } from './_leads-cache.js';
+const leads = await getLeadsForOwner(ownerId); // cached, shared across endpoints
+```
+
+- Any new API endpoint that needs the owner's full lead set MUST import from `_leads-cache.js`.
+- Do NOT create a new in-memory cache in a new file — share this one.
+
+### Components Already Migrated
+
+- `LeadsView.jsx` — full server-driven pagination + counts via `/api/leads-page`
+- `Dashboard.jsx` — stats via `/api/dashboard-stats`, refreshes every 30s
+- `Customers.jsx` — removed leads subscription; uses `/api/lead-check-duplicate` for dedup, `/api/sync-won-leads` for auto-sync, targeted narrow `db.useQuery` for edit-time contact sync
+
+### Plan Limit Enforcement
+
+- `usePlanEnforcement.js` — `isModuleEnabled(key)` returns `true` ONLY if `modules[key] === true` (explicit). Missing keys = disabled. This is intentional — new modules added to `ALL_MODULES` must not silently leak into existing plans.
+- `AdminPanel.jsx` — `savePlan` normalizes all module keys to explicit `true/false` and all limit keys to `DEFAULT_LIMITS` baseline.
+- **`maxLeads` default is `10000`** — businesses importing bulk leads need this set to `-1` (unlimited) in their plan. Check Admin Panel → plan → limits before allowing large imports.
+- **Bulk import (`performImport`)** now enforces `maxLeads` — calculates remaining slots, trims import to fit, warns user. `-1` = unlimited, no check.
+
+### Symptoms of the Scale Bug (for diagnosis)
+
+- Dashboard shows "Total Leads: 0" or "9999" — leads subscription truncated
+- Page stuck on "Loading..." spinner permanently — subscription handle-receive timeout
+- Date tab counts show all leads' counts regardless of staff filter — staffFilter not being sent to server (check `buildPageBody()` in LeadsView)
 
 ## Known Limitations
 

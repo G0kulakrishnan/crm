@@ -21,6 +21,10 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
   const [viewCustomer, setViewCustomer] = useState(null);
   const toast = useToast();
 
+  // NOTE: `leads` is NOT subscribed here — at 11k+ leads the subscription
+  // times out and data stays undefined forever (page stuck on spinner).
+  // Duplicate checks use /api/lead-check-duplicate; Won-lead sync uses
+  // /api/sync-won-leads; contact sync on edit uses a targeted narrow query.
   const { data } = db.useQuery({
     customers: { $: { where: { userId: ownerId }, limit: 10000 } },
     userProfiles: { $: { where: { userId: ownerId } } },
@@ -29,15 +33,12 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
     invoices: { $: { where: { userId: ownerId } } },
     tasks: { $: { where: { userId: ownerId } } },
     amc: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
     teamMembers: { $: { where: { userId: ownerId } } },
     partnerApplications: { $: { where: { userId: ownerId, status: 'Approved' } } },
   });
   const team = data?.teamMembers || [];
   const myMember = useMemo(() => team.find(t => t.email === user.email), [team, user.email]);
-  const customers = useMemo(() => {
-    return data?.customers || [];
-  }, [data?.customers]);
+  const customers = useMemo(() => data?.customers || [], [data?.customers]);
 
   const customFields = data?.userProfiles?.[0]?.customFields || [];
   const projects = data?.projects || [];
@@ -49,8 +50,15 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
     activityLogs: { $: { where: { entityId: drawerCustomerId } } },
   } : {});
   const amcList = data?.amc || [];
-  const leads = data?.leads || [];
   const partners = data?.partnerApplications || [];
+
+  // Targeted lead lookup — only runs while a customer edit drawer is open.
+  // Avoids subscribing to all 11k leads just to find one name match.
+  const editName = editData?.name || null;
+  const { data: leadSyncData } = db.useQuery(editName ? {
+    leads: { $: { where: { userId: ownerId, name: editName } } },
+  } : {});
+  const matchedLead = leadSyncData?.leads?.[0] || null;
 
   const filtered = useMemo(() => {
     return customers.filter(c => {
@@ -103,21 +111,33 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
     if (!form.name.trim()) { toast('Name is required', 'error'); return; }
     if (!form.email.trim()) { toast('Email is mandatory for clients', 'error'); return; }
 
-    // Duplicate phone/email check across customers + leads
-    const checkPhone = (form.phone || '').trim().toLowerCase();
-    const checkEmail = (form.email || '').trim().toLowerCase();
+    // Duplicate phone/email check via server (scans full leads + customers,
+    // not just the 25 loaded on current page)
+    const checkPhone = (form.phone || '').trim();
+    const checkEmail = (form.email || '').trim();
     if (checkPhone || checkEmail) {
-      const allRecords = [...customers, ...leads];
-      const duplicate = allRecords.find(r => {
-        if (editData && r.id === editData.id) return false; // skip self when editing
-        const rPhone = (r.phone || '').trim().toLowerCase();
-        const rEmail = (r.email || '').trim().toLowerCase();
-        return (checkPhone && rPhone && rPhone === checkPhone) ||
-               (checkEmail && rEmail && rEmail === checkEmail);
-      });
-      if (duplicate) {
-        toast(`Duplicate! A record with this ${(duplicate.phone || '').toLowerCase() === checkPhone ? 'phone number' : 'email'} already exists (${duplicate.name}).`, 'error');
-        return;
+      try {
+        const dupRes = await fetch('/api/lead-check-duplicate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ownerId,
+            phone: checkPhone,
+            email: checkEmail,
+            excludeLeadId: editData?.leadId || null,
+            excludeCustomerId: editData?.id || null,
+          }),
+        });
+        const dupData = await dupRes.json();
+        if (dupData.duplicate) {
+          const d = dupData.duplicate;
+          const matchedOn = checkPhone && d.phone?.replace(/\D/g, '') === checkPhone.replace(/\D/g, '') ? 'phone number' : 'email';
+          toast(`Duplicate! A ${d.type} with this ${matchedOn} already exists (${d.name}).`, 'error');
+          return;
+        }
+      } catch (e) {
+        // If API fails, skip check rather than blocking the save
+        console.warn('Duplicate check API failed, skipping:', e);
       }
     }
 
@@ -144,8 +164,8 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
 
         txs.push(db.tx.customers[editData.id].update({ ...form, userId: ownerId, actorId: user.id, updatedAt: Date.now() }));
         
-        // Sync to Lead if name matches (case-insensitive & trimmed)
-        const lMatch = leads.find(l => (l.name || '').trim().toLowerCase() === (editData.name || '').trim().toLowerCase());
+        // Sync to Lead if a matching lead was found via targeted query
+        const lMatch = matchedLead;
         if (lMatch) {
           txs.push(db.tx.leads[lMatch.id].update({ name: form.name, companyName: form.companyName, email: form.email, phone: form.phone }));
           txs.push(db.tx.activityLogs[id()].update({
@@ -211,42 +231,18 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
 
   const syncWonLeads = async () => {
     const wonStage = data?.userProfiles?.[0]?.wonStage || 'Won';
-    const wonLeads = leads.filter(l => l.stage === wonStage);
-    if (wonLeads.length === 0) return;
-
-    const txs = [];
-    let count = 0;
-
-    wonLeads.forEach(l => {
-      // Check if already a customer
-      const exists = customers.find(c => 
-        (l.email && c.email === l.email) || 
-        (l.phone && c.phone === l.phone) ||
-        (c.name.trim().toLowerCase() === l.name.trim().toLowerCase())
-      );
-      if (!exists) {
-        const newId = id();
-        txs.push(db.tx.customers[newId].update({
-          name: l.name,
-          companyName: l.companyName || '',
-          email: l.email || '',
-          phone: l.phone || '',
-          address: l.address || '',
-          userId: ownerId,
-          actorId: user.id,
-          createdAt: Date.now()
-        }));
-        txs.push(db.tx.activityLogs[id()].update({
-          entityId: newId, entityType: 'customer', text: `Customer created via Sync from Lead "${l.name}" [Other Work]`,
-          userId: ownerId, actorId: user.id, userName: user.email, createdAt: Date.now()
-        }));
-        count++;
+    try {
+      const res = await fetch('/api/sync-won-leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerId, wonStage, userId: user.id, userEmail: user.email }),
+      });
+      const result = await res.json();
+      if (result.synced > 0) {
+        toast(`Automatically synced ${result.synced} new customers from "Won" leads.`, 'success');
       }
-    });
-
-    if (txs.length > 0) {
-      await db.transact(txs);
-      toast(`Automatically synced ${count} new customers from "Won" leads.`, 'success');
+    } catch (e) {
+      console.warn('sync-won-leads failed:', e);
     }
   };
 
@@ -262,12 +258,11 @@ export default function Customers({ user, perms, ownerId, planEnforcement }) {
     }
   }, [customers]);
 
-  // Auto-sync on load
+  // Auto-sync Won leads once on mount via server — no longer tied to the
+  // full leads subscription (which timed out at 11k leads).
   React.useEffect(() => {
-    if (data && leads.length > 0) {
-      syncWonLeads();
-    }
-  }, [data?.leads, data?.customers]);
+    if (data && ownerId) syncWonLeads();
+  }, [!!data, ownerId]);
 
   const f = (k) => (e) => setForm(p => ({ ...p, [k]: e.target.value }));
   const cf = (k) => (e) => setForm(p => ({ ...p, custom: { ...(p.custom || {}), [k]: e.target.value } }));
