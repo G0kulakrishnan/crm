@@ -35,13 +35,12 @@ export default function Integrations({ user, ownerId }) {
 
   const { data } = db.useQuery({ 
     userProfiles: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } }
   });
   const profile = data?.userProfiles?.[0];
   const gsheets = profile?.gsheets || [];
   const indiamartConfigs = profile?.indiamart || [];
   const justdialConfigs = profile?.justdial || [];
-  const existingLeads = data?.leads || [];
+  // leads fetched on-demand during sync via /api/lead-check-duplicate (avoids 11k+ subscription)
 
   const integrations = [
     {
@@ -108,6 +107,18 @@ export default function Integrations({ user, ownerId }) {
         setSyncing(null);
         return toast('Sheet has no data rows.', 'error');
       }
+
+      // Fetch latest leads from server for dedup (replaces removed subscription)
+      let existingLeads = [];
+      try {
+        const leadsRes = await fetch('/api/leads-page', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ownerId, mode: 'kanban', tab: 'all', page: 1, pageSize: 50000, isOwner: true, teamCanSeeAllLeads: true, boundaries: {} }),
+        });
+        const leadsJson = await leadsRes.json();
+        existingLeads = leadsJson.items || [];
+      } catch (e) { console.warn('Failed to fetch leads for dedup:', e); }
 
       // Build dedup Sets for O(1) lookups
       const emailSet = new Set(existingLeads.filter(l => l.email).map(l => l.email.toLowerCase()));

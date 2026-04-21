@@ -26,13 +26,12 @@ export default function EcomOrders({ ownerId, perms }) {
   const { data } = db.useQuery({
     orders: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    customers: { $: { where: { userId: ownerId }, limit: 10000 } },
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
+    customers: { $: { where: { userId: ownerId } } },
   });
 
   const orders = data?.orders || [];
   const customers = data?.customers || [];
-  const leads = data?.leads || [];
+  // leads fetched on-demand via /api/lead-lookup (avoids 11k+ subscription)
   const orderStatuses = data?.userProfiles?.[0]?.orderStatuses || FALLBACK_STATUSES;
 
   const filtered = useMemo(() => {
@@ -70,11 +69,19 @@ export default function EcomOrders({ ownerId, perms }) {
         }));
       }
       
-      // Update Lead to Converted
-      const existingLead = leads.find(l => l.phone === order.customerPhone || (l.email && l.email === order.customerEmail));
-      if (existingLead && existingLead.stage !== 'Converted') {
-        txs.push(db.tx.leads[existingLead.id].update({ stage: 'Converted', updatedAt: Date.now() }));
-      }
+      // Look up matching lead server-side (avoids 11k+ subscription)
+      try {
+        const lookupRes = await fetch('/api/lead-lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ownerId, phone: order.customerPhone, email: order.customerEmail }),
+        });
+        const lookupData = await lookupRes.json();
+        const existingLead = lookupData.lead;
+        if (existingLead && existingLead.stage !== 'Converted') {
+          txs.push(db.tx.leads[existingLead.id].update({ stage: 'Converted', updatedAt: Date.now() }));
+        }
+      } catch (e) { console.warn('Lead lookup failed:', e); }
     }
     
     await db.transact(txs);

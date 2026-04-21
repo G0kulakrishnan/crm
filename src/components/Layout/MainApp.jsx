@@ -160,7 +160,6 @@ export default function MainApp({ user, settings }) {
     memberProfiles: user.id ? { $: { where: { userId: user.id }, limit: 1 } } : null,
     teamMembers: { $: { where: { userId: targetUserId } } },
     amc: { $: { where: { userId: targetUserId } } },
-    leads: { $: { where: { userId: targetUserId } } },
     subs: { $: { where: { userId: targetUserId } } },
     checkProfiles: { userProfiles: { $: { limit: 1 } } },
   });
@@ -175,7 +174,6 @@ export default function MainApp({ user, settings }) {
 
   if (error) console.error("MainApp Query Error:", error);
 
-  const leads = data?.leads || [];
   const amc = data?.amc || [];
   const subs = data?.subs || [];
   const teamMembers = data?.teamMembers || [];
@@ -183,12 +181,7 @@ export default function MainApp({ user, settings }) {
   let profile = data?.userProfiles?.[0] || emailProfileData?.userProfiles?.[0];
   const memberProfile = data?.memberProfiles?.[0];
 
-  const visibleLeads = useMemo(() => {
-    const savedLeadStages = profile?.leadStages;
-    if (!savedLeadStages || savedLeadStages.length === 0) return leads;
-    // Only count leads whose stage is in the active/visible stages list
-    return leads.filter(l => savedLeadStages.includes(l.stage));
-  }, [leads, profile?.leadStages]);
+
 
   // Security: Cleanse profile for team members (remove tokens/passwords)
   if (isTeamMember && profile) {
@@ -210,6 +203,34 @@ export default function MainApp({ user, settings }) {
 
   // 2. Load Automation Engine (for background checks)
   useAutomationEngine(user, targetUserId);
+
+  // Lightweight overdue-follow-up data for notifications (replaces 11k+ lead subscription)
+  const [notifLeadData, setNotifLeadData] = useState([]);
+  useEffect(() => {
+    if (!targetUserId || !profile) return;
+    const fetchNotifs = () => {
+      fetch('/api/dashboard-stats', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ownerId: targetUserId,
+          savedLeadStages: profile?.leadStages || null,
+          disabledStages: profile?.disabledStages || [],
+          nowMs: Date.now(),
+          isOwner: !isTeamMember,
+          userEmail: user.email || '',
+          myName: perms?.name || '',
+          teamCanSeeAllLeads: true,
+        }),
+      })
+        .then(r => r.json())
+        .then(d => setNotifLeadData(d?.overdueReminders || []))
+        .catch(() => {});
+    };
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 60000);
+    return () => clearInterval(interval);
+  }, [targetUserId, profile?.id, isTeamMember]);
 
   const isExpired = profile?.planExpiry && profile.planExpiry < Date.now();
 
@@ -347,19 +368,13 @@ export default function MainApp({ user, settings }) {
         notifs.push({ id: 'sub-' + s.id, unread: true, title: `💰 Payment Due: ${s.client}`, desc: `₹${(s.amount || 0).toLocaleString()} for ${s.plan} due in ${diff} day${diff !== 1 ? 's' : ''}`, time: new Date().toLocaleString() });
     });
 
-    const leadFilter = l => {
-      if (!isTeam) return true;
-      const isAssigned = l.assign === user.email || (perms?.name && l.assign === perms.name) || perms?.isAdmin || perms?.isManager;
-      const isCreator = l.actorId === user.id;
-      return isAssigned || isCreator;
-    };
-
-    const overdueLeads = visibleLeads.filter(l => leadFilter(l) && l.followup && new Date(l.followup) < now);
-    if (overdueLeads.length)
-      notifs.push({ id: 'fu-overdue', unread: true, title: `⏰ ${overdueLeads.length} Overdue Follow-up${overdueLeads.length > 1 ? 's' : ''}`, desc: `Leads: ${overdueLeads.map(l => l.name).join(', ')}`, time: new Date().toLocaleString() });
+    // Overdue follow-ups — sourced from server to avoid 11k+ lead subscription
+    if (notifLeadData.length > 0) {
+      notifs.push({ id: 'fu-overdue', unread: true, title: `⏰ ${notifLeadData.length} Overdue Follow-up${notifLeadData.length > 1 ? 's' : ''}`, desc: `Leads: ${notifLeadData.slice(0, 10).map(l => l.name).join(', ')}${notifLeadData.length > 10 ? '...' : ''}`, time: new Date().toLocaleString() });
+    }
 
     return notifs;
-  }, [amc, subs, visibleLeads, perms, user]);
+  }, [amc, subs, notifLeadData, perms, user]);
 
   const amcExpiringCount = amc.filter(a => {
     const isTeam = perms && !perms.isOwner;

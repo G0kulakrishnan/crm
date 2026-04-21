@@ -27,10 +27,21 @@ export default function Distributors({ user, ownerId, perms, initialTab }) {
     partnerCommissions: { $: { where: { userId: ownerId } } },
     products: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
-    customers: { $: { where: { userId: ownerId }, limit: 10000 } }
+    customers: { $: { where: { userId: ownerId } } }
   });
-  const allLeads = useMemo(() => data?.leads || [], [data?.leads]);
+  // Leads fetched from server to avoid 11k+ subscription blocking other queries
+  const [allLeads, setAllLeads] = useState([]);
+  useEffect(() => {
+    if (!ownerId) return;
+    fetch('/api/leads-page', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ownerId, mode: 'kanban', tab: 'all', page: 1, pageSize: 50000, isOwner: true, teamCanSeeAllLeads: true, boundaries: {} }),
+    })
+      .then(r => r.json())
+      .then(json => setAllLeads(json.items || []))
+      .catch(() => {});
+  }, [ownerId]);
   const allCustomers = useMemo(() => data?.customers || [], [data?.customers]);
   const commissions = useMemo(() => data?.partnerCommissions || [], [data?.partnerCommissions]);
   const products = useMemo(() => data?.products || [], [data?.products]);

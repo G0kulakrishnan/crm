@@ -44,15 +44,15 @@ export default function Appointments({ user, ownerId, perms, initialTab, setting
     appointmentSettings: { $: { where: { userId: ownerId } } },
     ecomSettings: { $: { where: { userId: ownerId } } },
     userProfiles: { $: { where: { userId: ownerId } } },
-    customers: { $: { where: { userId: ownerId }, limit: 10000 } },
-    leads: { $: { where: { userId: ownerId }, limit: 10000 } },
+    customers: { $: { where: { userId: ownerId } } },
     teamMembers: { $: { where: { userId: ownerId } } },
   });
   const profile = data?.userProfiles?.[0];
   const ecom = data?.ecomSettings?.[0];
   const appointments = data?.appointments || [];
   const customers = data?.customers || [];
-  const leads = data?.leads || [];
+  // leads data fetched on-demand via /api/lead-lookup (avoids 11k+ subscription)
+  const [matchedLead, setMatchedLead] = useState(null);
   const team = data?.teamMembers || [];
   const myMember = useMemo(() => user ? team.find(t => t.email === user.email) : null, [team, user]);
   const settingsRecord = data?.appointmentSettings?.[0];
@@ -61,6 +61,22 @@ export default function Appointments({ user, ownerId, perms, initialTab, setting
   const { data: settingsLogsData } = db.useQuery(settingsLogId ? {
     activityLogs: { $: { where: { entityId: settingsLogId } } },
   } : {});
+
+  // Fetch matching lead when edit modal opens (server-side lookup avoids 11k+ subscription)
+  React.useEffect(() => {
+    if (!editModal) { setMatchedLead(null); return; }
+    const phone = editModal.customerPhone;
+    const email = editModal.customerEmail;
+    if (!phone && !email) return;
+    fetch('/api/lead-lookup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ownerId, phone, email }),
+    })
+      .then(r => r.json())
+      .then(d => setMatchedLead(d.lead || null))
+      .catch(() => setMatchedLead(null));
+  }, [editModal?.id, ownerId]);
 
   const [settingsForm, setSettingsForm] = useState(null);
   React.useEffect(() => {
@@ -218,10 +234,19 @@ export default function Appointments({ user, ownerId, perms, initialTab, setting
         }));
       }
       
-      const existingLead = leads.find(l => l.phone === appt.customerPhone || (l.email && l.email === appt.customerEmail));
-      if (existingLead && existingLead.stage !== 'Converted') {
-        txs.push(db.tx.leads[existingLead.id].update({ stage: 'Converted', updatedAt: Date.now() }));
-      }
+      // Look up matching lead server-side (avoids 11k+ subscription)
+      try {
+        const lookupRes = await fetch('/api/lead-lookup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ownerId, phone: appt.customerPhone, email: appt.customerEmail }),
+        });
+        const lookupData = await lookupRes.json();
+        const existingLead = lookupData.lead;
+        if (existingLead && existingLead.stage !== 'Converted') {
+          txs.push(db.tx.leads[existingLead.id].update({ stage: 'Converted', updatedAt: Date.now() }));
+        }
+      } catch (e) { console.warn('Lead lookup failed:', e); }
     }
 
     await db.transact(txs);
@@ -251,11 +276,8 @@ export default function Appointments({ user, ownerId, perms, initialTab, setting
     const proceed = await updateStatus(editModal.id, editForm.status);
     if (!proceed) return;
     
-    // Find matching lead for master history update
-    const matchingLead = leads.find(l => 
-      (editModal.customerEmail && l.email === editModal.customerEmail) || 
-      (editModal.customerPhone && l.phone === editModal.customerPhone)
-    );
+    // Use pre-fetched lead data from edit modal (via /api/lead-lookup)
+    const matchingLead = matchedLead;
 
     let apptNotes = editModal.notes || '';
     let masterNotes = matchingLead?.notes || '';
@@ -729,13 +751,7 @@ export default function Appointments({ user, ownerId, perms, initialTab, setting
                     border: '1px solid var(--border)',
                     color: 'var(--muted)'
                   }}>
-                    {(() => {
-                      const lead = leads.find(l => 
-                        (editModal.customerEmail && l.email === editModal.customerEmail) || 
-                        (editModal.customerPhone && l.phone === editModal.customerPhone)
-                      );
-                      return lead?.notes || editModal.notes || 'No history yet.';
-                    })()}
+                    {matchedLead?.notes || editModal.notes || 'No history yet.'}
                   </div>
                 </div>
               </div>
