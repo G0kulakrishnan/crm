@@ -679,6 +679,25 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
       return toast(`No new leads imported.`, 'warning');
     }
 
+    // Plan limit check — enforce maxLeads before committing any records
+    if (planEnforcement) {
+      const maxLeads = planEnforcement.getLimit('maxLeads');
+      if (maxLeads !== -1) {
+        const currentTotal = pageData?.counts?.total ?? 0;
+        const remaining = maxLeads - currentTotal;
+        if (remaining <= 0) {
+          return toast(`Lead limit reached (${maxLeads.toLocaleString()} max on your plan). Upgrade to import more leads.`, 'error');
+        }
+        if (toAdd.length > remaining) {
+          const skipped = toAdd.length - remaining;
+          if (!window.confirm(`Your plan allows ${maxLeads.toLocaleString()} leads. You have ${currentTotal.toLocaleString()} and are trying to import ${toAdd.length.toLocaleString()}.\n\nOnly ${remaining.toLocaleString()} slot${remaining === 1 ? '' : 's'} remaining — ${skipped.toLocaleString()} lead${skipped === 1 ? '' : 's'} will be skipped.\n\nImport first ${remaining.toLocaleString()} leads?`)) {
+            return;
+          }
+          toAdd.splice(remaining); // trim to fit within limit
+        }
+      }
+    }
+
     // Close modal immediately so the user can keep using the app while the import runs
     setImportMappingModal(false);
     toast(`Importing ${toAdd.length} leads… this may take a moment.`, 'info');
