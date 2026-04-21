@@ -362,14 +362,21 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
             excludeLeadId: editData?.id || null,
           }),
         });
-        if (r.ok) {
-          const { duplicate } = await r.json();
-          if (duplicate) {
-            toast(`Duplicate! A record with this ${duplicate.matchedOn === 'phone' ? 'phone number' : 'email'} already exists (${duplicate.name}).`, 'error');
-            return;
-          }
+        if (!r.ok) {
+          // Block save if we can't verify — better to reject than allow a duplicate
+          toast('Could not verify duplicate — please try again.', 'error');
+          return;
         }
-      } catch { /* fall through — don't block save on network hiccup */ }
+        const { duplicate } = await r.json();
+        if (duplicate) {
+          toast(`Duplicate! A record with this ${duplicate.matchedOn === 'phone' ? 'phone number' : 'email'} already exists (${duplicate.name}).`, 'error');
+          return;
+        }
+      } catch {
+        // Network error — block save to prevent duplicates
+        toast('Network error during duplicate check. Please try again.', 'error');
+        return;
+      }
     }
 
     setSaving(true);
@@ -569,23 +576,28 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
     const invalidFields = [];
     let rowIndex = 2; // Data starts at row 2 assuming row 1 is headers
 
-    // O(1) dedup lookups — building Maps once is ~9000x faster than .find() per row at 9k scale
-    const emailIndex = new Map();
-    const phoneIndex = new Map();
+    // O(1) dedup lookups against the FULL database via server endpoint.
+    // Note: `leads` is only the current page (~25 rows) — scanning it would miss 99%+ of records.
+    // We build the index by calling /api/lead-check-duplicate for each candidate row below.
+    // Also include the current page + customers as a fast in-memory pre-filter to avoid
+    // unnecessary API calls for obviously clean rows.
+    const emailIndexLocal = new Map();
+    const phoneIndexLocal = new Map();
     for (const r of leads) {
-      if (r.email) emailIndex.set(String(r.email).toLowerCase().trim(), true);
-      if (r.phone) phoneIndex.set(String(r.phone).replace(/\D/g, ''), true);
+      if (r.email) emailIndexLocal.set(String(r.email).toLowerCase().trim(), true);
+      if (r.phone) phoneIndexLocal.set(String(r.phone).replace(/\D/g, ''), true);
     }
     for (const r of customers) {
-      if (r.email) emailIndex.set(String(r.email).toLowerCase().trim(), true);
-      if (r.phone) phoneIndex.set(String(r.phone).replace(/\D/g, ''), true);
+      if (r.email) emailIndexLocal.set(String(r.email).toLowerCase().trim(), true);
+      if (r.phone) phoneIndexLocal.set(String(r.phone).replace(/\D/g, ''), true);
     }
     // Validation sets for O(1) membership checks
     const stageSet = new Set(allStages);
     const sourceSet = new Set(activeSources);
     const reqSet = new Set(activeRequirements);
 
-    importData.forEach(vals => {
+    // Must be async for...of (not forEach) to support await for server-side dedup check
+    for (const vals of importData) {
       const lead = {
         userId: ownerId,
         actorId: user.id,
@@ -611,7 +623,7 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
       if (!lead.name) {
         rowIndex++;
-        return;
+        continue;
       }
 
       let hasInvalidField = false;
@@ -636,29 +648,51 @@ export default function LeadsView({ user, perms, ownerId, planEnforcement }) {
 
       if (hasInvalidField) {
         rowIndex++;
-        return;
+        continue;
       }
 
       const emailKey = lead.email ? String(lead.email).toLowerCase().trim() : '';
       const phoneKey = lead.phone ? String(lead.phone).replace(/\D/g, '') : '';
-      const dupEmail = emailKey && emailIndex.has(emailKey);
-      const dupPhone = phoneKey && phoneIndex.has(phoneKey);
 
-      if (dupEmail || dupPhone) {
-        const matchedOn = dupEmail ? 'Email' : 'Phone';
-        const matchedVal = dupEmail ? lead.email : lead.phone;
+      // Fast local pre-check (current page + customers already loaded in memory)
+      const dupEmailLocal = emailKey && emailIndexLocal.has(emailKey);
+      const dupPhoneLocal = phoneKey && phoneIndexLocal.has(phoneKey);
+
+      if (dupEmailLocal || dupPhoneLocal) {
+        const matchedOn = dupEmailLocal ? 'Email' : 'Phone';
+        const matchedVal = dupEmailLocal ? lead.email : lead.phone;
         duplicates.push(`Row ${rowIndex}: ${lead.name} (${matchedOn} '${matchedVal}' already exists)`);
         rowIndex++;
-        return;
+        continue;
       }
 
-      // Reserve the keys so later rows in the same file don't duplicate each other
-      if (emailKey) emailIndex.set(emailKey, true);
-      if (phoneKey) phoneIndex.set(phoneKey, true);
+      // Server-side dedup check — scans ALL leads + customers in the database
+      // This is the only reliable method when leads > current page size
+      if (emailKey || phoneKey) {
+        try {
+          const dupRes = await fetch('/api/lead-check-duplicate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ownerId, phone: lead.phone || '', email: lead.email || '' }),
+          });
+          if (dupRes.ok) {
+            const { duplicate } = await dupRes.json();
+            if (duplicate) {
+              duplicates.push(`Row ${rowIndex}: ${lead.name} (${duplicate.matchedOn === 'phone' ? 'Phone' : 'Email'} already exists as "${duplicate.name}")`);
+              rowIndex++;
+              continue;
+            }
+          }
+        } catch { /* network hiccup — fall through, let the batch attempt the row */ }
+      }
+
+      // Reserve the keys within this import batch so rows within the same file don't duplicate each other
+      if (emailKey) emailIndexLocal.set(emailKey, true);
+      if (phoneKey) phoneIndexLocal.set(phoneKey, true);
 
       toAdd.push(lead);
       rowIndex++;
-    });
+    }
 
     if (invalidFields.length > 0 || duplicates.length > 0) {
       let msg = '';
