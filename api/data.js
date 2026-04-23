@@ -7,7 +7,7 @@ const ADMIN_TOKEN = process.env.INSTANT_ADMIN_TOKEN;
 const COLLECTION_MAP = {
   'leads': 'leads',
   'customers': 'customers',
-  'quotations': 'quotations',
+  'quotations': 'quotes',
   'invoices': 'invoices',
   'amc': 'amc',
   'expenses': 'expenses',
