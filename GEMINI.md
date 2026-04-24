@@ -8,6 +8,8 @@ This file provides guidance to Google Gemini when working with code in this repo
 
 **Key Markets:** India (integration with IndiaMART, JustDial, TradeIndia, WhatsApp via Waprochat)
 
+**⚠️ PRODUCTION APP — CRITICAL RULE:** This application is live in production with real users and real data. Before making ANY code change, verify thoroughly that it will NOT break existing functionality or corrupt/lose existing data. All changes must be backward-compatible with the current database schema and user workflows. Never run destructive operations (bulk deletes, schema migrations, collection renames) without explicit user approval. Test your logic carefully — bugs here impact real businesses.
+
 ## Tech Stack
 
 - **Frontend:** React 18 + Vite, React Router (hash-based)
