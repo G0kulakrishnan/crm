@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **T2GCRM** is a B2B SaaS Customer Relationship Management platform designed for small-to-medium businesses. It handles leads, customers, invoices, projects, appointments, e-commerce, and automation workflows across a modular, multi-tenant architecture.
 
-**Key Markets:** India (integration with IndiaMART, JustDial, WhatsApp via Waprochat)
+**Key Markets:** India (integration with IndiaMART, JustDial, TradeIndia, WhatsApp via Waprochat)
+
+**⚠️ PRODUCTION APP — CRITICAL RULE:** This application is live in production with real users and real data. Before making ANY code change, verify thoroughly that it will NOT break existing functionality or corrupt/lose existing data. All changes must be backward-compatible with the current database schema and user workflows. Never run destructive operations (bulk deletes, schema migrations, collection renames) without explicit user approval. Test your logic carefully — bugs here impact real businesses.
 
 ## Tech Stack
 
@@ -31,6 +33,8 @@ git push origin main            # then push
 ```
 
 > Never push to any other branch. All changes go directly to `main`.
+
+**MANDATORY:** Always commit and push to git after making any code changes to the app. Do not leave uncommitted work. Do not ask for permission to push — just push automatically.
 
 ## Build & Run
 
@@ -64,7 +68,18 @@ src/
 │   ├── Dashboard/      # Main dashboard with KPIs
 │   ├── Auth/           # Login, registration, password reset
 │   ├── Layout/         # MainApp, Sidebar, Topbar, notifications
-│   └── [Other features...]
+│   ├── Appointments/   # Booking and appointment system
+│   ├── Business/       # Products, vendors, expenses, purchase orders
+│   ├── CallLogs/       # Call tracking and logging
+│   ├── Clients/        # Customer management
+│   ├── Distributors/   # Channel partner management
+│   ├── Marketing/      # Campaigns
+│   ├── Partners/       # Partner portal
+│   ├── Reports/        # Analytics and reporting
+│   ├── Settings/       # Business settings
+│   ├── System/         # Integrations, user manual
+│   ├── Automation/     # Workflow automation builder
+│   └── UI/             # Shared UI primitives (SearchableSelect, etc.)
 ├── hooks/              # Custom React hooks
 │   ├── usePermissions.js        # Role-based permission checking
 │   ├── usePlanEnforcement.js    # Plan feature gating (which modules are enabled)
@@ -75,25 +90,36 @@ src/
 ├── utils/              # Utilities
 │   ├── helpers.js      # Date formatting, stage badges, source mappings
 │   ├── constants.js    # Default values, empty templates
-│   └── messaging.js    # Notification helpers
+│   ├── activityLogger.js # Activity log helper
+│   └── messaging.js    # Notification helpers (WhatsApp, email)
 ├── instant.js          # InstantDB client initialization
 ├── App.jsx             # Root component, route definitions
 └── main.jsx            # React entry point
 
 api/                    # Node.js serverless handlers
 ├── auth.js             # Login, register, password reset, OTP
-├── data.js             # CRUD operations (leads, invoices, etc)
+├── data.js             # Generic CRUD operations (leads, invoices, etc)
 ├── finance.js          # Invoice, quotation operations
 ├── notify.js           # Email/WhatsApp notifications
 ├── call-logs.js        # Call logging and tracking
 ├── attendance.js       # Staff attendance
+├── leads-page.js       # Server-driven paginated lead queries
+├── dashboard-stats.js  # Dashboard KPI aggregation
+├── lead-check-duplicate.js  # Deduplication checking
+├── lead-counts.js      # Lead count queries
+├── lead-lookup.js      # Individual lead lookup
+├── sync-won-leads.js   # Won lead → customer auto-sync
+├── _leads-cache.js     # Shared in-memory leads cache (15s TTL)
 ├── cron/
 │   └── process-automations.js   # Email automation engine (runs every 60s)
 ├── webhook/
 │   ├── gsheets.js      # Google Sheets integration
-│   ├── indiamart.js    # IndiaMART lead webhook
-│   └── justdial.js     # JustDial lead webhook
-└── ecom/checkout.js    # E-commerce checkout and billing
+│   ├── indiamart.js    # IndiaMART lead webhook + pull sync
+│   ├── justdial.js     # JustDial lead webhook + pull sync
+│   └── tradeindia.js   # TradeIndia lead webhook + pull sync
+├── ecom/
+│   └── checkout.js     # E-commerce checkout and billing
+└── appointments/       # Appointment booking API
 
 server.mjs              # Express server (production)
 vite.config.js          # Vite bundler config with API plugin
@@ -163,7 +189,7 @@ Plans are stored in `globalSettings.plans` and define:
 **Core CRM:**
 - `leads` - Prospects (name, email, phone, source, stage, assigned staff, custom fields, followup dates)
 - `customers` - Converted leads
-- `quotations` - Quotes with line items
+- `quotes` - Quotations with line items (**NOTE:** collection is `quotes`, NOT `quotations`)
 - `invoices` - Billing (draft, sent, paid statuses)
 - `activityLogs` - Audit trail (who did what, timestamps)
 
@@ -190,6 +216,7 @@ Plans are stored in `globalSettings.plans` and define:
 - `executedAutomations` - Deduplication cache (prevents duplicate emails)
 - `globalSettings` - Branding, plans, crmDomain config
 - `partnerApplications` - Partner registration (status: Pending/Approved/Rejected)
+- `partnerCommissions` - Distributor/retailer commission tracking
 - `outbox` - Sent message log
 
 ## Authentication & Login Flow
@@ -229,32 +256,46 @@ Plans are stored in `globalSettings.plans` and define:
 - **Webhook:** `/api/webhook/gsheets`
 - **Sync:** Manual "Sync Now" button in Integration panel
 - **Field Mapping:** Admin configures which sheet columns → lead fields
-- **Deduplication:** Phone number matching
+- **Deduplication:** Phone + email matching
 
 ### IndiaMART
 - **Webhook:** `/api/webhook/indiamart`
-- **Sync:** Auto-webhook + manual "Sync Now"
-- **Known Fields:** SENDER_NAME, SENDER_EMAIL, SENDER_MOBILE, QUERY_MESSAGE, etc.
-- **Deduplication:** Phone number normalization
+- **Sync:** Auto-webhook (POST) + manual "Sync Now" (GET with `action=sync`)
+- **Known Fields:** `SENDER_NAME`, `SENDER_EMAIL`, `SENDER_MOBILE`, `SENDER_COMPANY`, `SENDER_ADDRESS`, `SENDER_CITY`, `SENDER_STATE`, `SENDER_PINCODE`, `SUBJECT`, `QUERY_MESSAGE`, `QUERY_PRODUCT_NAME`, `QUERY_TIME`, `UNIQUE_QUERY_ID`, `CALL_DURATION`, `RECEIVER_MOBILE`
+- **Auth:** Single API Key (`GLUSR_CRMMOBILE_KEY`)
+- **Deduplication:** Phone + email with activity log on re-submission
 
 ### JustDial
 - **Webhook:** `/api/webhook/justdial`
-- **Sync:** Webhook only (no pull API)
-- **Known Fields:** leadid, name, mobile, email, category
+- **Sync:** Auto-webhook (POST) + manual "Sync Now" (GET with `action=sync`)
+- **Known Fields:** `leadid`, `name`, `mobile`, `phone`, `email`, `date`, `time`, `category`, `city`, `area`, `brancharea`, `company`, `pincode`
+- **Auth:** Optional API Key
+- **Deduplication:** Phone + email with activity log on re-submission
+
+### TradeIndia
+- **Webhook:** `/api/webhook/tradeindia`
+- **Sync:** Auto-webhook (POST) + manual "Sync Now" (GET with `action=sync`)
+- **Known Fields:** `sender_name`, `sender_email`, `sender_mobile`, `sender_company`, `sender_address`, `sender_city`, `sender_state`, `sender_country`, `subject`, `query_message`, `product_name`, `inquiry_date`, `inquiry_id`, `status`
+- **Auth:** Three credentials: User ID, Profile ID, API Key (from TradeIndia Dashboard → Inquiries & Contacts → My Inquiry API)
+- **Deduplication:** Phone + email with activity log on re-submission
 
 All integrations:
-- Auto-match phone numbers to existing leads (prevent duplicates)
+- Configurable field mapping (Column/Fixed toggle per CRM field)
+- Custom field mapping support
+- Auto-match phone/email to existing leads (prevent duplicates)
 - Configurable per business in Integration settings
-- Store config in `userProfiles.gsheets`, `userProfiles.indiamart`, `userProfiles.justdial`
+- Store config in `userProfiles.gsheets`, `userProfiles.indiamart`, `userProfiles.justdial`, `userProfiles.tradeindia`
+- Test lead button for verification
+- Enable/disable toggle without deleting config
 
 ## Common Development Tasks
 
 ### Adding a New Lead Source
 
-1. Create `/api/webhook/newsource.js` handler (POST to create leads, dedup by phone)
+1. Create `/api/webhook/newsource.js` handler (POST webhook + GET pull sync, dedup by phone/email)
 2. Add route in `server.mjs` and `vite.config.js`
 3. Create `/src/components/System/NewsourceIntegration.jsx` component (field mapping UI)
-4. Add to `src/components/System/Integrations.jsx` (add integration card + routing)
+4. Add to `src/components/System/Integrations.jsx` (add integration card + routing + all conditional checks)
 5. Update `src/utils/helpers.js` DEFAULT_SOURCES array
 
 ### Adding a New Module/Feature
@@ -528,57 +569,102 @@ const stageOptions = (profile?.stages || DEFAULT_STAGES).map(s => <option key={s
 
 ---
 
-## Adding or Removing Modules
+## CRITICAL: Roles & Permissions — MANDATORY RULE
 
-**CRITICAL:** When creating or deleting a module, update THREE places:
+**Every component that performs CRUD operations MUST check permissions before allowing the action. Every page MUST be gated by plan enforcement. Never skip these checks.**
 
-### 1. Teams.jsx — Permission Module Definition
-**File:** `src/components/Work/Teams.jsx` (lines 10-34)
+### How Permissions Work
 
-Add/remove from `MODULES` array:
+Permissions are role-based and stored in `userProfiles.roles`. Each role defines which modules a team member can access and which actions (list, view, create, edit, delete) they can perform.
+
+**File:** `src/hooks/usePermissions.js`
+
 ```javascript
-const MODULES = [
-  { key: 'YourModule', actions: ['list', 'create', 'edit', 'delete'] },
-  // ...
-];
-```
+// Every component receives `perms` as a prop from MainApp
+const canCreate = perms?.can('Leads', 'create') === true;
+const canEdit   = perms?.can('Leads', 'edit') === true;
+const canDelete = perms?.can('Leads', 'delete') === true;
 
-### 2. AdminPanel.jsx — Plan Module Definition
-**File:** `src/components/Admin/AdminPanel.jsx` (lines 14-38)
+// Gate UI buttons
+{canCreate && <button onClick={handleAdd}>+ Add Lead</button>}
 
-Add/remove from `ALL_MODULES` array:
-```javascript
-const ALL_MODULES = [
-  { key: 'yourModule', label: 'Your Module', hasLimit: false },
-  // If module has limits (like leads, users):
-  { key: 'yourModule', label: 'Your Module', hasLimit: true, limitKey: 'maxYourModule', defaultLimit: 100 },
-  // ...
-];
-```
-
-**Key differences:**
-- Teams uses PascalCase (`YourModule`)
-- Admin uses camelCase (`yourModule`)
-
-### 3. usePlanEnforcement.js — View Routing
-**File:** `src/hooks/usePlanEnforcement.js` (lines 12-39)
-
-Add/remove from `VIEW_TO_MODULE` mapping:
-```javascript
-const VIEW_TO_MODULE = {
-  'your-view-id': 'yourModule',
-  // ...
+// Gate actions inside handlers
+const handleSave = async () => {
+  if (editData && !canEdit) { toast('Permission denied', 'error'); return; }
+  if (!editData && !canCreate) { toast('Permission denied', 'error'); return; }
+  // ... proceed with save
 };
 ```
 
-**Checklist Before Committing:**
-- [ ] Module added to `Teams.jsx` MODULES array
-- [ ] Module added to `AdminPanel.jsx` ALL_MODULES array with correct case
+**Special permission properties:**
+- `perms?.isOwner` — true if user is the business owner
+- `perms?.isAdmin` — true if user has "Admin" role
+- `perms?.isManager` — true if user has management role
+
+**Hardcoded restrictions:** Team members **cannot access Admin or Settings modules** regardless of role.
+
+### How Plan Enforcement Works
+
+Plans control which modules are visible and what numeric limits apply. Plans are defined in Admin Panel and stored in `globalSettings.plans`.
+
+**File:** `src/hooks/usePlanEnforcement.js`
+
+```javascript
+// Every component receives `planEnforcement` as a prop from MainApp
+const canAccessLeads = planEnforcement?.isModuleEnabled('leads');
+const maxLeads = planEnforcement?.getLimit('maxLeads');  // -1 = unlimited
+const withinLimit = planEnforcement?.isWithinLimit('maxLeads', currentCount);
+
+// Gate record creation by limits
+if (!planEnforcement.isWithinLimit('maxUsers', team.length)) {
+  toast('Team member limit reached. Please upgrade.', 'error');
+  return;
+}
+```
+
+**`isModuleEnabled` is STRICT:** `modules[key] === true` (not `!== false`). A missing key = disabled.
+
+### Module Registry — The THREE Files
+
+When adding or removing a module, you **MUST** update all three:
+
+#### 1. Teams.jsx — `MODULES` array (PascalCase keys)
+**File:** `src/components/Work/Teams.jsx`
+
+#### 2. Teams.jsx — `MODULE_TO_PLAN_KEY` mapping
+Maps PascalCase permission keys → camelCase plan keys. `null` = always shown (Dashboard, Settings).
+
+#### 3. AdminPanel.jsx — `ALL_MODULES` array (camelCase keys)
+**File:** `src/components/Admin/AdminPanel.jsx`
+
+#### 4. usePlanEnforcement.js — `VIEW_TO_MODULE` mapping
+**File:** `src/hooks/usePlanEnforcement.js`
+Maps sidebar nav item IDs → plan module keys.
+
+**Always-allowed views** (never blocked): `dashboard`, `userprofile`, `settings`, `admin`, `apidocs`, `manual`, `appointment-settings`
+
+### Mandatory Rules for Every Component
+
+1. **Every CRUD component** must accept `perms` and `planEnforcement` props
+2. **Every create/edit/delete action** must check `perms?.can('ModuleName', 'action') === true`
+3. **Every record creation** with a plan limit must check `planEnforcement.isWithinLimit(limitKey, currentCount)`
+4. **Every page render** must be gated in Sidebar via `planEnforcement.isViewAllowed(viewId)`
+5. **Hide UI buttons** when permission is denied — don't just show an error on click
+6. **Show toast on denied actions** — `toast('Permission denied: cannot [action]', 'error')`
+
+### Checklist Before Committing Any Module Change
+
+- [ ] Module added to `Teams.jsx` MODULES array (PascalCase key + actions)
+- [ ] Module added to `Teams.jsx` MODULE_TO_PLAN_KEY mapping
+- [ ] Module added to `AdminPanel.jsx` ALL_MODULES array (camelCase key + limits)
 - [ ] Module added to `usePlanEnforcement.js` VIEW_TO_MODULE if it has a sidebar nav item
 - [ ] Case consistency: PascalCase in Teams, camelCase in Admin/Plan enforcement
 - [ ] If module has limits: Added `hasLimit: true`, `limitKey`, `defaultLimit` to ALL_MODULES
-- [ ] Sidebar nav item added to `Sidebar.jsx` (if user-facing module)
+- [ ] Sidebar nav item gated by `planEnforcement.isViewAllowed(viewId)`
+- [ ] Component checks `perms?.can()` before every create/edit/delete
+- [ ] Component checks `planEnforcement.isWithinLimit()` before record creation (if applicable)
 - [ ] Default role permissions set in Teams.jsx DEFAULT_ROLES (optional)
+- [ ] Existing plans re-saved in Admin Panel to include the new module key
 
 ## Scale Architecture — Server-Driven Pages (CRITICAL)
 
