@@ -32,7 +32,7 @@ git push origin main            # then push
 
 > Never push to any other branch. All changes go directly to `main`.
 
-**MANDATORY:** Always commit and push to git after making any code changes to the app. Do not leave uncommitted work.
+**MANDATORY:** Always commit and push to git after making any code changes to the app. Do not leave uncommitted work. Do not ask for permission to push — just push automatically.
 
 ## Build & Run
 
