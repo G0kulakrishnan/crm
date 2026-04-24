@@ -5,6 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import SheetIntegration from './SheetIntegration';
 import IndiamartIntegration from './IndiamartIntegration';
 import JustdialIntegration from './JustdialIntegration';
+import TradeindiaIntegration from './TradeindiaIntegration';
 
 const COOLDOWN_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -40,6 +41,7 @@ export default function Integrations({ user, ownerId }) {
   const gsheets = profile?.gsheets || [];
   const indiamartConfigs = profile?.indiamart || [];
   const justdialConfigs = profile?.justdial || [];
+  const tradeindiaConfigs = profile?.tradeindia || [];
   // leads fetched on-demand during sync via /api/lead-check-duplicate (avoids 11k+ subscription)
 
   const integrations = [
@@ -66,6 +68,14 @@ export default function Integrations({ user, ownerId }) {
       icon: '📞',
       connected: justdialConfigs.length > 0,
       count: justdialConfigs.length
+    },
+    {
+      id: 'tradeindia',
+      name: 'TradeIndia',
+      desc: 'Receive leads from TradeIndia enquiries automatically via webhook or manual sync.',
+      icon: '🏢',
+      connected: tradeindiaConfigs.length > 0,
+      count: tradeindiaConfigs.length
     }
   ];
 
@@ -227,7 +237,7 @@ export default function Integrations({ user, ownerId }) {
     const profileId = profile.id;
 
     // Handle array-based integrations (gsheets, indiamart, justdial)
-    if (pid === 'indiamart' || pid === 'justdial') {
+    if (pid === 'indiamart' || pid === 'justdial' || pid === 'tradeindia') {
       const configs = profile[pid] || [];
       if (action === 'delete') {
         if (!confirm(`Are you sure you want to disconnect all ${pid} integrations?`)) return;
@@ -275,7 +285,7 @@ export default function Integrations({ user, ownerId }) {
       syncGoogleSheet(0);
       return;
     }
-    if (item.id === 'indiamart' || item.id === 'justdial') {
+    if (item.id === 'indiamart' || item.id === 'justdial' || item.id === 'tradeindia') {
       setShowConfig({ type: item.id, index: null });
       return;
     }
@@ -328,6 +338,18 @@ export default function Integrations({ user, ownerId }) {
         ownerId={ownerId}
         onBack={() => setShowConfig(null)}
         existingConfig={showConfig.index !== null ? justdialConfigs[showConfig.index] : null}
+        editIndex={showConfig.index}
+      />
+    );
+  }
+
+  if (showConfig?.type === 'tradeindia') {
+    return (
+      <TradeindiaIntegration
+        user={user}
+        ownerId={ownerId}
+        onBack={() => setShowConfig(null)}
+        existingConfig={showConfig.index !== null ? tradeindiaConfigs[showConfig.index] : null}
         editIndex={showConfig.index}
       />
     );
@@ -396,12 +418,12 @@ export default function Integrations({ user, ownerId }) {
               </div>
             )}
             {/* IndiaMART / JustDial connected configs */}
-            {(item.id === 'indiamart' || item.id === 'justdial') && (profile?.[item.id] || []).length > 0 && (
+            {(item.id === 'indiamart' || item.id === 'justdial' || item.id === 'tradeindia') && (profile?.[item.id] || []).length > 0 && (
               <div style={{ marginTop: -10, marginBottom: 15 }}>
                 {(profile[item.id] || []).map((cfg, idx) => (
                   <div key={idx} style={{ padding: '10px 12px', background: 'var(--bg)', borderRadius: 8, marginBottom: 8, fontSize: 12, border: '1px solid var(--border)' }}>
                     <div style={{ fontWeight: 600, marginBottom: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: cfg.disabled ? 0.5 : 1 }}>
-                      {cfg.disabled ? '⏸ ' : item.id === 'indiamart' ? '🏭 ' : '📞 '}{cfg.configName || item.name}
+                      {cfg.disabled ? '⏸ ' : item.id === 'indiamart' ? '🏭 ' : item.id === 'tradeindia' ? '🏢 ' : '📞 '}{cfg.configName || item.name}
                     </div>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                       <button
@@ -432,7 +454,7 @@ export default function Integrations({ user, ownerId }) {
                   </button>
                 </div>
               </div>
-            ) : (item.id === 'indiamart' || item.id === 'justdial') && (profile?.[item.id] || []).length > 0 ? (
+            ) : (item.id === 'indiamart' || item.id === 'justdial' || item.id === 'tradeindia') && (profile?.[item.id] || []).length > 0 ? (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 <button className="btn btn-primary btn-sm" style={{ width: '100%' }} onClick={() => setShowConfig({ type: item.id, index: null })}>
                   + Add Another
@@ -459,7 +481,7 @@ export default function Integrations({ user, ownerId }) {
               <button 
                 className={`btn ${syncing === item.id ? 'btn-secondary' : 'btn-primary'} btn-sm`} 
                 style={{ width: '100%' }}
-                onClick={() => (item.id === 'gsheets' || item.id === 'indiamart' || item.id === 'justdial') ? setShowConfig({ type: item.id, index: null }) : handleSync(item)}
+                onClick={() => (item.id === 'gsheets' || item.id === 'indiamart' || item.id === 'justdial' || item.id === 'tradeindia') ? setShowConfig({ type: item.id, index: null }) : handleSync(item)}
                 disabled={syncing !== null}
               >
                 {syncing === item.id ? 'Connecting...' : 'Connect Now'}
