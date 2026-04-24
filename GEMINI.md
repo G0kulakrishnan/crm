@@ -465,23 +465,166 @@ const STAGES = ['New', 'Contacted', 'Won', 'Lost'];
 const stages = (profile?.stages || DEFAULT_STAGES).map(s => <option key={s}>{s}</option>);
 ```
 
-## Adding or Removing Modules
+## CRITICAL: Roles & Permissions — MANDATORY RULE
 
-**CRITICAL:** When creating or deleting a module, update THREE places:
+**Every component that performs CRUD operations MUST check permissions before allowing the action. Every page MUST be gated by plan enforcement. Never skip these checks.**
 
-### 1. Teams.jsx — Permission Module Definition
-**File:** `src/components/Work/Teams.jsx`
-Add/remove from `MODULES` array (PascalCase keys).
+### How Permissions Work
 
-### 2. AdminPanel.jsx — Plan Module Definition
-**File:** `src/components/Admin/AdminPanel.jsx`
-Add/remove from `ALL_MODULES` array (camelCase keys).
+Permissions are role-based and stored in `userProfiles.roles`. Each role defines which modules a team member can access and which actions (list, view, create, edit, delete) they can perform.
 
-### 3. usePlanEnforcement.js — View Routing
+**File:** `src/hooks/usePermissions.js`
+
+```javascript
+// Every component receives `perms` as a prop from MainApp
+const canCreate = perms?.can('Leads', 'create') === true;
+const canEdit   = perms?.can('Leads', 'edit') === true;
+const canDelete = perms?.can('Leads', 'delete') === true;
+
+// Gate UI buttons
+{canCreate && <button onClick={handleAdd}>+ Add Lead</button>}
+
+// Gate actions inside handlers
+const handleSave = async () => {
+  if (editData && !canEdit) { toast('Permission denied', 'error'); return; }
+  if (!editData && !canCreate) { toast('Permission denied', 'error'); return; }
+  // ... proceed with save
+};
+```
+
+**Special permission properties:**
+- `perms?.isOwner` — true if user is the business owner
+- `perms?.isAdmin` — true if user has "Admin" role
+- `perms?.isManager` — true if user has management role
+
+**Hardcoded restrictions:** Team members **cannot access Admin or Settings modules** regardless of role.
+
+### How Plan Enforcement Works
+
+Plans control which modules are visible and what numeric limits apply. Plans are defined in Admin Panel and stored in `globalSettings.plans`.
+
 **File:** `src/hooks/usePlanEnforcement.js`
-Add/remove from `VIEW_TO_MODULE` mapping.
 
-**Key difference:** Teams uses PascalCase (`YourModule`), Admin uses camelCase (`yourModule`).
+```javascript
+// Every component receives `planEnforcement` as a prop from MainApp
+const canAccessLeads = planEnforcement?.isModuleEnabled('leads');
+const maxLeads = planEnforcement?.getLimit('maxLeads');  // -1 = unlimited
+const withinLimit = planEnforcement?.isWithinLimit('maxLeads', currentCount);
+
+// Gate record creation by limits
+if (!planEnforcement.isWithinLimit('maxUsers', team.length)) {
+  toast('Team member limit reached. Please upgrade.', 'error');
+  return;
+}
+```
+
+**`isModuleEnabled` is STRICT:** `modules[key] === true` (not `!== false`). A missing key = disabled. This prevents new modules from silently leaking into existing plans.
+
+### Module Registry — The THREE Files
+
+When adding or removing a module, you **MUST** update all three:
+
+#### 1. Teams.jsx — Permission Module Definition (`MODULES` array)
+**File:** `src/components/Work/Teams.jsx` — Uses **PascalCase** keys
+
+Current modules:
+```
+Dashboard (view), Leads (LCUD), Customers (LCUD), Quotations (LCUD),
+Invoices (LCUD), AMC (LCUD), Expenses (LCUD), Products (LCUD),
+Vendors (LCUD), PurchaseOrders (LCUD), Campaigns (LCE), Projects (LCUD),
+Tasks (LCUD), Teams (LCUD), Reports (view), Automation (LCUD),
+Ecommerce (LCUD), Appointments (LCUD), Integrations (view, edit),
+CallLogs (LCUD), Attendance (LCUD), MessagingLogs (list),
+Distributors (LCUD), Settings (view)
+```
+
+#### 2. Teams.jsx — `MODULE_TO_PLAN_KEY` mapping
+Maps PascalCase permission keys → camelCase plan keys:
+```javascript
+Dashboard: null,        // Always shown
+Leads: 'leads',
+Customers: 'customers',
+Quotations: 'quotations',
+Invoices: 'invoices',
+AMC: 'amc',
+Expenses: 'expenses',
+Products: 'products',
+Vendors: 'vendors',
+PurchaseOrders: 'purchaseOrders',
+Campaigns: 'campaigns',
+Projects: 'projects',
+Tasks: 'tasks',
+Teams: 'teams',
+Reports: 'reports',
+Automation: 'automation',
+Ecommerce: 'ecommerce',
+Appointments: 'appointments',
+Integrations: 'integrations',
+CallLogs: 'callLogs',
+Attendance: 'attendance',
+MessagingLogs: 'messagingLogs',
+Distributors: 'distributors',
+Settings: null,         // Always shown
+```
+
+The Roles & Permissions modal in Teams.jsx uses `visibleModules` which **filters** MODULES to only show modules enabled in the current business plan (via `planEnforcement.isModuleEnabled(planKey)`).
+
+#### 3. AdminPanel.jsx — Plan Module Definition (`ALL_MODULES` array)
+**File:** `src/components/Admin/AdminPanel.jsx` — Uses **camelCase** keys
+
+Current modules with limits:
+```
+leads (maxLeads: 10000), customers (maxCustomers: 10000), quotations,
+invoices (maxInvoices: -1), pos, amc, expenses, products (maxProducts: -1),
+vendors, purchaseOrders, projects (maxProjects: 10), tasks (maxTasks: 500),
+teams (maxUsers: 5), campaigns, reports, automation, ecommerce,
+appointments, integrations, callLogs, attendance, messagingLogs,
+distributors
+```
+
+The `savePlan()` function **normalizes** all module keys to explicit `true/false` — ensures no module leaks into plans that didn't enable it.
+
+#### 4. usePlanEnforcement.js — Sidebar View Routing (`VIEW_TO_MODULE` mapping)
+**File:** `src/hooks/usePlanEnforcement.js`
+
+Maps sidebar nav item IDs → plan module keys:
+```javascript
+leads → leads, customers → customers, quotations → quotations,
+invoices → invoices, pos → pos, amc → amc, expenses → expenses,
+products → products, vendors → vendors, purchase-orders → purchaseOrders,
+projects → projects, alltasks → tasks, teams → teams,
+campaigns → campaigns, reports → reports, automation → automation,
+ecom-settings → ecommerce, ecom-orders → ecommerce,
+appointments → appointments, integrations → integrations,
+messaging-logs → messagingLogs, performance → reports,
+distributors → distributors, distributor_performance → distributors,
+call-logs → callLogs, attendance → attendance
+```
+
+**Always-allowed views** (never blocked by plan): `dashboard`, `userprofile`, `settings`, `admin`, `apidocs`, `manual`, `appointment-settings`
+
+### Mandatory Rules for Every Component
+
+1. **Every CRUD component** must accept `perms` and `planEnforcement` props
+2. **Every create/edit/delete action** must check `perms?.can('ModuleName', 'action') === true`
+3. **Every record creation** with a plan limit must check `planEnforcement.isWithinLimit(limitKey, currentCount)`
+4. **Every page render** must be gated in Sidebar via `planEnforcement.isViewAllowed(viewId)`
+5. **Hide UI buttons** when permission is denied — don't just show an error on click
+6. **Show toast on denied actions** — `toast('Permission denied: cannot [action]', 'error')`
+
+### Checklist Before Committing Any Module Change
+
+- [ ] Module added to `Teams.jsx` MODULES array (PascalCase key + actions)
+- [ ] Module added to `Teams.jsx` MODULE_TO_PLAN_KEY mapping
+- [ ] Module added to `AdminPanel.jsx` ALL_MODULES array (camelCase key + limits)
+- [ ] Module added to `usePlanEnforcement.js` VIEW_TO_MODULE if it has a sidebar nav item
+- [ ] Case consistency: PascalCase in Teams, camelCase in Admin/Plan enforcement
+- [ ] If module has limits: Added `hasLimit: true`, `limitKey`, `defaultLimit` to ALL_MODULES
+- [ ] Sidebar nav item gated by `planEnforcement.isViewAllowed(viewId)`
+- [ ] Component checks `perms?.can()` before every create/edit/delete
+- [ ] Component checks `planEnforcement.isWithinLimit()` before record creation (if applicable)
+- [ ] Default role permissions set in Teams.jsx DEFAULT_ROLES (optional)
+- [ ] Existing plans re-saved in Admin Panel to include the new module key
 
 ## Scale Architecture — Server-Driven Pages (CRITICAL)
 
