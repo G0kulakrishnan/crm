@@ -43,6 +43,8 @@ export default function JustdialIntegration({ user, ownerId, onBack, existingCon
   const [configName, setConfigName] = useState(existingConfig?.configName || '');
   const [apiKey, setApiKey] = useState(existingConfig?.apiKey || '');
   const [disabled, setDisabled] = useState(existingConfig?.disabled || false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResults, setSyncResults] = useState(null);
   const [mapping, setMapping] = useState(() => {
     let m = existingConfig?.mapping ? { ...existingConfig.mapping } : { ...DEFAULT_MAPPING };
     return { ...DEFAULT_MAPPING, ...m };
@@ -74,6 +76,26 @@ export default function JustdialIntegration({ user, ownerId, onBack, existingCon
     await db.transact(db.tx.userProfiles[profile.id].update({ justdial: updated }));
     toast('Integration removed', 'error');
     onBack();
+  };
+
+  const handleSync = async () => {
+    if (!apiKey) return toast('Please enter your API key first', 'error');
+    setSyncing(true);
+    setSyncResults(null);
+    try {
+      const res = await fetch(`${crmDomain}/api/webhook/justdial?userId=${ownerId}&action=sync`);
+      const data = await res.json();
+      if (data.success) {
+        setSyncResults(data);
+        toast(`Synced! ${data.added} new lead(s) added, ${data.skipped} skipped.`, 'success');
+      } else {
+        toast(data.message || 'Sync failed', 'error');
+      }
+    } catch (e) {
+      toast('Failed to sync: ' + (e.message || 'Unknown error'), 'error');
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const handleSendTestLead = async () => {
@@ -276,6 +298,28 @@ export default function JustdialIntegration({ user, ownerId, onBack, existingCon
           <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 15 }}>
             Register this URL with JustDial to receive leads automatically in real-time.
           </div>
+
+          {existingConfig && (
+            <div style={{ display: 'flex', gap: 10, marginBottom: 15 }}>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handleSync}
+                disabled={syncing}
+                style={{ flex: 1 }}
+              >
+                {syncing ? '⟳ Syncing...' : '⟳ Sync Now (Pull Latest Leads)'}
+              </button>
+            </div>
+          )}
+
+          {syncResults && (
+            <div style={{ background: '#ecfdf5', border: '1px solid #10b981', borderRadius: 8, padding: '10px 14px', marginBottom: 15, fontSize: 11, color: '#065f46' }}>
+              <strong>Sync Results</strong>
+              <div style={{ marginTop: 4 }}>
+                ✅ {syncResults.added} added · ⏭ {syncResults.skipped} skipped · {syncResults.errors > 0 ? `❌ ${syncResults.errors} errors · ` : ''}📊 {syncResults.total} total
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="gs-success-msg">

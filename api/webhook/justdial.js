@@ -76,16 +76,12 @@ export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'OPTIONS,POST');
+  res.setHeader('Access-Control-Allow-Methods', 'OPTIONS,POST,GET');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ success: false, message: 'Method Not Allowed' });
   }
 
   try {
@@ -120,82 +116,169 @@ export default async function handler(req, res) {
       return res.status(400).json({ success: false, message: 'Incomplete integration configuration (no mapping)' });
     }
 
-    // JustDial may send a single lead or an array
-    let leads = req.body?.leads || req.body;
-    if (!Array.isArray(leads)) leads = [leads];
+    // ==================== POST: Receive webhook push ====================
+    if (req.method === 'POST') {
+      // JustDial may send a single lead or an array
+      let leads = req.body?.leads || req.body;
+      if (!Array.isArray(leads)) leads = [leads];
 
-    // Fetch existing leads for dedup
-    const leadsRes = await db.query({ leads: { $: { where: { userId } } } });
-    const allLeads = leadsRes.leads || [];
-    const emailSet = new Set(allLeads.filter(l => l.email).map(l => l.email.toLowerCase()));
-    const phoneSet = new Set(allLeads.filter(l => l.phone).map(l => l.phone));
+      // Fetch existing leads for dedup
+      const leadsRes = await db.query({ leads: { $: { where: { userId } } } });
+      const allLeads = leadsRes.leads || [];
+      const emailSet = new Set(allLeads.filter(l => l.email).map(l => l.email.toLowerCase()));
+      const phoneSet = new Set(allLeads.filter(l => l.phone).map(l => l.phone));
 
-    let added = 0, skipped = 0, errors = 0;
-    const txs = [];
+      let added = 0, skipped = 0, errors = 0;
+      const txs = [];
 
-    for (const incomingLead of leads) {
-      try {
-        const lead = applyMapping(incomingLead, mapping, customMappings);
-        lead.userId = userId;
-        lead.actorId = null;
-        lead.createdAt = Date.now();
+      for (const incomingLead of leads) {
+        try {
+          const lead = applyMapping(incomingLead, mapping, customMappings);
+          lead.userId = userId;
+          lead.actorId = null;
+          lead.createdAt = Date.now();
 
-        if (!lead.name || !lead.name.trim()) {
-          lead.name = 'New Lead via JustDial';
-        }
-
-        // Dedup check
-        const dupEmail = lead.email && emailSet.has(lead.email.toLowerCase());
-        const dupPhone = lead.phone && phoneSet.has(lead.phone);
-
-        if (dupEmail || dupPhone) {
-          const existingLead = allLeads.find(l =>
-            (lead.email && l.email && l.email.toLowerCase() === lead.email.toLowerCase()) ||
-            (lead.phone && l.phone && l.phone === lead.phone)
-          );
-          if (existingLead) {
-            const logId = crypto.randomUUID();
-            txs.push(
-              db.tx.activityLogs[logId].update({
-                entityId: existingLead.id,
-                entityType: 'lead',
-                text: `Lead submitted again from JustDial.\nOriginal creation: ${new Date(existingLead.createdAt || Date.now()).toLocaleString()}\n**Resubmitted on: ${new Date().toLocaleString()}**`,
-                userId,
-                actorId: null,
-                userName: 'System (JustDial Webhook)',
-                createdAt: Date.now()
-              }),
-              db.tx.leads[existingLead.id].update({ updatedAt: Date.now() })
-            );
+          if (!lead.name || !lead.name.trim()) {
+            lead.name = 'New Lead via JustDial';
           }
-          skipped++;
-          continue;
+
+          // Dedup check
+          const dupEmail = lead.email && emailSet.has(lead.email.toLowerCase());
+          const dupPhone = lead.phone && phoneSet.has(lead.phone);
+
+          if (dupEmail || dupPhone) {
+            const existingLead = allLeads.find(l =>
+              (lead.email && l.email && l.email.toLowerCase() === lead.email.toLowerCase()) ||
+              (lead.phone && l.phone && l.phone === lead.phone)
+            );
+            if (existingLead) {
+              const logId = crypto.randomUUID();
+              txs.push(
+                db.tx.activityLogs[logId].update({
+                  entityId: existingLead.id,
+                  entityType: 'lead',
+                  text: `Lead submitted again from JustDial.\nOriginal creation: ${new Date(existingLead.createdAt || Date.now()).toLocaleString()}\n**Resubmitted on: ${new Date().toLocaleString()}**`,
+                  userId,
+                  actorId: null,
+                  userName: 'System (JustDial Webhook)',
+                  createdAt: Date.now()
+                }),
+                db.tx.leads[existingLead.id].update({ updatedAt: Date.now() })
+              );
+            }
+            skipped++;
+            continue;
+          }
+
+          // Add to dedup sets
+          if (lead.email) emailSet.add(lead.email.toLowerCase());
+          if (lead.phone) phoneSet.add(lead.phone);
+
+          const leadId = crypto.randomUUID();
+          txs.push(db.tx.leads[leadId].update(lead));
+          added++;
+        } catch {
+          errors++;
+        }
+      }
+
+      // Flush all transactions in batches of 50
+      if (txs.length > 0) {
+        for (let i = 0; i < txs.length; i += 50) {
+          await db.transact(txs.slice(i, i + 50));
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: `Processed: ${added} added, ${skipped} skipped, ${errors} errors`,
+        added, skipped, errors
+      });
+    }
+
+    // ==================== GET: Pull sync from JustDial API ====================
+    if (req.method === 'GET' && req.query?.action === 'sync') {
+      const apiKey = activeConfig.apiKey;
+      if (!apiKey) {
+        return res.status(400).json({ success: false, message: 'No API key configured for JustDial. Pull sync requires an API key.' });
+      }
+
+      try {
+        // JustDial API endpoint — contact JustDial for your specific endpoint URL
+        const apiUrl = `https://api.justdial.com/leads?key=${encodeURIComponent(apiKey)}`;
+        const apiRes = await fetch(apiUrl);
+        const apiData = await apiRes.json();
+
+        let leads = apiData?.leads || apiData?.RESPONSE || [];
+        if (!Array.isArray(leads)) leads = [];
+
+        if (leads.length === 0) {
+          return res.status(200).json({ success: true, message: 'No new leads found', added: 0, skipped: 0, total: 0 });
         }
 
-        // Add to dedup sets
-        if (lead.email) emailSet.add(lead.email.toLowerCase());
-        if (lead.phone) phoneSet.add(lead.phone);
+        // Fetch existing leads for dedup
+        const leadsRes = await db.query({ leads: { $: { where: { userId } } } });
+        const allLeads = leadsRes.leads || [];
+        const emailSet = new Set(allLeads.filter(l => l.email).map(l => l.email.toLowerCase()));
+        const phoneSet = new Set(allLeads.filter(l => l.phone).map(l => l.phone));
 
-        const leadId = crypto.randomUUID();
-        txs.push(db.tx.leads[leadId].update(lead));
-        added++;
-      } catch {
-        errors++;
+        let added = 0, skipped = 0, errors = 0;
+        const txs = [];
+
+        for (const incomingLead of leads) {
+          try {
+            const lead = applyMapping(incomingLead, mapping, customMappings);
+            lead.userId = userId;
+            lead.actorId = null;
+            lead.createdAt = Date.now();
+
+            if (!lead.name || !lead.name.trim()) {
+              lead.name = 'New Lead via JustDial';
+            }
+
+            const dupEmail = lead.email && emailSet.has(lead.email.toLowerCase());
+            const dupPhone = lead.phone && phoneSet.has(lead.phone);
+
+            if (dupEmail || dupPhone) {
+              skipped++;
+              continue;
+            }
+
+            if (lead.email) emailSet.add(lead.email.toLowerCase());
+            if (lead.phone) phoneSet.add(lead.phone);
+
+            const leadId = crypto.randomUUID();
+            txs.push(db.tx.leads[leadId].update(lead));
+            added++;
+          } catch {
+            errors++;
+          }
+        }
+
+        if (txs.length > 0) {
+          for (let i = 0; i < txs.length; i += 50) {
+            await db.transact(txs.slice(i, i + 50));
+          }
+        }
+
+        // Update lastSyncAt
+        const updatedConfigs = justdialConfigs.map((c, i) =>
+          i === 0 ? { ...c, lastSyncAt: Date.now() } : c
+        );
+        await db.transact(db.tx.userProfiles[profile.id].update({ justdial: updatedConfigs }));
+
+        return res.status(200).json({
+          success: true,
+          message: `Synced: ${added} added, ${skipped} skipped, ${errors} errors`,
+          added, skipped, errors, total: leads.length
+        });
+      } catch (e) {
+        console.error('JustDial Sync Error:', e);
+        return res.status(500).json({ success: false, message: 'Failed to sync from JustDial API: ' + (e.message || String(e)) });
       }
     }
 
-    // Flush all transactions in batches of 50
-    if (txs.length > 0) {
-      for (let i = 0; i < txs.length; i += 50) {
-        await db.transact(txs.slice(i, i + 50));
-      }
-    }
-
-    return res.status(200).json({
-      success: true,
-      message: `Processed: ${added} added, ${skipped} skipped, ${errors} errors`,
-      added, skipped, errors
-    });
+    return res.status(405).json({ success: false, message: 'Method Not Allowed' });
 
   } catch (error) {
     console.error('JustDial Webhook Error:', error);
