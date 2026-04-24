@@ -10,6 +10,8 @@ This file provides guidance to Google Gemini when working with code in this repo
 
 **⚠️ PRODUCTION APP — CRITICAL RULE:** This application is live in production with real users and real data. Before making ANY code change, verify thoroughly that it will NOT break existing functionality or corrupt/lose existing data. All changes must be backward-compatible with the current database schema and user workflows. Never run destructive operations (bulk deletes, schema migrations, collection renames) without explicit user approval. Test your logic carefully — bugs here impact real businesses.
 
+**📝 SELF-DOCUMENTING RULE:** Whenever you make critical or important changes to the codebase (new modules, bug fixes for gotchas, architectural decisions, new integrations, schema changes, new API endpoints, permission changes, or any lesson learned from a bug), you MUST automatically update **both** `GEMINI.md` and `CLAUDE.md` with the relevant rules, notes, or documentation. Do not wait to be asked — proactively add it so future sessions never miss this knowledge.
+
 ## Tech Stack
 
 - **Frontend:** React 18 + Vite, React Router (hash-based)
