@@ -156,10 +156,16 @@ export default async function handler(req, res) {
     // --- 7. Search --------------------------------------------------------
     if (search) {
       const q = search.toLowerCase();
-      filteredForTab = filteredForTab.filter(l =>
-        [l.name, l.email, l.phone, l.source, l.stage, l.assign, l.label, l.notes]
-          .some(v => (v || '').toString().toLowerCase().includes(q))
-      );
+      filteredForTab = filteredForTab.filter(l => {
+        // Standard fields
+        const stdFields = [l.name, l.companyName, l.email, l.phone, l.source, l.stage, l.assign, l.label, l.notes, l.requirement, l.location, l.alternativeNumber, l.productCat];
+        if (stdFields.some(v => (v || '').toString().toLowerCase().includes(q))) return true;
+        // Custom fields
+        if (l.custom && typeof l.custom === 'object') {
+          return Object.values(l.custom).some(v => (v || '').toString().toLowerCase().includes(q));
+        }
+        return false;
+      });
     }
 
     const totalFiltered = filteredForTab.length;
