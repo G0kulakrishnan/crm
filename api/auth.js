@@ -52,6 +52,14 @@ export default async function handler(req, res) {
         const { userProfiles } = await db.query({ userProfiles: { $: { where: { email: cleanEmail }, limit: 1 } } });
         if (userProfiles?.[0]) {
           await db.transact([tx.userCredentials[user.id].update({ isVerified: true, otp: null })]);
+        } else if (user.isTeamMember) {
+          // Team members don't have userProfiles — check teamMembers instead
+          const { teamMembers } = await db.query({ teamMembers: { $: { where: { email: cleanEmail }, limit: 1 } } });
+          if (teamMembers?.[0]) {
+            await db.transact([tx.userCredentials[user.id].update({ isVerified: true, otp: null })]);
+          } else {
+            return res.status(403).json({ error: 'Email verification pending', message: 'Please verify your email using the OTP sent during registration.' });
+          }
         } else {
           return res.status(403).json({ error: 'Email verification pending', message: 'Please verify your email using the OTP sent during registration.' });
         }
@@ -222,7 +230,7 @@ export default async function handler(req, res) {
       }
 
       const credId = existingCred?.id || id();
-      await db.transact([tx.userCredentials[credId].update({ email: cleanEmail, password: hashedPassword, ownerUserId, teamMemberId, isTeamMember: true, updatedAt: Date.now(), ...(existingCred?.id ? {} : { createdAt: Date.now() }) })]);
+      await db.transact([tx.userCredentials[credId].update({ email: cleanEmail, password: hashedPassword, ownerUserId, teamMemberId, isTeamMember: true, isVerified: true, updatedAt: Date.now(), ...(existingCred?.id ? {} : { createdAt: Date.now() }) })]);
       return res.status(200).json({ success: true, message: 'Password set' });
     }
 
