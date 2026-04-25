@@ -345,7 +345,7 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
       </div>
 
       {/* Team Member Call Summary */}
-      {(perms?.isOwner || perms?.isAdmin || perms?.isManager) && team.length > 0 && !staffFilter && (
+      {(perms?.isOwner || perms?.isAdmin || perms?.isManager) && team.length > 0 && (
         <div style={{ border: '1px solid var(--border)', borderRadius: 10, background: 'var(--card)', overflow: 'hidden', marginBottom: 20 }}>
           <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg)' }}>
             <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Team Member Call Summary</h4>
@@ -384,6 +384,7 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
                     <td style={{ padding: '8px 12px', textAlign: 'center', color: '#f97316', fontWeight: 600 }}>{m.notPicked}</td>
                   </tr>
                 ))}
+
                 <tr style={{ borderTop: '2px solid var(--border)', background: 'var(--bg)', fontWeight: 700 }}>
                   <td style={{ padding: '8px 12px', fontWeight: 700 }}>Total</td>
                   <td style={{ padding: '8px 12px', textAlign: 'center', fontWeight: 700 }}>{teamCallStats.reduce((s, m) => s + m.total, 0)}</td>
