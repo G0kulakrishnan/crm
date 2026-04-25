@@ -224,15 +224,19 @@ Plans are stored in `globalSettings.plans` and define:
 ## Authentication & Login Flow
 
 1. **AuthScreen** offers two methods:
-   - Password: POST `/api/auth` → email + password → validated → JWT token
-   - Magic Code: `db.auth.sendMagicCode()` → code via email → `db.auth.signInWithMagicCode()`
+   - Password: POST `/api/auth` -> email + password -> validated -> JWT token
+   - Magic Code: `db.auth.sendMagicCode()` -> code via email -> `db.auth.signInWithMagicCode()`
 
 2. **Discovery** (in MainApp.jsx):
-   - If user is a team member → show MainApp with role restrictions
-   - If user is a partner → show PartnerApp (distributor/retailer portal)
-   - Otherwise → show MainApp as owner
+   - If user is a team member -> show MainApp with role restrictions
+   - If user is a partner -> show PartnerApp (distributor/retailer portal)
+   - Otherwise -> show MainApp as owner
 
 3. **Permissions** checked on every action via `usePermissions` hook
+
+4. **Team Member & Partner Authentication Gotcha**: 
+   - When setting passwords for Team Members or Partners (`/api/auth`), you **MUST** explicitly set `isVerified: true` on their `userCredentials` record. 
+   - Since they do not have a `userProfiles` record, the standard login flow needs to check the `teamMembers` or `partnerApplications` collections to bypass the new-account OTP verification prompt. If `isVerified` is false/undefined and they lack a `userProfiles`, they will be incorrectly blocked.
 
 ## Email Automation Engine
 
@@ -363,6 +367,8 @@ Set `window.DEBUG_PERMS = true` in browser console to trace permission checks. L
 8. **Plan module keys are case-sensitive** — Teams.jsx uses PascalCase (`Leads`), AdminPanel/usePlanEnforcement use camelCase (`leads`). Mismatch = module appears enabled/disabled incorrectly.
 9. **`isModuleEnabled` is strict** — `modules[key] === true` (not `!== false`). A missing key is treated as disabled. When adding a new module to `ALL_MODULES`, re-save existing plans in Admin Panel to add the new key explicitly.
 10. **`db.useQuery` with `leads: limit 10k+` will hang** — See Scale Architecture section. Always use server-driven endpoints for lead data. Never add `leads` back to a component's `db.useQuery`.
+11. **Search functionality in Server-Paginated APIs** - Server APIs like `api/leads-page.js` do not automatically cover all entity fields. You MUST explicitly map standard fields and iterate over custom fields (e.g. `Object.values(l.custom)`) during search filtering, otherwise users cannot find records by custom attributes.
+12. **Duplicate Checks via API** - When a list is server-paginated (e.g., Leads), the client-side array only contains ~25 records. You CANNOT perform deduplication checks by scanning this array. You MUST delegate deduplication checks (e.g., checking for existing phone/email) to a central backend endpoint like `/api/lead-check-duplicate` to verify uniqueness against the entire database.
 
 ## Environment Variables
 
