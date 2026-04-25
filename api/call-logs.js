@@ -86,14 +86,37 @@ export default async function handler(req, res) {
 
       // Batch mode: array of call logs from Android app
       if (Array.isArray(batch) && batch.length > 0) {
-        // Auto-match phones to leads
-        const { leads } = await db.query({ leads: { $: { where: { userId: ownerId } } } });
+        // Fetch existing call logs + leads for dedup & auto-match
+        const { callLogs: existingLogs, leads } = await db.query({
+          callLogs: { $: { where: { userId: ownerId } } },
+          leads: { $: { where: { userId: ownerId } } },
+        });
         const leadMap = Object.fromEntries((leads || []).map(l => [l.phone?.replace(/\D/g, ''), l]));
 
-        const txs = batch.map(entry => {
+        // Build dedup set: phone (last 10 digits) + createdAt + direction + staffEmail
+        const dedupSet = new Set();
+        (existingLogs || []).forEach(log => {
+          const p = (log.phone || '').replace(/\D/g, '').slice(-10);
+          const key = `${p}|${log.createdAt || ''}|${log.direction || ''}|${log.staffEmail || ''}`;
+          dedupSet.add(key);
+        });
+
+        const txs = [];
+        let skipped = 0;
+        for (const entry of batch) {
           const cleanPhone = entry.phone?.replace(/\D/g, '') || '';
+          const shortPhone = cleanPhone.slice(-10);
+          const entryTs = entry.createdAt || Date.now();
+          const dedupKey = `${shortPhone}|${entryTs}|${entry.direction || 'Incoming'}|${entry.staffEmail || ''}`;
+
+          if (dedupSet.has(dedupKey)) {
+            skipped++;
+            continue;
+          }
+          dedupSet.add(dedupKey); // prevent intra-batch duplicates too
+
           const matched = leadMap[cleanPhone] || null;
-          return tx.callLogs[id()].update({
+          txs.push(tx.callLogs[id()].update({
             phone: entry.phone || '',
             contactName: entry.contactName || matched?.name || '',
             direction: entry.direction || 'Incoming',
@@ -106,14 +129,19 @@ export default async function handler(req, res) {
             staffName: entry.staffName || '',
             userId: ownerId,
             actorId: entry.actorId || ownerId,
-            createdAt: entry.createdAt || Date.now(),
+            createdAt: entryTs,
             updatedAt: Date.now(),
             source: 'android',
-          });
-        });
+          }));
+        }
 
-        await db.transact(txs);
-        return res.status(201).json({ success: true, created: batch.length });
+        if (txs.length > 0) {
+          // Batch in groups of 50 to stay within transaction limits
+          for (let i = 0; i < txs.length; i += 50) {
+            await db.transact(txs.slice(i, i + 50));
+          }
+        }
+        return res.status(201).json({ success: true, created: txs.length, skipped });
       }
 
       // Single create

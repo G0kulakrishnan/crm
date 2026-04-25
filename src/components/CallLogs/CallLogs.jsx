@@ -180,6 +180,23 @@ export default function CallLogs({ user, perms, ownerId, planEnforcement }) {
     if (!addLeadForm.stage) { toast('Please select a stage', 'error'); return; }
     setSavingLead(true);
     try {
+      // Duplicate check before creating
+      const dupRes = await fetch('/api/lead-check-duplicate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ownerId, phone: addLeadForm.phone, email: addLeadForm.email }),
+      });
+      const dupData = await dupRes.json();
+      if (dupData.duplicate) {
+        const d = dupData.duplicate;
+        const proceed = window.confirm(
+          `A ${d.type} with the same ${d.matchedOn} already exists:\n\n` +
+          `Name: ${d.name}\nPhone: ${d.phone}\nEmail: ${d.email}\n\n` +
+          `Do you still want to create this lead?`
+        );
+        if (!proceed) { setSavingLead(false); return; }
+      }
+
       const newLeadId = id();
       await db.transact([
         db.tx.leads[newLeadId].update({
